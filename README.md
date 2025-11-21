@@ -35,8 +35,6 @@ Key environment variables (see `.env.example`):
 - `APP_URL` – public base URL for the app; used to derive OIDC callback URLs (e.g., `https://app.example.com`)
 - `FIRST_SUPERUSER_*` – optional bootstrap admin created via `python -m app.db.init_db`
 
-> **Schema note:** the teams feature introduces new `teams`/`team_members` tables and a `projects.team_id` column. Make sure to apply the equivalent migrations (or recreate the database) after pulling these changes.
-
 ### Frontend setup
 
 ```bash
@@ -99,6 +97,7 @@ Services:
 - When enabled, the login screen shows a “Continue with Single Sign-On” button that starts the OIDC flow against the configured provider
 - Successful OIDC logins create/activate users automatically and redirect back to `${APP_URL}/oidc/callback` with a JWT token for the SPA to store
 - Redirect URIs are derived automatically from `APP_URL`: `${APP_URL}/api/v1/auth/oidc/callback` for the provider callback and `${APP_URL}/oidc/callback` for the frontend
+
 ## Next Steps
 
 - Add migration tooling (Alembic) for production schema changes

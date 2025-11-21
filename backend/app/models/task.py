@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Float
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -24,6 +24,13 @@ class TaskPriority(str, Enum):
     urgent = "urgent"
 
 
+class TaskAssignee(SQLModel, table=True):
+    __tablename__ = "task_assignees"
+
+    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
+    user_id: int = Field(foreign_key="users.id", primary_key=True)
+
+
 class Task(SQLModel, table=True):
     __tablename__ = "tasks"
 
@@ -39,8 +46,11 @@ class Task(SQLModel, table=True):
         default=TaskPriority.medium,
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),
     )
-    assignee_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    due_date: Optional[datetime] = Field(default=None)
+    due_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    sort_order: float = Field(
+        default=0,
+        sa_column=Column(Float, nullable=False, server_default="0"),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -51,4 +61,4 @@ class Task(SQLModel, table=True):
     )
 
     project: Optional["Project"] = Relationship(back_populates="tasks")
-    assignee: Optional["User"] = Relationship(back_populates="tasks_assigned")
+    assignees: List["User"] = Relationship(back_populates="tasks_assigned", link_model=TaskAssignee)

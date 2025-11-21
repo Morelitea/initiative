@@ -9,50 +9,52 @@ import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { Project } from '../types/api';
 
-export const ArchivePage = () => {
+export const TemplatesPage = () => {
   const { user } = useAuth();
   const canManageProjects = user?.role === 'admin' || user?.role === 'project_manager';
 
-  const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ['projects', 'archived'],
+  const templatesQuery = useQuery<Project[]>({
+    queryKey: ['projects', 'templates'],
     queryFn: async () => {
-      const response = await apiClient.get<Project[]>('/projects/', { params: { archived: true } });
+      const response = await apiClient.get<Project[]>('/projects/', { params: { template: true } });
       return response.data;
     },
   });
 
-  const unarchiveProject = useMutation({
+  const deactivateTemplate = useMutation({
     mutationFn: async (projectId: number) => {
-      await apiClient.post(`/projects/${projectId}/unarchive`, {});
+      await apiClient.patch(`/projects/${projectId}`, { is_template: false });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 
-  if (archivedProjectsQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading archived projects…</p>;
+  if (templatesQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading templates…</p>;
   }
 
-  if (archivedProjectsQuery.isError) {
-    return <p className="text-sm text-destructive">Unable to load archived projects.</p>;
+  if (templatesQuery.isError) {
+    return <p className="text-sm text-destructive">Unable to load templates.</p>;
   }
 
-  const projects = archivedProjectsQuery.data ?? [];
+  const projects = templatesQuery.data ?? [];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Archived projects</h1>
-        <p className="text-muted-foreground">Reopen an initiative when the work picks back up.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Project templates</h1>
+        <p className="text-muted-foreground">
+          Standardize best practices and quickly spin up new initiatives using reusable templates.
+        </p>
       </div>
 
       {projects.length === 0 ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>No archived projects</CardTitle>
-            <CardDescription>Active projects stay on the main projects tab.</CardDescription>
+            <CardTitle>No templates available</CardTitle>
+            <CardDescription>Create a template from any project in the project settings page.</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -65,22 +67,20 @@ export const ArchivePage = () => {
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 {project.team ? <p>Team: {project.team.name}</p> : null}
-                <p>
-                  Archived at: {project.archived_at ? new Date(project.archived_at).toLocaleString() : 'Unknown'}
-                </p>
+                <p>Last updated: {new Date(project.updated_at).toLocaleString()}</p>
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">
                 <Button asChild variant="link" className="px-0">
-                  <Link to={`/projects/${project.id}`}>View details</Link>
+                  <Link to={`/projects/${project.id}`}>View template</Link>
                 </Button>
                 {canManageProjects ? (
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => unarchiveProject.mutate(project.id)}
-                    disabled={unarchiveProject.isPending}
+                    onClick={() => deactivateTemplate.mutate(project.id)}
+                    disabled={deactivateTemplate.isPending}
                   >
-                    Unarchive
+                    Stop using as template
                   </Button>
                 ) : null}
               </CardFooter>

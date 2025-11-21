@@ -2,9 +2,11 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '../api/client';
+import { Markdown } from '../components/Markdown';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
@@ -17,6 +19,7 @@ export const TeamsPage = () => {
   const isAdmin = user?.role === 'admin';
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
+  const NO_USER_VALUE = 'none';
   const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
 
   const teamsQuery = useQuery<Team[]>({
@@ -94,7 +97,7 @@ export const TeamsPage = () => {
         const next = { ...prev };
         for (const team of teamsQuery.data) {
           if (!(team.id in next)) {
-            next[team.id] = '';
+            next[team.id] = NO_USER_VALUE;
           }
         }
         return next;
@@ -119,7 +122,10 @@ export const TeamsPage = () => {
   };
 
   const handleDeleteTeam = (teamId: number, name: string) => {
-    if (!window.confirm(`Delete team "${name}"? This cannot be undone.`)) {
+    const confirmation = window.prompt(
+      `Deleting team "${name}" will permanently delete all of its projects and tasks.\n\nType "delete" to confirm.`
+    );
+    if (!confirmation || confirmation.trim().toLowerCase() !== 'delete') {
       return;
     }
     deleteTeam.mutate(teamId);
@@ -127,11 +133,11 @@ export const TeamsPage = () => {
 
   const handleAddMember = (teamId: number) => {
     const value = selectedUsers[teamId];
-    if (!value) {
+    if (!value || value === NO_USER_VALUE) {
       return;
     }
     addTeamMember.mutate({ teamId, userId: Number(value) });
-    setSelectedUsers((prev) => ({ ...prev, [teamId]: '' }));
+    setSelectedUsers((prev) => ({ ...prev, [teamId]: NO_USER_VALUE }));
   };
 
   const handleRemoveMember = (teamId: number, userId: number, email: string) => {
@@ -171,10 +177,11 @@ export const TeamsPage = () => {
               onChange={(event) => setTeamName(event.target.value)}
               required
             />
-            <Input
-              placeholder="Description"
+            <Textarea
+              placeholder="Description (supports Markdown)"
               value={teamDescription}
               onChange={(event) => setTeamDescription(event.target.value)}
+              rows={3}
             />
             <Button type="submit" disabled={createTeam.isPending}>
               {createTeam.isPending ? 'Creating…' : 'Create team'}
@@ -191,31 +198,40 @@ export const TeamsPage = () => {
             <CardHeader className="flex flex-row items-start justify-between gap-3">
               <div>
                 <CardTitle>{team.name}</CardTitle>
-                <CardDescription>{team.description || 'No description yet.'}</CardDescription>
+                {team.description ? (
+                  <Markdown content={team.description} className="text-sm" />
+                ) : (
+                  <CardDescription>No description yet.</CardDescription>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleTeamFieldUpdate(team.id, 'name', team.name)}
-                >
-                  Rename
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleTeamFieldUpdate(team.id, 'description', team.description ?? '')}
-                >
-                  Edit description
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDeleteTeam(team.id, team.name)}
-                  disabled={deleteTeam.isPending}
-                >
-                  Delete
-                </Button>
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTeamFieldUpdate(team.id, 'name', team.name)}
+                  >
+                    Rename
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTeamFieldUpdate(team.id, 'description', team.description ?? '')}
+                  >
+                    Edit description
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteTeam(team.id, team.name)}
+                    disabled={deleteTeam.isPending}
+                  >
+                    Delete
+                  </Button>
+                </div>
+                <p className="text-xs text-destructive">
+                  Deleting a team removes all of its projects and tasks.
+                </p>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -248,14 +264,14 @@ export const TeamsPage = () => {
               </div>
               <div className="flex flex-wrap gap-3">
                 <Select
-                  value={selectedUsers[team.id] ?? ''}
+                  value={selectedUsers[team.id] ?? NO_USER_VALUE}
                   onValueChange={(value) => setSelectedUsers((prev) => ({ ...prev, [team.id]: value }))}
                 >
                   <SelectTrigger className="min-w-[200px]">
                     <SelectValue placeholder="Select user" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Select user</SelectItem>
+                    <SelectItem value={NO_USER_VALUE}>Select user</SelectItem>
                     {availableUsers(team).map((candidate) => (
                       <SelectItem key={candidate.id} value={String(candidate.id)}>
                         {candidate.full_name ?? candidate.email}

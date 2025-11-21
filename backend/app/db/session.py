@@ -25,3 +25,23 @@ async def get_session() -> AsyncSession:
 async def init_models() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.exec_driver_sql(
+            "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sort_order DOUBLE PRECISION NOT NULL DEFAULT 0"
+        )
+        await conn.exec_driver_sql(
+            """
+            WITH ordered AS (
+                SELECT
+                    id,
+                    ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY created_at, id) AS rn
+                FROM tasks
+            )
+            UPDATE tasks
+            SET sort_order = ordered.rn
+            FROM ordered
+            WHERE tasks.id = ordered.id
+              AND (tasks.sort_order = 0 OR tasks.sort_order IS NULL)
+            """
+        )
+        await conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_base64 TEXT")
+        await conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(2048)")

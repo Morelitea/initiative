@@ -1,4 +1,4 @@
-import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 import { apiClient, setAuthToken } from '../api/client';
 import { User } from '../types/api';
@@ -20,6 +20,7 @@ interface AuthContextValue {
   register: (payload: RegisterPayload) => Promise<User>;
   completeOidcLogin: (token: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -31,6 +32,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  const refreshUser = useCallback(async () => {
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    const response = await apiClient.get<User>('/users/me');
+    setUser(response.data);
+  }, [token]);
+
   useEffect(() => {
     setLoading(true);
     setAuthToken(token);
@@ -41,18 +51,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       try {
-        const response = await apiClient.get<User>('/users/me');
-        setUser(response.data);
+        await refreshUser();
       } catch (error) {
         console.error('Failed to restore session', error);
         setToken(null);
         localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
     void bootstrap();
-  }, [token]);
+  }, [token, refreshUser]);
 
   const login = async ({ email, password }: LoginPayload) => {
     const params = new URLSearchParams();
@@ -71,8 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
     setAuthToken(newToken);
 
-    const me = await apiClient.get<User>('/users/me');
-    setUser(me.data);
+    await refreshUser();
   };
 
   const register = async ({ email, password, full_name }: RegisterPayload) => {
@@ -103,6 +112,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     register,
     completeOidcLogin,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

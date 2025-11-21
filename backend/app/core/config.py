@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     OIDC_REDIRECT_URI: str | None = None
     OIDC_POST_LOGIN_REDIRECT: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
-    OIDC_SCOPES: list[str] = Field(default_factory=lambda: ["openid", "profile", "email"])
+    OIDC_SCOPES: list[str] | str | None = None
 
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None
     FIRST_SUPERUSER_PASSWORD: str | None = None

@@ -2,11 +2,12 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
-from sqlmodel import select
+from sqlmodel import select, delete
 
 from app.api.deps import SessionDep, require_roles
 from app.models.project import Project
 from app.models.team import Team, TeamMember
+from app.models.task import Task, TaskAssignee
 from app.models.user import User, UserRole
 from app.schemas.team import TeamCreate, TeamMemberAdd, TeamRead, TeamUpdate
 from app.schemas.user import UserRead
@@ -106,6 +107,23 @@ async def remove_team_member(team_id: int, user_id: int, session: SessionDep, _:
     membership = result.one_or_none()
     if membership:
         await session.delete(membership)
+
+        project_ids_result = await session.exec(select(Project.id).where(Project.team_id == team_id))
+        project_ids = [project_id for project_id in project_ids_result.all()]
+
+        if project_ids:
+            task_ids_result = await session.exec(
+                select(Task.id).where(Task.project_id.in_(tuple(project_ids)))
+            )
+            task_ids = [task_id for task_id in task_ids_result.all()]
+            if task_ids:
+                delete_stmt = (
+                    delete(TaskAssignee)
+                    .where(TaskAssignee.user_id == user_id)
+                    .where(TaskAssignee.task_id.in_(tuple(task_ids)))
+                )
+                await session.exec(delete_stmt)
+
         await session.commit()
     await session.refresh(team)
     await session.refresh(team, attribute_names=["members"])

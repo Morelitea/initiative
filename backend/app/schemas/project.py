@@ -11,6 +11,7 @@ from app.schemas.user import UserRead
 class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
+    icon: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -18,14 +19,22 @@ class ProjectCreate(ProjectBase):
     team_id: Optional[int] = None
     read_roles: Optional[List[ProjectRole]] = None
     write_roles: Optional[List[ProjectRole]] = None
+    is_template: bool = False
+    template_id: Optional[int] = None
 
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    icon: Optional[str] = None
     team_id: Optional[int] = None
     read_roles: Optional[List[ProjectRole]] = None
     write_roles: Optional[List[ProjectRole]] = None
+    is_template: Optional[bool] = None
+
+
+class ProjectDuplicateRequest(BaseModel):
+    name: Optional[str] = None
 
 
 class ProjectMemberBase(BaseModel):
@@ -53,6 +62,7 @@ class ProjectRead(ProjectBase):
     read_roles: List[ProjectRole] = Field(default_factory=list)
     write_roles: List[ProjectRole] = Field(default_factory=list)
     is_archived: bool
+    is_template: bool
     archived_at: Optional[datetime] = None
     owner: Optional[UserRead] = None
     team: Optional[TeamRead] = None

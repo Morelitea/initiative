@@ -25,9 +25,12 @@ export const SettingsLayout = () => {
     );
   }
 
+  const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const tabsBySpecificity = [...settingsTabs].sort((a, b) => b.path.length - a.path.length);
   const activeTab =
-    settingsTabs.find((tab) => location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`))
-      ?.value ?? 'registration';
+    tabsBySpecificity.find(
+      (tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`)
+    )?.value ?? 'registration';
 
   return (
     <div className="space-y-6">

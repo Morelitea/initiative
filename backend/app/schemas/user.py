@@ -21,6 +21,8 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
+    avatar_base64: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
 class UserRead(UserBase):
@@ -28,6 +30,8 @@ class UserRead(UserBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    avatar_base64: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -35,3 +39,10 @@ class UserRead(UserBase):
 
 class UserInDB(UserRead):
     hashed_password: str
+
+
+class UserSelfUpdate(BaseModel):
+    full_name: Optional[str] = None
+    password: Optional[str] = None
+    avatar_base64: Optional[str] = None
+    avatar_url: Optional[str] = None

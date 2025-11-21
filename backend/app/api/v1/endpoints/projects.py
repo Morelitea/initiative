@@ -7,11 +7,14 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_user, require_roles
 from app.models.project import Project, ProjectMember, ProjectRole
+from app.models.task import Task, TaskAssignee
 from app.models.team import Team, TeamMember
 from app.models.user import User, UserRole
 from app.services import project_access
+from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
+    ProjectDuplicateRequest,
     ProjectMemberCreate,
     ProjectMemberRead,
     ProjectRead,
@@ -22,6 +25,10 @@ router = APIRouter()
 
 ManagerUser = Annotated[User, Depends(require_roles(UserRole.admin, UserRole.project_manager))]
 AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
+
+
+def _project_payload(project: Project) -> dict:
+    return ProjectRead.model_validate(project).model_dump()
 
 
 async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
@@ -64,6 +71,39 @@ async def _ensure_user_in_team(team_id: int, user_id: int, session: SessionDep) 
 def _ensure_not_archived(project: Project) -> None:
     if project.is_archived:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
+
+
+async def _duplicate_template_tasks(session: SessionDep, template: Project, new_project: Project) -> None:
+    task_stmt = (
+        select(Task)
+        .options(selectinload(Task.assignees))
+        .where(Task.project_id == template.id)
+        .order_by(Task.sort_order.asc(), Task.id.asc())
+    )
+    task_result = await session.exec(task_stmt)
+    template_tasks = task_result.all()
+    if not template_tasks:
+        return
+
+    for template_task in template_tasks:
+        new_task = Task(
+            project_id=new_project.id,
+            title=template_task.title,
+            description=template_task.description,
+            status=template_task.status,
+            priority=template_task.priority,
+            due_date=template_task.due_date,
+            sort_order=template_task.sort_order,
+        )
+        session.add(new_task)
+        await session.flush()
+        if template_task.assignees:
+            session.add_all(
+                [
+                    TaskAssignee(task_id=new_task.id, user_id=assignee.id)
+                    for assignee in template_task.assignees
+                ]
+            )
 
 
 async def _require_project_membership(
@@ -129,6 +169,7 @@ async def list_projects(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     archived: Optional[bool] = Query(default=None),
+    template: Optional[bool] = Query(default=None),
 ) -> List[Project]:
     base_statement = select(Project).options(
         selectinload(Project.members),
@@ -139,13 +180,19 @@ async def list_projects(
     result = await session.exec(base_statement)
     all_projects = result.all()
 
-    def _matches_archive_filter(project: Project) -> bool:
+    def _matches_filters(project: Project) -> bool:
+        if template is None:
+            if project.is_template:
+                return False
+        elif project.is_template != template:
+            return False
+
         if archived is None:
             return not project.is_archived
         return project.is_archived == archived
 
     if current_user.role == UserRole.admin:
-        return [project for project in all_projects if _matches_archive_filter(project)]
+        return [project for project in all_projects if _matches_filters(project)]
 
     membership_result = await session.exec(select(ProjectMember).where(ProjectMember.user_id == current_user.id))
     memberships = membership_result.all()
@@ -156,7 +203,7 @@ async def list_projects(
 
     visible_projects: List[Project] = []
     for project in all_projects:
-        if not _matches_archive_filter(project):
+        if not _matches_filters(project):
             continue
         if project.owner_id == current_user.id:
             visible_projects.append(project)
@@ -187,20 +234,49 @@ async def create_project(
     session: SessionDep,
     manager_user: ManagerUser,
 ) -> Project:
+    template_project: Project | None = None
+    if project_in.template_id is not None:
+        template_project = await _get_project_or_404(project_in.template_id, session)
+        if not template_project.is_template:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected template is invalid")
+        await _require_project_membership(template_project, manager_user, session, access="read")
+
     owner_id = project_in.owner_id or manager_user.id
-    team_id = project_in.team_id
+    icon_value = project_in.icon if project_in.icon is not None else (template_project.icon if template_project else None)
+    description_value = (
+        project_in.description
+        if project_in.description is not None
+        else (template_project.description if template_project else None)
+    )
+    team_id = (
+        project_in.team_id
+        if project_in.team_id is not None
+        else (template_project.team_id if template_project else None)
+    )
     if team_id is not None:
         await _get_team_or_404(team_id, session)
         await _ensure_user_in_team(team_id, owner_id, session)
-    read_roles = project_access.normalize_read_roles(project_in.read_roles)
-    write_roles = project_access.normalize_write_roles(project_in.write_roles)
+    read_roles_source = (
+        project_in.read_roles
+        if project_in.read_roles is not None
+        else (template_project.read_roles if template_project else None)
+    )
+    write_roles_source = (
+        project_in.write_roles
+        if project_in.write_roles is not None
+        else (template_project.write_roles if template_project else None)
+    )
+    read_roles = project_access.normalize_read_roles(read_roles_source)
+    write_roles = project_access.normalize_write_roles(write_roles_source)
     project = Project(
         name=project_in.name,
-        description=project_in.description,
+        icon=icon_value,
+        description=description_value,
         owner_id=owner_id,
         team_id=team_id,
         read_roles=read_roles,
         write_roles=write_roles,
+        is_template=project_in.is_template,
     )
 
     session.add(project)
@@ -211,9 +287,15 @@ async def create_project(
     owner_membership = ProjectMember(project_id=project.id, user_id=owner_id, role=ProjectRole.admin)
     session.add(owner_membership)
     await session.commit()
+
+    if template_project:
+        await _duplicate_template_tasks(session, template_project, project)
+        await session.commit()
+
     await session.refresh(project)
 
     project = await _get_project_or_404(project.id, session)
+    await broadcast_event("project", "created", _project_payload(project))
     return project
 
 
@@ -230,7 +312,57 @@ async def archive_project(
         project.archived_at = datetime.now(timezone.utc)
         session.add(project)
         await session.commit()
-    return await _get_project_or_404(project_id, session)
+    updated = await _get_project_or_404(project_id, session)
+    await broadcast_event("project", "updated", _project_payload(updated))
+    return updated
+
+
+@router.post("/{project_id}/duplicate", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
+async def duplicate_project(
+    project_id: int,
+    duplicate_in: ProjectDuplicateRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Project:
+    source_project = await _get_project_or_404(project_id, session)
+    await _require_project_membership(source_project, current_user, session, access="read", require_manager=True)
+
+    owner_id = current_user.id
+    team_id = source_project.team_id
+    if team_id is not None:
+        await _get_team_or_404(team_id, session)
+        await _ensure_user_in_team(team_id, owner_id, session)
+
+    new_name = (
+        duplicate_in.name.strip()
+        if duplicate_in.name and duplicate_in.name.strip()
+        else f"{source_project.name} copy"
+    )
+    new_project = Project(
+        name=new_name,
+        icon=source_project.icon,
+        description=source_project.description,
+        owner_id=owner_id,
+        team_id=team_id,
+        read_roles=list(source_project.read_roles),
+        write_roles=list(source_project.write_roles),
+        is_template=False,
+    )
+
+    session.add(new_project)
+    await session.commit()
+    await session.refresh(new_project)
+
+    owner_membership = ProjectMember(project_id=new_project.id, user_id=owner_id, role=ProjectRole.admin)
+    session.add(owner_membership)
+    await session.commit()
+
+    await _duplicate_template_tasks(session, source_project, new_project)
+    await session.commit()
+
+    new_project = await _get_project_or_404(new_project.id, session)
+    await broadcast_event("project", "created", _project_payload(new_project))
+    return new_project
 
 
 @router.post("/{project_id}/unarchive", response_model=ProjectRead)
@@ -246,7 +378,9 @@ async def unarchive_project(
         project.archived_at = None
         session.add(project)
         await session.commit()
-    return await _get_project_or_404(project_id, session)
+    updated = await _get_project_or_404(project_id, session)
+    await broadcast_event("project", "updated", _project_payload(updated))
+    return updated
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -285,6 +419,7 @@ async def update_project(
     session.add(project)
     await session.commit()
     project = await _get_project_or_404(project.id, session)
+    await broadcast_event("project", "updated", _project_payload(project))
     return project
 
 
@@ -327,3 +462,4 @@ async def delete_project(
     project = await _get_project_or_404(project_id, session)
     await session.delete(project)
     await session.commit()
+    await broadcast_event("project", "deleted", {"id": project_id})

@@ -1,0 +1,18 @@
+# MVP To do
+
+## New features
+
+- [ ] Implement Alembic migrations
+- [x] Project filtering and sorting
+- [x] Task filtering
+- [x] Duplicate projects or templates
+- [x] Remember what view was last selected per project
+- [x] Allow assigning tasks to multiple users
+- [x] My tasks page with List of tasks assigned to logged in user. Should show what project task belongs to and link to the project.
+- [x] Make app a PWA so it can be installed. Cache projects and tasks for offline use
+
+## Bug fixes
+
+- [x] Fix updating profile 403
+- [ ] Timezone issues :(
+- [x] Releasing the drag handle on a project card navigates to the project

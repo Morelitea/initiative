@@ -27,6 +27,7 @@ class Project(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, nullable=False)
+    icon: Optional[str] = Field(default=None, max_length=8)
     description: Optional[str] = Field(default=None)
     owner_id: int = Field(foreign_key="users.id", nullable=False)
     team_id: Optional[int] = Field(default=None, foreign_key="teams.id")
@@ -47,6 +48,7 @@ class Project(SQLModel, table=True):
         sa_column=Column(JSON, nullable=False, server_default=json.dumps(DEFAULT_PROJECT_WRITE_ROLES)),
     )
     is_archived: bool = Field(default=False, nullable=False)
+    is_template: bool = Field(default=False, nullable=False)
     archived_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),

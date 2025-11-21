@@ -216,6 +216,7 @@ async def oidc_callback(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC profile missing subject")
         email = f"{sub}@oidc.local"
     full_name = profile.get("name") or profile.get("preferred_username") or email
+    avatar_url = profile.get("picture")
 
     statement = select(User).where(User.email == email)
     result = await session.exec(statement)
@@ -228,13 +229,25 @@ async def oidc_callback(
             hashed_password=get_password_hash(random_password),
             role=UserRole.member,
             is_active=True,
+            avatar_url=avatar_url,
+            avatar_base64=None,
         )
         session.add(user)
         await session.commit()
         await session.refresh(user)
     else:
+        updated = False
         if not user.is_active:
             user.is_active = True
+            updated = True
+        if full_name and user.full_name != full_name:
+            user.full_name = full_name
+            updated = True
+        if avatar_url and user.avatar_url != avatar_url:
+            user.avatar_url = avatar_url
+            user.avatar_base64 = None
+            updated = True
+        if updated:
             session.add(user)
             await session.commit()
             await session.refresh(user)

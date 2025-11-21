@@ -9,6 +9,8 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
+import { Input } from '../components/ui/input';
+import { EmojiPicker } from '../components/EmojiPicker';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { Project, ProjectRole, Team } from '../types/api';
@@ -26,8 +28,13 @@ export const ProjectSettingsPage = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string>(NO_TEAM_VALUE);
   const [accessMessage, setAccessMessage] = useState<string | null>(null);
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
+  const [nameText, setNameText] = useState<string>('');
+  const [iconText, setIconText] = useState<string>('');
+  const [identityMessage, setIdentityMessage] = useState<string | null>(null);
   const [descriptionText, setDescriptionText] = useState<string>('');
   const [descriptionMessage, setDescriptionMessage] = useState<string | null>(null);
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
+  const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
 
   const projectQuery = useQuery<Project>({
     queryKey: ['projects', parsedProjectId],
@@ -52,10 +59,14 @@ export const ProjectSettingsPage = () => {
       setReadRoles(projectQuery.data.read_roles);
       setWriteRoles(projectQuery.data.write_roles);
       setSelectedTeamId(projectQuery.data.team_id ? String(projectQuery.data.team_id) : NO_TEAM_VALUE);
+      setNameText(projectQuery.data.name);
+      setIconText(projectQuery.data.icon ?? '');
       setDescriptionText(projectQuery.data.description ?? '');
       setAccessMessage(null);
       setTeamMessage(null);
+      setIdentityMessage(null);
       setDescriptionMessage(null);
+      setTemplateMessage(null);
     }
   }, [projectQuery.data]);
 
@@ -72,6 +83,7 @@ export const ProjectSettingsPage = () => {
       setReadRoles(data.read_roles);
       setWriteRoles(data.write_roles);
       void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
     },
   });
 
@@ -85,6 +97,27 @@ export const ProjectSettingsPage = () => {
       setTeamMessage('Project team updated');
       setSelectedTeamId(data.team_id ? String(data.team_id) : NO_TEAM_VALUE);
       void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
+    },
+  });
+
+  const updateIdentity = useMutation({
+    mutationFn: async () => {
+      const trimmedIcon = iconText.trim();
+      const payload = {
+        name: nameText.trim() || projectQuery.data?.name || '',
+        icon: trimmedIcon ? trimmedIcon : null,
+      };
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, payload);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setIdentityMessage('Project details updated');
+      setNameText(data.name);
+      setIconText(data.icon ?? '');
+      void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
     },
   });
 
@@ -95,6 +128,7 @@ export const ProjectSettingsPage = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
     },
   });
 
@@ -105,6 +139,7 @@ export const ProjectSettingsPage = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
     },
   });
 
@@ -119,6 +154,38 @@ export const ProjectSettingsPage = () => {
       setDescriptionMessage('Description updated');
       setDescriptionText(data.description ?? '');
       void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
+    },
+  });
+
+  const duplicateProject = useMutation({
+    mutationFn: async (name?: string) => {
+      const response = await apiClient.post<Project>(`/projects/${parsedProjectId}/duplicate`, {
+        name: name?.trim() || undefined,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setDuplicateMessage('Project duplicated');
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', data.id] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
+      navigate(`/projects/${data.id}`);
+    },
+  });
+
+  const toggleTemplateStatus = useMutation({
+    mutationFn: async (nextStatus: boolean) => {
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
+        is_template: nextStatus,
+      });
+      return response.data;
+    },
+    onSuccess: (data, nextStatus) => {
+      setTemplateMessage(nextStatus ? 'Project marked as template' : 'Project removed from templates');
+      void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
     },
   });
 
@@ -128,6 +195,7 @@ export const ProjectSettingsPage = () => {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
       navigate('/');
     },
   });
@@ -189,40 +257,101 @@ export const ProjectSettingsPage = () => {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Project settings</h1>
         <p className="text-muted-foreground">
-          Configure access, ownership, and archival status for {project.name}.
+          Configure access, ownership, and archival status for{' '}
+          {project.icon ? `${project.icon} ${project.name}` : project.name}.
         </p>
       </div>
 
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Description</CardTitle>
-          <CardDescription>Share more context with collaborators.</CardDescription>
+          <CardTitle>Project details</CardTitle>
+          <CardDescription>Update the icon, name, and description shown across the workspace.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {canWriteProject ? (
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                updateDescription.mutate();
-              }}
-            >
-              <Textarea
-                rows={4}
-                value={descriptionText}
-                onChange={(event) => setDescriptionText(event.target.value)}
-                placeholder="What are we trying to accomplish?"
-              />
-              <div className="flex flex-col gap-2">
-                <Button type="submit" disabled={updateDescription.isPending}>
-                  {updateDescription.isPending ? 'Saving…' : 'Save description'}
-                </Button>
-                {descriptionMessage ? <p className="text-sm text-primary">{descriptionMessage}</p> : null}
-              </div>
-            </form>
-          ) : (
-            <p className="text-sm text-muted-foreground">You need write access to edit the description.</p>
-          )}
+        <CardContent className="space-y-8">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-base font-medium">Identity</h3>
+              <p className="text-sm text-muted-foreground">Give the project a recognizable name and emoji.</p>
+            </div>
+            {canWriteProject ? (
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setIdentityMessage(null);
+                  updateIdentity.mutate();
+                }}
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                  <div className="w-full space-y-2 md:max-w-xs">
+                    <Label htmlFor="project-icon">Icon</Label>
+                    <EmojiPicker
+                      id="project-icon"
+                      value={iconText || undefined}
+                      onChange={(emoji) => setIconText(emoji ?? '')}
+                    />
+                    <p className="text-sm text-muted-foreground">Pick an emoji to make this project easy to spot.</p>
+                  </div>
+                  <div className="w-full flex-1 space-y-2">
+                    <Label htmlFor="project-name">Name</Label>
+                    <Input
+                      id="project-name"
+                      value={nameText}
+                      onChange={(event) => setNameText(event.target.value)}
+                      placeholder="Product roadmap"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button type="submit" disabled={updateIdentity.isPending}>
+                    {updateIdentity.isPending ? 'Saving…' : 'Save project details'}
+                  </Button>
+                  {identityMessage ? <p className="text-sm text-primary">{identityMessage}</p> : null}
+                  {updateIdentity.isError ? (
+                    <p className="text-sm text-destructive">Unable to update project.</p>
+                  ) : null}
+                </div>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                You need write access to change the project name or icon.
+              </p>
+            )}
+          </div>
+
+          <div className="h-px bg-border" />
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-base font-medium">Description</h3>
+              <p className="text-sm text-muted-foreground">Share context to help collaborators understand the work.</p>
+            </div>
+            {canWriteProject ? (
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  updateDescription.mutate();
+                }}
+              >
+                <Textarea
+                  rows={4}
+                  value={descriptionText}
+                  onChange={(event) => setDescriptionText(event.target.value)}
+                  placeholder="What are we trying to accomplish?"
+                />
+                <div className="flex flex-col gap-2">
+                  <Button type="submit" disabled={updateDescription.isPending}>
+                    {updateDescription.isPending ? 'Saving…' : 'Save description'}
+                  </Button>
+                  {descriptionMessage ? <p className="text-sm text-primary">{descriptionMessage}</p> : null}
+                </div>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">You need write access to edit the description.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -352,9 +481,79 @@ export const ProjectSettingsPage = () => {
                 {accessMessage ? <p className="text-sm text-primary">{accessMessage}</p> : null}
               </div>
             </form>
-          </CardContent>
-        </Card>
-      ) : null}
+      </CardContent>
+    </Card>
+  ) : null}
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Template status</CardTitle>
+          <CardDescription>Convert this project into a reusable template or revert it back to a standard project.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {project.is_template
+              ? 'This project is currently a template and appears on the Templates page.'
+              : 'This project behaves like a standard project.'}
+          </p>
+          {templateMessage ? <p className="text-sm text-primary">{templateMessage}</p> : null}
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-3">
+          {canWriteProject ? (
+            <Button
+              type="button"
+              variant={project.is_template ? 'outline' : 'default'}
+              onClick={() => {
+                setTemplateMessage(null);
+                toggleTemplateStatus.mutate(!project.is_template);
+              }}
+              disabled={toggleTemplateStatus.isPending}
+            >
+              {project.is_template ? 'Convert to standard project' : 'Mark as template'}
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              You need write access to change template status.
+            </p>
+          )}
+          {project.is_template ? (
+            <Button asChild variant="link" className="px-0">
+              <Link to="/templates">View all templates</Link>
+            </Button>
+          ) : null}
+        </CardFooter>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Duplicate project</CardTitle>
+          <CardDescription>Clone this project, including its team and tasks, to jumpstart new work.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {duplicateMessage ? <p className="text-sm text-primary">{duplicateMessage}</p> : null}
+        </CardContent>
+        <CardFooter>
+          {canWriteProject ? (
+            <Button
+              type="button"
+              onClick={() => {
+                const defaultName = `${project.name} copy`;
+                const newName = window.prompt('Name for duplicated project', defaultName);
+                if (newName === null) {
+                  return;
+                }
+                setDuplicateMessage(null);
+                duplicateProject.mutate(newName);
+              }}
+              disabled={duplicateProject.isPending}
+            >
+              {duplicateProject.isPending ? 'Duplicating…' : 'Duplicate project'}
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">You need write access to duplicate this project.</p>
+          )}
+        </CardFooter>
+      </Card>
 
       <Card className="shadow-sm">
         <CardHeader>

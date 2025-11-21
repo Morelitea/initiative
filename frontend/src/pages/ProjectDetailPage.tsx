@@ -1,18 +1,38 @@
-import { FormEvent, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  closestCenter,
+  closestCorners,
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import { apiClient } from '../api/client';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
+import { Markdown } from '../components/Markdown';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Textarea } from '../components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
-import { Project, Task, TaskPriority, TaskStatus } from '../types/api';
+import { Project, Task, TaskPriority, TaskReorderPayload, TaskStatus, User } from '../types/api';
+import { toast } from 'sonner';
+import { ProjectTaskComposer } from '../components/projects/ProjectTaskComposer';
+import { KanbanColumn } from '../components/projects/KanbanColumn';
+import { SortableTaskRow } from '../components/projects/SortableTaskRow';
 
 const taskStatusOrder: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
 
@@ -25,11 +45,21 @@ const priorityVariant: Record<TaskPriority, 'default' | 'secondary' | 'destructi
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams();
+  const navigate = useNavigate();
   const parsedProjectId = Number(projectId);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
+  const [dueDate, setDueDate] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
+  const [dueFilter, setDueFilter] = useState<'all' | 'today' | '7_days' | '30_days'>('all');
+  const [listStatusFilter, setListStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const { user } = useAuth();
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   const projectQuery = useQuery<Project>({
     queryKey: ['projects', parsedProjectId],
@@ -51,23 +81,117 @@ export const ProjectDetailPage = () => {
     enabled: Number.isFinite(parsedProjectId),
   });
 
+  const usersQuery = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await apiClient.get<User[]>('/users/');
+      return response.data;
+    },
+  });
+  const userOptions = useMemo(() => {
+    const project = projectQuery.data;
+    const allUsers = usersQuery.data ?? [];
+    if (!project) {
+      return allUsers.map((user) => ({
+        id: user.id,
+        label: user.full_name ?? user.email,
+      }));
+    }
+
+    const allowed = new Set<number>();
+    allowed.add(project.owner_id);
+    project.members.forEach((member) => allowed.add(member.user_id));
+    project.team?.members?.forEach((member) => allowed.add(member.id));
+
+    return allUsers
+      .filter((user) => allowed.has(user.id))
+      .map((user) => ({
+        id: user.id,
+        label: user.full_name ?? user.email,
+      }));
+  }, [usersQuery.data, projectQuery.data]);
+  useEffect(() => {
+    if (tasksQuery.data) {
+      setOrderedTasks(tasksQuery.data);
+    }
+  }, [tasksQuery.data]);
+
+  const filterStorageKey = useMemo(
+    () => (Number.isFinite(parsedProjectId) ? `project:${parsedProjectId}:view-filters` : null),
+    [parsedProjectId]
+  );
+
+  useEffect(() => {
+    if (!filterStorageKey || filtersLoaded) {
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(filterStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<{
+          viewMode: 'kanban' | 'list';
+          assigneeFilter: string;
+          dueFilter: 'all' | 'today' | '7_days' | '30_days';
+          listStatusFilter: 'all' | TaskStatus;
+        }>;
+        if (parsed.viewMode === 'kanban' || parsed.viewMode === 'list') {
+          setViewMode(parsed.viewMode);
+        }
+        if (parsed.assigneeFilter) {
+          setAssigneeFilter(parsed.assigneeFilter);
+        }
+        if (parsed.dueFilter) {
+          setDueFilter(parsed.dueFilter);
+        }
+        if (parsed.listStatusFilter) {
+          setListStatusFilter(parsed.listStatusFilter);
+        }
+      }
+    } catch {
+      // ignore parse errors
+    } finally {
+      setFiltersLoaded(true);
+    }
+  }, [filterStorageKey, filtersLoaded]);
+
+  useEffect(() => {
+    if (!filterStorageKey || !filtersLoaded) {
+      return;
+    }
+    const payload = {
+      viewMode,
+      assigneeFilter,
+      dueFilter,
+      listStatusFilter,
+    };
+    localStorage.setItem(filterStorageKey, JSON.stringify(payload));
+  }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilter, dueFilter, listStatusFilter]);
+
   const createTask = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<Task>('/tasks/', {
+      const payload: Record<string, unknown> = {
         project_id: parsedProjectId,
         title,
         description,
         priority,
-      });
+        assignee_ids: assigneeIds,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      };
+      const response = await apiClient.post<Task>('/tasks/', payload);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (newTask) => {
       setTitle('');
       setDescription('');
       setPriority('medium');
+      setAssigneeIds([]);
+      setDueDate('');
+      setIsComposerOpen(false);
+      setOrderedTasks((prev) => [...prev, newTask]);
       void queryClient.invalidateQueries({
         queryKey: ['tasks', parsedProjectId],
       });
+      toast.success('Task created');
     },
   });
 
@@ -78,12 +202,77 @@ export const ProjectDetailPage = () => {
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (updatedTask) => {
+      setOrderedTasks((prev) => {
+        if (!prev.length) {
+          return prev;
+        }
+        const next = prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+        return [...next].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['tasks', parsedProjectId],
+      });
+      toast.success('Task updated');
+    },
+  });
+
+  const {
+    mutate: persistTaskOrderMutate,
+    isPending: isPersistingOrder,
+  } = useMutation({
+    mutationFn: async (payload: TaskReorderPayload) => {
+      const response = await apiClient.post<Task[]>('/tasks/reorder', payload);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setOrderedTasks(data);
       void queryClient.invalidateQueries({
         queryKey: ['tasks', parsedProjectId],
       });
     },
   });
+
+  const fetchedTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const tasks = orderedTasks.length > 0 ? orderedTasks : fetchedTasks;
+
+  const filteredTasks = useMemo(() => {
+    if (assigneeFilter === 'all' && dueFilter === 'all') {
+      return tasks;
+    }
+    const today = new Date();
+    const targetDate = new Date();
+    return tasks.filter((task) => {
+      if (assigneeFilter !== 'all') {
+        const targetId = Number(assigneeFilter);
+        if (!task.assignees.some((assignee) => assignee.id === targetId)) {
+          return false;
+        }
+      }
+      if (dueFilter !== 'all') {
+        if (!task.due_date) {
+          return false;
+        }
+        const dueDate = new Date(task.due_date);
+        if (dueFilter === 'today') {
+          if (
+            dueDate.getFullYear() !== today.getFullYear() ||
+            dueDate.getMonth() !== today.getMonth() ||
+            dueDate.getDate() !== today.getDate()
+          ) {
+            return false;
+          }
+        } else {
+          const days = dueFilter === '7_days' ? 7 : 30;
+          targetDate.setDate(today.getDate() + days);
+          if (dueDate < today || dueDate > targetDate) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [tasks, assigneeFilter, dueFilter]);
 
   const groupedTasks = useMemo(() => {
     const groups: Record<TaskStatus, Task[]> = {
@@ -92,16 +281,99 @@ export const ProjectDetailPage = () => {
       blocked: [],
       done: [],
     };
-    tasksQuery.data?.forEach((task) => {
+    filteredTasks.forEach((task) => {
       groups[task.status].push(task);
     });
     return groups;
-  }, [tasksQuery.data]);
+  }, [filteredTasks]);
 
-  const handleCreateTask = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    createTask.mutate();
-  };
+  const listTasks = useMemo(() => {
+    if (listStatusFilter === 'all') {
+      return filteredTasks;
+    }
+    return filteredTasks.filter((task) => task.status === listStatusFilter);
+  }, [filteredTasks, listStatusFilter]);
+
+  const persistOrder = useCallback(
+    (nextTasks: Task[]) => {
+      if (!Number.isFinite(parsedProjectId) || nextTasks.length === 0) {
+        return;
+      }
+      const payload: TaskReorderPayload = {
+        project_id: parsedProjectId,
+        items: nextTasks.map((task, index) => ({
+          id: task.id,
+          status: task.status,
+          sort_order: index + 1,
+        })),
+      };
+      if (isPersistingOrder) {
+        return;
+      }
+      persistTaskOrderMutate(payload);
+    },
+    [parsedProjectId, persistTaskOrderMutate, isPersistingOrder]
+  );
+
+  const moveTaskInOrder = useCallback(
+    (taskId: number, targetStatus: TaskStatus, overTaskId: number | null) => {
+      let nextState: Task[] | null = null;
+      setOrderedTasks((prev) => {
+        const currentTask = prev.find((task) => task.id === taskId);
+        if (!currentTask) {
+          return prev;
+        }
+        const updatedTask: Task = { ...currentTask, status: targetStatus };
+        const withoutActive = prev.filter((task) => task.id !== taskId);
+        const next = [...withoutActive];
+
+        if (overTaskId !== null) {
+          const insertIndex = next.findIndex((task) => task.id === overTaskId);
+          if (insertIndex >= 0) {
+            next.splice(insertIndex, 0, updatedTask);
+            nextState = next;
+            return next;
+          }
+        }
+
+        let lastIndex = -1;
+        next.forEach((task, index) => {
+          if (task.status === targetStatus) {
+            lastIndex = index;
+          }
+        });
+        next.splice(lastIndex + 1, 0, updatedTask);
+        nextState = next;
+        return next;
+      });
+      if (nextState) {
+        persistOrder(nextState);
+      }
+    },
+    [persistOrder]
+  );
+
+  const reorderListTasks = useCallback(
+    (activeId: number, overId: number) => {
+      let nextState: Task[] | null = null;
+      setOrderedTasks((prev) => {
+        const oldIndex = prev.findIndex((task) => task.id === activeId);
+        const newIndex = prev.findIndex((task) => task.id === overId);
+        if (oldIndex === -1 || newIndex === -1) {
+          return prev;
+        }
+        nextState = arrayMove(prev, oldIndex, newIndex);
+        return nextState;
+      });
+      if (nextState) {
+        persistOrder(nextState);
+      }
+    },
+    [persistOrder]
+  );
+
+  const kanbanSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const listSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   if (!Number.isFinite(parsedProjectId)) {
     return (
@@ -139,6 +411,68 @@ export const ProjectDetailPage = () => {
     (membershipRole ? project.write_roles.includes(membershipRole) : false) ||
     (userProjectRole ? project.write_roles.includes(userProjectRole) : false);
   const projectIsArchived = project.is_archived;
+  const canEditTaskDetails = canWriteProject && !projectIsArchived;
+  const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
+  const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
+  const handleTaskClick = (taskId: number) => {
+    if (!canEditTaskDetails) {
+      return;
+    }
+    navigate(`/tasks/${taskId}/edit`);
+  };
+
+  const handleKanbanDragEnd = (event: DragEndEvent) => {
+    if (!canReorderTasks) {
+      return;
+    }
+    const { active, over } = event;
+    if (!over) {
+      return;
+    }
+    const activeId = Number(active.id);
+    if (!Number.isFinite(activeId)) {
+      return;
+    }
+
+    const activeTask = tasks.find((task) => task.id === activeId);
+    if (!activeTask) {
+      return;
+    }
+
+    const overData = over.data.current as { type?: string; status?: TaskStatus } | undefined;
+    let targetStatus = activeTask.status;
+    let overTaskId: number | null = null;
+
+    if (overData?.type === 'task') {
+      targetStatus = overData.status ?? targetStatus;
+      const parsed = Number(over.id);
+      overTaskId = Number.isFinite(parsed) ? parsed : null;
+    } else if (overData?.type === 'column') {
+      targetStatus = overData.status ?? targetStatus;
+    }
+
+    if (targetStatus === activeTask.status && overTaskId === activeTask.id) {
+      return;
+    }
+
+    moveTaskInOrder(activeId, targetStatus, overTaskId);
+  };
+
+  const handleListDragEnd = (event: DragEndEvent) => {
+    if (!canReorderTasks) {
+      return;
+    }
+    const { active, over } = event;
+    if (!over) {
+      return;
+    }
+    const activeId = Number(active.id);
+    const overId = Number(over.id);
+    if (!Number.isFinite(activeId) || !Number.isFinite(overId) || activeId === overId) {
+      return;
+    }
+    reorderListTasks(activeId, overId);
+  };
 
   return (
     <div className="space-y-6">
@@ -146,12 +480,23 @@ export const ProjectDetailPage = () => {
         <Link to="/">← Back to projects</Link>
       </Button>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+        <div className="flex items-center gap-3">
+          {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
+          <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+        </div>
         <Badge variant={projectIsArchived ? 'destructive' : 'secondary'}>
           {projectIsArchived ? 'Archived' : 'Active'}
         </Badge>
+        {project.is_template ? (
+          <Badge variant="outline">Template</Badge>
+        ) : null}
       </div>
-      {project.description ? <p className="text-base text-muted-foreground">{project.description}</p> : null}
+      {project.is_template ? (
+        <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
+          This project is a template. Use it to create new projects from the Templates tab.
+        </p>
+      ) : null}
+      {project.description ? <Markdown content={project.description} /> : null}
       {canManageSettings ? (
         <Button asChild variant="outline" className="w-fit">
           <Link to={`/projects/${project.id}/settings`}>Open project settings</Link>
@@ -163,109 +508,186 @@ export const ProjectDetailPage = () => {
         </p>
       ) : null}
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Create task</CardTitle>
-          <CardDescription>Add work to the board. Only people with write access can create tasks.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {projectIsArchived ? (
-            <p className="text-sm text-muted-foreground">
-              This project is archived. Unarchive it to add new tasks.
-            </p>
-          ) : canWriteProject ? (
-            <form className="space-y-4" onSubmit={handleCreateTask}>
-              <div className="space-y-2">
-                <Label htmlFor="task-title">Title</Label>
-                <Input
-                  id="task-title"
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Draft launch plan"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-description">Description</Label>
-                <Textarea
-                  id="task-description"
-                  rows={3}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="Share context, links, or acceptance criteria."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-priority">Priority</Label>
-                <Select value={priority} onValueChange={(value) => setPriority(value as TaskPriority)}>
-                  <SelectTrigger id="task-priority">
-                    <SelectValue />
+      <div className="space-y-4">
+        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'kanban' | 'list')} className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Project tasks</h2>
+              <p className="text-sm text-muted-foreground">Switch between Kanban and List views to track progress.</p>
+            </div>
+            <TabsList>
+              <TabsTrigger value="kanban">Kanban</TabsTrigger>
+              <TabsTrigger value="list">List</TabsTrigger>
+            </TabsList>
+          </div>
+          <div className="flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3">
+            <div className="w-48">
+              <Label htmlFor="assignee-filter" className="text-xs font-medium text-muted-foreground">
+                Filter by assignee
+              </Label>
+              <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+                <SelectTrigger id="assignee-filter">
+                  <SelectValue placeholder="All assignees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All assignees</SelectItem>
+                  {userOptions.map((option) => (
+                    <SelectItem key={option.id} value={String(option.id)}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Label htmlFor="due-filter" className="text-xs font-medium text-muted-foreground">
+                Due filter
+              </Label>
+              <Select value={dueFilter} onValueChange={(value) => setDueFilter(value as typeof dueFilter)}>
+                <SelectTrigger id="due-filter">
+                  <SelectValue placeholder="All due dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All due dates</SelectItem>
+                  <SelectItem value="today">Due today</SelectItem>
+                  <SelectItem value="7_days">Due next 7 days</SelectItem>
+                  <SelectItem value="30_days">Due next 30 days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {viewMode === 'list' ? (
+              <div className="w-44">
+                <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
+                  Filter by status
+                </Label>
+                <Select
+                  value={listStatusFilter}
+                  onValueChange={(value) => setListStatusFilter(value as 'all' | TaskStatus)}
+                >
+                  <SelectTrigger id="status-filter">
+                    <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low priority</SelectItem>
-                    <SelectItem value="medium">Medium priority</SelectItem>
-                    <SelectItem value="high">High priority</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {taskStatusOrder.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status.replace('_', ' ')}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col gap-2">
-                <Button type="submit" disabled={createTask.isPending}>
-                  {createTask.isPending ? 'Saving…' : 'Create task'}
-                </Button>
-                {createTask.isError ? <p className="text-sm text-destructive">Unable to create task.</p> : null}
-              </div>
-            </form>
-          ) : (
-            <p className="text-sm text-muted-foreground">You need write access to create tasks.</p>
-          )}
-        </CardContent>
-      </Card>
+            ) : null}
+          </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {taskStatusOrder.map((status) => (
-          <Card key={status} className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg capitalize">{status.replace('_', ' ')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {groupedTasks[status].length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tasks yet.</p>
-              ) : (
-                groupedTasks[status].map((task) => (
-                  <div key={task.id} className="space-y-3 rounded-lg border bg-card p-3 shadow-sm">
-                    <div>
-                      <p className="font-medium">{task.title}</p>
-                      {task.description ? (
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
-                      ) : null}
-                    </div>
-                    <Badge variant={priorityVariant[task.priority]}>
-                      Priority: {task.priority.replace('_', ' ')}
-                    </Badge>
-                    <div className="flex flex-wrap gap-2">
-                      {taskStatusOrder
-                        .filter((nextStatus) => nextStatus !== task.status)
-                        .map((nextStatus) => (
-                          <Button
-                            key={nextStatus}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => updateTaskStatus.mutate({ taskId: task.id, status: nextStatus })}
-                            disabled={updateTaskStatus.isPending || projectIsArchived || !canWriteProject}
-                          >
-                            Move to {nextStatus.replace('_', ' ')}
-                          </Button>
-                        ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        ))}
+          <TabsContent value="kanban">
+            <DndContext sensors={kanbanSensors} collisionDetection={closestCorners} onDragEnd={handleKanbanDragEnd}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {taskStatusOrder.map((status) => (
+                  <KanbanColumn
+                    key={status}
+                    status={status}
+                    tasks={groupedTasks[status]}
+                    canWrite={canReorderTasks}
+                    canOpenTask={canEditTaskDetails}
+                    priorityVariant={priorityVariant}
+                    onTaskClick={handleTaskClick}
+                  />
+                ))}
+              </div>
+            </DndContext>
+          </TabsContent>
+
+          <TabsContent value="list">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Task list</CardTitle>
+                <CardDescription>View every task at once and update their status inline.</CardDescription>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                {listTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No tasks yet.</p>
+                ) : (
+                  <DndContext sensors={listSensors} collisionDetection={closestCenter} onDragEnd={handleListDragEnd}>
+                    <SortableContext
+                      items={listTasks.map((task) => task.id.toString())}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            <th className="pb-2 font-medium">Task</th>
+                            <th className="pb-2 font-medium">Status</th>
+                            <th className="pb-2 font-medium">Priority</th>
+                            <th className="pb-2 font-medium">Update</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {listTasks.map((task) => (
+                            <SortableTaskRow
+                              key={task.id}
+                              task={task}
+                              dragDisabled={!canReorderTasks}
+                              statusDisabled={!canEditTaskDetails || taskActionsDisabled}
+                              canOpenTask={canEditTaskDetails}
+                              statusOrder={taskStatusOrder}
+                              priorityVariant={priorityVariant}
+                              onStatusChange={(taskId, value) =>
+                                updateTaskStatus.mutate({ taskId, status: value })
+                              }
+                              onTaskClick={handleTaskClick}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </SortableContext>
+                  </DndContext>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
+      {canEditTaskDetails ? (
+        <>
+          <Button
+            className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+            onClick={() => setIsComposerOpen(true)}
+          >
+            Add Task
+          </Button>
+          {isComposerOpen ? (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+              <div
+                className="absolute inset-0 -z-10"
+                role="presentation"
+                onClick={() => setIsComposerOpen(false)}
+              />
+              <div className="w-full max-w-lg rounded-2xl border bg-card shadow-2xl">
+                <ProjectTaskComposer
+                  title={title}
+                  description={description}
+                  priority={priority}
+                  assigneeIds={assigneeIds}
+                  dueDate={dueDate}
+                  canWrite={canWriteProject}
+                  isArchived={projectIsArchived}
+                  isSubmitting={createTask.isPending}
+                  hasError={Boolean(createTask.isError)}
+                  users={userOptions}
+                  onTitleChange={setTitle}
+                  onDescriptionChange={setDescription}
+                  onPriorityChange={setPriority}
+                  onAssigneesChange={setAssigneeIds}
+                  onDueDateChange={setDueDate}
+                  onSubmit={() => createTask.mutate()}
+                  onCancel={() => setIsComposerOpen(false)}
+                />
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 };

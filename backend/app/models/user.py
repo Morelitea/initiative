@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.team import Team, TeamMember
+from app.models.task import TaskAssignee
 
 
 class UserRole(str, Enum):
@@ -33,9 +34,14 @@ class User(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+    avatar_base64: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+    )
+    avatar_url: Optional[str] = Field(default=None, nullable=True)
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")
-    tasks_assigned: List["Task"] = Relationship(back_populates="assignee")
+    tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
     memberships: List["ProjectMember"] = Relationship(back_populates="user")
     teams: List["Team"] = Relationship(back_populates="members", link_model=TeamMember)
 
