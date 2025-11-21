@@ -13,6 +13,7 @@ import {
 } from "./components/ui/dropdown-menu";
 import { useAuth } from "./hooks/useAuth";
 import { useRealtimeUpdates } from "./hooks/useRealtimeUpdates";
+import { useInterfaceColors } from "./hooks/useInterfaceColors";
 import { LoginPage } from "./pages/LoginPage";
 import { OidcCallbackPage } from "./pages/OidcCallbackPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
@@ -23,6 +24,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { SettingsAuthPage } from "./pages/SettingsAuthPage";
 import { SettingsLayout } from "./pages/SettingsLayout";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SettingsInterfacePage } from "./pages/SettingsInterfacePage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { TaskEditPage } from "./pages/TaskEditPage";
@@ -40,6 +42,7 @@ const AppLayout = () => {
       .slice(0, 2) || "PP";
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || null;
   useRealtimeUpdates();
+  useInterfaceColors();
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -138,6 +141,7 @@ const AppLayout = () => {
               <Route path="users" element={<UsersPage />} />
               <Route path="teams" element={<TeamsPage />} />
               <Route path="auth" element={<SettingsAuthPage />} />
+              <Route path="interface" element={<SettingsInterfacePage />} />
             </Route>
           </Routes>
         </div>

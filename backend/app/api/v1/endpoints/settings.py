@@ -7,6 +7,8 @@ from app.api.deps import SessionDep, require_roles
 from app.core.config import settings as app_config
 from app.models.user import User, UserRole
 from app.schemas.settings import (
+    InterfaceSettingsResponse,
+    InterfaceSettingsUpdate,
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
     RegistrationSettingsResponse,
@@ -90,4 +92,30 @@ async def update_registration_settings(
     return RegistrationSettingsResponse(
         auto_approved_domains=settings_obj.auto_approved_domains,
         pending_users=pending_users,
+    )
+
+
+@router.get("/interface", response_model=InterfaceSettingsResponse)
+async def get_interface_settings(session: SessionDep) -> InterfaceSettingsResponse:
+    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+    return InterfaceSettingsResponse(
+        light_accent_color=settings_obj.light_accent_color,
+        dark_accent_color=settings_obj.dark_accent_color,
+    )
+
+
+@router.put("/interface", response_model=InterfaceSettingsResponse)
+async def update_interface_settings(
+    payload: InterfaceSettingsUpdate,
+    session: SessionDep,
+    _: AdminUser,
+) -> InterfaceSettingsResponse:
+    settings_obj = await app_settings_service.update_interface_colors(
+        session,
+        light_accent_color=payload.light_accent_color,
+        dark_accent_color=payload.dark_accent_color,
+    )
+    return InterfaceSettingsResponse(
+        light_accent_color=settings_obj.light_accent_color,
+        dark_accent_color=settings_obj.dark_accent_color,
     )

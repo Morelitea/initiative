@@ -33,3 +33,13 @@ class OIDCSettingsUpdate(BaseModel):
     post_login_redirect: Optional[str] = None
     provider_name: Optional[str] = None
     scopes: List[str] = Field(default_factory=list)
+
+
+class InterfaceSettingsResponse(BaseModel):
+    light_accent_color: str
+    dark_accent_color: str
+
+
+class InterfaceSettingsUpdate(BaseModel):
+    light_accent_color: str
+    dark_accent_color: str

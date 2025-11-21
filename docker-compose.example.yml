@@ -22,7 +22,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://pour_priority:pour_priority@db:5432/pour_priority
       SECRET_KEY: super-secret-key
-      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      ACCESS_TOKEN_EXPIRE_MINUTES: 1440
       FIRST_SUPERUSER_EMAIL: admin@example.com
       FIRST_SUPERUSER_PASSWORD: changeme
       FIRST_SUPERUSER_FULL_NAME: Admin User

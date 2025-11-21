@@ -8,6 +8,7 @@ const settingsTabs = [
   { value: 'users', label: 'Users', path: '/settings/users' },
   { value: 'teams', label: 'Teams', path: '/settings/teams' },
   { value: 'auth', label: 'Auth', path: '/settings/auth' },
+  { value: 'interface', label: 'Interface', path: '/settings/interface' },
 ];
 
 export const SettingsLayout = () => {

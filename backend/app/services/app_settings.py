@@ -51,6 +51,8 @@ async def get_or_create_app_settings(
         oidc_client_secret=app_config.OIDC_CLIENT_SECRET,
         oidc_provider_name=app_config.OIDC_PROVIDER_NAME,
         oidc_scopes=_normalize_scopes(app_config.OIDC_SCOPES),
+        light_accent_color="#2563eb",
+        dark_accent_color="#60a5fa",
     )
     session.add(app_settings)
     await session.commit()
@@ -95,6 +97,21 @@ async def update_oidc_settings(
         app_settings.oidc_client_secret = client_secret
     app_settings.oidc_provider_name = provider_name
     app_settings.oidc_scopes = _normalize_scopes(scopes)
+    session.add(app_settings)
+    await session.commit()
+    await session.refresh(app_settings)
+    return app_settings
+
+
+async def update_interface_colors(
+    session: AsyncSession,
+    *,
+    light_accent_color: str,
+    dark_accent_color: str,
+) -> AppSetting:
+    app_settings = await get_or_create_app_settings(session)
+    app_settings.light_accent_color = light_accent_color
+    app_settings.dark_accent_color = dark_accent_color
     session.add(app_settings)
     await session.commit()
     await session.refresh(app_settings)

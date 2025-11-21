@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, String
 from sqlmodel import Field, SQLModel
 
 
@@ -20,4 +20,12 @@ class AppSetting(SQLModel, table=True):
     oidc_scopes: list[str] = Field(
         default_factory=lambda: ["openid", "profile", "email"],
         sa_column=Column(JSON, nullable=False, server_default='["openid","profile","email"]'),
+    )
+    light_accent_color: str = Field(
+        default="#2563eb",
+        sa_column=Column(String(20), nullable=False, server_default="#2563eb"),
+    )
+    dark_accent_color: str = Field(
+        default="#60a5fa",
+        sa_column=Column(String(20), nullable=False, server_default="#60a5fa"),
     )

@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --accent-light-color: 221 83% 53%;
+    --accent-light-surface: 221 83% 95%;
     --background: 220 14% 96%;
     --foreground: 222 47% 11%;
     --muted: 220 13% 91%;
@@ -14,19 +16,21 @@
     --card-foreground: 222 47% 11%;
     --border: 215 20% 80%;
     --input: 215 20% 80%;
-    --primary: 221 83% 53%;
+    --primary: var(--accent-light-color);
     --primary-foreground: 210 40% 98%;
     --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
-    --accent: 221 83% 95%;
+    --accent: var(--accent-light-surface);
     --accent-foreground: 222 47% 11%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --ring: 221 83% 53%;
+    --ring: var(--accent-light-color);
     --radius: 0.75rem;
   }
 
   .dark {
+    --accent-dark-color: 210 40% 98%;
+    --accent-dark-surface: 216 34% 17%;
     --background: 224 71% 4%;
     --foreground: 210 40% 98%;
     --muted: 223 47% 11%;
@@ -37,15 +41,15 @@
     --card-foreground: 210 40% 98%;
     --border: 216 34% 17%;
     --input: 216 34% 17%;
-    --primary: 210 40% 98%;
+    --primary: var(--accent-dark-color);
     --primary-foreground: 222 47% 11%;
     --secondary: 222 47% 11%;
     --secondary-foreground: 210 40% 98%;
-    --accent: 216 34% 17%;
+    --accent: var(--accent-dark-surface);
     --accent-foreground: 210 40% 98%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
-    --ring: 212 92% 45%;
+    --ring: var(--accent-dark-color);
   }
 
   * {
