@@ -1,6 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { User, UserRole } from '../types/api';
@@ -60,67 +63,69 @@ export const UsersPage = () => {
   };
 
   if (!isAdmin) {
-    return <p>You need admin permissions to view this page.</p>;
+    return <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>;
   }
 
   if (usersQuery.isLoading) {
-    return <p>Loading users...</p>;
+    return <p className="text-sm text-muted-foreground">Loading users…</p>;
   }
 
   if (usersQuery.isError || !usersQuery.data) {
-    return <p>Unable to load users.</p>;
+    return <p className="text-sm text-destructive">Unable to load users.</p>;
   }
 
   return (
-    <div className="settings-section">
-      <div className="card">
-        <div className="list">
-          {usersQuery.data.map((user) => (
-            <div className="list-item" key={user.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                <div>
-                  <strong>{user.full_name ?? user.email}</strong>
-                  <p>{user.email}</p>
-                  <p>Status: {user.is_active ? 'Active' : 'Pending approval'}</p>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '200px' }}>
-                  <label>
-                    Role
-                    <select
-                      value={user.role}
-                      onChange={(event) => handleRoleChange(user.id, event.target.value as UserRole)}
-                      disabled={updateUser.isPending}
-                    >
-                      {ROLE_OPTIONS.map((roleOption) => (
-                        <option key={roleOption} value={roleOption}>
-                          {roleOption.replace('_', ' ')}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    className="secondary"
-                    type="button"
-                    onClick={() => handleResetPassword(user.id, user.email)}
-                    disabled={updateUser.isPending}
-                  >
-                    Reset password
-                  </button>
-                  <button
-                    className="secondary"
-                    type="button"
-                    onClick={() => handleDeleteUser(user.id, user.email)}
-                    disabled={deleteUser.isPending || currentUser?.id === user.id}
-                    style={{ borderColor: '#dc2626', color: '#dc2626' }}
-                  >
-                    Delete user
-                  </button>
-                </div>
-              </div>
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>Workspace users</CardTitle>
+        <CardDescription>Update roles, reset passwords, or remove accounts.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {usersQuery.data.map((user) => (
+          <div
+            className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4"
+            key={user.id}
+          >
+            <div>
+              <p className="font-medium">{user.full_name ?? user.email}</p>
+              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <p className="text-xs text-muted-foreground">
+                Status: {user.is_active ? 'Active' : 'Pending approval'}
+              </p>
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
+            <div className="flex flex-col gap-2 min-w-[220px]">
+              <Select value={user.role} onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((roleOption) => (
+                    <SelectItem key={roleOption} value={roleOption}>
+                      {roleOption.replace('_', ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleResetPassword(user.id, user.email)}
+                disabled={updateUser.isPending}
+              >
+                Reset password
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => handleDeleteUser(user.id, user.email)}
+                disabled={deleteUser.isPending || currentUser?.id === user.id}
+              >
+                Delete user
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 };

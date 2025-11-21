@@ -1,7 +1,11 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { FormEvent, useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { Team, User } from '../types/api';
@@ -108,10 +112,7 @@ export const TeamsPage = () => {
 
   const handleTeamFieldUpdate = (teamId: number, field: 'name' | 'description', currentValue: string) => {
     const nextValue = window.prompt(`Update team ${field}`, currentValue) ?? undefined;
-    if (nextValue === undefined) {
-      return;
-    }
-    if (!nextValue.trim()) {
+    if (nextValue === undefined || !nextValue.trim()) {
       return;
     }
     updateTeam.mutate({ teamId, data: { [field]: nextValue } });
@@ -141,118 +142,139 @@ export const TeamsPage = () => {
   };
 
   if (!isAdmin) {
-    return <p>You need admin permissions to manage teams.</p>;
+    return <p className="text-sm text-muted-foreground">You need admin permissions to manage teams.</p>;
   }
 
   if (teamsQuery.isLoading || usersQuery.isLoading) {
-    return <p>Loading teams...</p>;
+    return <p className="text-sm text-muted-foreground">Loading teams…</p>;
   }
 
   if (teamsQuery.isError || usersQuery.isError || !teamsQuery.data || !usersQuery.data) {
-    return <p>Unable to load teams.</p>;
+    return <p className="text-sm text-destructive">Unable to load teams.</p>;
   }
 
   const availableUsers = (team: Team) =>
     usersQuery.data?.filter((candidate) => !team.members.some((member) => member.id === candidate.id)) ?? [];
 
   return (
-    <div className="settings-section">
-      <div className="card">
-        <h2>Create team</h2>
-        <form onSubmit={handleCreateTeam}>
-          <input
-            placeholder="Team name"
-            value={teamName}
-            onChange={(event) => setTeamName(event.target.value)}
-            required
-          />
-          <input
-            placeholder="Description"
-            value={teamDescription}
-            onChange={(event) => setTeamDescription(event.target.value)}
-          />
-          <button className="primary" type="submit" disabled={createTeam.isPending}>
-            {createTeam.isPending ? 'Creating...' : 'Create team'}
-          </button>
-        </form>
-      </div>
+    <div className="space-y-6">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Create team</CardTitle>
+          <CardDescription>Add a new team to own projects and members.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleCreateTeam}>
+            <Input
+              placeholder="Team name"
+              value={teamName}
+              onChange={(event) => setTeamName(event.target.value)}
+              required
+            />
+            <Input
+              placeholder="Description"
+              value={teamDescription}
+              onChange={(event) => setTeamDescription(event.target.value)}
+            />
+            <Button type="submit" disabled={createTeam.isPending}>
+              {createTeam.isPending ? 'Creating…' : 'Create team'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      {teamsQuery.data.length === 0 ? <p>No teams yet.</p> : null}
-
-      {teamsQuery.data.map((team) => (
-        <div className="card" key={team.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-            <div>
-              <h3>{team.name}</h3>
-              <p>{team.description}</p>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="secondary" type="button" onClick={() => handleTeamFieldUpdate(team.id, 'name', team.name)}>
-                Rename
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                onClick={() => handleTeamFieldUpdate(team.id, 'description', team.description ?? '')}
-              >
-                Edit description
-              </button>
-              <button
-                className="secondary"
-                type="button"
-                onClick={() => handleDeleteTeam(team.id, team.name)}
-                style={{ borderColor: '#dc2626', color: '#dc2626' }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '1rem' }}>
-            <strong>Members</strong>
-            {team.members.length === 0 ? <p>No members yet.</p> : null}
-            <div className="list">
-              {team.members.map((member) => (
-                <div className="list-item" key={member.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>
-                    {member.full_name ?? member.email} ({member.email})
-                  </span>
-                  <button
-                    className="secondary"
-                    type="button"
-                    onClick={() => handleRemoveMember(team.id, member.id, member.email)}
-                    disabled={removeTeamMember.isPending}
-                    style={{ borderColor: '#dc2626', color: '#dc2626' }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-              <select
-                value={selectedUsers[team.id] ?? ''}
-                onChange={(event) => setSelectedUsers((prev) => ({ ...prev, [team.id]: event.target.value }))}
-              >
-                <option value="">Select user</option>
-                {availableUsers(team).map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.full_name ?? candidate.email}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="primary"
-                type="button"
-                onClick={() => handleAddMember(team.id)}
-                disabled={addTeamMember.isPending}
-              >
-                Add member
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
+      {teamsQuery.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No teams yet.</p>
+      ) : (
+        teamsQuery.data.map((team) => (
+          <Card key={team.id} className="shadow-sm">
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle>{team.name}</CardTitle>
+                <CardDescription>{team.description || 'No description yet.'}</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleTeamFieldUpdate(team.id, 'name', team.name)}
+                >
+                  Rename
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleTeamFieldUpdate(team.id, 'description', team.description ?? '')}
+                >
+                  Edit description
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDeleteTeam(team.id, team.name)}
+                  disabled={deleteTeam.isPending}
+                >
+                  Delete
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium">Members</p>
+                {team.members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No members yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {team.members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between rounded-md border bg-card p-2 text-sm"
+                      >
+                        <span>
+                          {member.full_name ?? member.email} ({member.email})
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveMember(team.id, member.id, member.email)}
+                          disabled={removeTeamMember.isPending}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Select
+                  value={selectedUsers[team.id] ?? ''}
+                  onValueChange={(value) => setSelectedUsers((prev) => ({ ...prev, [team.id]: value }))}
+                >
+                  <SelectTrigger className="min-w-[200px]">
+                    <SelectValue placeholder="Select user" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Select user</SelectItem>
+                    {availableUsers(team).map((candidate) => (
+                      <SelectItem key={candidate.id} value={String(candidate.id)}>
+                        {candidate.full_name ?? candidate.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  onClick={() => handleAddMember(team.id)}
+                  disabled={addTeamMember.isPending}
+                >
+                  Add member
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
   );
 };

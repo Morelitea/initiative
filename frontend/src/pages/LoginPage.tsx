@@ -2,6 +2,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { apiClient } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { useAuth } from '../hooks/useAuth';
 
 export const LoginPage = () => {
@@ -17,7 +21,9 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchOidcStatus = async () => {
       try {
-        const response = await apiClient.get<{ enabled: boolean; login_url?: string; provider_name?: string }>('/auth/oidc/status');
+        const response = await apiClient.get<{ enabled: boolean; login_url?: string; provider_name?: string }>(
+          '/auth/oidc/status'
+        );
         if (response.data.enabled && response.data.login_url) {
           setOidcLoginUrl(response.data.login_url);
           setOidcProviderName(response.data.provider_name ?? 'Single Sign-On');
@@ -49,38 +55,61 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="auth-page">
-      <div className="card" style={{ maxWidth: 420, margin: '4rem auto' }}>
-        <h1>Welcome back</h1>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-         />
-          <button className="primary" type="submit" disabled={submitting}>
-            {submitting ? 'Signing in...' : 'Sign in'}
-          </button>
-          {oidcLoginUrl ? (
-            <button className="secondary" type="button" onClick={() => (window.location.href = oidcLoginUrl)}>
-              Continue with {oidcProviderName ?? 'Single Sign-On'}
-            </button>
-          ) : null}
-          {error ? <p style={{ color: 'tomato' }}>{error}</p> : null}
-        </form>
-        <p>
-          Need an account? <Link to="/register">Register</Link>
-        </p>
-      </div>
+    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader>
+          <CardTitle>Welcome back</CardTitle>
+          <CardDescription>Sign in to keep work flowing.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+            <Button className="w-full" type="submit" disabled={submitting}>
+              {submitting ? 'Signing in…' : 'Sign in'}
+            </Button>
+            {oidcLoginUrl ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => (window.location.href = oidcLoginUrl)}
+              >
+                Continue with {oidcProviderName ?? 'Single Sign-On'}
+              </Button>
+            ) : null}
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          </form>
+        </CardContent>
+        <CardFooter className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+          <p>
+            Need an account?{' '}
+            <Link className="text-primary underline-offset-4 hover:underline" to="/register">
+              Register
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
     </div>
   );
 };

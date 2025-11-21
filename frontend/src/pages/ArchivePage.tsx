@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import { apiClient } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { Project } from '../types/api';
@@ -29,43 +31,62 @@ export const ArchivePage = () => {
   });
 
   if (archivedProjectsQuery.isLoading) {
-    return <p>Loading archived projects...</p>;
+    return <p className="text-sm text-muted-foreground">Loading archived projects…</p>;
   }
 
   if (archivedProjectsQuery.isError) {
-    return <p>Unable to load archived projects.</p>;
+    return <p className="text-sm text-destructive">Unable to load archived projects.</p>;
   }
 
   const projects = archivedProjectsQuery.data ?? [];
 
   return (
-    <div className="page">
-      <h1>Archived projects</h1>
-      {projects.length === 0 ? <p>No archived projects.</p> : null}
-
-      <div className="list">
-        {projects.map((project) => (
-          <div className="list-item" key={project.id}>
-            <h3>{project.name}</h3>
-            <p>{project.description}</p>
-            {project.team ? <p>Team: {project.team.name}</p> : null}
-            <p>Archived at: {project.archived_at ? new Date(project.archived_at).toLocaleString() : '—'}</p>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <Link to={`/projects/${project.id}`}>View details →</Link>
-              {canManageProjects ? (
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => unarchiveProject.mutate(project.id)}
-                  disabled={unarchiveProject.isPending}
-                >
-                  Unarchive
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ))}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Archived projects</h1>
+        <p className="text-muted-foreground">Reopen an initiative when the work picks back up.</p>
       </div>
+
+      {projects.length === 0 ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>No archived projects</CardTitle>
+            <CardDescription>Active projects stay on the main projects tab.</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {projects.map((project) => (
+            <Card key={project.id} className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-xl">{project.name}</CardTitle>
+                {project.description ? <CardDescription>{project.description}</CardDescription> : null}
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                {project.team ? <p>Team: {project.team.name}</p> : null}
+                <p>
+                  Archived at: {project.archived_at ? new Date(project.archived_at).toLocaleString() : 'Unknown'}
+                </p>
+              </CardContent>
+              <CardFooter className="flex flex-wrap gap-3">
+                <Button asChild variant="link" className="px-0">
+                  <Link to={`/projects/${project.id}`}>View details</Link>
+                </Button>
+                {canManageProjects ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => unarchiveProject.mutate(project.id)}
+                    disabled={unarchiveProject.isPending}
+                  >
+                    Unarchive
+                  </Button>
+                ) : null}
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,7 +1,12 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { FormEvent, useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
 
 interface OidcSettings {
   enabled: boolean;
@@ -56,11 +61,11 @@ export const SettingsAuthPage = () => {
   }, [oidcQuery.data]);
 
   if (oidcQuery.isLoading) {
-    return <p>Loading auth settings...</p>;
+    return <p className="text-sm text-muted-foreground">Loading auth settings…</p>;
   }
 
   if (oidcQuery.isError || !oidcQuery.data) {
-    return <p>Unable to load auth settings.</p>;
+    return <p className="text-sm text-destructive">Unable to load auth settings.</p>;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -76,72 +81,86 @@ export const SettingsAuthPage = () => {
   };
 
   return (
-    <div className="settings-section">
-      <div className="card">
-        <h2>OIDC authentication</h2>
-        <form onSubmit={handleSubmit}>
-          <label>
-            <span>Enabled</span>
-            <input
-              type="checkbox"
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>OIDC authentication</CardTitle>
+        <CardDescription>Configure single sign-on for your workspace.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+            <div>
+              <Label htmlFor="oidc-enabled" className="flex items-center gap-2 text-base font-medium">
+                Enabled
+              </Label>
+              <p className="text-sm text-muted-foreground">Allow users to authenticate via your OIDC provider.</p>
+            </div>
+            <Switch
+              id="oidc-enabled"
               checked={formState.enabled}
-              onChange={(event) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  enabled: event.target.checked,
-                }))
-              }
+              onCheckedChange={(checked) => setFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))}
             />
-          </label>
-          <label>
-            <span>Discovery URL</span>
-            <input
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="discovery-url">Discovery URL</Label>
+            <Input
+              id="discovery-url"
               type="url"
               value={formState.discovery_url}
               onChange={(event) => setFormState((prev) => ({ ...prev, discovery_url: event.target.value }))}
             />
-          </label>
-          <label>
-            <span>Client ID</span>
-            <input
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="client-id">Client ID</Label>
+            <Input
+              id="client-id"
               value={formState.client_id}
               onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
             />
-          </label>
-          <label>
-            <span>Client secret</span>
-            <input value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} type="password" />
-            <small>Leave blank to keep existing secret.</small>
-          </label>
-          <label>
-            <span>Provider name</span>
-            <input
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="client-secret">Client secret</Label>
+            <Input
+              id="client-secret"
+              type="password"
+              value={clientSecret}
+              onChange={(event) => setClientSecret(event.target.value)}
+              placeholder="••••••••"
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to keep the existing secret.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="provider-name">Provider name</Label>
+            <Input
+              id="provider-name"
               value={formState.provider_name}
               onChange={(event) => setFormState((prev) => ({ ...prev, provider_name: event.target.value }))}
+              placeholder="Single Sign-On"
             />
-          </label>
-          <label>
-            <span>Scopes</span>
-            <input
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="scopes">Scopes</Label>
+            <Input
+              id="scopes"
               value={formState.scopes}
               onChange={(event) => setFormState((prev) => ({ ...prev, scopes: event.target.value }))}
+              placeholder="openid profile email"
             />
-          </label>
-          <button className="primary" type="submit" disabled={updateOidcSettings.isPending}>
-            {updateOidcSettings.isPending ? 'Saving...' : 'Save auth settings'}
-          </button>
+          </div>
+          <Button type="submit" disabled={updateOidcSettings.isPending}>
+            {updateOidcSettings.isPending ? 'Saving…' : 'Save auth settings'}
+          </Button>
         </form>
-        <div style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
-          <p>
-            Authorization callback:{' '}
-            <code>{oidcQuery.data.redirect_uri}</code>
-          </p>
-          <p>
-            Post-login redirect:{' '}
-            <code>{oidcQuery.data.post_login_redirect}</code>
-          </p>
+      </CardContent>
+      <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground">
+        <div>
+          Authorization callback: <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.redirect_uri}</code>
         </div>
-      </div>
-    </div>
+        <div>
+          Post-login redirect:{' '}
+          <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.post_login_redirect}</code>
+        </div>
+      </CardFooter>
+    </Card>
   );
 };

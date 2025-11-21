@@ -2,6 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '../api/client';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { RegistrationSettings } from '../types/api';
@@ -52,15 +55,15 @@ export const SettingsPage = () => {
   });
 
   if (!isAdmin) {
-    return <p>You need admin permissions to view this page.</p>;
+    return <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>;
   }
 
   if (settingsQuery.isLoading) {
-    return <p>Loading settings...</p>;
+    return <p className="text-sm text-muted-foreground">Loading settings…</p>;
   }
 
   if (settingsQuery.isError || !settingsQuery.data) {
-    return <p>Unable to load settings.</p>;
+    return <p className="text-sm text-destructive">Unable to load settings.</p>;
   }
 
   const handleDomainsSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -73,46 +76,59 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="settings-section">
-      <div className="card">
-        <h2>Auto-approved email domains</h2>
-        <p>Enter a comma-separated list of domains that should be auto-approved when users register.</p>
-        <form onSubmit={handleDomainsSubmit}>
-          <input
-            type="text"
-            value={domainsInput}
-            onChange={(event) => setDomainsInput(event.target.value)}
-            placeholder="example.com, company.org"
-          />
-          <button className="primary" type="submit" disabled={updateAllowList.isPending}>
-            {updateAllowList.isPending ? 'Saving...' : 'Save allow list'}
-          </button>
-        </form>
-      </div>
+    <div className="space-y-6">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Auto-approved email domains</CardTitle>
+          <CardDescription>Enter a comma-separated list of domains that should be auto-approved.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleDomainsSubmit}>
+            <Input
+              type="text"
+              value={domainsInput}
+              onChange={(event) => setDomainsInput(event.target.value)}
+              placeholder="example.com, company.org"
+            />
+            <Button type="submit" disabled={updateAllowList.isPending}>
+              {updateAllowList.isPending ? 'Saving…' : 'Save allow list'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <div className="card">
-        <h2>Pending users</h2>
-        {settingsQuery.data.pending_users.length === 0 ? (
-          <p>No pending accounts.</p>
-        ) : (
-          <div className="list">
-            {settingsQuery.data.pending_users.map((pendingUser) => (
-              <div className="list-item" key={pendingUser.id}>
-                <strong>{pendingUser.full_name ?? pendingUser.email}</strong>
-                <p>{pendingUser.email}</p>
-                <button
-                  className="primary"
-                  type="button"
-                  onClick={() => approveUser.mutate(pendingUser.id)}
-                  disabled={approveUser.isPending}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Pending users</CardTitle>
+          <CardDescription>Approve people who registered with non-allow-listed emails.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {settingsQuery.data.pending_users.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pending accounts.</p>
+          ) : (
+            <div className="space-y-3">
+              {settingsQuery.data.pending_users.map((pendingUser) => (
+                <div
+                  key={pendingUser.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"
                 >
-                  Approve
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                  <div>
+                    <p className="font-medium">{pendingUser.full_name ?? pendingUser.email}</p>
+                    <p className="text-sm text-muted-foreground">{pendingUser.email}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => approveUser.mutate(pendingUser.id)}
+                    disabled={approveUser.isPending}
+                  >
+                    Approve
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

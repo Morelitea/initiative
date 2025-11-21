@@ -1,31 +1,57 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useAuth } from '../hooks/useAuth';
+
+const settingsTabs = [
+  { value: 'registration', label: 'Registration', path: '/settings' },
+  { value: 'users', label: 'Users', path: '/settings/users' },
+  { value: 'teams', label: 'Teams', path: '/settings/teams' },
+  { value: 'auth', label: 'Auth', path: '/settings/auth' },
+];
 
 export const SettingsLayout = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const location = useLocation();
+  const navigate = useNavigate();
 
   if (!isAdmin) {
     return (
-      <div className="page">
-        <h1>Settings</h1>
-        <p>You need admin permissions to view this page.</p>
+      <div className="space-y-4">
+        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>
       </div>
     );
   }
 
+  const activeTab =
+    settingsTabs.find((tab) => location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`))
+      ?.value ?? 'registration';
+
   return (
-    <div className="page">
-      <h1>Settings</h1>
-      <div className="settings-nav">
-        <NavLink to="/settings" end>
-          Registration
-        </NavLink>
-        <NavLink to="/settings/users">Users</NavLink>
-        <NavLink to="/settings/teams">Teams</NavLink>
-        <NavLink to="/settings/auth">Auth</NavLink>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground">Manage workspace access, teams, and authentication.</p>
       </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const tab = settingsTabs.find((item) => item.value === value);
+          if (tab) {
+            navigate(tab.path);
+          }
+        }}
+      >
+        <TabsList className="w-full justify-start">
+          {settingsTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
       <Outlet />
     </div>
   );

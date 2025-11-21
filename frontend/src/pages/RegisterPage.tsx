@@ -1,6 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { useAuth } from '../hooks/useAuth';
 
 export const RegisterPage = () => {
@@ -36,40 +40,52 @@ export const RegisterPage = () => {
   };
 
   return (
-    <div className="auth-page">
-      <div className="card" style={{ maxWidth: 420, margin: '4rem auto' }}>
-        <h1>Create account</h1>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Full name"
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-          <button className="primary" type="submit" disabled={submitting}>
-            {submitting ? 'Creating account...' : 'Sign up'}
-          </button>
-          {error ? <p style={{ color: 'tomato' }}>{error}</p> : null}
-          {infoMessage ? <p style={{ color: '#2563eb' }}>{infoMessage}</p> : null}
-        </form>
-        <p>
-          Have an account? <Link to="/login">Sign in</Link>
-        </p>
-      </div>
+    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader>
+          <CardTitle>Create account</CardTitle>
+          <CardDescription>We will auto-approve your email if it matches the workspace allow list.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="full-name">Full name</Label>
+              <Input id="full-name" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="register-email">Email</Label>
+              <Input
+                id="register-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="register-password">Password</Label>
+              <Input
+                id="register-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+            <Button className="w-full" type="submit" disabled={submitting}>
+              {submitting ? 'Creating account…' : 'Sign up'}
+            </Button>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {infoMessage ? <p className="text-sm text-primary">{infoMessage}</p> : null}
+          </form>
+        </CardContent>
+        <CardFooter className="text-sm text-muted-foreground">
+          Have an account?{' '}
+          <Link className="ml-1 text-primary underline-offset-4 hover:underline" to="/login">
+            Sign in
+          </Link>
+        </CardFooter>
+      </Card>
     </div>
   );
 };
