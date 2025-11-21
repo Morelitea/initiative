@@ -1,0 +1,72 @@
+from functools import lru_cache
+from pydantic import EmailStr, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    PROJECT_NAME: str = "Pour Priority API"
+    API_V1_STR: str = "/api/v1"
+
+    DATABASE_URL: str = "postgresql+asyncpg://pour_priority:pour_priority@localhost:5432/pour_priority"
+
+    SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ALGORITHM: str = "HS256"
+
+    AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
+    APP_URL: str = "http://localhost:8000"
+    OIDC_ENABLED: bool = False
+    OIDC_DISCOVERY_URL: str | None = None
+    OIDC_CLIENT_ID: str | None = None
+    OIDC_CLIENT_SECRET: str | None = None
+    OIDC_REDIRECT_URI: str | None = None
+    OIDC_POST_LOGIN_REDIRECT: str | None = None
+    OIDC_PROVIDER_NAME: str | None = None
+    OIDC_SCOPES: list[str] = Field(default_factory=lambda: ["openid", "profile", "email"])
+
+    FIRST_SUPERUSER_EMAIL: EmailStr | None = None
+    FIRST_SUPERUSER_PASSWORD: str | None = None
+    FIRST_SUPERUSER_FULL_NAME: str | None = None
+
+    @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
+    @classmethod
+    def parse_email_domains(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            items = value.split(",")
+        else:
+            items = value
+        return [item.strip().lower() for item in items if item and item.strip()]
+
+    @field_validator("OIDC_SCOPES", mode="before")
+    @classmethod
+    def parse_oidc_scopes(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return ["openid", "profile", "email"]
+        if isinstance(value, str):
+            if not value.strip():
+                return ["openid", "profile", "email"]
+            items = value.replace(",", " ").split()
+        else:
+            items = value
+        normalized: list[str] = []
+        for scope in items:
+            cleaned = scope.strip()
+            if cleaned and cleaned not in normalized:
+                normalized.append(cleaned)
+        return normalized or ["openid", "profile", "email"]
+
+
+@lru_cache
+# Use caching to avoid re-reading the env file over and over
+# (FastAPI startup imports Config many times).
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
