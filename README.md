@@ -4,7 +4,7 @@ A full-stack project management application built with a FastAPI backend, Postgr
 
 ## Stack
 
-- **Backend:** FastAPI, SQLModel, async SQLAlchemy engine (asyncpg), OAuth2 password flow (JWT), and PostgreSQL 17
+- **Backend:** FastAPI, SQLModel, async SQLAlchemy engine (asyncpg), Alembic migrations, OAuth2 password flow (JWT), and PostgreSQL 17
 - **Frontend:** Vite, React 18, TypeScript, React Router, React Query, Axios
 - **Infrastructure:** Dockerfiles for backend/frontend + `docker-compose` with Postgres 17
 
@@ -24,6 +24,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env  # update secrets + Postgres DSN
+# Run the latest DB migrations (optional if you use init_db, but recommended)
+alembic upgrade head
+
+# Start the API
 uvicorn app.main:app --reload
 ```
 
@@ -34,6 +38,14 @@ Key environment variables (see `.env.example`):
 - `AUTO_APPROVED_EMAIL_DOMAINS` – comma-separated list of email domains that should be activated automatically on signup
 - `APP_URL` – public base URL for the app; used to derive OIDC callback URLs (e.g., `https://app.example.com`)
 - `FIRST_SUPERUSER_*` – optional bootstrap admin created via `python -m app.db.init_db`
+
+### Database migrations
+
+Alembic handles schema changes. Run these from `backend/`:
+
+- `alembic upgrade head` – apply migrations to the current database
+- `alembic revision --autogenerate -m "describe change"` – generate a migration from model diffs
+- `python -m app.db.init_db` – run migrations, ensure default app settings exist, and optionally create the superuser
 
 ### Frontend setup
 
@@ -100,6 +112,5 @@ Services:
 
 ## Next Steps
 
-- Add migration tooling (Alembic) for production schema changes
 - Extend project membership management UI
 - Harden Docker images with multi-stage builds / non-root users and add CI workflows

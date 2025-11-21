@@ -4,7 +4,7 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.db.session import AsyncSessionLocal, init_models
+from app.db.session import AsyncSessionLocal, run_migrations
 from app.models.user import User, UserRole
 from app.services import app_settings as app_settings_service
 
@@ -30,7 +30,7 @@ async def init_superuser() -> None:
 
 
 async def init() -> None:
-    await init_models()
+    await run_migrations()
     await init_superuser()
     async with AsyncSessionLocal() as session:
         await app_settings_service.get_or_create_app_settings(

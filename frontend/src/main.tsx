@@ -18,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <AuthProvider>
           <>
             <App />
-            <Toaster position="bottom-right" />
+            <Toaster position="bottom-center" />
           </>
         </AuthProvider>
       </QueryClientProvider>

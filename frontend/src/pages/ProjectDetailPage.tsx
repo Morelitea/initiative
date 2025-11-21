@@ -55,7 +55,7 @@ export const ProjectDetailPage = () => {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
   const [dueFilter, setDueFilter] = useState<'all' | 'today' | '7_days' | '30_days'>('all');
-  const [listStatusFilter, setListStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [listStatusFilter, setListStatusFilter] = useState<'all' | 'incomplete' | TaskStatus>('all');
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const { user } = useAuth();
@@ -132,7 +132,7 @@ export const ProjectDetailPage = () => {
           viewMode: 'kanban' | 'list';
           assigneeFilter: string;
           dueFilter: 'all' | 'today' | '7_days' | '30_days';
-          listStatusFilter: 'all' | TaskStatus;
+          listStatusFilter: 'all' | 'incomplete' | TaskStatus;
         }>;
         if (parsed.viewMode === 'kanban' || parsed.viewMode === 'list') {
           setViewMode(parsed.viewMode);
@@ -290,6 +290,9 @@ export const ProjectDetailPage = () => {
   const listTasks = useMemo(() => {
     if (listStatusFilter === 'all') {
       return filteredTasks;
+    }
+    if (listStatusFilter === 'incomplete') {
+      return filteredTasks.filter((task) => task.status !== 'done');
     }
     return filteredTasks.filter((task) => task.status === listStatusFilter);
   }, [filteredTasks, listStatusFilter]);
@@ -562,13 +565,14 @@ export const ProjectDetailPage = () => {
                 </Label>
                 <Select
                   value={listStatusFilter}
-                  onValueChange={(value) => setListStatusFilter(value as 'all' | TaskStatus)}
+                  onValueChange={(value) => setListStatusFilter(value as 'all' | 'incomplete' | TaskStatus)}
                 >
                   <SelectTrigger id="status-filter">
                     <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="incomplete">Incomplete</SelectItem>
                     {taskStatusOrder.map((status) => (
                       <SelectItem key={status} value={status}>
                         {status.replace('_', ' ')}

@@ -166,12 +166,8 @@ export const MyTasksPage = () => {
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1">
             <Label htmlFor="task-status-filter">Status</Label>
-            <Select
-              id="task-status-filter"
-              value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
-            >
-              <SelectTrigger>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+              <SelectTrigger id="task-status-filter">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -187,12 +183,8 @@ export const MyTasksPage = () => {
           </div>
           <div className="space-y-1">
             <Label htmlFor="task-priority-filter">Priority</Label>
-            <Select
-              id="task-priority-filter"
-              value={priorityFilter}
-              onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}
-            >
-              <SelectTrigger>
+            <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}>
+              <SelectTrigger id="task-priority-filter">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -207,8 +199,8 @@ export const MyTasksPage = () => {
           </div>
           <div className="space-y-1">
             <Label htmlFor="task-sort">Sort</Label>
-            <Select id="task-sort" value={sortMode} onValueChange={(value) => setSortMode(value as typeof sortMode)}>
-              <SelectTrigger>
+            <Select value={sortMode} onValueChange={(value) => setSortMode(value as typeof sortMode)}>
+              <SelectTrigger id="task-sort">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

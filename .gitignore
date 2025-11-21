@@ -29,6 +29,8 @@ backend/.coverage
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # Docker
 docker-compose.yml

@@ -7,6 +7,8 @@
 - `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` — install runtime deps.
 - `cd backend && poetry install` — optional, but grabs dev tools (pytest, Ruff) defined in `pyproject.toml`.
 - `cd backend && uvicorn app.main:app --reload` — run the API on http://localhost:8000.
+- `cd backend && alembic upgrade head` — apply the latest database migrations (or run `python -m app.db.init_db` to migrate plus seed defaults).
+- `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes.
 - `cd frontend && npm install && npm run dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8000/api/v1`).
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters.
@@ -21,4 +23,4 @@ Write Pytest suites under `backend/tests`, exercising API routers with `httpx.As
 History favors short, lower-case subjects (e.g., `mvp wip 1`), so keep the first line imperative, ≤50 chars, and use additional lines for detail. Separate backend, frontend, and infra changes when practical. PRs must describe the problem, list notable changes, call out schema or env updates, and attach screenshots/GIFs for UI tweaks plus the exact commands you ran for testing.
 
 ## Security & Configuration Tips
-Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `python -m app.db.init_db`. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
+Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.

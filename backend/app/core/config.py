@@ -1,10 +1,26 @@
 from functools import lru_cache
+import json
+from typing import Any
+
 from pydantic import EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def flexible_json_loads(value: str) -> Any:
+    """Gracefully fall back to raw strings when JSON decoding fails."""
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        json_loads=flexible_json_loads,
+    )
 
     PROJECT_NAME: str = "Pour Priority API"
     API_V1_STR: str = "/api/v1"
