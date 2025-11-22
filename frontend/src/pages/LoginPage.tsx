@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { apiClient } from '../api/client';
 import { Button } from '../components/ui/button';
@@ -11,6 +11,7 @@ import { RegisterPage } from './RegisterPage';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +19,10 @@ export const LoginPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [oidcLoginUrl, setOidcLoginUrl] = useState<string | null>(null);
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
-  const [bootstrapStatus, setBootstrapStatus] = useState<'loading' | 'required' | 'ready'>('loading');
+  const forceBootstrap = searchParams.get('bootstrap') === '1';
+  const [bootstrapStatus, setBootstrapStatus] = useState<'loading' | 'required' | 'ready'>(
+    forceBootstrap ? 'required' : 'loading'
+  );
 
   useEffect(() => {
     const fetchOidcStatus = async () => {
@@ -42,16 +46,48 @@ export const LoginPage = () => {
   }, []);
 
   useEffect(() => {
+    if (forceBootstrap) {
+      setBootstrapStatus('required');
+      return;
+    }
+
+    let isMounted = true;
+    let retryCount = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await apiClient.get<{ has_users: boolean }>('/auth/bootstrap');
+        const response = await apiClient.get<{ has_users: boolean }>('/auth/bootstrap', {
+          headers: { 'Cache-Control': 'no-store' },
+        });
+        if (!isMounted) {
+          return;
+        }
         setBootstrapStatus(response.data.has_users ? 'ready' : 'required');
-      } catch {
-        setBootstrapStatus('ready');
+      } catch (fetchError) {
+        console.error('Failed to determine bootstrap status', fetchError);
+        if (!isMounted) {
+          return;
+        }
+        if (retryCount < 5) {
+          const delay = Math.min(5000, 500 * 2 ** retryCount);
+          retryCount += 1;
+          retryTimer = setTimeout(fetchBootstrapStatus, delay);
+        } else {
+          setBootstrapStatus('required');
+        }
       }
     };
+
     void fetchBootstrapStatus();
-  }, []);
+
+    return () => {
+      isMounted = false;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, [forceBootstrap]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
