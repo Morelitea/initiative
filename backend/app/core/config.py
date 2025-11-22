@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
-    APP_URL: str = "http://localhost:8000"
+    APP_URL: str = "http://localhost:8173"
     OIDC_ENABLED: bool = False
     OIDC_DISCOVERY_URL: str | None = None
     OIDC_CLIENT_ID: str | None = None

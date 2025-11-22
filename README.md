@@ -28,7 +28,7 @@ cp .env.example .env  # update secrets + Postgres DSN
 alembic upgrade head
 
 # Start the API
-# Optionally explore the API docs at http://localhost:8000/api/v1/docs
+# Optionally explore the API docs at http://localhost:8173/api/v1/docs
 uvicorn app.main:app --reload
 ```
 
@@ -56,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Expose the API URL to the frontend by setting `VITE_API_URL` (defaults to `http://localhost:8000/api/v1`).
+Expose the API URL to the frontend by setting `VITE_API_URL` (defaults to `http://localhost:8173/api/v1`).
 
 ### Docker Compose (recommended for local Postgres 17)
 
@@ -67,7 +67,7 @@ docker-compose up --build
 Services:
 
 - `db` – PostgreSQL 17 with a persistent volume
-- `backend` – FastAPI app served on `http://localhost:8000`
+- `backend` – FastAPI app served on `http://localhost:8173`
 - `frontend` – Static React build served via nginx on `http://localhost:5173`
 
 ## Application Features
