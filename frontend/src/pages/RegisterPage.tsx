@@ -7,7 +7,11 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useAuth } from '../hooks/useAuth';
 
-export const RegisterPage = () => {
+interface RegisterPageProps {
+  bootstrapMode?: boolean;
+}
+
+export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const navigate = useNavigate();
   const { register, login } = useAuth();
   const [email, setEmail] = useState('');
@@ -43,8 +47,12 @@ export const RegisterPage = () => {
     <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle>Create account</CardTitle>
-          <CardDescription>We will auto-approve your email if it matches the workspace allow list.</CardDescription>
+          <CardTitle>{bootstrapMode ? 'Create the first account' : 'Create account'}</CardTitle>
+          <CardDescription>
+            {bootstrapMode
+              ? 'No users exist yet. This account will become the workspace super user.'
+              : 'We will auto-approve your email if it matches the workspace allow list.'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>

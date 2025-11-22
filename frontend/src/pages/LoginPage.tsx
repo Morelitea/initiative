@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useAuth } from '../hooks/useAuth';
+import { RegisterPage } from './RegisterPage';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export const LoginPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [oidcLoginUrl, setOidcLoginUrl] = useState<string | null>(null);
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
+  const [bootstrapStatus, setBootstrapStatus] = useState<'loading' | 'required' | 'ready'>('loading');
 
   useEffect(() => {
     const fetchOidcStatus = async () => {
@@ -39,6 +41,18 @@ export const LoginPage = () => {
     void fetchOidcStatus();
   }, []);
 
+  useEffect(() => {
+    const fetchBootstrapStatus = async () => {
+      try {
+        const response = await apiClient.get<{ has_users: boolean }>('/auth/bootstrap');
+        setBootstrapStatus(response.data.has_users ? 'ready' : 'required');
+      } catch {
+        setBootstrapStatus('ready');
+      }
+    };
+    void fetchBootstrapStatus();
+  }, []);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
@@ -53,6 +67,18 @@ export const LoginPage = () => {
       setSubmitting(false);
     }
   };
+
+  if (bootstrapStatus === 'loading') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+
+  if (bootstrapStatus === 'required') {
+    return <RegisterPage bootstrapMode />;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">

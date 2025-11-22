@@ -9,6 +9,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -24,6 +25,7 @@ router = APIRouter()
 
 STATE_TTL_SECONDS = 600
 _oidc_metadata_cache: dict[str, dict[str, Any]] = {}
+SUPER_USER_ID = 1
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -33,14 +35,21 @@ async def register_user(user_in: UserCreate, session: SessionDep) -> User:
     if existing.one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
+    user_count_result = await session.exec(select(func.count(User.id)))
+    user_count = user_count_result.one()
+    is_first_user = user_count == 0
+
     app_settings = await app_settings_service.get_or_create_app_settings(session)
+    is_auto_approved = (
+        True if is_first_user else app_settings_service.is_email_auto_approved(user_in.email, app_settings)
+    )
 
     user = User(
         email=user_in.email,
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
-        role=UserRole.member,
-        is_active=app_settings_service.is_email_auto_approved(user_in.email, app_settings),
+        role=UserRole.admin if is_first_user else UserRole.member,
+        is_active=is_auto_approved,
     )
 
     session.add(user)
@@ -52,6 +61,13 @@ async def register_user(user_in: UserCreate, session: SessionDep) -> User:
 
     await session.refresh(user)
     return user
+
+
+@router.get("/bootstrap")
+async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
+    result = await session.exec(select(func.count(User.id)))
+    count = result.one()
+    return {"has_users": count > 0}
 
 
 @router.post("/token", response_model=Token)
