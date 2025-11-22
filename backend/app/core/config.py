@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
-    APP_URL: str = "http://localhost:8173"
+    # APP_URL should point to the frontend entry so redirect URIs resolve correctly
+    APP_URL: str = "http://localhost:5173"
     OIDC_ENABLED: bool = False
     OIDC_DISCOVERY_URL: str | None = None
     OIDC_CLIENT_ID: str | None = None
