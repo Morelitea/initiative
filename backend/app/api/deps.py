@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.db.session import get_session
 from app.models.user import User, UserRole
 from app.schemas.token import TokenPayload
+from app.services import api_keys as api_keys_service
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -21,6 +22,10 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: SessionDep,
 ) -> User:
+    user = await api_keys_service.authenticate_api_key(session, token)
+    if user:
+        return user
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)

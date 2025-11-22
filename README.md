@@ -28,6 +28,7 @@ cp .env.example .env  # update secrets + Postgres DSN
 alembic upgrade head
 
 # Start the API
+# Optionally explore the API docs at http://localhost:8000/api/v1/docs
 uvicorn app.main:app --reload
 ```
 
@@ -75,7 +76,8 @@ Services:
 
 - User registration + OAuth2 password flow for login
 - Admin approval queue for new accounts, with optional email-domain allowlist for automatic activation
-- JWT-based `Authorization: Bearer ...` headers
+- JWT-based `Authorization: Bearer ...` headers plus built-in Swagger UI at `/api/v1/docs` (supports JWTs or admin API keys)
+- Admin API keys that can be generated from Settings → API Keys and supplied via `Authorization: Bearer <key>` for headless integrations
 - Global roles (`admin`, `project_manager`, `member`) enforced through dependency guards
 - Project-level roles (`admin`, `project_manager`, `member`) for finer-grained control over task/project mutations
 - Team-owned projects restrict visibility/editing to members of the owning team (admins can override)
@@ -95,7 +97,7 @@ Services:
 - Auth context with persistent JWT tokens and guarded routes
 - React Query hooks for projects/tasks CRUD, with optimistic invalidations
 - Simple project board UI + task status transitions, plus gated project creation for managers/admins
-- Admin-only settings + user management screens for approval queues, allowlists, role changes, password resets, account deletion, team management, and OIDC configuration
+- Admin-only settings + user management screens for approval queues, allowlists, role changes, password resets, account deletion, team management, OIDC configuration, and API key management
 
 ### Teams
 

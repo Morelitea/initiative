@@ -13,6 +13,7 @@ class ProjectRole(str, Enum):
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
+    from app.models.project_order import ProjectOrder
     from app.models.task import Task
     from app.models.user import User
     from app.models.team import Team
@@ -61,6 +62,10 @@ class Project(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     members: List["ProjectMember"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    orders: List["ProjectOrder"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

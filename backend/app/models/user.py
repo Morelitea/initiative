@@ -44,8 +44,12 @@ class User(SQLModel, table=True):
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
     memberships: List["ProjectMember"] = Relationship(back_populates="user")
     teams: List["Team"] = Relationship(back_populates="members", link_model=TeamMember)
+    project_orders: List["ProjectOrder"] = Relationship(back_populates="user")
+    api_keys: List["AdminApiKey"] = Relationship(back_populates="user")
 
 
 from app.models.project import Project  # noqa: E402  # isort:skip
 from app.models.project import ProjectMember  # noqa: E402  # isort:skip
 from app.models.task import Task  # noqa: E402  # isort:skip
+from app.models.project_order import ProjectOrder  # noqa: E402  # isort:skip
+from app.models.api_key import AdminApiKey  # noqa: E402  # isort:skip

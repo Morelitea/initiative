@@ -7,6 +7,7 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_user, require_roles
 from app.models.project import Project, ProjectMember, ProjectRole
+from app.models.project_order import ProjectOrder
 from app.models.task import Task, TaskAssignee
 from app.models.team import Team, TeamMember
 from app.models.user import User, UserRole
@@ -18,6 +19,7 @@ from app.schemas.project import (
     ProjectMemberCreate,
     ProjectMemberRead,
     ProjectRead,
+    ProjectReorderRequest,
     ProjectUpdate,
 )
 
@@ -106,6 +108,102 @@ async def _duplicate_template_tasks(session: SessionDep, template: Project, new_
             )
 
 
+def _matches_filters(project: Project, *, archived: Optional[bool], template: Optional[bool]) -> bool:
+    if template is None:
+        if project.is_template:
+            return False
+    elif project.is_template != template:
+        return False
+
+    if archived is None:
+        return not project.is_archived
+    return project.is_archived == archived
+
+
+async def _visible_projects(
+    session: SessionDep,
+    current_user: User,
+    *,
+    archived: Optional[bool],
+    template: Optional[bool],
+) -> List[Project]:
+    base_statement = select(Project).options(
+        selectinload(Project.members),
+        selectinload(Project.owner),
+        selectinload(Project.team).selectinload(Team.members),
+    )
+    result = await session.exec(base_statement)
+    all_projects = result.all()
+
+    if current_user.role == UserRole.admin:
+        return [project for project in all_projects if _matches_filters(project, archived=archived, template=template)]
+
+    membership_result = await session.exec(select(ProjectMember).where(ProjectMember.user_id == current_user.id))
+    memberships = membership_result.all()
+    membership_map = {membership.project_id: membership.role for membership in memberships}
+    user_project_role = project_access.user_role_to_project_role(current_user.role)
+    team_ids_result = await session.exec(select(TeamMember.team_id).where(TeamMember.user_id == current_user.id))
+    team_ids = set(team_ids_result.all())
+
+    visible_projects: List[Project] = []
+    for project in all_projects:
+        if not _matches_filters(project, archived=archived, template=template):
+            continue
+        if project.owner_id == current_user.id:
+            visible_projects.append(project)
+            continue
+
+        if project.team_id and project.team_id not in team_ids and current_user.role != UserRole.admin:
+            continue
+
+        membership_role = membership_map.get(project.id)
+        allowed_read_roles = project_access.read_roles_set(project)
+        if membership_role and membership_role.value in allowed_read_roles:
+            visible_projects.append(project)
+            continue
+
+        if user_project_role.value in allowed_read_roles:
+            visible_projects.append(project)
+
+    return visible_projects
+
+
+async def _project_reads_with_order(
+    session: SessionDep,
+    current_user: User,
+    projects: List[Project],
+) -> List[ProjectRead]:
+    if not projects:
+        return []
+
+    project_ids = [project.id for project in projects if project.id is not None]
+    order_map: dict[int, float] = {}
+    if project_ids:
+        order_stmt = select(ProjectOrder).where(
+            ProjectOrder.user_id == current_user.id,
+            ProjectOrder.project_id.in_(tuple(project_ids)),
+        )
+        order_result = await session.exec(order_stmt)
+        order_map = {order.project_id: order.sort_order for order in order_result.all()}
+
+    def sort_key(project: Project) -> tuple[bool, float, int]:
+        order_value = order_map.get(project.id)
+        return (
+            order_value is None,
+            float(order_value) if order_value is not None else 0.0,
+            project.id or 0,
+        )
+
+    sorted_projects = sorted(projects, key=sort_key)
+
+    payloads: List[ProjectRead] = []
+    for project in sorted_projects:
+        payload = ProjectRead.model_validate(project)
+        payload = payload.model_copy(update={"sort_order": order_map.get(project.id)})
+        payloads.append(payload)
+    return payloads
+
+
 async def _require_project_membership(
     project: Project,
     current_user: User,
@@ -170,62 +268,14 @@ async def list_projects(
     current_user: Annotated[User, Depends(get_current_active_user)],
     archived: Optional[bool] = Query(default=None),
     template: Optional[bool] = Query(default=None),
-) -> List[Project]:
-    base_statement = select(Project).options(
-        selectinload(Project.members),
-        selectinload(Project.owner),
-        selectinload(Project.team).selectinload(Team.members),
+) -> List[ProjectRead]:
+    projects = await _visible_projects(
+        session,
+        current_user,
+        archived=archived,
+        template=template,
     )
-
-    result = await session.exec(base_statement)
-    all_projects = result.all()
-
-    def _matches_filters(project: Project) -> bool:
-        if template is None:
-            if project.is_template:
-                return False
-        elif project.is_template != template:
-            return False
-
-        if archived is None:
-            return not project.is_archived
-        return project.is_archived == archived
-
-    if current_user.role == UserRole.admin:
-        return [project for project in all_projects if _matches_filters(project)]
-
-    membership_result = await session.exec(select(ProjectMember).where(ProjectMember.user_id == current_user.id))
-    memberships = membership_result.all()
-    membership_map = {membership.project_id: membership.role for membership in memberships}
-    user_project_role = project_access.user_role_to_project_role(current_user.role)
-    team_ids_result = await session.exec(select(TeamMember.team_id).where(TeamMember.user_id == current_user.id))
-    team_ids = set(team_ids_result.all())
-
-    visible_projects: List[Project] = []
-    for project in all_projects:
-        if not _matches_filters(project):
-            continue
-        if project.owner_id == current_user.id:
-            visible_projects.append(project)
-            continue
-
-        if (
-            project.team_id
-            and project.team_id not in team_ids
-            and current_user.role != UserRole.admin
-        ):
-            continue
-
-        membership_role = membership_map.get(project.id)
-        allowed_read_roles = project_access.read_roles_set(project)
-        if membership_role and membership_role.value in allowed_read_roles:
-            visible_projects.append(project)
-            continue
-
-        if user_project_role.value in allowed_read_roles:
-            visible_projects.append(project)
-
-    return visible_projects
+    return await _project_reads_with_order(session, current_user, projects)
 
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -384,10 +434,15 @@ async def unarchive_project(
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-async def read_project(project_id: int, session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> Project:
+async def read_project(
+    project_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ProjectRead:
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="read")
-    return project
+    payloads = await _project_reads_with_order(session, current_user, [project])
+    return payloads[0] if payloads else ProjectRead.model_validate(project)
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
@@ -451,6 +506,58 @@ async def add_project_member(
     await session.commit()
     await session.refresh(membership)
     return membership
+
+
+@router.post("/reorder", response_model=List[ProjectRead])
+async def reorder_projects(
+    reorder_in: ProjectReorderRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[ProjectRead]:
+    visible_projects = await _visible_projects(session, current_user, archived=None, template=None)
+    if not visible_projects:
+        return []
+
+    current_payloads = await _project_reads_with_order(session, current_user, visible_projects)
+    current_ids = [project.id for project in current_payloads if project.id is not None]
+    if not current_ids:
+        return current_payloads
+
+    valid_ids = set(current_ids)
+    seen: set[int] = set()
+    requested_ids: List[int] = []
+    for project_id in reorder_in.project_ids:
+        if project_id in valid_ids and project_id not in seen:
+            seen.add(project_id)
+            requested_ids.append(project_id)
+
+    final_order: List[int] = requested_ids[:]
+    for project_id in current_ids:
+        if project_id not in seen:
+            seen.add(project_id)
+            final_order.append(project_id)
+
+    if final_order == current_ids or not final_order:
+        return current_payloads
+
+    order_stmt = select(ProjectOrder).where(
+        ProjectOrder.user_id == current_user.id,
+        ProjectOrder.project_id.in_(tuple(final_order)),
+    )
+    existing_orders_result = await session.exec(order_stmt)
+    existing_orders = {order.project_id: order for order in existing_orders_result.all()}
+
+    for index, project_id in enumerate(final_order):
+        sort_value = float(index)
+        order = existing_orders.get(project_id)
+        if order:
+            order.sort_order = sort_value
+        else:
+            order = ProjectOrder(user_id=current_user.id, project_id=project_id, sort_order=sort_value)
+        session.add(order)
+
+    await session.commit()
+    return await _project_reads_with_order(session, current_user, visible_projects)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

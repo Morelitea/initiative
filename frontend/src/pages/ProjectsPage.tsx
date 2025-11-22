@@ -45,12 +45,11 @@ import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
-import { Project, Team } from "../types/api";
+import { Project, ProjectReorderPayload, Team } from "../types/api";
 
 const NO_TEAM_VALUE = "none";
 const NO_TEMPLATE_VALUE = "template-none";
 const PROJECT_SORT_KEY = "project:list:sort";
-const PROJECT_ORDER_KEY = "project:list:custom-order";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
 
@@ -90,23 +89,7 @@ export const ProjectsPage = () => {
     }
     return "custom";
   });
-  const [customOrder, setCustomOrder] = useState<number[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
-    try {
-      const stored = localStorage.getItem(PROJECT_ORDER_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((value) => Number.isFinite(value));
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    return [];
-  });
+  const [customOrder, setCustomOrder] = useState<number[]>([]);
   const removeTemplate = useMutation({
     mutationFn: async (projectId: number) => {
       await apiClient.patch(`/projects/${projectId}`, { is_template: false });
@@ -174,6 +157,16 @@ export const ProjectsPage = () => {
     },
   });
 
+  const reorderProjects = useMutation({
+    mutationFn: async (orderedIds: number[]) => {
+      const payload: ProjectReorderPayload = { project_ids: orderedIds };
+      await apiClient.post("/projects/reorder", payload);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+
 
   const createProject = useMutation({
     mutationFn: async () => {
@@ -221,10 +214,6 @@ export const ProjectsPage = () => {
   }, [sortMode]);
 
   useEffect(() => {
-    localStorage.setItem(PROJECT_ORDER_KEY, JSON.stringify(customOrder));
-  }, [customOrder]);
-
-  useEffect(() => {
     localStorage.setItem(PROJECT_VIEW_KEY, viewMode);
   }, [viewMode]);
 
@@ -234,14 +223,15 @@ export const ProjectsPage = () => {
       setCustomOrder((prev) => (prev.length ? [] : prev));
       return;
     }
+    const projectIds = projects.map((project) => project.id);
     setCustomOrder((prev) => {
-      const projectIds = projects.map((project) => project.id);
-      const existing = prev.filter((id) => projectIds.includes(id));
-      const missing = projectIds.filter((id) => !existing.includes(id));
-      if (missing.length === 0 && existing.length === prev.length) {
+      if (
+        prev.length === projectIds.length &&
+        prev.every((id, index) => id === projectIds[index])
+      ) {
         return prev;
       }
-      return [...existing, ...missing];
+      return projectIds;
     });
   }, [projectsQuery.data]);
 
@@ -315,7 +305,9 @@ export const ProjectsPage = () => {
       if (oldIndex === -1 || newIndex === -1) {
         return prev;
       }
-      return arrayMove(prev, oldIndex, newIndex);
+      const nextOrder = arrayMove(prev, oldIndex, newIndex);
+      reorderProjects.mutate(nextOrder);
+      return nextOrder;
     });
   };
 

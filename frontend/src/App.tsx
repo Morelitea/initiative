@@ -25,6 +25,7 @@ import { SettingsAuthPage } from "./pages/SettingsAuthPage";
 import { SettingsLayout } from "./pages/SettingsLayout";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SettingsInterfacePage } from "./pages/SettingsInterfacePage";
+import { SettingsApiKeysPage } from "./pages/SettingsApiKeysPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { TaskEditPage } from "./pages/TaskEditPage";
@@ -141,6 +142,7 @@ const AppLayout = () => {
               <Route path="users" element={<UsersPage />} />
               <Route path="teams" element={<TeamsPage />} />
               <Route path="auth" element={<SettingsAuthPage />} />
+              <Route path="api-keys" element={<SettingsApiKeysPage />} />
               <Route path="interface" element={<SettingsInterfacePage />} />
             </Route>
           </Routes>

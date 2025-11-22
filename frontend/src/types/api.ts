@@ -46,6 +46,7 @@ export interface Project {
   owner?: User;
   team?: Team | null;
   members: ProjectMember[];
+  sort_order?: number | null;
 }
 
 export type TaskStatus = 'backlog' | 'in_progress' | 'blocked' | 'done';
@@ -74,7 +75,30 @@ export interface TaskReorderPayload {
   }[];
 }
 
+export interface ProjectReorderPayload {
+  project_ids: number[];
+}
+
 export interface RegistrationSettings {
   auto_approved_domains: string[];
   pending_users: User[];
+}
+
+export interface ApiKeyMetadata {
+  id: number;
+  name: string;
+  token_prefix: string;
+  is_active: boolean;
+  created_at: string;
+  last_used_at?: string | null;
+  expires_at?: string | null;
+}
+
+export interface ApiKeyListResponse {
+  keys: ApiKeyMetadata[];
+}
+
+export interface ApiKeyCreateResponse {
+  api_key: ApiKeyMetadata;
+  secret: string;
 }

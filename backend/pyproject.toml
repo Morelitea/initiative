@@ -14,6 +14,7 @@ sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+bcrypt = "==4.0.1"
 pydantic-settings = "^2.3.4"
 python-multipart = "^0.0.9"
 email-validator = "^2.1.1"

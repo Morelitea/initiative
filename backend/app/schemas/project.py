@@ -67,6 +67,11 @@ class ProjectRead(ProjectBase):
     owner: Optional[UserRead] = None
     team: Optional[TeamRead] = None
     members: List[ProjectMemberRead] = Field(default_factory=list)
+    sort_order: Optional[float] = None
 
     class Config:
         from_attributes = True
+
+
+class ProjectReorderRequest(BaseModel):
+    project_ids: List[int] = Field(default_factory=list)
