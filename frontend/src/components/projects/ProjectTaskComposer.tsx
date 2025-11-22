@@ -7,6 +7,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
+import { DateTimePicker } from "../ui/date-time-picker";
 import type { TaskPriority } from "../../types/api";
 import { AssigneeSelector } from "./AssigneeSelector";
 
@@ -123,11 +124,12 @@ export const ProjectTaskComposer = ({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="task-due-date">Due date</Label>
-                    <Input
+                    <DateTimePicker
                       id="task-due-date"
-                      type="datetime-local"
                       value={dueDate}
-                      onChange={(event) => onDueDateChange(event.target.value)}
+                      onChange={onDueDateChange}
+                      disabled={isSubmitting}
+                      placeholder="Optional"
                     />
                   </div>
                 </AccordionContent>

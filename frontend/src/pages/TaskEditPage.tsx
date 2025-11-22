@@ -7,7 +7,6 @@ import { queryClient } from '../lib/queryClient';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
@@ -15,9 +14,23 @@ import { AssigneeSelector } from '../components/projects/AssigneeSelector';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import type { Project, ProjectRole, Task, TaskPriority, TaskStatus, User } from '../types/api';
+import { Input } from '../components/ui/input';
+import { DateTimePicker } from '../components/ui/date-time-picker';
 
 const taskStatusOrder: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
 const priorityOrder: TaskPriority[] = ['low', 'medium', 'high', 'urgent'];
+
+const toLocalInputValue = (value?: string | null) => {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (segment: number) => segment.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 export const TaskEditPage = () => {
   const { taskId } = useParams();
@@ -67,7 +80,7 @@ export const TaskEditPage = () => {
       setStatus(task.status);
       setPriority(task.priority);
       setAssigneeIds(task.assignees?.map((assignee) => assignee.id) ?? []);
-      setDueDate(task.due_date ? task.due_date.slice(0, 16) : '');
+      setDueDate(toLocalInputValue(task.due_date));
     }
   }, [taskQuery.data]);
 
@@ -93,7 +106,7 @@ export const TaskEditPage = () => {
       setStatus(updatedTask.status);
       setPriority(updatedTask.priority);
       setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
-      setDueDate(updatedTask.due_date ? updatedTask.due_date.slice(0, 16) : '');
+      setDueDate(toLocalInputValue(updatedTask.due_date));
       toast.success('Task updated');
     },
   });
@@ -299,12 +312,12 @@ export const TaskEditPage = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="task-due-date">Due date</Label>
-                <Input
+                <DateTimePicker
                   id="task-due-date"
-                  type="datetime-local"
                   value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
+                  onChange={setDueDate}
                   disabled={isReadOnly}
+                  placeholder="Optional"
                 />
               </div>
             </div>

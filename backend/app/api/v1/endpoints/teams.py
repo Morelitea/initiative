@@ -1,6 +1,7 @@
 from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
@@ -38,6 +39,17 @@ async def _get_team_or_404(team_id: int, session: SessionDep) -> Team:
     return team
 
 
+async def _team_name_exists(session: SessionDep, name: str, exclude_team_id: int | None = None) -> bool:
+    normalized = name.strip().lower()
+    if not normalized:
+        return False
+    statement = select(Team.id).where(func.lower(Team.name) == normalized)
+    if exclude_team_id is not None:
+        statement = statement.where(Team.id != exclude_team_id)
+    result = await session.exec(statement)
+    return result.first() is not None
+
+
 @router.get("/", response_model=List[TeamRead])
 async def list_teams(session: SessionDep, _: AdminUser) -> List[TeamRead]:
     statement = select(Team).options(selectinload(Team.members))
@@ -48,6 +60,8 @@ async def list_teams(session: SessionDep, _: AdminUser) -> List[TeamRead]:
 
 @router.post("/", response_model=TeamRead, status_code=status.HTTP_201_CREATED)
 async def create_team(team_in: TeamCreate, session: SessionDep, _: AdminUser) -> TeamRead:
+    if await _team_name_exists(session, team_in.name):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Team name already exists")
     team = Team(name=team_in.name, description=team_in.description)
     session.add(team)
     await session.commit()
@@ -61,6 +75,9 @@ async def update_team(team_id: int, team_in: TeamUpdate, session: SessionDep, _:
     team = await _get_team_or_404(team_id, session)
 
     update_data = team_in.dict(exclude_unset=True)
+    if "name" in update_data and update_data["name"] is not None:
+        if await _team_name_exists(session, update_data["name"], exclude_team_id=team_id):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Team name already exists")
     for field, value in update_data.items():
         setattr(team, field, value)
     session.add(team)

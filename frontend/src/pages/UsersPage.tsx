@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 import { apiClient } from '../api/client';
 import { Button } from '../components/ui/button';
@@ -10,6 +11,7 @@ import { User, UserRole } from '../types/api';
 
 const USERS_QUERY_KEY = ['users'];
 const ROLE_OPTIONS: UserRole[] = ['admin', 'project_manager', 'member'];
+const SUPER_USER_ID = 1;
 
 export const UsersPage = () => {
   const { user: currentUser } = useAuth();
@@ -44,6 +46,10 @@ export const UsersPage = () => {
   });
 
   const handleRoleChange = (userId: number, role: UserRole) => {
+    if (userId === SUPER_USER_ID) {
+      toast.error("You can't change the super user's role");
+      return;
+    }
     updateUser.mutate({ userId, data: { role } });
   };
 
@@ -56,6 +62,10 @@ export const UsersPage = () => {
   };
 
   const handleDeleteUser = (userId: number, email: string) => {
+    if (userId === SUPER_USER_ID) {
+      toast.error("You can't delete the super user");
+      return;
+    }
     if (!window.confirm(`Delete user ${email}? This cannot be undone.`)) {
       return;
     }
@@ -81,7 +91,9 @@ export const UsersPage = () => {
         <CardDescription>Update roles, reset passwords, or remove accounts.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {usersQuery.data.map((user) => (
+        {usersQuery.data.map((user) => {
+          const isSuperUser = user.id === SUPER_USER_ID;
+          return (
           <div
             className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4"
             key={user.id}
@@ -94,8 +106,12 @@ export const UsersPage = () => {
               </p>
             </div>
             <div className="flex flex-col gap-2 min-w-[220px]">
-              <Select value={user.role} onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}>
-                <SelectTrigger>
+              <Select
+                value={user.role}
+                onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}
+                disabled={isSuperUser}
+              >
+                <SelectTrigger disabled={isSuperUser}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -118,13 +134,16 @@ export const UsersPage = () => {
                 type="button"
                 variant="destructive"
                 onClick={() => handleDeleteUser(user.id, user.email)}
-                disabled={deleteUser.isPending || currentUser?.id === user.id}
+                disabled={
+                  isSuperUser || deleteUser.isPending || currentUser?.id === user.id
+                }
               >
                 Delete user
               </Button>
             </div>
           </div>
-        ))}
+        );
+        })}
       </CardContent>
     </Card>
   );

@@ -14,6 +14,8 @@ router = APIRouter()
 
 AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
 
+SUPER_USER_ID = 1
+
 
 @router.get("/me", response_model=UserRead)
 async def read_users_me(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
@@ -94,6 +96,11 @@ async def update_user(user_id: int, user_in: UserUpdate, session: SessionDep, _:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     update_data = user_in.dict(exclude_unset=True)
+    if user.id == SUPER_USER_ID and "role" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change the super user's role",
+        )
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
     if "avatar_base64" in update_data:
@@ -132,6 +139,8 @@ async def approve_user(user_id: int, session: SessionDep, _: AdminUser) -> User:
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(user_id: int, session: SessionDep, current_admin: AdminUser) -> None:
+    if user_id == SUPER_USER_ID:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the super user")
     if user_id == current_admin.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
 

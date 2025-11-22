@@ -36,6 +36,15 @@ import { SortableTaskRow } from '../components/projects/SortableTaskRow';
 
 const taskStatusOrder: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
 
+type DueFilterOption = 'all' | 'today' | '7_days' | '30_days' | 'overdue';
+
+type StoredFilters = {
+  viewMode: 'kanban' | 'list';
+  assigneeFilter: string;
+  dueFilter: DueFilterOption;
+  listStatusFilter: 'all' | 'incomplete' | TaskStatus;
+};
+
 const priorityVariant: Record<TaskPriority, 'default' | 'secondary' | 'destructive'> = {
   low: 'secondary',
   medium: 'default',
@@ -54,7 +63,7 @@ export const ProjectDetailPage = () => {
   const [dueDate, setDueDate] = useState<string>('');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
-  const [dueFilter, setDueFilter] = useState<'all' | 'today' | '7_days' | '30_days'>('all');
+  const [dueFilter, setDueFilter] = useState<DueFilterOption>('all');
   const [listStatusFilter, setListStatusFilter] = useState<'all' | 'incomplete' | TaskStatus>('all');
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -128,12 +137,7 @@ export const ProjectDetailPage = () => {
     try {
       const raw = localStorage.getItem(filterStorageKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as Partial<{
-          viewMode: 'kanban' | 'list';
-          assigneeFilter: string;
-          dueFilter: 'all' | 'today' | '7_days' | '30_days';
-          listStatusFilter: 'all' | 'incomplete' | TaskStatus;
-        }>;
+        const parsed = JSON.parse(raw) as Partial<StoredFilters>;
         if (parsed.viewMode === 'kanban' || parsed.viewMode === 'list') {
           setViewMode(parsed.viewMode);
         }
@@ -240,8 +244,7 @@ export const ProjectDetailPage = () => {
     if (assigneeFilter === 'all' && dueFilter === 'all') {
       return tasks;
     }
-    const today = new Date();
-    const targetDate = new Date();
+    const now = new Date();
     return tasks.filter((task) => {
       if (assigneeFilter !== 'all') {
         const targetId = Number(assigneeFilter);
@@ -254,18 +257,26 @@ export const ProjectDetailPage = () => {
           return false;
         }
         const dueDate = new Date(task.due_date);
-        if (dueFilter === 'today') {
+        if (Number.isNaN(dueDate.getTime())) {
+          return false;
+        }
+        if (dueFilter === 'overdue') {
+          if (dueDate >= now) {
+            return false;
+          }
+        } else if (dueFilter === 'today') {
           if (
-            dueDate.getFullYear() !== today.getFullYear() ||
-            dueDate.getMonth() !== today.getMonth() ||
-            dueDate.getDate() !== today.getDate()
+            dueDate.getFullYear() !== now.getFullYear() ||
+            dueDate.getMonth() !== now.getMonth() ||
+            dueDate.getDate() !== now.getDate()
           ) {
             return false;
           }
         } else {
           const days = dueFilter === '7_days' ? 7 : 30;
-          targetDate.setDate(today.getDate() + days);
-          if (dueDate < today || dueDate > targetDate) {
+          const windowEnd = new Date(now.getTime());
+          windowEnd.setDate(windowEnd.getDate() + days);
+          if (dueDate < now || dueDate > windowEnd) {
             return false;
           }
         }
@@ -546,12 +557,13 @@ export const ProjectDetailPage = () => {
               <Label htmlFor="due-filter" className="text-xs font-medium text-muted-foreground">
                 Due filter
               </Label>
-              <Select value={dueFilter} onValueChange={(value) => setDueFilter(value as typeof dueFilter)}>
+              <Select value={dueFilter} onValueChange={(value) => setDueFilter(value as DueFilterOption)}>
                 <SelectTrigger id="due-filter">
                   <SelectValue placeholder="All due dates" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All due dates</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
                   <SelectItem value="today">Due today</SelectItem>
                   <SelectItem value="7_days">Due next 7 days</SelectItem>
                   <SelectItem value="30_days">Due next 30 days</SelectItem>

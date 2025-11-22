@@ -5,11 +5,12 @@ import { toast } from 'sonner';
 import { apiClient } from '../api/client';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { queryClient } from '../lib/queryClient';
 import type { ApiKeyCreateResponse, ApiKeyListResponse, ApiKeyMetadata } from '../types/api';
+import { Input } from '../components/ui/input';
+import { DateTimePicker } from '../components/ui/date-time-picker';
 
 const API_KEYS_QUERY_KEY = ['settings', 'api-keys'] as const;
 
@@ -152,11 +153,11 @@ export const SettingsApiKeysPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="api-key-expiration">Expiration (optional)</Label>
-              <Input
+              <DateTimePicker
                 id="api-key-expiration"
-                type="datetime-local"
                 value={expiresAtInput}
-                onChange={(event) => setExpiresAtInput(event.target.value)}
+                onChange={setExpiresAtInput}
+                placeholder="Never expires"
               />
               <p className="text-xs text-muted-foreground">Leave blank for a key that never expires.</p>
             </div>

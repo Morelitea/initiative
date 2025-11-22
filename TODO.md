@@ -16,6 +16,6 @@
 ## Bug fixes
 
 - [x] Fix updating profile 403
-- [ ] Timezone issues :(
+- [x] Timezone issues :(
 - [x] Releasing the drag handle on a project card navigates to the project
 - [x] Get docker compose working correctly
