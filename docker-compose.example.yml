@@ -3,9 +3,9 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-pour_priority}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pour_priority}
-      POSTGRES_DB: ${POSTGRES_DB:-pour_priority}
+      POSTGRES_USER: ${POSTGRES_USER:-initiative}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-initiative}
+      POSTGRES_DB: ${POSTGRES_DB:-initiative}
     ports:
       - "5432:5432"
     volumes:
@@ -20,12 +20,9 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://pour_priority:pour_priority@db:5432/pour_priority
+      DATABASE_URL: postgresql+asyncpg://initiative:initiative@db:5432/initiative
       SECRET_KEY: super-secret-key
       ACCESS_TOKEN_EXPIRE_MINUTES: 1440
-      FIRST_SUPERUSER_EMAIL: admin@example.com
-      FIRST_SUPERUSER_PASSWORD: changeme
-      FIRST_SUPERUSER_FULL_NAME: Admin User
       APP_URL: ${APP_URL:-http://localhost:5173}
     depends_on:
       db:

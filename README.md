@@ -1,4 +1,4 @@
-# Pour Priority
+# Initiative
 
 A full-stack project management application built with a FastAPI backend, PostgreSQL 17 storage, and a Vite + React frontend that communicates via React Query. The system ships with role-based permissions, JWT authentication, and a Docker-first story for self-hosting.
 
@@ -34,7 +34,7 @@ uvicorn app.main:app --reload
 
 Key environment variables (see `.env.example`):
 
-- `DATABASE_URL` – e.g., `postgresql+asyncpg://pour_priority:pour_priority@localhost:5432/pour_priority`
+- `DATABASE_URL` – e.g., `postgresql+asyncpg://initiative:initiative@localhost:5432/initiative`
 - `SECRET_KEY` – random string for JWT signing
 - `AUTO_APPROVED_EMAIL_DOMAINS` – comma-separated list of email domains that should be activated automatically on signup
 - `APP_URL` – public base URL for the app; used to derive OIDC callback URLs (e.g., `https://app.example.com`)

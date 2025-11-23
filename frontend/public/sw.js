@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'pour-priority-static-v1';
-const DATA_CACHE = 'pour-priority-data-v1';
+const STATIC_CACHE = 'initiative-static-v1';
+const DATA_CACHE = 'initiative-data-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

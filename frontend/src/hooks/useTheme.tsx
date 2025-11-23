@@ -10,7 +10,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-const THEME_STORAGE_KEY = 'pour-priority-theme';
+const THEME_STORAGE_KEY = 'initiative-theme';
 
 const getPreferredTheme = (): Theme => {
   if (typeof window === 'undefined') {
