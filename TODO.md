@@ -12,6 +12,7 @@
 - [x] Make app a PWA so it can be installed. Cache projects and tasks for offline use
 - [x] implement API key access
 - [x] Add swagger UI
+- [x] Mobile menu drawer
 
 ## Bug fixes
 
@@ -19,3 +20,6 @@
 - [x] Timezone issues :(
 - [x] Releasing the drag handle on a project card navigates to the project
 - [x] Get docker compose working correctly
+- [x] Using a template should copy the description too
+- [x] Drag and drop on mobile
+- [x] Bottom padding for room for FABs

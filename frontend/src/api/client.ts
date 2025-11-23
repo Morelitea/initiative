@@ -37,7 +37,7 @@ const resolveApiBaseUrl = (): string => {
   return DEFAULT_API_BASE_URL;
 };
 
-const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = resolveApiBaseUrl();
 
 let authToken: string | null = null;
 

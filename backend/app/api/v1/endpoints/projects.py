@@ -30,7 +30,7 @@ AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
 
 
 def _project_payload(project: Project) -> dict:
-    return ProjectRead.model_validate(project).model_dump()
+    return ProjectRead.model_validate(project).model_dump(mode="json")
 
 
 async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:

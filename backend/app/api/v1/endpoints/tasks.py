@@ -25,7 +25,7 @@ async def _next_sort_order(session: SessionDep, project_id: int) -> float:
 
 
 def _task_payload(task: Task) -> dict:
-    return TaskRead.model_validate(task).model_dump()
+    return TaskRead.model_validate(task).model_dump(mode="json")
 
 
 async def _fetch_task(session: SessionDep, task_id: int) -> Task | None:
