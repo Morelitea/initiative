@@ -1,6 +1,7 @@
 import { BrowserRouter, Link, NavLink, Route, Routes } from "react-router-dom";
 
 import { ModeToggle } from "./components/ModeToggle";
+import { MobileMenu, type NavItem } from "./components/MobileMenu";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Avatar, AvatarFallback, AvatarImage } from "./components/ui/avatar";
 import {
@@ -44,11 +45,16 @@ const AppLayout = () => {
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || null;
   useRealtimeUpdates();
   useInterfaceColors();
+  const navItems: NavItem[] = [
+    { label: "Projects", to: "/", end: true },
+    { label: "My Tasks", to: "/tasks" },
+  ];
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-        <div className="container flex h-16 items-center gap-6">
+      <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="container flex h-16 items-center gap-3 px-4 md:px-8">
+          <MobileMenu navItems={navItems} user={user} onLogout={logout} />
           <Link
             to="/"
             className="flex items-center gap-3 text-lg font-semibold tracking-tight text-foreground"
@@ -56,26 +62,21 @@ const AppLayout = () => {
             <img src="/icons/logo.svg" alt="" className="h-8 w-8" />
             Pour Priority
           </Link>
-          <nav className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
-            <NavLink
-              to="/"
-              end
-              className={({ isActive }) =>
-                isActive ? "text-foreground" : undefined
-              }
-            >
-              Projects
-            </NavLink>
-            <NavLink
-              to="/tasks"
-              className={({ isActive }) =>
-                isActive ? "text-foreground" : undefined
-              }
-            >
-              My Tasks
-            </NavLink>
+          <nav className="hidden items-center gap-4 text-sm font-medium text-muted-foreground md:flex">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  isActive ? "text-foreground" : undefined
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto hidden items-center gap-3 md:flex">
             <ModeToggle />
             {user ? (
               <DropdownMenu>
@@ -122,8 +123,8 @@ const AppLayout = () => {
           </div>
         </div>
       </header>
-      <main className="flex-1 bg-muted/50">
-        <div className="container py-8">
+      <main className="flex-1 bg-muted/50 pb-20">
+        <div className="container p-4 md:p-8">
           <Routes>
             <Route path="/" element={<ProjectsPage />} />
             <Route

@@ -49,13 +49,15 @@ export const SettingsLayout = () => {
           }
         }}
       >
-        <TabsList className="w-full justify-start">
-          {settingsTabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
+          <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
+            {settingsTabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
       </Tabs>
       <Outlet />
     </div>

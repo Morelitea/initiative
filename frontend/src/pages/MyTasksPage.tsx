@@ -222,7 +222,7 @@ export const MyTasksPage = () => {
           {sortedTasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No tasks match the current filters.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="text-left text-muted-foreground">
                 <tr>
                   <th className="pb-2 font-medium">Task</th>

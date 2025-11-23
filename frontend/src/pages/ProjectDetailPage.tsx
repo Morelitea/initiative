@@ -6,7 +6,8 @@ import {
   closestCorners,
   DndContext,
   DragEndEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -386,8 +387,24 @@ export const ProjectDetailPage = () => {
     [persistOrder]
   );
 
-  const kanbanSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const listSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const kanbanSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    })
+  ); // Touch holds prevent accidental scroll drags.
+  const listSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    })
+  );
 
   if (!Number.isFinite(parsedProjectId)) {
     return (
@@ -598,18 +615,21 @@ export const ProjectDetailPage = () => {
 
           <TabsContent value="kanban">
             <DndContext sensors={kanbanSensors} collisionDetection={closestCorners} onDragEnd={handleKanbanDragEnd}>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {taskStatusOrder.map((status) => (
-                  <KanbanColumn
-                    key={status}
-                    status={status}
-                    tasks={groupedTasks[status]}
-                    canWrite={canReorderTasks}
-                    canOpenTask={canEditTaskDetails}
-                    priorityVariant={priorityVariant}
-                    onTaskClick={handleTaskClick}
-                  />
-                ))}
+              <div className="-mx-4 overflow-x-auto pb-4">
+                <div className="flex gap-4 px-4">
+                  {taskStatusOrder.map((status) => (
+                    <div key={status} className="w-80 shrink-0">
+                      <KanbanColumn
+                        status={status}
+                        tasks={groupedTasks[status]}
+                        canWrite={canReorderTasks}
+                        canOpenTask={canEditTaskDetails}
+                        priorityVariant={priorityVariant}
+                        onTaskClick={handleTaskClick}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </DndContext>
           </TabsContent>
@@ -629,7 +649,7 @@ export const ProjectDetailPage = () => {
                       items={listTasks.map((task) => task.id.toString())}
                       strategy={verticalListSortingStrategy}
                     >
-                      <table className="w-full text-sm">
+                      <table className="w-full min-w-[720px] text-sm">
                         <thead>
                           <tr className="text-left text-muted-foreground">
                             <th className="pb-2 font-medium">Task</th>

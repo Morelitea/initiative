@@ -4,7 +4,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DndContext,
   DragEndEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -216,6 +217,25 @@ export const ProjectsPage = () => {
   useEffect(() => {
     localStorage.setItem(PROJECT_VIEW_KEY, viewMode);
   }, [viewMode]);
+  useEffect(() => {
+    if (isTemplateProject) {
+      return;
+    }
+    if (selectedTemplateId === NO_TEMPLATE_VALUE) {
+      return;
+    }
+    const templateId = Number(selectedTemplateId);
+    if (!Number.isFinite(templateId)) {
+      return;
+    }
+    const template = templatesQuery.data?.find(
+      (item) => item.id === templateId
+    );
+    if (!template) {
+      return;
+    }
+    setDescription(template.description ?? "");
+  }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
   useEffect(() => {
     const projects = projectsQuery.data ?? [];
@@ -286,8 +306,14 @@ export const ProjectsPage = () => {
   }, [filteredProjects, sortMode, customOrder]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    })
+  ); // Touch drags use a short press to keep scrolling intuitive.
 
   const handleProjectDragEnd = (event: DragEndEvent) => {
     if (sortMode !== "custom") {
