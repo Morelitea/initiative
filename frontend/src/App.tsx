@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Link, NavLink, Route, Routes } from "react-router-dom";
 
 import { ModeToggle } from "./components/ModeToggle";
@@ -15,22 +16,80 @@ import {
 import { useAuth } from "./hooks/useAuth";
 import { useRealtimeUpdates } from "./hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "./hooks/useInterfaceColors";
-import { LoginPage } from "./pages/LoginPage";
-import { OidcCallbackPage } from "./pages/OidcCallbackPage";
-import { ProjectDetailPage } from "./pages/ProjectDetailPage";
-import { ProjectSettingsPage } from "./pages/ProjectSettingsPage";
-import { ProjectsPage } from "./pages/ProjectsPage";
-import { MyTasksPage } from "./pages/MyTasksPage";
-import { RegisterPage } from "./pages/RegisterPage";
-import { SettingsAuthPage } from "./pages/SettingsAuthPage";
-import { SettingsLayout } from "./pages/SettingsLayout";
-import { SettingsPage } from "./pages/SettingsPage";
-import { SettingsInterfacePage } from "./pages/SettingsInterfacePage";
-import { SettingsApiKeysPage } from "./pages/SettingsApiKeysPage";
-import { TeamsPage } from "./pages/TeamsPage";
-import { UsersPage } from "./pages/UsersPage";
-import { TaskEditPage } from "./pages/TaskEditPage";
-import { UserProfilePage } from "./pages/UserProfilePage";
+const LoginPage = lazy(() =>
+  import("./pages/LoginPage").then((module) => ({ default: module.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+  import("./pages/RegisterPage").then((module) => ({
+    default: module.RegisterPage,
+  }))
+);
+const OidcCallbackPage = lazy(() =>
+  import("./pages/OidcCallbackPage").then((module) => ({
+    default: module.OidcCallbackPage,
+  }))
+);
+const ProjectsPage = lazy(() =>
+  import("./pages/ProjectsPage").then((module) => ({
+    default: module.ProjectsPage,
+  }))
+);
+const ProjectDetailPage = lazy(() =>
+  import("./pages/ProjectDetailPage").then((module) => ({
+    default: module.ProjectDetailPage,
+  }))
+);
+const ProjectSettingsPage = lazy(() =>
+  import("./pages/ProjectSettingsPage").then((module) => ({
+    default: module.ProjectSettingsPage,
+  }))
+);
+const TaskEditPage = lazy(() =>
+  import("./pages/TaskEditPage").then((module) => ({
+    default: module.TaskEditPage,
+  }))
+);
+const MyTasksPage = lazy(() =>
+  import("./pages/MyTasksPage").then((module) => ({
+    default: module.MyTasksPage,
+  }))
+);
+const UserProfilePage = lazy(() =>
+  import("./pages/UserProfilePage").then((module) => ({
+    default: module.UserProfilePage,
+  }))
+);
+const SettingsLayout = lazy(() =>
+  import("./pages/SettingsLayout").then((module) => ({
+    default: module.SettingsLayout,
+  }))
+);
+const SettingsPage = lazy(() =>
+  import("./pages/SettingsPage").then((module) => ({
+    default: module.SettingsPage,
+  }))
+);
+const SettingsAuthPage = lazy(() =>
+  import("./pages/SettingsAuthPage").then((module) => ({
+    default: module.SettingsAuthPage,
+  }))
+);
+const SettingsApiKeysPage = lazy(() =>
+  import("./pages/SettingsApiKeysPage").then((module) => ({
+    default: module.SettingsApiKeysPage,
+  }))
+);
+const SettingsInterfacePage = lazy(() =>
+  import("./pages/SettingsInterfacePage").then((module) => ({
+    default: module.SettingsInterfacePage,
+  }))
+);
+const TeamsPage = lazy(() =>
+  import("./pages/TeamsPage").then((module) => ({ default: module.TeamsPage }))
+);
+const UsersPage = lazy(() =>
+  import("./pages/UsersPage").then((module) => ({ default: module.UsersPage }))
+);
 
 const AppLayout = () => {
   const { user, logout } = useAuth();
@@ -155,13 +214,15 @@ const AppLayout = () => {
 
 export const App = () => (
   <BrowserRouter>
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/oidc/callback" element={<OidcCallbackPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route path="/*" element={<AppLayout />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<div className="py-10 text-center text-muted-foreground">Loading...</div>}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/oidc/callback" element={<OidcCallbackPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/*" element={<AppLayout />} />
+        </Route>
+      </Routes>
+    </Suspense>
   </BrowserRouter>
 );
