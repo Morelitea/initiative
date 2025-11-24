@@ -27,8 +27,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8173:8000"
+    # Expose port 8000 to view API docs at http://localhost:8000/api/v1/docs
+    # ports:
+    #   - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   frontend:
@@ -36,6 +37,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: /api/v1
+    container_name: initiative
     depends_on:
       - backend
     ports:
