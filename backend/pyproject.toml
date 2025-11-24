@@ -1,19 +1,19 @@
 [tool.poetry]
-name = "pour-priority-backend"
+name = "initiative-backend"
 version = "0.1.0"
-description = "FastAPI backend for Pour Priority project management app"
-authors = ["Jordan <jordan@example.com>"]
+description = "FastAPI backend for Initiative project management app"
+authors = ["Jordan <jordan@morels.me>"]
 readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.111.0"
-uvicorn = {extras = ["standard"], version = "^0.30.0"}
+uvicorn = { extras = ["standard"], version = "^0.30.0" }
 sqlmodel = "^0.0.16"
 asyncpg = "^0.29.0"
-python-jose = {extras = ["cryptography"], version = "^3.3.0"}
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+passlib = { extras = ["bcrypt"], version = "^1.7.4" }
 bcrypt = "==4.0.1"
 pydantic-settings = "^2.3.4"
 python-multipart = "^0.0.9"

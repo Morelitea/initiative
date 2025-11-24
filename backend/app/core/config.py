@@ -22,10 +22,10 @@ class Settings(BaseSettings):
         json_loads=flexible_json_loads,
     )
 
-    PROJECT_NAME: str = "Pour Priority API"
+    PROJECT_NAME: str = "Initiative API"
     API_V1_STR: str = "/api/v1"
 
-    DATABASE_URL: str = "postgresql+asyncpg://pour_priority:pour_priority@localhost:5432/pour_priority"
+    DATABASE_URL: str = "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
 
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

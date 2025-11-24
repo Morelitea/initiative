@@ -10,6 +10,8 @@ export interface User {
   updated_at: string;
   avatar_base64?: string | null;
   avatar_url?: string | null;
+  show_project_sidebar?: boolean;
+  show_project_tabs?: boolean;
 }
 
 export type ProjectRole = 'admin' | 'project_manager' | 'member';
@@ -47,6 +49,8 @@ export interface Project {
   team?: Team | null;
   members: ProjectMember[];
   sort_order?: number | null;
+  is_favorited?: boolean;
+  last_viewed_at?: string | null;
 }
 
 export type TaskStatus = 'backlog' | 'in_progress' | 'blocked' | 'done';

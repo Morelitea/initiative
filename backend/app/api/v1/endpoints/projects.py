@@ -8,6 +8,7 @@ from sqlmodel import select
 from app.api.deps import SessionDep, get_current_active_user, require_roles
 from app.models.project import Project, ProjectMember, ProjectRole
 from app.models.project_order import ProjectOrder
+from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee
 from app.models.team import Team, TeamMember
 from app.models.user import User, UserRole
@@ -21,12 +22,16 @@ from app.schemas.project import (
     ProjectRead,
     ProjectReorderRequest,
     ProjectUpdate,
+    ProjectFavoriteStatus,
+    ProjectRecentViewRead,
 )
 
 router = APIRouter()
 
 ManagerUser = Annotated[User, Depends(require_roles(UserRole.admin, UserRole.project_manager))]
 AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
+
+MAX_RECENT_PROJECTS = 20
 
 
 def _project_payload(project: Project) -> dict:
@@ -185,6 +190,7 @@ async def _project_reads_with_order(
         )
         order_result = await session.exec(order_stmt)
         order_map = {order.project_id: order.sort_order for order in order_result.all()}
+    favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
 
     def sort_key(project: Project) -> tuple[bool, float, int]:
         order_value = order_map.get(project.id)
@@ -198,10 +204,183 @@ async def _project_reads_with_order(
 
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
-        payload = ProjectRead.model_validate(project)
-        payload = payload.model_copy(update={"sort_order": order_map.get(project.id)})
-        payloads.append(payload)
+        payloads.append(
+            _build_project_payload(
+                project,
+                sort_order=order_map.get(project.id),
+                favorite_ids=favorite_ids,
+                view_map=view_map,
+            )
+        )
     return payloads
+
+
+async def _project_meta_for_user(
+    session: SessionDep,
+    user_id: int,
+    project_ids: List[int],
+) -> tuple[set[int], dict[int, datetime]]:
+    if not project_ids:
+        return set(), {}
+    fav_stmt = select(ProjectFavorite.project_id).where(
+        ProjectFavorite.user_id == user_id,
+        ProjectFavorite.project_id.in_(tuple(project_ids)),
+    )
+    fav_result = await session.exec(fav_stmt)
+    favorite_rows = fav_result.all()
+    favorite_ids = {
+        row if isinstance(row, int) else row[0]  # type: ignore[index]
+        for row in favorite_rows
+    }
+
+    view_stmt = select(RecentProjectView.project_id, RecentProjectView.last_viewed_at).where(
+        RecentProjectView.user_id == user_id,
+        RecentProjectView.project_id.in_(tuple(project_ids)),
+    )
+    view_result = await session.exec(view_stmt)
+    view_rows = view_result.all()
+    view_map: dict[int, datetime] = {}
+    for row in view_rows:
+        if isinstance(row, tuple):
+            project_id, last_viewed_at = row
+        else:
+            project_id, last_viewed_at = row.project_id, row.last_viewed_at  # type: ignore[attr-defined]
+        view_map[int(project_id)] = last_viewed_at
+    return favorite_ids, view_map
+
+
+async def _projects_by_ids(
+    session: SessionDep,
+    project_ids: List[int],
+) -> dict[int, Project]:
+    if not project_ids:
+        return {}
+    stmt = (
+        select(Project)
+        .where(Project.id.in_(tuple(project_ids)))
+        .options(
+            selectinload(Project.members),
+            selectinload(Project.owner),
+            selectinload(Project.team).selectinload(Team.members),
+        )
+    )
+    result = await session.exec(stmt)
+    projects = result.all()
+    return {project.id: project for project in projects if project.id is not None}
+
+
+def _build_project_payload(
+    project: Project,
+    *,
+    sort_order: Optional[float],
+    favorite_ids: set[int],
+    view_map: dict[int, datetime],
+) -> ProjectRead:
+    payload = ProjectRead.model_validate(project)
+    project_id = project.id or 0
+    return payload.model_copy(
+        update={
+            "sort_order": sort_order,
+            "is_favorited": project_id in favorite_ids,
+            "last_viewed_at": view_map.get(project_id),
+        }
+    )
+
+
+async def _record_recent_project_view(
+    session: SessionDep,
+    *,
+    user_id: int,
+    project_id: int,
+) -> RecentProjectView:
+    stmt = select(RecentProjectView).where(
+        RecentProjectView.user_id == user_id,
+        RecentProjectView.project_id == project_id,
+    )
+    result = await session.exec(stmt)
+    record = result.one_or_none()
+    now = datetime.now(timezone.utc)
+    if record:
+        record.last_viewed_at = now
+    else:
+        record = RecentProjectView(user_id=user_id, project_id=project_id, last_viewed_at=now)
+        session.add(record)
+    await session.commit()
+    await session.refresh(record)
+
+    prune_stmt = (
+        select(RecentProjectView)
+        .where(RecentProjectView.user_id == user_id)
+        .order_by(RecentProjectView.last_viewed_at.desc())
+        .offset(MAX_RECENT_PROJECTS)
+    )
+    prune_result = await session.exec(prune_stmt)
+    stale_records = prune_result.all()
+    if stale_records:
+        for stale in stale_records:
+            await session.delete(stale)
+        await session.commit()
+    return record
+
+
+async def _delete_recent_project_view(
+    session: SessionDep,
+    *,
+    user_id: int,
+    project_id: int,
+) -> None:
+    stmt = select(RecentProjectView).where(
+        RecentProjectView.user_id == user_id,
+        RecentProjectView.project_id == project_id,
+    )
+    result = await session.exec(stmt)
+    record = result.one_or_none()
+    if record:
+        await session.delete(record)
+        await session.commit()
+
+
+async def _set_favorite_state(
+    session: SessionDep,
+    *,
+    user_id: int,
+    project_id: int,
+    favorited: bool,
+) -> bool:
+    stmt = select(ProjectFavorite).where(
+        ProjectFavorite.user_id == user_id,
+        ProjectFavorite.project_id == project_id,
+    )
+    result = await session.exec(stmt)
+    record = result.one_or_none()
+    if favorited:
+        if record is None:
+            session.add(ProjectFavorite(user_id=user_id, project_id=project_id))
+            await session.commit()
+        return True
+
+    if record:
+        await session.delete(record)
+        await session.commit()
+    return False
+
+
+async def _project_read_for_user(
+    session: SessionDep,
+    current_user: User,
+    project: Project,
+) -> ProjectRead:
+    payloads = await _project_reads_with_order(session, current_user, [project])
+    if payloads:
+        return payloads[0]
+    project_ids = [project.id] if project.id is not None else []
+    favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
+    return _build_project_payload(
+        project,
+        sort_order=None,
+        favorite_ids=favorite_ids,
+        view_map=view_map,
+    )
 
 
 async def _require_project_membership(
@@ -283,7 +462,7 @@ async def create_project(
     project_in: ProjectCreate,
     session: SessionDep,
     manager_user: ManagerUser,
-) -> Project:
+) -> ProjectRead:
     template_project: Project | None = None
     if project_in.template_id is not None:
         template_project = await _get_project_or_404(project_in.template_id, session)
@@ -346,7 +525,7 @@ async def create_project(
 
     project = await _get_project_or_404(project.id, session)
     await broadcast_event("project", "created", _project_payload(project))
-    return project
+    return await _project_read_for_user(session, manager_user, project)
 
 
 @router.post("/{project_id}/archive", response_model=ProjectRead)
@@ -354,7 +533,7 @@ async def archive_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Project:
+) -> ProjectRead:
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="write", require_manager=True)
     if not project.is_archived:
@@ -364,7 +543,7 @@ async def archive_project(
         await session.commit()
     updated = await _get_project_or_404(project_id, session)
     await broadcast_event("project", "updated", _project_payload(updated))
-    return updated
+    return await _project_read_for_user(session, current_user, updated)
 
 
 @router.post("/{project_id}/duplicate", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -373,7 +552,7 @@ async def duplicate_project(
     duplicate_in: ProjectDuplicateRequest,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Project:
+) -> ProjectRead:
     source_project = await _get_project_or_404(project_id, session)
     await _require_project_membership(source_project, current_user, session, access="read", require_manager=True)
 
@@ -412,7 +591,7 @@ async def duplicate_project(
 
     new_project = await _get_project_or_404(new_project.id, session)
     await broadcast_event("project", "created", _project_payload(new_project))
-    return new_project
+    return await _project_read_for_user(session, current_user, new_project)
 
 
 @router.post("/{project_id}/unarchive", response_model=ProjectRead)
@@ -420,7 +599,7 @@ async def unarchive_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Project:
+) -> ProjectRead:
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="write", require_manager=True)
     if project.is_archived:
@@ -430,7 +609,131 @@ async def unarchive_project(
         await session.commit()
     updated = await _get_project_or_404(project_id, session)
     await broadcast_event("project", "updated", _project_payload(updated))
-    return updated
+    return await _project_read_for_user(session, current_user, updated)
+
+
+@router.get("/recent", response_model=List[ProjectRead])
+async def recent_projects(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[ProjectRead]:
+    stmt = (
+        select(RecentProjectView)
+        .where(RecentProjectView.user_id == current_user.id)
+        .order_by(RecentProjectView.last_viewed_at.desc())
+        .limit(MAX_RECENT_PROJECTS)
+    )
+    result = await session.exec(stmt)
+    records = result.all()
+    if not records:
+        return []
+    project_ids = [record.project_id for record in records]
+    project_map = await _projects_by_ids(session, project_ids)
+    favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
+
+    payloads: List[ProjectRead] = []
+    for record in records:
+        project = project_map.get(record.project_id)
+        if not project:
+            continue
+        try:
+            await _require_project_membership(project, current_user, session, access="read")
+        except HTTPException:
+            continue
+        payloads.append(
+            _build_project_payload(
+                project,
+                sort_order=None,
+                favorite_ids=favorite_ids,
+                view_map=view_map,
+            )
+        )
+    return payloads
+
+
+@router.get("/favorites", response_model=List[ProjectRead])
+async def favorite_projects(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[ProjectRead]:
+    stmt = (
+        select(ProjectFavorite)
+        .where(ProjectFavorite.user_id == current_user.id)
+        .order_by(ProjectFavorite.created_at.desc())
+    )
+    result = await session.exec(stmt)
+    favorites = result.all()
+    if not favorites:
+        return []
+    project_ids = [favorite.project_id for favorite in favorites]
+    project_map = await _projects_by_ids(session, project_ids)
+    favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
+
+    payloads: List[ProjectRead] = []
+    for favorite in favorites:
+        project = project_map.get(favorite.project_id)
+        if not project:
+            continue
+        try:
+            await _require_project_membership(project, current_user, session, access="read")
+        except HTTPException:
+            continue
+        payloads.append(
+            _build_project_payload(
+                project,
+                sort_order=None,
+                favorite_ids=favorite_ids,
+                view_map=view_map,
+            )
+        )
+    return payloads
+
+
+@router.post("/{project_id}/view", response_model=ProjectRecentViewRead)
+async def record_project_view(
+    project_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ProjectRecentViewRead:
+    project = await _get_project_or_404(project_id, session)
+    await _require_project_membership(project, current_user, session, access="read")
+    record = await _record_recent_project_view(session, user_id=current_user.id, project_id=project.id)
+    return ProjectRecentViewRead(project_id=project.id, last_viewed_at=record.last_viewed_at)
+
+
+@router.delete("/{project_id}/view", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_project_view(
+    project_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> None:
+    project = await _get_project_or_404(project_id, session)
+    await _require_project_membership(project, current_user, session, access="read")
+    await _delete_recent_project_view(session, user_id=current_user.id, project_id=project.id)
+
+
+@router.post("/{project_id}/favorite", response_model=ProjectFavoriteStatus)
+async def favorite_project(
+    project_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ProjectFavoriteStatus:
+    project = await _get_project_or_404(project_id, session)
+    await _require_project_membership(project, current_user, session, access="read")
+    await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=True)
+    return ProjectFavoriteStatus(project_id=project.id, is_favorited=True)
+
+
+@router.delete("/{project_id}/favorite", response_model=ProjectFavoriteStatus)
+async def unfavorite_project(
+    project_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ProjectFavoriteStatus:
+    project = await _get_project_or_404(project_id, session)
+    await _require_project_membership(project, current_user, session, access="read")
+    await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=False)
+    return ProjectFavoriteStatus(project_id=project.id, is_favorited=False)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -441,8 +744,7 @@ async def read_project(
 ) -> ProjectRead:
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="read")
-    payloads = await _project_reads_with_order(session, current_user, [project])
-    return payloads[0] if payloads else ProjectRead.model_validate(project)
+    return await _project_read_for_user(session, current_user, project)
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
@@ -451,7 +753,7 @@ async def update_project(
     project_in: ProjectUpdate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Project:
+) -> ProjectRead:
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="write", require_manager=True)
     _ensure_not_archived(project)
@@ -475,7 +777,7 @@ async def update_project(
     await session.commit()
     project = await _get_project_or_404(project.id, session)
     await broadcast_event("project", "updated", _project_payload(project))
-    return project
+    return await _project_read_for_user(session, current_user, project)
 
 
 @router.post("/{project_id}/members", response_model=ProjectMemberRead, status_code=status.HTTP_201_CREATED)

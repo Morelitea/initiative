@@ -68,6 +68,8 @@ class ProjectRead(ProjectBase):
     team: Optional[TeamRead] = None
     members: List[ProjectMemberRead] = Field(default_factory=list)
     sort_order: Optional[float] = None
+    is_favorited: bool = False
+    last_viewed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -75,3 +77,13 @@ class ProjectRead(ProjectBase):
 
 class ProjectReorderRequest(BaseModel):
     project_ids: List[int] = Field(default_factory=list)
+
+
+class ProjectFavoriteStatus(BaseModel):
+    project_id: int
+    is_favorited: bool
+
+
+class ProjectRecentViewRead(BaseModel):
+    project_id: int
+    last_viewed_at: datetime

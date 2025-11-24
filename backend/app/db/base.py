@@ -6,6 +6,7 @@ from app.models.task import Task, TaskAssignee
 from app.models.team import Team, TeamMember
 from app.models.user import User
 from app.models.api_key import AdminApiKey
+from app.models.project_activity import ProjectFavorite, RecentProjectView
 
 __all__ = [
     "User",
@@ -17,4 +18,6 @@ __all__ = [
     "Team",
     "TeamMember",
     "AdminApiKey",
+    "ProjectFavorite",
+    "RecentProjectView",
 ]

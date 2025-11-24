@@ -107,13 +107,13 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
             ))}
           </nav>
           <div className="mt-auto space-y-2 border-t border-border pt-4">
-            <Link
-              to="/profile"
-              onClick={() => setIsOpen(false)}
-              className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
-            >
-              Profile settings
-            </Link>
+          <Link
+            to="/profile"
+            onClick={() => setIsOpen(false)}
+            className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+          >
+            User settings
+          </Link>
             {user?.role === 'admin' ? (
               <Link
                 to="/settings"

@@ -21,6 +21,7 @@ import { GripVertical } from "lucide-react";
 
 import { apiClient } from "../api/client";
 import { Markdown } from "../components/Markdown";
+import { FavoriteProjectButton } from "../components/projects/FavoriteProjectButton";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -765,16 +766,23 @@ const ProjectCardLink = ({
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
 }) => (
   <div className="relative">
-    {dragHandleProps ? (
-      <button
-        type="button"
-        className="absolute right-4 top-4 z-10 rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label="Reorder project"
-        {...dragHandleProps}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-    ) : null}
+    <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+      <FavoriteProjectButton
+        projectId={project.id}
+        isFavorited={project.is_favorited ?? false}
+        suppressNavigation
+      />
+      {dragHandleProps ? (
+        <button
+          type="button"
+          className="rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Reorder project"
+          {...dragHandleProps}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
     <Link to={`/projects/${project.id}`} className="block">
       <Card className="shadow-sm">
         <CardHeader>
@@ -782,16 +790,16 @@ const ProjectCardLink = ({
             {project.icon ? (
               <span className="text-2xl leading-none">{project.icon}</span>
             ) : null}
-          <span>{project.name}</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm text-muted-foreground">
-        {project.team ? <Badge>Team: {project.team.name}</Badge> : null}
-        <p>
-          Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
-        </p>
-      </CardContent>
-    </Card>
+            <span>{project.name}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          {project.team ? <Badge>Team: {project.team.name}</Badge> : null}
+          <p>
+            Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
+          </p>
+        </CardContent>
+      </Card>
     </Link>
   </div>
 );
@@ -842,8 +850,16 @@ const ProjectRowLink = ({
         <GripVertical className="h-4 w-4" />
       </button>
     ) : null}
+    <div className="absolute right-4 top-4 z-10">
+      <FavoriteProjectButton
+        projectId={project.id}
+        isFavorited={project.is_favorited ?? false}
+        suppressNavigation
+        iconSize="sm"
+      />
+    </div>
     <Link to={`/projects/${project.id}`} className="block">
-      <Card className="shadow-sm p-4">
+      <Card className="shadow-sm p-4 pr-16">
         <div
           className={`flex flex-wrap items-center gap-4 ${
             dragHandleProps ? "pl-10" : ""

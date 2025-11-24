@@ -80,6 +80,10 @@ async def update_users_me(
             current_user.avatar_base64 = None
         else:
             current_user.avatar_url = None
+    if "show_project_sidebar" in update_data:
+        current_user.show_project_sidebar = bool(update_data["show_project_sidebar"])
+    if "show_project_tabs" in update_data:
+        current_user.show_project_tabs = bool(update_data["show_project_tabs"])
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)

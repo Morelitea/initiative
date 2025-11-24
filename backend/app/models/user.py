@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Column, DateTime, Text
+from sqlalchemy import Column, DateTime, Text, Boolean
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.team import Team, TeamMember
@@ -39,6 +39,14 @@ class User(SQLModel, table=True):
         sa_column=Column(Text, nullable=True),
     )
     avatar_url: Optional[str] = Field(default=None, nullable=True)
+    show_project_sidebar: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    show_project_tabs: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
@@ -46,6 +54,8 @@ class User(SQLModel, table=True):
     teams: List["Team"] = Relationship(back_populates="members", link_model=TeamMember)
     project_orders: List["ProjectOrder"] = Relationship(back_populates="user")
     api_keys: List["AdminApiKey"] = Relationship(back_populates="user")
+    favorite_projects: List["ProjectFavorite"] = Relationship(back_populates="user")
+    recent_project_views: List["RecentProjectView"] = Relationship(back_populates="user")
 
 
 from app.models.project import Project  # noqa: E402  # isort:skip
@@ -53,3 +63,4 @@ from app.models.project import ProjectMember  # noqa: E402  # isort:skip
 from app.models.task import Task  # noqa: E402  # isort:skip
 from app.models.project_order import ProjectOrder  # noqa: E402  # isort:skip
 from app.models.api_key import AdminApiKey  # noqa: E402  # isort:skip
+from app.models.project_activity import ProjectFavorite, RecentProjectView  # noqa: E402  # isort:skip

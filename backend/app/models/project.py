@@ -17,6 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.task import Task
     from app.models.user import User
     from app.models.team import Team
+    from app.models.project_activity import ProjectFavorite, RecentProjectView
 
 
 DEFAULT_PROJECT_READ_ROLES = [role.value for role in ProjectRole]
@@ -66,6 +67,14 @@ class Project(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     orders: List["ProjectOrder"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    favorite_entries: List["ProjectFavorite"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    recent_view_entries: List["RecentProjectView"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

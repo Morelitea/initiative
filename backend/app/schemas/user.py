@@ -23,6 +23,8 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
+    show_project_sidebar: Optional[bool] = None
+    show_project_tabs: Optional[bool] = None
 
 
 class UserRead(UserBase):
@@ -32,6 +34,8 @@ class UserRead(UserBase):
     updated_at: datetime
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
+    show_project_sidebar: bool = True
+    show_project_tabs: bool = False
 
     class Config:
         from_attributes = True
@@ -46,3 +50,5 @@ class UserSelfUpdate(BaseModel):
     password: Optional[str] = None
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
+    show_project_sidebar: Optional[bool] = None
+    show_project_tabs: Optional[bool] = None
