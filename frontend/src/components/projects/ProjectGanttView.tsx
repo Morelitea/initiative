@@ -4,7 +4,13 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import type { Task } from "@/types/api";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +27,8 @@ type NormalizedRange = {
 };
 
 const WINDOW_OPTIONS = [7, 14, 21, 28];
+const DAY_COLUMN_WIDTH = 90;
+const NAME_COLUMN_WIDTH = 180;
 
 const parseDate = (value?: string | null): Date | null => {
   if (!value) {
@@ -58,6 +66,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
     () => Array.from({ length: daysVisible }, (_, index) => addDays(visibleStart, index)),
     [visibleStart, daysVisible]
   );
+  const timelineWidth = daysVisible * DAY_COLUMN_WIDTH;
 
   const handleShift = (direction: "back" | "forward") => {
     setVisibleStart((current) =>
@@ -75,7 +84,10 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={String(daysVisible)} onValueChange={(value) => setDaysVisible(Number(value))}>
+          <Select
+            value={String(daysVisible)}
+            onValueChange={(value) => setDaysVisible(Number(value))}
+          >
             <SelectTrigger className="w-28 text-xs">
               <SelectValue placeholder="Window">{daysVisible} days</SelectValue>
             </SelectTrigger>
@@ -107,13 +119,19 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
           </Button>
         </div>
       </div>
-      <div className="overflow-auto">
-        <div className="min-w-[720px]">
-          <div className="grid grid-cols-[200px_1fr] text-xs font-semibold uppercase text-muted-foreground">
-            <div className="px-3 py-2">Task</div>
+      <div className="space-y-2 overflow-x-auto overflow-visible">
+        <div
+          className="min-w-[720px] sm:min-w-0"
+          style={{ minWidth: NAME_COLUMN_WIDTH + timelineWidth }}
+        >
+          <div
+            className="grid text-[11px] font-semibold uppercase text-muted-foreground sm:text-xs"
+            style={{ gridTemplateColumns: `${NAME_COLUMN_WIDTH}px ${timelineWidth}px` }}
+          >
+            <div className="border-r border-border bg-card px-3 py-2">Task</div>
             <div
-              className="grid"
-              style={{ gridTemplateColumns: `repeat(${daysVisible}, minmax(0, 1fr))` }}
+              className="grid bg-background/80"
+              style={{ gridTemplateColumns: `repeat(${daysVisible}, ${DAY_COLUMN_WIDTH}px)` }}
             >
               {days.map((day) => (
                 <div
@@ -126,7 +144,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
               ))}
             </div>
           </div>
-          <div className="divide-y border-t">
+          <div className="divide-y border-t text-xs sm:text-sm">
             {rows.length === 0 ? (
               <p className="px-3 py-6 text-sm text-muted-foreground">No tasks to display.</p>
             ) : (
@@ -137,15 +155,21 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                 const clampedEnd = Math.min(daysVisible, endOffset);
                 const isOutOfRange = clampedEnd <= 0 || clampedStart >= daysVisible;
                 const barWidth = Math.max(clampedEnd - clampedStart, 0);
+                const isDone = task.status === "done";
+                const isInProgress = task.status === "in_progress";
                 return (
-                  <div key={task.id} className="grid grid-cols-[200px_1fr]">
-                    <div className="border-r px-3 py-3">
-                      <p className="text-sm font-medium">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">
+                  <div
+                    key={task.id}
+                    className="grid"
+                    style={{ gridTemplateColumns: `${NAME_COLUMN_WIDTH}px ${timelineWidth}px` }}
+                  >
+                    <div className="border-r border-border bg-card px-3 py-3">
+                      <p className="font-medium">{task.title}</p>
+                      <p className="text-[11px] text-muted-foreground sm:text-xs">
                         {start.toLocaleDateString()} → {end.toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="relative border-l" style={{ minHeight: 56 }}>
+                    <div className="relative border-l" style={{ minHeight: 48 }}>
                       {!isOutOfRange && barWidth > 0 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
@@ -154,11 +178,22 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                                 type="button"
                                 className={cn(
                                   "absolute top-1 flex h-8 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
-                                  canOpenTask ? "bg-primary hover:bg-primary/90" : "bg-muted opacity-70"
+                                  isDone
+                                    ? "bg-muted text-muted-foreground"
+                                    : isInProgress
+                                      ? canOpenTask
+                                        ? "bg-emerald-600 hover:bg-emerald-500"
+                                        : "bg-emerald-600/70 text-emerald-50"
+                                      : canOpenTask
+                                        ? "bg-primary hover:bg-primary/90"
+                                        : "bg-muted opacity-70"
                                 )}
                                 style={{
-                                  left: `calc(${(clampedStart / daysVisible) * 100}% + 4px)`,
-                                  width: `calc(${(barWidth / daysVisible) * 100}% - 8px)`,
+                                  left: clampedStart * DAY_COLUMN_WIDTH,
+                                  width: Math.max(
+                                    barWidth * DAY_COLUMN_WIDTH,
+                                    DAY_COLUMN_WIDTH * 0.6
+                                  ),
                                 }}
                                 onClick={() => {
                                   if (!canOpenTask) {
