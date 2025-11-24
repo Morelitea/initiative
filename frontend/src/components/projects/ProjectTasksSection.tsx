@@ -33,7 +33,7 @@ import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 type StoredFilters = {
-  viewMode: "kanban" | "list" | "calendar" | "gantt";
+  viewMode: "list" | "kanban" | "calendar" | "gantt";
   assigneeFilter: string;
   dueFilter: DueFilterOption;
   listStatusFilter: "all" | "incomplete" | TaskStatus;
@@ -65,7 +65,7 @@ export const ProjectTasksSection = ({
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [viewMode, setViewMode] = useState<"kanban" | "list" | "calendar" | "gantt">("kanban");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar" | "gantt">("list");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
@@ -493,7 +493,7 @@ export const ProjectTasksSection = ({
     <div className="space-y-4">
       <Tabs
         value={viewMode}
-        onValueChange={(value) => setViewMode(value as "kanban" | "list" | "calendar" | "gantt")}
+        onValueChange={(value) => setViewMode(value as "list" | "kanban" | "calendar" | "gantt")}
         className="space-y-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -504,13 +504,13 @@ export const ProjectTasksSection = ({
             </p>
           </div>
           <TabsList>
-            <TabsTrigger value="kanban" className="inline-flex items-center gap-2">
-              <Kanban className="h-4 w-4" />
-              Kanban
-            </TabsTrigger>
             <TabsTrigger value="list" className="inline-flex items-center gap-2">
               <List className="h-4 w-4" />
               List
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="inline-flex items-center gap-2">
+              <Kanban className="h-4 w-4" />
+              Kanban
             </TabsTrigger>
             <TabsTrigger value="calendar" className="inline-flex items-center gap-2">
               <Calendar className="h-4 w-4" />
