@@ -39,6 +39,8 @@ const resolveApiBaseUrl = (): string => {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+export const AUTH_UNAUTHORIZED_EVENT = 'initiative:auth:unauthorized';
+
 let authToken: string | null = null;
 
 export const setAuthToken = (token: string | null) => {
@@ -59,3 +61,19 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+const emitUnauthorized = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+  }
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && authToken) {
+      emitUnauthorized();
+    }
+    return Promise.reject(error);
+  }
+);

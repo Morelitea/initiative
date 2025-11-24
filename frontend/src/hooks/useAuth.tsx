@@ -1,6 +1,6 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-import { apiClient, setAuthToken } from '../api/client';
+import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from '../api/client';
 import { User } from '../types/api';
 
 interface LoginPayload {
@@ -97,12 +97,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(me.data);
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     setAuthToken(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const handleUnauthorized = () => {
+      logout();
+    };
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, [logout]);
 
   const value: AuthContextValue = {
     user,
