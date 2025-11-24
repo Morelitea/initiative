@@ -6,10 +6,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Markdown } from "../Markdown";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
+import { truncateText } from "../../lib/text";
 
 interface KanbanColumnProps {
   status: TaskStatus;
@@ -134,7 +134,9 @@ const KanbanTaskCard = ({
       >
         <p className="font-medium">{task.title}</p>
         {task.description ? (
-          <Markdown content={task.description} className="text-xs [&>*]:my-1" />
+          <p className="text-xs text-muted-foreground">
+            {truncateText(task.description, 80)}
+          </p>
         ) : null}
         <div className="text-xs text-muted-foreground">
           {task.assignees.length > 0 ? (

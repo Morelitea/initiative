@@ -1,6 +1,12 @@
-import { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   closestCenter,
   closestCorners,
@@ -12,65 +18,101 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
-} from '@dnd-kit/core';
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
-import { apiClient } from '../api/client';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Markdown } from '../components/Markdown';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Label } from '../components/ui/label';
+import { apiClient } from "../api/client";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Markdown } from "../components/Markdown";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
+import { Label } from "../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
-import { useAuth } from '../hooks/useAuth';
-import { queryClient } from '../lib/queryClient';
-import { InitiativeColorDot, resolveInitiativeColor, INITIATIVE_COLOR_FALLBACK } from '../lib/initiativeColors';
-import { Project, Task, TaskPriority, TaskReorderPayload, TaskStatus, User } from '../types/api';
-import { toast } from 'sonner';
-import { ProjectTaskComposer } from '../components/projects/ProjectTaskComposer';
-import { KanbanColumn } from '../components/projects/KanbanColumn';
-import { SortableTaskRow } from '../components/projects/SortableTaskRow';
-import { FavoriteProjectButton } from '../components/projects/FavoriteProjectButton';
+} from "../components/ui/select";
+import { useAuth } from "../hooks/useAuth";
+import { queryClient } from "../lib/queryClient";
+import {
+  InitiativeColorDot,
+  resolveInitiativeColor,
+  INITIATIVE_COLOR_FALLBACK,
+} from "../lib/initiativeColors";
+import {
+  Project,
+  Task,
+  TaskPriority,
+  TaskReorderPayload,
+  TaskStatus,
+  User,
+} from "../types/api";
+import { toast } from "sonner";
+import { ProjectTaskComposer } from "../components/projects/ProjectTaskComposer";
+import { KanbanColumn } from "../components/projects/KanbanColumn";
+import { SortableTaskRow } from "../components/projects/SortableTaskRow";
+import { FavoriteProjectButton } from "../components/projects/FavoriteProjectButton";
+import { Kanban, List } from "lucide-react";
 
-const taskStatusOrder: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
+const taskStatusOrder: TaskStatus[] = [
+  "backlog",
+  "in_progress",
+  "blocked",
+  "done",
+];
 
-type DueFilterOption = 'all' | 'today' | '7_days' | '30_days' | 'overdue';
+type DueFilterOption = "all" | "today" | "7_days" | "30_days" | "overdue";
 
 type StoredFilters = {
-  viewMode: 'kanban' | 'list';
+  viewMode: "kanban" | "list";
   assigneeFilter: string;
   dueFilter: DueFilterOption;
-  listStatusFilter: 'all' | 'incomplete' | TaskStatus;
+  listStatusFilter: "all" | "incomplete" | TaskStatus;
 };
 
-const priorityVariant: Record<TaskPriority, 'default' | 'secondary' | 'destructive'> = {
-  low: 'secondary',
-  medium: 'default',
-  high: 'default',
-  urgent: 'destructive',
+const priorityVariant: Record<
+  TaskPriority,
+  "default" | "secondary" | "destructive"
+> = {
+  low: "secondary",
+  medium: "default",
+  high: "default",
+  urgent: "destructive",
 };
-
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const parsedProjectId = Number(projectId);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
-  const [dueDate, setDueDate] = useState<string>('');
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
-  const [assigneeFilter, setAssigneeFilter] = useState<'all' | string>('all');
-  const [dueFilter, setDueFilter] = useState<DueFilterOption>('all');
-  const [listStatusFilter, setListStatusFilter] = useState<'all' | 'incomplete' | TaskStatus>('all');
+  const [dueDate, setDueDate] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
+  const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
+  const [listStatusFilter, setListStatusFilter] = useState<
+    "all" | "incomplete" | TaskStatus
+  >("all");
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
@@ -78,16 +120,19 @@ export const ProjectDetailPage = () => {
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   const projectQuery = useQuery<Project>({
-    queryKey: ['projects', parsedProjectId],
+    queryKey: ["projects", parsedProjectId],
     queryFn: async () => {
-      const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
+      const response = await apiClient.get<Project>(
+        `/projects/${parsedProjectId}`
+      );
       return response.data;
     },
     enabled: Number.isFinite(parsedProjectId),
   });
 
   const viewedProjectId = projectQuery.data?.id;
-  const activeTask = orderedTasks.find((task) => task.id === activeTaskId) ?? null;
+  const activeTask =
+    orderedTasks.find((task) => task.id === activeTaskId) ?? null;
 
   useEffect(() => {
     if (!viewedProjectId) {
@@ -96,18 +141,20 @@ export const ProjectDetailPage = () => {
     const recordView = async () => {
       try {
         await apiClient.post(`/projects/${viewedProjectId}/view`);
-        await queryClient.invalidateQueries({ queryKey: ['projects', 'recent'] });
+        await queryClient.invalidateQueries({
+          queryKey: ["projects", "recent"],
+        });
       } catch (error) {
-        console.error('Failed to record project view', error);
+        console.error("Failed to record project view", error);
       }
     };
     void recordView();
   }, [viewedProjectId]);
 
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ['tasks', parsedProjectId],
+    queryKey: ["tasks", parsedProjectId],
     queryFn: async () => {
-      const response = await apiClient.get<Task[]>('/tasks/', {
+      const response = await apiClient.get<Task[]>("/tasks/", {
         params: { project_id: parsedProjectId },
       });
       return response.data;
@@ -116,9 +163,9 @@ export const ProjectDetailPage = () => {
   });
 
   const usersQuery = useQuery<User[]>({
-    queryKey: ['users'],
+    queryKey: ["users"],
     queryFn: async () => {
-      const response = await apiClient.get<User[]>('/users/');
+      const response = await apiClient.get<User[]>("/users/");
       return response.data;
     },
   });
@@ -151,7 +198,10 @@ export const ProjectDetailPage = () => {
   }, [tasksQuery.data]);
 
   const filterStorageKey = useMemo(
-    () => (Number.isFinite(parsedProjectId) ? `project:${parsedProjectId}:view-filters` : null),
+    () =>
+      Number.isFinite(parsedProjectId)
+        ? `project:${parsedProjectId}:view-filters`
+        : null,
     [parsedProjectId]
   );
 
@@ -163,7 +213,7 @@ export const ProjectDetailPage = () => {
       const raw = localStorage.getItem(filterStorageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StoredFilters>;
-        if (parsed.viewMode === 'kanban' || parsed.viewMode === 'list') {
+        if (parsed.viewMode === "kanban" || parsed.viewMode === "list") {
           setViewMode(parsed.viewMode);
         }
         if (parsed.assigneeFilter) {
@@ -194,7 +244,14 @@ export const ProjectDetailPage = () => {
       listStatusFilter,
     };
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
-  }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilter, dueFilter, listStatusFilter]);
+  }, [
+    filterStorageKey,
+    filtersLoaded,
+    viewMode,
+    assigneeFilter,
+    dueFilter,
+    listStatusFilter,
+  ]);
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -206,26 +263,32 @@ export const ProjectDetailPage = () => {
         assignee_ids: assigneeIds,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
       };
-      const response = await apiClient.post<Task>('/tasks/', payload);
+      const response = await apiClient.post<Task>("/tasks/", payload);
       return response.data;
     },
     onSuccess: (newTask) => {
-      setTitle('');
-      setDescription('');
-      setPriority('medium');
+      setTitle("");
+      setDescription("");
+      setPriority("medium");
       setAssigneeIds([]);
-      setDueDate('');
+      setDueDate("");
       setIsComposerOpen(false);
       setOrderedTasks((prev) => [...prev, newTask]);
       void queryClient.invalidateQueries({
-        queryKey: ['tasks', parsedProjectId],
+        queryKey: ["tasks", parsedProjectId],
       });
-      toast.success('Task created');
+      toast.success("Task created");
     },
   });
 
   const updateTaskStatus = useMutation({
-    mutationFn: async ({ taskId, status }: { taskId: number; status: TaskStatus }) => {
+    mutationFn: async ({
+      taskId,
+      status,
+    }: {
+      taskId: number;
+      status: TaskStatus;
+    }) => {
       const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
         status,
       });
@@ -236,48 +299,53 @@ export const ProjectDetailPage = () => {
         if (!prev.length) {
           return prev;
         }
-        const next = prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
-        return [...next].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+        const next = prev.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task
+        );
+        return [...next].sort(
+          (a, b) => a.sort_order - b.sort_order || a.id - b.id
+        );
       });
       void queryClient.invalidateQueries({
-        queryKey: ['tasks', parsedProjectId],
+        queryKey: ["tasks", parsedProjectId],
       });
-      toast.success('Task updated');
+      toast.success("Task updated");
     },
   });
 
-  const {
-    mutate: persistTaskOrderMutate,
-    isPending: isPersistingOrder,
-  } = useMutation({
-    mutationFn: async (payload: TaskReorderPayload) => {
-      const response = await apiClient.post<Task[]>('/tasks/reorder', payload);
-      return response.data;
-    },
-    onSuccess: (data) => {
-      setOrderedTasks(data);
-      void queryClient.invalidateQueries({
-        queryKey: ['tasks', parsedProjectId],
-      });
-    },
-  });
+  const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } =
+    useMutation({
+      mutationFn: async (payload: TaskReorderPayload) => {
+        const response = await apiClient.post<Task[]>(
+          "/tasks/reorder",
+          payload
+        );
+        return response.data;
+      },
+      onSuccess: (data) => {
+        setOrderedTasks(data);
+        void queryClient.invalidateQueries({
+          queryKey: ["tasks", parsedProjectId],
+        });
+      },
+    });
 
   const fetchedTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const tasks = orderedTasks.length > 0 ? orderedTasks : fetchedTasks;
 
   const filteredTasks = useMemo(() => {
-    if (assigneeFilter === 'all' && dueFilter === 'all') {
+    if (assigneeFilter === "all" && dueFilter === "all") {
       return tasks;
     }
     const now = new Date();
     return tasks.filter((task) => {
-      if (assigneeFilter !== 'all') {
+      if (assigneeFilter !== "all") {
         const targetId = Number(assigneeFilter);
         if (!task.assignees.some((assignee) => assignee.id === targetId)) {
           return false;
         }
       }
-      if (dueFilter !== 'all') {
+      if (dueFilter !== "all") {
         if (!task.due_date) {
           return false;
         }
@@ -285,11 +353,11 @@ export const ProjectDetailPage = () => {
         if (Number.isNaN(dueDate.getTime())) {
           return false;
         }
-        if (dueFilter === 'overdue') {
+        if (dueFilter === "overdue") {
           if (dueDate >= now) {
             return false;
           }
-        } else if (dueFilter === 'today') {
+        } else if (dueFilter === "today") {
           if (
             dueDate.getFullYear() !== now.getFullYear() ||
             dueDate.getMonth() !== now.getMonth() ||
@@ -298,7 +366,7 @@ export const ProjectDetailPage = () => {
             return false;
           }
         } else {
-          const days = dueFilter === '7_days' ? 7 : 30;
+          const days = dueFilter === "7_days" ? 7 : 30;
           const windowEnd = new Date(now.getTime());
           windowEnd.setDate(windowEnd.getDate() + days);
           if (dueDate < now || dueDate > windowEnd) {
@@ -324,11 +392,11 @@ export const ProjectDetailPage = () => {
   }, [filteredTasks]);
 
   const listTasks = useMemo(() => {
-    if (listStatusFilter === 'all') {
+    if (listStatusFilter === "all") {
       return filteredTasks;
     }
-    if (listStatusFilter === 'incomplete') {
-      return filteredTasks.filter((task) => task.status !== 'done');
+    if (listStatusFilter === "incomplete") {
+      return filteredTasks.filter((task) => task.status !== "done");
     }
     return filteredTasks.filter((task) => task.status === listStatusFilter);
   }, [filteredTasks, listStatusFilter]);
@@ -459,12 +527,18 @@ export const ProjectDetailPage = () => {
   const project = projectQuery.data;
   const initiativeColor = resolveInitiativeColor(project.initiative?.color);
   const detailCardStyle = buildProjectDetailBackground(initiativeColor);
-  const membershipRole = project.members.find((member) => member.user_id === user?.id)?.role;
-  const userProjectRole = (user?.role as 'admin' | 'project_manager' | 'member' | undefined) ?? undefined;
+  const membershipRole = project.members.find(
+    (member) => member.user_id === user?.id
+  )?.role;
+  const userProjectRole =
+    (user?.role as "admin" | "project_manager" | "member" | undefined) ??
+    undefined;
   const canManageSettings =
-    user?.role === 'admin' || membershipRole === 'admin' || membershipRole === 'project_manager';
+    user?.role === "admin" ||
+    membershipRole === "admin" ||
+    membershipRole === "project_manager";
   const canWriteProject =
-    user?.role === 'admin' ||
+    user?.role === "admin" ||
     (membershipRole ? project.write_roles.includes(membershipRole) : false) ||
     (userProjectRole ? project.write_roles.includes(userProjectRole) : false);
   const projectIsArchived = project.is_archived;
@@ -480,7 +554,7 @@ export const ProjectDetailPage = () => {
 
   const handleTaskDragStart = (event: DragStartEvent) => {
     const taskType = event.active.data.current?.type;
-    if (taskType !== 'task' && taskType !== 'list-task') {
+    if (taskType !== "task" && taskType !== "list-task") {
       return;
     }
     const id = Number(event.active.id);
@@ -509,15 +583,17 @@ export const ProjectDetailPage = () => {
       return;
     }
 
-    const overData = over.data.current as { type?: string; status?: TaskStatus } | undefined;
+    const overData = over.data.current as
+      | { type?: string; status?: TaskStatus }
+      | undefined;
     let targetStatus = activeTask.status;
     let overTaskId: number | null = null;
 
-    if (overData?.type === 'task') {
+    if (overData?.type === "task") {
       targetStatus = overData.status ?? targetStatus;
       const parsed = Number(over.id);
       overTaskId = Number.isFinite(parsed) ? parsed : null;
-    } else if (overData?.type === 'column') {
+    } else if (overData?.type === "column") {
       targetStatus = overData.status ?? targetStatus;
     }
 
@@ -541,7 +617,11 @@ export const ProjectDetailPage = () => {
     }
     const activeId = Number(active.id);
     const overId = Number(over.id);
-    if (!Number.isFinite(activeId) || !Number.isFinite(overId) || activeId === overId) {
+    if (
+      !Number.isFinite(activeId) ||
+      !Number.isFinite(overId) ||
+      activeId === overId
+    ) {
       return;
     }
     reorderListTasks(activeId, overId);
@@ -559,15 +639,19 @@ export const ProjectDetailPage = () => {
       >
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
-            {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
-            <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+            {project.icon ? (
+              <span className="text-4xl leading-none">{project.icon}</span>
+            ) : null}
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {project.name}
+            </h1>
           </div>
           <FavoriteProjectButton
             projectId={project.id}
             isFavorited={project.is_favorited ?? false}
           />
-          <Badge variant={projectIsArchived ? 'destructive' : 'secondary'}>
-            {projectIsArchived ? 'Archived' : 'Active'}
+          <Badge variant={projectIsArchived ? "destructive" : "secondary"}>
+            {projectIsArchived ? "Archived" : "Active"}
           </Badge>
           {project.is_template ? (
             <Badge variant="outline">Template</Badge>
@@ -581,37 +665,64 @@ export const ProjectDetailPage = () => {
         ) : null}
         {project.is_template ? (
           <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
-            This project is a template. Use it to create new projects from the Templates tab.
+            This project is a template. Use it to create new projects from the
+            Templates tab.
           </p>
         ) : null}
-        {project.description ? <Markdown content={project.description} /> : null}
+        {project.description ? (
+          <Markdown content={project.description} />
+        ) : null}
         {canManageSettings ? (
           <Button asChild variant="outline" className="w-fit">
-            <Link to={`/projects/${project.id}/settings`}>Open project settings</Link>
+            <Link to={`/projects/${project.id}/settings`}>
+              Open project settings
+            </Link>
           </Button>
         ) : null}
         {projectIsArchived ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            This project is archived. Unarchive it from settings to add or update tasks.
+            This project is archived. Unarchive it from settings to add or
+            update tasks.
           </p>
         ) : null}
       </div>
 
       <div className="space-y-4">
-        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'kanban' | 'list')} className="space-y-4">
+        <Tabs
+          value={viewMode}
+          onValueChange={(value) => setViewMode(value as "kanban" | "list")}
+          className="space-y-4"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">Project tasks</h2>
-              <p className="text-sm text-muted-foreground">Switch between Kanban and List views to track progress.</p>
+              <p className="text-sm text-muted-foreground">
+                Switch between Kanban and List views to track progress.
+              </p>
             </div>
             <TabsList>
-              <TabsTrigger value="kanban">Kanban</TabsTrigger>
-              <TabsTrigger value="list">List</TabsTrigger>
+              <TabsTrigger
+                value="kanban"
+                className="inline-flex items-center gap-2"
+              >
+                <Kanban className="h-4 w-4" />
+                Kanban
+              </TabsTrigger>
+              <TabsTrigger
+                value="list"
+                className="inline-flex items-center gap-2"
+              >
+                <List className="h-4 w-4" />
+                List
+              </TabsTrigger>
             </TabsList>
           </div>
           <div className="flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3">
             <div className="w-48">
-              <Label htmlFor="assignee-filter" className="text-xs font-medium text-muted-foreground">
+              <Label
+                htmlFor="assignee-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Filter by assignee
               </Label>
               <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
@@ -629,10 +740,18 @@ export const ProjectDetailPage = () => {
               </Select>
             </div>
             <div className="w-48">
-              <Label htmlFor="due-filter" className="text-xs font-medium text-muted-foreground">
+              <Label
+                htmlFor="due-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Due filter
               </Label>
-              <Select value={dueFilter} onValueChange={(value) => setDueFilter(value as DueFilterOption)}>
+              <Select
+                value={dueFilter}
+                onValueChange={(value) =>
+                  setDueFilter(value as DueFilterOption)
+                }
+              >
                 <SelectTrigger id="due-filter">
                   <SelectValue placeholder="All due dates" />
                 </SelectTrigger>
@@ -645,14 +764,21 @@ export const ProjectDetailPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            {viewMode === 'list' ? (
+            {viewMode === "list" ? (
               <div className="w-44">
-                <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
+                <Label
+                  htmlFor="status-filter"
+                  className="text-xs font-medium text-muted-foreground"
+                >
                   Filter by status
                 </Label>
                 <Select
                   value={listStatusFilter}
-                  onValueChange={(value) => setListStatusFilter(value as 'all' | 'incomplete' | TaskStatus)}
+                  onValueChange={(value) =>
+                    setListStatusFilter(
+                      value as "all" | "incomplete" | TaskStatus
+                    )
+                  }
                 >
                   <SelectTrigger id="status-filter">
                     <SelectValue placeholder="All statuses" />
@@ -662,7 +788,7 @@ export const ProjectDetailPage = () => {
                     <SelectItem value="incomplete">Incomplete</SelectItem>
                     {taskStatusOrder.map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status.replace('_', ' ')}
+                        {status.replace("_", " ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -696,7 +822,12 @@ export const ProjectDetailPage = () => {
                 </div>
               </div>
               <DragOverlay>
-                {activeTask ? <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} /> : null}
+                {activeTask ? (
+                  <TaskDragOverlay
+                    task={activeTask}
+                    priorityVariant={priorityVariant}
+                  />
+                ) : null}
               </DragOverlay>
             </DndContext>
           </TabsContent>
@@ -705,7 +836,9 @@ export const ProjectDetailPage = () => {
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle>Task list</CardTitle>
-                <CardDescription>View every task at once and update their status inline.</CardDescription>
+                <CardDescription>
+                  View every task at once and update their status inline.
+                </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 {listTasks.length === 0 ? (
@@ -725,10 +858,10 @@ export const ProjectDetailPage = () => {
                       <table className="w-full min-w-[720px] text-sm">
                         <thead>
                           <tr className="text-left text-muted-foreground">
+                            <th className="pb-2 pl-3 font-medium">Done</th>
                             <th className="pb-2 font-medium">Task</th>
-                            <th className="pb-2 font-medium">Status</th>
                             <th className="pb-2 font-medium">Priority</th>
-                            <th className="pb-2 font-medium">Update</th>
+                            <th className="pb-2 font-medium">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -737,12 +870,17 @@ export const ProjectDetailPage = () => {
                               key={task.id}
                               task={task}
                               dragDisabled={!canReorderTasks}
-                              statusDisabled={!canEditTaskDetails || taskActionsDisabled}
+                              statusDisabled={
+                                !canEditTaskDetails || taskActionsDisabled
+                              }
                               canOpenTask={canEditTaskDetails}
                               statusOrder={taskStatusOrder}
                               priorityVariant={priorityVariant}
                               onStatusChange={(taskId, value) =>
-                                updateTaskStatus.mutate({ taskId, status: value })
+                                updateTaskStatus.mutate({
+                                  taskId,
+                                  status: value,
+                                })
                               }
                               onTaskClick={handleTaskClick}
                             />
@@ -791,6 +929,7 @@ export const ProjectDetailPage = () => {
                   onDueDateChange={setDueDate}
                   onSubmit={() => createTask.mutate()}
                   onCancel={() => setIsComposerOpen(false)}
+                  autoFocusTitle
                 />
               </div>
             </div>
@@ -806,35 +945,46 @@ const TaskDragOverlay = ({
   priorityVariant,
 }: {
   task: Task;
-  priorityVariant: Record<TaskPriority, 'default' | 'secondary' | 'destructive'>;
+  priorityVariant: Record<
+    TaskPriority,
+    "default" | "secondary" | "destructive"
+  >;
 }) => (
   <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
     <div className="space-y-1">
       <p className="font-medium">{task.title}</p>
-      {task.description ? <Markdown content={task.description} className="text-xs [&>*]:my-1" /> : null}
+      {task.description ? (
+        <Markdown content={task.description} className="text-xs [&>*]:my-1" />
+      ) : null}
     </div>
     <div className="text-xs text-muted-foreground space-y-1">
       {task.assignees.length > 0 ? (
         <p>
-          Assigned:{' '}
-          {task.assignees.map((assignee) => assignee.full_name ?? assignee.email).join(', ')}
+          Assigned:{" "}
+          {task.assignees
+            .map((assignee) => assignee.full_name ?? assignee.email)
+            .join(", ")}
         </p>
       ) : null}
-      {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+      {task.due_date ? (
+        <p>Due: {new Date(task.due_date).toLocaleString()}</p>
+      ) : null}
     </div>
-    <Badge variant={priorityVariant[task.priority]}>Priority: {task.priority.replace('_', ' ')}</Badge>
+    <Badge variant={priorityVariant[task.priority]}>
+      Priority: {task.priority.replace("_", " ")}
+    </Badge>
   </div>
 );
 
 const hexToRgba = (hex: string, alpha: number): string => {
-  const sanitized = hex.replace('#', '');
+  const sanitized = hex.replace("#", "");
   const expanded =
     sanitized.length === 3
       ? sanitized
-          .split('')
+          .split("")
           .map((char) => char + char)
-          .join('')
-      : sanitized.padEnd(6, '0');
+          .join("")
+      : sanitized.padEnd(6, "0");
   const r = parseInt(expanded.slice(0, 2), 16);
   const g = parseInt(expanded.slice(2, 4), 16);
   const b = parseInt(expanded.slice(4, 6), 16);
@@ -849,9 +999,9 @@ const hexToRgba = (hex: string, alpha: number): string => {
 const buildProjectDetailBackground = (hexColor: string): CSSProperties => {
   return {
     borderColor: hexToRgba(hexColor, 0.35),
-    backgroundImage: `linear-gradient(135deg, ${hexToRgba(hexColor, 0.18)} 0%, ${hexToRgba(
+    backgroundImage: `linear-gradient(135deg, ${hexToRgba(
       hexColor,
-      0.06
-    )} 45%, transparent 100%)`,
+      0.18
+    )} 0%, ${hexToRgba(hexColor, 0.06)} 45%, transparent 100%)`,
   };
 };

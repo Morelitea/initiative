@@ -29,6 +29,7 @@ interface ProjectTaskComposerProps {
   onDueDateChange: (value: string) => void;
   onSubmit: () => void;
   onCancel?: () => void;
+  autoFocusTitle?: boolean;
 }
 
 export const ProjectTaskComposer = ({
@@ -49,6 +50,7 @@ export const ProjectTaskComposer = ({
   onDueDateChange,
   onSubmit,
   onCancel,
+  autoFocusTitle = false,
 }: ProjectTaskComposerProps) => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -78,6 +80,7 @@ export const ProjectTaskComposer = ({
                 onChange={(event) => onTitleChange(event.target.value)}
                 placeholder="Draft launch plan"
                 required
+                autoFocus={autoFocusTitle}
               />
             </div>
             <Accordion type="single" collapsible>

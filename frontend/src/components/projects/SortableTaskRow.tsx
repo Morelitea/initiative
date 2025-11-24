@@ -2,7 +2,6 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
-import { Markdown } from "../Markdown";
 import { Badge } from "../ui/badge";
 import {
   Select,
@@ -12,6 +11,8 @@ import {
   SelectValue,
 } from "../ui/select";
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
+import { truncateText } from "../../lib/text";
+import { Checkbox } from "../ui/checkbox";
 
 interface SortableTaskRowProps {
   task: Task;
@@ -54,6 +55,17 @@ export const SortableTaskRow = ({
     transform: CSS.Transform.toString(transform),
     transition,
   };
+  const isDone = task.status === "done";
+
+  const handleCompletionToggle = (checked: boolean) => {
+    if (statusDisabled) {
+      return;
+    }
+    const nextStatus: TaskStatus = checked ? "done" : "in_progress";
+    if (nextStatus !== task.status) {
+      onStatusChange(task.id, nextStatus);
+    }
+  };
 
   return (
     <tr
@@ -61,6 +73,14 @@ export const SortableTaskRow = ({
       style={style}
       className={isDragging ? "bg-muted/60" : undefined}
     >
+      <td className="py-3 pl-3 pr-2">
+        <Checkbox
+          checked={isDone}
+          onCheckedChange={(value) => handleCompletionToggle(Boolean(value))}
+          disabled={statusDisabled}
+          aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
+        />
+      </td>
       <td className="py-3">
         <div className="flex items-start gap-2">
           <button
@@ -85,7 +105,9 @@ export const SortableTaskRow = ({
           >
             <p className="font-medium">{task.title}</p>
             {task.description ? (
-              <Markdown content={task.description} className="[&>*]:my-1" />
+              <p className="text-sm text-muted-foreground">
+                {truncateText(task.description, 100)}
+              </p>
             ) : null}
             <div className="text-xs text-muted-foreground">
               {task.assignees.length > 0 ? (
@@ -103,17 +125,12 @@ export const SortableTaskRow = ({
           </button>
         </div>
       </td>
-      <td className="py-3">
-        <Badge variant="secondary" className="capitalize">
-          {task.status.replace("_", " ")}
-        </Badge>
-      </td>
-      <td className="py-3">
+      <td className="py-3 align-top">
         <Badge variant={priorityVariant[task.priority]}>
           {task.priority.replace("_", " ")}
         </Badge>
       </td>
-      <td className="py-3">
+      <td className="py-3 align-top">
         <Select
           value={task.status}
           onValueChange={(value) => {

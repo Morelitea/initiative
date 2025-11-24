@@ -17,7 +17,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import {
+  GripVertical,
+  LayoutGrid,
+  ScrollText,
+  Archive,
+  List,
+} from "lucide-react";
 
 import { apiClient } from "../api/client";
 import { Markdown } from "../components/Markdown";
@@ -40,13 +46,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { EmojiPicker } from "../components/EmojiPicker";
 import { Switch } from "../components/ui/switch";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
-import { InitiativeColorDot, resolveInitiativeColor } from "../lib/initiativeColors";
+import {
+  InitiativeColorDot,
+  resolveInitiativeColor,
+} from "../lib/initiativeColors";
 import { Project, ProjectReorderPayload, Initiative } from "../types/api";
 
 const NO_INITIATIVE_VALUE = "none";
@@ -66,9 +80,8 @@ export const ProjectsPage = () => {
   const [icon, setIcon] = useState("");
   const [initiativeId, setInitiativeId] = useState<string>(NO_INITIATIVE_VALUE);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
-    NO_TEMPLATE_VALUE
-  );
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
     if (typeof window === "undefined") {
@@ -100,7 +113,9 @@ export const ProjectsPage = () => {
       await apiClient.patch(`/projects/${projectId}`, { is_template: false });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", "templates"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["projects", "templates"],
+      });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
@@ -114,7 +129,9 @@ export const ProjectsPage = () => {
       await apiClient.post(`/projects/${projectId}/unarchive`, {});
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", "archived"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["projects", "archived"],
+      });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
@@ -176,7 +193,6 @@ export const ProjectsPage = () => {
     },
   });
 
-
   const createProject = useMutation({
     mutationFn: async () => {
       const payload: {
@@ -210,7 +226,9 @@ export const ProjectsPage = () => {
       setIsTemplateProject(false);
       setIsComposerOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({ queryKey: ["projects", "templates"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["projects", "templates"],
+      });
     },
   });
 
@@ -296,7 +314,8 @@ export const ProjectsPage = () => {
       const matchesInitiative =
         initiativeFilter === INITIATIVE_FILTER_ALL ||
         (initiativeFilter === INITIATIVE_FILTER_UNASSIGNED &&
-          (projectInitiativeId === null || projectInitiativeId === undefined)) ||
+          (projectInitiativeId === null ||
+            projectInitiativeId === undefined)) ||
         (projectInitiativeId !== null &&
           projectInitiativeId !== undefined &&
           initiativeFilter === projectInitiativeId.toString());
@@ -441,7 +460,8 @@ export const ProjectsPage = () => {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
         <p className="text-muted-foreground">
-          Track initiatives, collaborate with your organization, and move work forward.
+          Track initiatives, collaborate with your organization, and move work
+          forward.
         </p>
       </div>
 
@@ -453,12 +473,54 @@ export const ProjectsPage = () => {
         className="space-y-6"
       >
         <TabsList>
-          <TabsTrigger value="active">Active Projects</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="archive">Archive</TabsTrigger>
+          <TabsTrigger
+            value="active"
+            className="inline-flex items-center gap-2"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Active Projects
+          </TabsTrigger>
+          <TabsTrigger
+            value="templates"
+            className="inline-flex items-center gap-2"
+          >
+            <ScrollText className="h-4 w-4" />
+            Templates
+          </TabsTrigger>
+          <TabsTrigger
+            value="archive"
+            className="inline-flex items-center gap-2"
+          >
+            <Archive className="h-4 w-4" />
+            Archive
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <Tabs
+              value={viewMode}
+              onValueChange={(value) => setViewMode(value as "grid" | "list")}
+              className="w-auto"
+            >
+              <TabsList className="grid grid-cols-2">
+                <TabsTrigger
+                  value="grid"
+                  className="inline-flex items-center gap-2"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  Grid
+                </TabsTrigger>
+                <TabsTrigger
+                  value="list"
+                  className="inline-flex items-center gap-2"
+                >
+                  <List className="h-4 w-4" />
+                  List
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <div className="space-y-4 rounded-md border border-muted/70 bg-card/30 p-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
               <div className="space-y-1 md:col-span-2 xl:col-span-2">
@@ -529,23 +591,6 @@ export const ProjectsPage = () => {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="project-view">View</Label>
-                <Select
-                  value={viewMode}
-                  onValueChange={(value) =>
-                    setViewMode(value as "grid" | "list")
-                  }
-                >
-                  <SelectTrigger id="project-view">
-                    <SelectValue placeholder="Select view" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="grid">Card view</SelectItem>
-                    <SelectItem value="list">List view</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
                 <Label htmlFor="favorites-only">Favorites</Label>
                 <div className="flex h-10 items-center gap-3 rounded-md border bg-background/60 px-3">
                   <Switch
@@ -563,6 +608,7 @@ export const ProjectsPage = () => {
               </div>
             </div>
           </div>
+
           {sortedProjects.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {projects.length === 0
@@ -578,7 +624,9 @@ export const ProjectsPage = () => {
           {templatesQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading templates…</p>
           ) : templatesQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load templates.</p>
+            <p className="text-sm text-destructive">
+              Unable to load templates.
+            </p>
           ) : templatesQuery.data?.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {templatesQuery.data.map((template) => (
@@ -586,13 +634,19 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle className="text-xl">{template.name}</CardTitle>
                     {template.description ? (
-                      <Markdown content={template.description} className="text-sm" />
+                      <Markdown
+                        content={template.description}
+                        className="text-sm"
+                      />
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
+                    {template.initiative ? (
+                      <p>Initiative: {template.initiative.name}</p>
+                    ) : null}
                     <p>
-                      Last updated: {new Date(template.updated_at).toLocaleString()}
+                      Last updated:{" "}
+                      {new Date(template.updated_at).toLocaleString()}
                     </p>
                   </CardContent>
                   <CardFooter className="flex flex-wrap gap-3">
@@ -627,9 +681,13 @@ export const ProjectsPage = () => {
 
         <TabsContent value="archive">
           {archivedQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading archived projects…</p>
+            <p className="text-sm text-muted-foreground">
+              Loading archived projects…
+            </p>
           ) : archivedQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load archived projects.</p>
+            <p className="text-sm text-destructive">
+              Unable to load archived projects.
+            </p>
           ) : archivedQuery.data?.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {archivedQuery.data.map((archived) => (
@@ -637,11 +695,16 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle className="text-xl">{archived.name}</CardTitle>
                     {archived.description ? (
-                      <Markdown content={archived.description} className="text-sm" />
+                      <Markdown
+                        content={archived.description}
+                        className="text-sm"
+                      />
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
+                    {archived.initiative ? (
+                      <p>Initiative: {archived.initiative.name}</p>
+                    ) : null}
                     <p>
                       Archived at:{" "}
                       {archived.archived_at
@@ -700,7 +763,8 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle>Create project</CardTitle>
                     <CardDescription>
-                      Give the project a name, optional description, and owning initiative.
+                      Give the project a name, optional description, and owning
+                      initiative.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -746,14 +810,22 @@ export const ProjectsPage = () => {
                             Unable to load initiatives.
                           </p>
                         ) : (
-                          <Select value={initiativeId} onValueChange={setInitiativeId}>
+                          <Select
+                            value={initiativeId}
+                            onValueChange={setInitiativeId}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="No initiative" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={NO_INITIATIVE_VALUE}>No initiative</SelectItem>
+                              <SelectItem value={NO_INITIATIVE_VALUE}>
+                                No initiative
+                              </SelectItem>
                               {initiativesQuery.data?.map((initiative) => (
-                                <SelectItem key={initiative.id} value={String(initiative.id)}>
+                                <SelectItem
+                                  key={initiative.id}
+                                  value={String(initiative.id)}
+                                >
                                   {initiative.name}
                                 </SelectItem>
                               ))}
@@ -763,7 +835,9 @@ export const ProjectsPage = () => {
                       </div>
                     ) : null}
                     <div className="space-y-2">
-                      <Label htmlFor="project-template">Template (optional)</Label>
+                      <Label htmlFor="project-template">
+                        Template (optional)
+                      </Label>
                       {templatesQuery.isLoading ? (
                         <p className="text-sm text-muted-foreground">
                           Loading templates…
@@ -798,13 +872,17 @@ export const ProjectsPage = () => {
                       )}
                       {isTemplateProject ? (
                         <p className="text-xs text-muted-foreground">
-                          Disable &ldquo;Save as template&rdquo; to pick a template.
+                          Disable &ldquo;Save as template&rdquo; to pick a
+                          template.
                         </p>
                       ) : null}
                     </div>
                     <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
                       <div>
-                        <Label htmlFor="create-as-template" className="text-base">
+                        <Label
+                          htmlFor="create-as-template"
+                          className="text-base"
+                        >
                           Save as template
                         </Label>
                         <p className="text-xs text-muted-foreground">
@@ -863,7 +941,9 @@ const ProjectCardLink = ({
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
 }) => {
   const initiative = project.initiative;
-  const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
+  const initiativeColor = initiative
+    ? resolveInitiativeColor(initiative.color)
+    : null;
 
   return (
     <div className="relative">
@@ -904,7 +984,8 @@ const ProjectCardLink = ({
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <InitiativeLabel initiative={initiative} />
             <p>
-              Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
+              Updated{" "}
+              {new Date(project.updated_at).toLocaleDateString(undefined)}
             </p>
           </CardContent>
         </Card>
@@ -914,10 +995,16 @@ const ProjectCardLink = ({
 };
 
 const SortableProjectCardLink = ({ project }: { project: Project }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: project.id.toString(),
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: project.id.toString(),
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -973,8 +1060,12 @@ const ProjectRowLink = ({
       </div>
       <Link to={`/projects/${project.id}`} className="block">
         <Card
-          className={`shadow-sm p-4 pr-16 ${initiativeColor ? "border-l-4" : ""}`}
-          style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
+          className={`shadow-sm p-4 pr-16 ${
+            initiativeColor ? "border-l-4" : ""
+          }`}
+          style={
+            initiativeColor ? { borderLeftColor: initiativeColor } : undefined
+          }
         >
           <div
             className={`flex flex-wrap items-center gap-4 ${
@@ -988,7 +1079,8 @@ const ProjectRowLink = ({
               <p className="font-semibold">{project.name}</p>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <p>
-                  Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
+                  Updated{" "}
+                  {new Date(project.updated_at).toLocaleDateString(undefined)}
                 </p>
                 <InitiativeLabel initiative={project.initiative} />
               </div>
@@ -1001,10 +1093,16 @@ const ProjectRowLink = ({
 };
 
 const SortableProjectRowLink = ({ project }: { project: Project }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: project.id.toString(),
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: project.id.toString(),
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -1028,7 +1126,11 @@ const SortableProjectRowLink = ({ project }: { project: Project }) => {
   );
 };
 
-const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => {
+const InitiativeLabel = ({
+  initiative,
+}: {
+  initiative?: Initiative | null;
+}) => {
   if (!initiative) {
     return null;
   }
