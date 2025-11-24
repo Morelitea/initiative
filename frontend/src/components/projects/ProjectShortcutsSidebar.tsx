@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Clock3, Star, X } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
+import { InitiativeColorDot } from '../../lib/initiativeColors';
 import type { Project } from '../../types/api';
 import { Button } from '../ui/button';
 
@@ -52,6 +53,9 @@ const Section = ({
                 to={`/projects/${project.id}`}
                 className="flex flex-1 items-center gap-2 truncate text-muted-foreground transition group-hover:text-foreground"
               >
+                {project.initiative ? (
+                  <InitiativeColorDot color={project.initiative.color} className="h-2 w-2" />
+                ) : null}
                 {project.icon ? <span className="text-base leading-none">{project.icon}</span> : null}
                 <span className="truncate">{project.name}</span>
               </Link>

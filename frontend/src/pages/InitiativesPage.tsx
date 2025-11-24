@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
@@ -14,12 +15,14 @@ import { Initiative, User } from '../types/api';
 
 const INITIATIVES_QUERY_KEY = ['initiatives'];
 const NO_USER_VALUE = 'none';
+const DEFAULT_INITIATIVE_COLOR = '#6366F1';
 
 export const InitiativesPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [initiativeName, setInitiativeName] = useState('');
   const [initiativeDescription, setInitiativeDescription] = useState('');
+  const [initiativeColor, setInitiativeColor] = useState(DEFAULT_INITIATIVE_COLOR);
   const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
 
   const initiativesQuery = useQuery<Initiative[]>({
@@ -45,18 +48,32 @@ export const InitiativesPage = () => {
       const response = await apiClient.post<Initiative>('/initiatives/', {
         name: initiativeName,
         description: initiativeDescription,
+        color: initiativeColor,
       });
       return response.data;
     },
     onSuccess: () => {
       setInitiativeName('');
       setInitiativeDescription('');
+      setInitiativeColor(DEFAULT_INITIATIVE_COLOR);
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
   });
 
+  type InitiativeUpdatePayload = {
+    name?: string;
+    description?: string;
+    color?: string | null;
+  };
+
   const updateInitiative = useMutation({
-    mutationFn: async ({ initiativeId, data }: { initiativeId: number; data: { name?: string; description?: string } }) => {
+    mutationFn: async ({
+      initiativeId,
+      data,
+    }: {
+      initiativeId: number;
+      data: InitiativeUpdatePayload;
+    }) => {
       const response = await apiClient.patch<Initiative>(`/initiatives/${initiativeId}`, data);
       return response.data;
     },
@@ -128,6 +145,10 @@ export const InitiativesPage = () => {
     updateInitiative.mutate({ initiativeId, data: { [field]: nextValue } });
   };
 
+  const handleInitiativeColorChange = (initiativeId: number, value: string) => {
+    updateInitiative.mutate({ initiativeId, data: { color: value } });
+  };
+
   const handleDeleteInitiative = (initiativeId: number, name: string) => {
     const confirmation = window.prompt(
       `Deleting initiative "${name}" will permanently delete all of its projects and tasks.\n\nType "delete" to confirm.`
@@ -190,6 +211,20 @@ export const InitiativesPage = () => {
               onChange={(event) => setInitiativeDescription(event.target.value)}
               rows={3}
             />
+            <div className="space-y-2">
+              <Label htmlFor="initiative-color">Color</Label>
+              <input
+                id="initiative-color"
+                type="color"
+                value={initiativeColor}
+                onChange={(event) => setInitiativeColor(event.target.value)}
+                className="h-11 w-20 cursor-pointer rounded-md border bg-transparent p-1"
+                aria-label="Initiative color"
+              />
+              <p className="text-xs text-muted-foreground">
+                This color highlights projects tied to the initiative.
+              </p>
+            </div>
             <Button type="submit" disabled={createInitiative.isPending}>
               {createInitiative.isPending ? 'Creating…' : 'Create initiative'}
             </Button>
@@ -212,6 +247,20 @@ export const InitiativesPage = () => {
                 )}
               </div>
               <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Label htmlFor={`initiative-color-${initiative.id}`} className="text-xs">
+                    Color
+                  </Label>
+                  <input
+                    id={`initiative-color-${initiative.id}`}
+                    type="color"
+                    value={initiative.color ?? DEFAULT_INITIATIVE_COLOR}
+                    onChange={(event) => handleInitiativeColorChange(initiative.id, event.target.value)}
+                    className="h-8 w-14 cursor-pointer rounded-md border bg-transparent p-1"
+                    aria-label={`Color for ${initiative.name}`}
+                    disabled={updateInitiative.isPending}
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"

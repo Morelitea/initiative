@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
+import { InitiativeColorDot } from '../../lib/initiativeColors';
 import type { Project } from '../../types/api';
 import { Button } from '../ui/button';
 
@@ -36,6 +37,9 @@ export const ProjectTabsBar = ({ projects, activeProjectId, loading, onClose }: 
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
+                  {project.initiative ? (
+                    <InitiativeColorDot color={project.initiative.color} className="h-2 w-2" />
+                  ) : null}
                   {project.icon ? <span className="text-base leading-none">{project.icon}</span> : null}
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </Link>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -31,6 +31,7 @@ import {
 } from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
+import { InitiativeColorDot, resolveInitiativeColor, INITIATIVE_COLOR_FALLBACK } from '../lib/initiativeColors';
 import { Project, Task, TaskPriority, TaskReorderPayload, TaskStatus, User } from '../types/api';
 import { toast } from 'sonner';
 import { ProjectTaskComposer } from '../components/projects/ProjectTaskComposer';
@@ -55,6 +56,7 @@ const priorityVariant: Record<TaskPriority, 'default' | 'secondary' | 'destructi
   high: 'default',
   urgent: 'destructive',
 };
+
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams();
@@ -455,6 +457,8 @@ export const ProjectDetailPage = () => {
   }
 
   const project = projectQuery.data;
+  const initiativeColor = resolveInitiativeColor(project.initiative?.color);
+  const detailCardStyle = buildProjectDetailBackground(initiativeColor);
   const membershipRole = project.members.find((member) => member.user_id === user?.id)?.role;
   const userProjectRole = (user?.role as 'admin' | 'project_manager' | 'member' | undefined) ?? undefined;
   const canManageSettings =
@@ -549,38 +553,49 @@ export const ProjectDetailPage = () => {
       <Button asChild variant="link" className="px-0">
         <Link to="/">← Back to projects</Link>
       </Button>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3">
-          {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
-          <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+      <div
+        className="space-y-4 rounded-2xl border bg-card/90 p-6 shadow-sm"
+        style={detailCardStyle}
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
+            {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
+            <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+          </div>
+          <FavoriteProjectButton
+            projectId={project.id}
+            isFavorited={project.is_favorited ?? false}
+          />
+          <Badge variant={projectIsArchived ? 'destructive' : 'secondary'}>
+            {projectIsArchived ? 'Archived' : 'Active'}
+          </Badge>
+          {project.is_template ? (
+            <Badge variant="outline">Template</Badge>
+          ) : null}
         </div>
-        <FavoriteProjectButton
-          projectId={project.id}
-          isFavorited={project.is_favorited ?? false}
-        />
-        <Badge variant={projectIsArchived ? 'destructive' : 'secondary'}>
-          {projectIsArchived ? 'Archived' : 'Active'}
-        </Badge>
+        {project.initiative ? (
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <InitiativeColorDot color={project.initiative.color} />
+            <span>{project.initiative.name}</span>
+          </div>
+        ) : null}
         {project.is_template ? (
-          <Badge variant="outline">Template</Badge>
+          <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
+            This project is a template. Use it to create new projects from the Templates tab.
+          </p>
+        ) : null}
+        {project.description ? <Markdown content={project.description} /> : null}
+        {canManageSettings ? (
+          <Button asChild variant="outline" className="w-fit">
+            <Link to={`/projects/${project.id}/settings`}>Open project settings</Link>
+          </Button>
+        ) : null}
+        {projectIsArchived ? (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            This project is archived. Unarchive it from settings to add or update tasks.
+          </p>
         ) : null}
       </div>
-      {project.is_template ? (
-        <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
-          This project is a template. Use it to create new projects from the Templates tab.
-        </p>
-      ) : null}
-      {project.description ? <Markdown content={project.description} /> : null}
-      {canManageSettings ? (
-        <Button asChild variant="outline" className="w-fit">
-          <Link to={`/projects/${project.id}/settings`}>Open project settings</Link>
-        </Button>
-      ) : null}
-      {projectIsArchived ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          This project is archived. Unarchive it from settings to add or update tasks.
-        </p>
-      ) : null}
 
       <div className="space-y-4">
         <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'kanban' | 'list')} className="space-y-4">
@@ -810,3 +825,33 @@ const TaskDragOverlay = ({
     <Badge variant={priorityVariant[task.priority]}>Priority: {task.priority.replace('_', ' ')}</Badge>
   </div>
 );
+
+const hexToRgba = (hex: string, alpha: number): string => {
+  const sanitized = hex.replace('#', '');
+  const expanded =
+    sanitized.length === 3
+      ? sanitized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : sanitized.padEnd(6, '0');
+  const r = parseInt(expanded.slice(0, 2), 16);
+  const g = parseInt(expanded.slice(2, 4), 16);
+  const b = parseInt(expanded.slice(4, 6), 16);
+
+  if ([r, g, b].some((value) => Number.isNaN(value))) {
+    return hexToRgba(INITIATIVE_COLOR_FALLBACK, alpha);
+  }
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const buildProjectDetailBackground = (hexColor: string): CSSProperties => {
+  return {
+    borderColor: hexToRgba(hexColor, 0.35),
+    backgroundImage: `linear-gradient(135deg, ${hexToRgba(hexColor, 0.18)} 0%, ${hexToRgba(
+      hexColor,
+      0.06
+    )} 45%, transparent 100%)`,
+  };
+};

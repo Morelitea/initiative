@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, String
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,6 +26,10 @@ class Initiative(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True, nullable=False)
     description: Optional[str] = Field(default=None)
+    color: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=32), nullable=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

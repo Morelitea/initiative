@@ -43,14 +43,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { EmojiPicker } from "../components/EmojiPicker";
-import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
+import { InitiativeColorDot, resolveInitiativeColor } from "../lib/initiativeColors";
 import { Project, ProjectReorderPayload, Initiative } from "../types/api";
 
 const NO_INITIATIVE_VALUE = "none";
 const NO_TEMPLATE_VALUE = "template-none";
+const INITIATIVE_FILTER_ALL = "all";
+const INITIATIVE_FILTER_UNASSIGNED = "unassigned";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
@@ -75,7 +77,7 @@ export const ProjectsPage = () => {
     return localStorage.getItem(PROJECT_SEARCH_KEY) ?? "";
   });
   const [sortMode, setSortMode] = useState<
-    "custom" | "updated" | "created" | "alphabetical"
+    "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
   >(() => {
     if (typeof window === "undefined") {
       return "custom";
@@ -85,7 +87,8 @@ export const ProjectsPage = () => {
       stored === "custom" ||
       stored === "updated" ||
       stored === "created" ||
-      stored === "alphabetical"
+      stored === "alphabetical" ||
+      stored === "recently_viewed"
     ) {
       return stored;
     }
@@ -102,6 +105,10 @@ export const ProjectsPage = () => {
     },
   });
 
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(
+    INITIATIVE_FILTER_ALL
+  );
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const unarchiveProject = useMutation({
     mutationFn: async (projectId: number) => {
       await apiClient.post(`/projects/${projectId}/unarchive`, {});
@@ -266,15 +273,39 @@ export const ProjectsPage = () => {
     [projectsQuery.data]
   );
 
-  const filteredProjects = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return projects;
-    }
-    const query = searchQuery.trim().toLowerCase();
-    return projects.filter((project) =>
-      project.name.toLowerCase().includes(query)
+  const availableInitiatives = useMemo(() => {
+    const map = new Map<number, Initiative>();
+    projects.forEach((project) => {
+      if (project.initiative) {
+        map.set(project.initiative.id, project.initiative);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
     );
-  }, [projects, searchQuery]);
+  }, [projects]);
+
+  const filteredProjects = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return projects.filter((project) => {
+      const matchesSearch = !query
+        ? true
+        : project.name.toLowerCase().includes(query);
+      const projectInitiativeId =
+        project.initiative?.id ?? project.initiative_id ?? null;
+      const matchesInitiative =
+        initiativeFilter === INITIATIVE_FILTER_ALL ||
+        (initiativeFilter === INITIATIVE_FILTER_UNASSIGNED &&
+          (projectInitiativeId === null || projectInitiativeId === undefined)) ||
+        (projectInitiativeId !== null &&
+          projectInitiativeId !== undefined &&
+          initiativeFilter === projectInitiativeId.toString());
+      const matchesFavorites = !favoritesOnly
+        ? true
+        : Boolean(project.is_favorited);
+      return matchesSearch && matchesInitiative && matchesFavorites;
+    });
+  }, [projects, searchQuery, initiativeFilter, favoritesOnly]);
 
   const sortedProjects = useMemo(() => {
     const next = [...filteredProjects];
@@ -290,6 +321,21 @@ export const ProjectsPage = () => {
         (a, b) =>
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
+    } else if (sortMode === "recently_viewed") {
+      next.sort((a, b) => {
+        const aViewed = a.last_viewed_at
+          ? new Date(a.last_viewed_at).getTime()
+          : 0;
+        const bViewed = b.last_viewed_at
+          ? new Date(b.last_viewed_at).getTime()
+          : 0;
+        if (aViewed === bViewed) {
+          return (
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          );
+        }
+        return bViewed - aViewed;
+      });
     } else {
       const orderMap = new Map<number, number>();
       customOrder.forEach((id, index) => orderMap.set(id, index));
@@ -413,58 +459,115 @@ export const ProjectsPage = () => {
         </TabsList>
 
         <TabsContent value="active" className="space-y-4">
-          <div className="flex flex-col gap-4 rounded-md border border-muted/70 bg-card/30 p-4 md:flex-row md:items-end">
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="project-search">Filter by name</Label>
-              <Input
-                id="project-search"
-                placeholder="Search projects"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </div>
-            <div className="w-full space-y-1 md:w-64">
-              <Label htmlFor="project-sort">Sort projects</Label>
-              <Select
-                value={sortMode}
-                onValueChange={(value) =>
-                  setSortMode(
-                    value as "custom" | "updated" | "created" | "alphabetical"
-                  )
-                }
-              >
-                <SelectTrigger id="project-sort">
-                  <SelectValue placeholder="Select sort order" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Custom (drag & drop)</SelectItem>
-                  <SelectItem value="updated">Recently updated</SelectItem>
-                  <SelectItem value="created">Recently created</SelectItem>
-                  <SelectItem value="alphabetical">Alphabetical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full space-y-1 md:w-48">
-              <Label htmlFor="project-view">View</Label>
-              <Select
-                value={viewMode}
-                onValueChange={(value) => setViewMode(value as "grid" | "list")}
-              >
-                <SelectTrigger id="project-view">
-                  <SelectValue placeholder="Select view" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="grid">Card view</SelectItem>
-                  <SelectItem value="list">List view</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-4 rounded-md border border-muted/70 bg-card/30 p-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="space-y-1 md:col-span-2 xl:col-span-2">
+                <Label htmlFor="project-search">Filter by name</Label>
+                <Input
+                  id="project-search"
+                  placeholder="Search projects"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="project-initiative-filter">
+                  Filter by initiative
+                </Label>
+                <Select
+                  value={initiativeFilter}
+                  onValueChange={setInitiativeFilter}
+                >
+                  <SelectTrigger id="project-initiative-filter">
+                    <SelectValue placeholder="All initiatives" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={INITIATIVE_FILTER_ALL}>
+                      All initiatives
+                    </SelectItem>
+                    <SelectItem value={INITIATIVE_FILTER_UNASSIGNED}>
+                      No initiative
+                    </SelectItem>
+                    {availableInitiatives.map((initiative) => (
+                      <SelectItem
+                        key={initiative.id}
+                        value={initiative.id.toString()}
+                      >
+                        {initiative.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="project-sort">Sort projects</Label>
+                <Select
+                  value={sortMode}
+                  onValueChange={(value) =>
+                    setSortMode(
+                      value as
+                        | "custom"
+                        | "updated"
+                        | "created"
+                        | "alphabetical"
+                        | "recently_viewed"
+                    )
+                  }
+                >
+                  <SelectTrigger id="project-sort">
+                    <SelectValue placeholder="Select sort order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">Custom (drag & drop)</SelectItem>
+                    <SelectItem value="recently_viewed">
+                      Recently opened
+                    </SelectItem>
+                    <SelectItem value="updated">Recently updated</SelectItem>
+                    <SelectItem value="created">Recently created</SelectItem>
+                    <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="project-view">View</Label>
+                <Select
+                  value={viewMode}
+                  onValueChange={(value) =>
+                    setViewMode(value as "grid" | "list")
+                  }
+                >
+                  <SelectTrigger id="project-view">
+                    <SelectValue placeholder="Select view" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="grid">Card view</SelectItem>
+                    <SelectItem value="list">List view</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="favorites-only">Favorites</Label>
+                <div className="flex h-10 items-center gap-3 rounded-md border bg-background/60 px-3">
+                  <Switch
+                    id="favorites-only"
+                    checked={favoritesOnly}
+                    onCheckedChange={(checked) =>
+                      setFavoritesOnly(Boolean(checked))
+                    }
+                    aria-label="Filter to favorite projects"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Show only favorites
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           {sortedProjects.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {projects.length === 0
                 ? "No projects yet. Create one to get started."
-                : "No projects match your search."}
+                : "No projects match your filters."}
             </p>
           ) : (
             projectCards
@@ -758,45 +861,57 @@ const ProjectCardLink = ({
 }: {
   project: Project;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-}) => (
-  <div className="relative">
-    <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
-      <FavoriteProjectButton
-        projectId={project.id}
-        isFavorited={project.is_favorited ?? false}
-        suppressNavigation
-      />
-      {dragHandleProps ? (
-        <button
-          type="button"
-          className="rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Reorder project"
-          {...dragHandleProps}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-      ) : null}
+}) => {
+  const initiative = project.initiative;
+  const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
+
+  return (
+    <div className="relative">
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+        <FavoriteProjectButton
+          projectId={project.id}
+          isFavorited={project.is_favorited ?? false}
+          suppressNavigation
+        />
+        {dragHandleProps ? (
+          <button
+            type="button"
+            className="rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Reorder project"
+            {...dragHandleProps}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+      <Link to={`/projects/${project.id}`} className="block">
+        <Card className="overflow-hidden shadow-sm">
+          {initiativeColor ? (
+            <div
+              className="h-1.5 w-full"
+              style={{ backgroundColor: initiativeColor }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              {project.icon ? (
+                <span className="text-2xl leading-none">{project.icon}</span>
+              ) : null}
+              <span>{project.name}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <InitiativeLabel initiative={initiative} />
+            <p>
+              Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
+            </p>
+          </CardContent>
+        </Card>
+      </Link>
     </div>
-    <Link to={`/projects/${project.id}`} className="block">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            {project.icon ? (
-              <span className="text-2xl leading-none">{project.icon}</span>
-            ) : null}
-            <span>{project.name}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-        {project.initiative ? <Badge>Initiative: {project.initiative.name}</Badge> : null}
-          <p>
-            Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
-          </p>
-        </CardContent>
-      </Card>
-    </Link>
-  </div>
-);
+  );
+};
 
 const SortableProjectCardLink = ({ project }: { project: Project }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -832,48 +947,58 @@ const ProjectRowLink = ({
 }: {
   project: Project;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-}) => (
-  <div className="relative">
-    {dragHandleProps ? (
-      <button
-        type="button"
-        className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label="Reorder project"
-        {...dragHandleProps}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-    ) : null}
-    <div className="absolute right-4 top-4 z-10">
-      <FavoriteProjectButton
-        projectId={project.id}
-        isFavorited={project.is_favorited ?? false}
-        suppressNavigation
-        iconSize="sm"
-      />
-    </div>
-    <Link to={`/projects/${project.id}`} className="block">
-      <Card className="shadow-sm p-4 pr-16">
-        <div
-          className={`flex flex-wrap items-center gap-4 ${
-            dragHandleProps ? "pl-10" : ""
-          }`}
+}) => {
+  const initiativeColor = project.initiative
+    ? resolveInitiativeColor(project.initiative.color)
+    : null;
+  return (
+    <div className="relative">
+      {dragHandleProps ? (
+        <button
+          type="button"
+          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Reorder project"
+          {...dragHandleProps}
         >
-          {project.icon ? (
-            <span className="text-2xl leading-none">{project.icon}</span>
-          ) : null}
-          <div className="flex-1 min-w-[200px]">
-            <p className="font-semibold">{project.name}</p>
-            <p className="text-xs text-muted-foreground">
-              Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
-            </p>
+          <GripVertical className="h-4 w-4" />
+        </button>
+      ) : null}
+      <div className="absolute right-4 top-4 z-10">
+        <FavoriteProjectButton
+          projectId={project.id}
+          isFavorited={project.is_favorited ?? false}
+          suppressNavigation
+          iconSize="sm"
+        />
+      </div>
+      <Link to={`/projects/${project.id}`} className="block">
+        <Card
+          className={`shadow-sm p-4 pr-16 ${initiativeColor ? "border-l-4" : ""}`}
+          style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
+        >
+          <div
+            className={`flex flex-wrap items-center gap-4 ${
+              dragHandleProps ? "pl-10" : ""
+            }`}
+          >
+            {project.icon ? (
+              <span className="text-2xl leading-none">{project.icon}</span>
+            ) : null}
+            <div className="flex-1 min-w-[200px]">
+              <p className="font-semibold">{project.name}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <p>
+                  Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
+                </p>
+                <InitiativeLabel initiative={project.initiative} />
+              </div>
+            </div>
           </div>
-          {project.initiative ? <Badge>Initiative: {project.initiative.name}</Badge> : null}
-        </div>
-      </Card>
-    </Link>
-  </div>
-);
+        </Card>
+      </Link>
+    </div>
+  );
+};
 
 const SortableProjectRowLink = ({ project }: { project: Project }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -900,5 +1025,17 @@ const SortableProjectRowLink = ({ project }: { project: Project }) => {
     >
       <ProjectRowLink project={project} dragHandleProps={dragHandleProps} />
     </div>
+  );
+};
+
+const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => {
+  if (!initiative) {
+    return null;
+  }
+  return (
+    <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <InitiativeColorDot color={initiative.color} />
+      <span>{initiative.name}</span>
+    </span>
   );
 };

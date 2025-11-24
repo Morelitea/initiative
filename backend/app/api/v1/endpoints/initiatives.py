@@ -29,6 +29,7 @@ def _serialize_initiative(initiative: Initiative) -> InitiativeRead:
         id=initiative.id,
         name=initiative.name,
         description=initiative.description,
+        color=initiative.color,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,
@@ -68,6 +69,8 @@ async def create_initiative(initiative_in: InitiativeCreate, session: SessionDep
     if await _initiative_name_exists(session, initiative_in.name):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initiative name already exists")
     initiative = Initiative(name=initiative_in.name, description=initiative_in.description)
+    if initiative_in.color:
+        initiative.color = initiative_in.color
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)

@@ -6,9 +6,13 @@ from pydantic import BaseModel, Field
 from app.schemas.user import UserRead
 
 
+HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+
+
 class InitiativeBase(BaseModel):
     name: str
     description: Optional[str] = None
+    color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
 
 
 class InitiativeCreate(InitiativeBase):
@@ -18,6 +22,7 @@ class InitiativeCreate(InitiativeBase):
 class InitiativeUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
 
 
 class InitiativeRead(InitiativeBase):
