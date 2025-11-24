@@ -22,7 +22,7 @@ export interface ProjectMember {
   joined_at: string;
 }
 
-export interface Team {
+export interface Initiative {
   id: number;
   name: string;
   description?: string;
@@ -37,7 +37,7 @@ export interface Project {
   icon?: string | null;
   description?: string;
   owner_id: number;
-  team_id?: number | null;
+  initiative_id?: number | null;
   created_at: string;
   updated_at: string;
   read_roles: ProjectRole[];
@@ -46,7 +46,7 @@ export interface Project {
   is_template: boolean;
   archived_at?: string | null;
   owner?: User;
-  team?: Team | null;
+  initiative?: Initiative | null;
   members: ProjectMember[];
   sort_order?: number | null;
   is_favorited?: boolean;

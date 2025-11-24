@@ -3,7 +3,7 @@
 from app.models.app_setting import AppSetting
 from app.models.project import Project, ProjectMember
 from app.models.task import Task, TaskAssignee
-from app.models.team import Team, TeamMember
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.models.api_key import AdminApiKey
 from app.models.project_activity import ProjectFavorite, RecentProjectView
@@ -15,8 +15,8 @@ __all__ = [
     "TaskAssignee",
     "ProjectMember",
     "AppSetting",
-    "Team",
-    "TeamMember",
+    "Initiative",
+    "InitiativeMember",
     "AdminApiKey",
     "ProjectFavorite",
     "RecentProjectView",

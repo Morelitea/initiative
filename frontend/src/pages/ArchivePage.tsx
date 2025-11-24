@@ -64,7 +64,7 @@ export const ArchivePage = () => {
                 {project.description ? <Markdown content={project.description} className="text-sm" /> : null}
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
-                {project.team ? <p>Team: {project.team.name}</p> : null}
+                {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
                 <p>
                   Archived at: {project.archived_at ? new Date(project.archived_at).toLocaleString() : 'Unknown'}
                 </p>

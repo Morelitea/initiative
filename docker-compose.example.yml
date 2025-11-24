@@ -1,13 +1,12 @@
 services:
   db:
     image: postgres:17
+    container_name: initiative-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-initiative}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-initiative}
       POSTGRES_DB: ${POSTGRES_DB:-initiative}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,6 +18,7 @@ services:
   backend:
     build:
       context: ./backend
+    container_name: initiative-api
     environment:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@db:5432/initiative
       SECRET_KEY: super-secret-key
@@ -28,14 +28,14 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8173:8173"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8173
+      - "8173:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   frontend:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://localhost:8173/api/v1
+        VITE_API_URL: /api/v1
     depends_on:
       - backend
     ports:

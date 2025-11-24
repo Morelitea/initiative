@@ -66,7 +66,7 @@ export const TemplatesPage = () => {
                 {project.description ? <Markdown content={project.description} className="text-sm" /> : null}
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
-                {project.team ? <p>Team: {project.team.name}</p> : null}
+                {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
                 <p>Last updated: {new Date(project.updated_at).toLocaleString()}</p>
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">

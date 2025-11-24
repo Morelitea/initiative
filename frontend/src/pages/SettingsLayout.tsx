@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 const settingsTabs = [
   { value: 'registration', label: 'Registration', path: '/settings' },
   { value: 'users', label: 'Users', path: '/settings/users' },
-  { value: 'teams', label: 'Teams', path: '/settings/teams' },
+  { value: 'initiatives', label: 'Initiatives', path: '/settings/initiatives' },
   { value: 'auth', label: 'Auth', path: '/settings/auth' },
   { value: 'api-keys', label: 'API Keys', path: '/settings/api-keys' },
   { value: 'interface', label: 'Interface', path: '/settings/interface' },
@@ -38,7 +38,7 @@ export const SettingsLayout = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage workspace access, teams, and authentication.</p>
+        <p className="text-muted-foreground">Manage workspace access, initiatives, and authentication.</p>
       </div>
       <Tabs
         value={activeTab}

@@ -6,21 +6,21 @@ from pydantic import BaseModel, Field
 from app.schemas.user import UserRead
 
 
-class TeamBase(BaseModel):
+class InitiativeBase(BaseModel):
     name: str
     description: Optional[str] = None
 
 
-class TeamCreate(TeamBase):
+class InitiativeCreate(InitiativeBase):
     pass
 
 
-class TeamUpdate(BaseModel):
+class InitiativeUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
 
-class TeamRead(TeamBase):
+class InitiativeRead(InitiativeBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -30,5 +30,5 @@ class TeamRead(TeamBase):
         from_attributes = True
 
 
-class TeamMemberAdd(BaseModel):
+class InitiativeMemberAdd(BaseModel):
     user_id: int

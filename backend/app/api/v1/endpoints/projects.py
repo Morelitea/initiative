@@ -10,7 +10,7 @@ from app.models.project import Project, ProjectMember, ProjectRole
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee
-from app.models.team import Team, TeamMember
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User, UserRole
 from app.services import project_access
 from app.services.realtime import broadcast_event
@@ -42,7 +42,7 @@ async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
     statement = select(Project).where(Project.id == project_id).options(
         selectinload(Project.members),
         selectinload(Project.owner),
-        selectinload(Project.team).selectinload(Team.members),
+        selectinload(Project.initiative).selectinload(Initiative.members),
     )
     result = await session.exec(statement)
     project = result.one_or_none()
@@ -51,27 +51,33 @@ async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
     return project
 
 
-async def _get_team_or_404(team_id: int, session: SessionDep) -> Team:
-    result = await session.exec(select(Team).where(Team.id == team_id))
-    team = result.one_or_none()
-    if not team:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    return team
+async def _get_initiative_or_404(initiative_id: int, session: SessionDep) -> Initiative:
+    result = await session.exec(select(Initiative).where(Initiative.id == initiative_id))
+    initiative = result.one_or_none()
+    if not initiative:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
+    return initiative
 
 
-async def _is_team_member(project: Project, user: User, session: SessionDep) -> bool:
-    if not project.team_id:
+async def _is_initiative_member(project: Project, user: User, session: SessionDep) -> bool:
+    if not project.initiative_id:
         return False
-    stmt = select(TeamMember).where(TeamMember.team_id == project.team_id, TeamMember.user_id == user.id)
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == project.initiative_id,
+        InitiativeMember.user_id == user.id,
+    )
     result = await session.exec(stmt)
     return result.one_or_none() is not None
 
 
-async def _ensure_user_in_team(team_id: int, user_id: int, session: SessionDep) -> None:
-    stmt = select(TeamMember).where(TeamMember.team_id == team_id, TeamMember.user_id == user_id)
+async def _ensure_user_in_initiative(initiative_id: int, user_id: int, session: SessionDep) -> None:
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id,
+        InitiativeMember.user_id == user_id,
+    )
     result = await session.exec(stmt)
     if not result.one_or_none():
-        session.add(TeamMember(team_id=team_id, user_id=user_id))
+        session.add(InitiativeMember(initiative_id=initiative_id, user_id=user_id))
         await session.commit()
 
 
@@ -135,7 +141,7 @@ async def _visible_projects(
     base_statement = select(Project).options(
         selectinload(Project.members),
         selectinload(Project.owner),
-        selectinload(Project.team).selectinload(Team.members),
+        selectinload(Project.initiative).selectinload(Initiative.members),
     )
     result = await session.exec(base_statement)
     all_projects = result.all()
@@ -147,8 +153,10 @@ async def _visible_projects(
     memberships = membership_result.all()
     membership_map = {membership.project_id: membership.role for membership in memberships}
     user_project_role = project_access.user_role_to_project_role(current_user.role)
-    team_ids_result = await session.exec(select(TeamMember.team_id).where(TeamMember.user_id == current_user.id))
-    team_ids = set(team_ids_result.all())
+    initiative_ids_result = await session.exec(
+        select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == current_user.id)
+    )
+    initiative_ids = set(initiative_ids_result.all())
 
     visible_projects: List[Project] = []
     for project in all_projects:
@@ -158,7 +166,7 @@ async def _visible_projects(
             visible_projects.append(project)
             continue
 
-        if project.team_id and project.team_id not in team_ids and current_user.role != UserRole.admin:
+        if project.initiative_id and project.initiative_id not in initiative_ids and current_user.role != UserRole.admin:
             continue
 
         membership_role = membership_map.get(project.id)
@@ -261,7 +269,7 @@ async def _projects_by_ids(
         .options(
             selectinload(Project.members),
             selectinload(Project.owner),
-            selectinload(Project.team).selectinload(Team.members),
+            selectinload(Project.initiative).selectinload(Initiative.members),
         )
     )
     result = await session.exec(stmt)
@@ -394,14 +402,14 @@ async def _require_project_membership(
     if current_user.role == UserRole.admin or project.owner_id == current_user.id:
         return None
 
-    is_team_member = await _is_team_member(project, current_user, session)
+    is_initiative_member = await _is_initiative_member(project, current_user, session)
     if (
-        project.team_id
-        and not is_team_member
+        project.initiative_id
+        and not is_initiative_member
         and current_user.role != UserRole.admin
         and project.owner_id != current_user.id
     ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's team")
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's initiative")
 
     member_stmt = select(ProjectMember).where(
         ProjectMember.project_id == project.id,
@@ -420,8 +428,8 @@ async def _require_project_membership(
 
     if not membership:
         if has_global_access:
-            if project.team_id and not is_team_member:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's team")
+            if project.initiative_id and not is_initiative_member:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this initiative")
             if require_manager and user_project_role not in {ProjectRole.admin, ProjectRole.project_manager}:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Manager role required")
             return None
@@ -477,14 +485,14 @@ async def create_project(
         if project_in.description is not None
         else (template_project.description if template_project else None)
     )
-    team_id = (
-        project_in.team_id
-        if project_in.team_id is not None
-        else (template_project.team_id if template_project else None)
+    initiative_id = (
+        project_in.initiative_id
+        if getattr(project_in, "initiative_id", None) is not None
+        else (template_project.initiative_id if template_project else None)
     )
-    if team_id is not None:
-        await _get_team_or_404(team_id, session)
-        await _ensure_user_in_team(team_id, owner_id, session)
+    if initiative_id is not None:
+        await _get_initiative_or_404(initiative_id, session)
+        await _ensure_user_in_initiative(initiative_id, owner_id, session)
     read_roles_source = (
         project_in.read_roles
         if project_in.read_roles is not None
@@ -502,7 +510,7 @@ async def create_project(
         icon=icon_value,
         description=description_value,
         owner_id=owner_id,
-        team_id=team_id,
+        initiative_id=initiative_id,
         read_roles=read_roles,
         write_roles=write_roles,
         is_template=project_in.is_template,
@@ -557,10 +565,10 @@ async def duplicate_project(
     await _require_project_membership(source_project, current_user, session, access="read", require_manager=True)
 
     owner_id = current_user.id
-    team_id = source_project.team_id
-    if team_id is not None:
-        await _get_team_or_404(team_id, session)
-        await _ensure_user_in_team(team_id, owner_id, session)
+    initiative_id = source_project.initiative_id
+    if initiative_id is not None:
+        await _get_initiative_or_404(initiative_id, session)
+        await _ensure_user_in_initiative(initiative_id, owner_id, session)
 
     new_name = (
         duplicate_in.name.strip()
@@ -572,7 +580,7 @@ async def duplicate_project(
         icon=source_project.icon,
         description=source_project.description,
         owner_id=owner_id,
-        team_id=team_id,
+        initiative_id=initiative_id,
         read_roles=list(source_project.read_roles),
         write_roles=list(source_project.write_roles),
         is_template=False,
@@ -759,12 +767,12 @@ async def update_project(
     _ensure_not_archived(project)
 
     update_data = project_in.dict(exclude_unset=True)
-    if "team_id" in update_data:
-        new_team_id = update_data.pop("team_id")
-        if new_team_id is not None:
-            await _get_team_or_404(new_team_id, session)
-            await _ensure_user_in_team(new_team_id, project.owner_id, session)
-        project.team_id = new_team_id
+    if "initiative_id" in update_data:
+        new_initiative_id = update_data.pop("initiative_id")
+        if new_initiative_id is not None:
+            await _get_initiative_or_404(new_initiative_id, session)
+            await _ensure_user_in_initiative(new_initiative_id, project.owner_id, session)
+        project.initiative_id = new_initiative_id
     if "read_roles" in update_data:
         project.read_roles = project_access.normalize_read_roles(update_data.pop("read_roles"))
     if "write_roles" in update_data:
@@ -790,8 +798,8 @@ async def add_project_member(
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="write", require_manager=True)
     _ensure_not_archived(project)
-    if project.team_id:
-        await _ensure_user_in_team(project.team_id, member_in.user_id, session)
+    if project.initiative_id:
+        await _ensure_user_in_initiative(project.initiative_id, member_in.user_id, session)
 
     existing_stmt = select(ProjectMember).where(
         ProjectMember.project_id == project_id,

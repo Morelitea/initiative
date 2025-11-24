@@ -118,7 +118,7 @@ export const ProjectTaskComposer = ({
                         options={users}
                         onChange={onAssigneesChange}
                         disabled={isSubmitting}
-                        emptyMessage="Invite teammates or add members to assign work."
+                        emptyMessage="Invite initiative members to assign work."
                       />
                     </div>
                   </div>

@@ -19,7 +19,7 @@ export const AssigneeSelector = ({
   options,
   onChange,
   disabled = false,
-  emptyMessage = "Invite teammates to assign tasks.",
+  emptyMessage = "Invite initiative members to assign tasks.",
 }: AssigneeSelectorProps) => {
   const toggleId = (id: number, checked: boolean) => {
     if (checked) {

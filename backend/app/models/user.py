@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy import Column, DateTime, Text, Boolean
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.team import Team, TeamMember
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import TaskAssignee
 
 
@@ -51,7 +51,7 @@ class User(SQLModel, table=True):
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
     memberships: List["ProjectMember"] = Relationship(back_populates="user")
-    teams: List["Team"] = Relationship(back_populates="members", link_model=TeamMember)
+    initiatives: List["Initiative"] = Relationship(back_populates="members", link_model=InitiativeMember)
     project_orders: List["ProjectOrder"] = Relationship(back_populates="user")
     api_keys: List["AdminApiKey"] = Relationship(back_populates="user")
     favorite_projects: List["ProjectFavorite"] = Relationship(back_populates="user")

@@ -143,7 +143,7 @@ export const TaskEditPage = () => {
     const allowed = new Set<number>();
     allowed.add(project.owner_id);
     project.members.forEach((member) => allowed.add(member.user_id));
-    project.team?.members?.forEach((member) => allowed.add(member.id));
+    project.initiative?.members?.forEach((member) => allowed.add(member.id));
 
     return users
       .filter((user) => allowed.has(user.id))
@@ -307,7 +307,7 @@ export const TaskEditPage = () => {
                   options={userOptions}
                   onChange={setAssigneeIds}
                   disabled={isReadOnly}
-                  emptyMessage="No teammates available yet."
+                  emptyMessage="No initiative members available yet."
                 />
               </div>
               <div className="space-y-2">

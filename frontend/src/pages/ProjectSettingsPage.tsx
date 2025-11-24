@@ -13,10 +13,10 @@ import { Input } from '../components/ui/input';
 import { EmojiPicker } from '../components/EmojiPicker';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
-import { Project, ProjectRole, Team } from '../types/api';
+import { Project, ProjectRole, Initiative } from '../types/api';
 
-const TEAMS_QUERY_KEY = ['teams'];
-const NO_TEAM_VALUE = 'none';
+const INITIATIVES_QUERY_KEY = ['initiatives'];
+const NO_INITIATIVE_VALUE = 'none';
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams();
@@ -25,9 +25,9 @@ export const ProjectSettingsPage = () => {
   const { user } = useAuth();
   const [readRoles, setReadRoles] = useState<ProjectRole[]>([]);
   const [writeRoles, setWriteRoles] = useState<ProjectRole[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(NO_TEAM_VALUE);
+  const [selectedInitiativeId, setSelectedInitiativeId] = useState<string>(NO_INITIATIVE_VALUE);
   const [accessMessage, setAccessMessage] = useState<string | null>(null);
-  const [teamMessage, setTeamMessage] = useState<string | null>(null);
+  const [initiativeMessage, setInitiativeMessage] = useState<string | null>(null);
   const [nameText, setNameText] = useState<string>('');
   const [iconText, setIconText] = useState<string>('');
   const [identityMessage, setIdentityMessage] = useState<string | null>(null);
@@ -45,11 +45,11 @@ export const ProjectSettingsPage = () => {
     enabled: Number.isFinite(parsedProjectId),
   });
 
-  const teamsQuery = useQuery<Team[]>({
-    queryKey: TEAMS_QUERY_KEY,
+  const initiativesQuery = useQuery<Initiative[]>({
+    queryKey: INITIATIVES_QUERY_KEY,
     enabled: user?.role === 'admin',
     queryFn: async () => {
-      const response = await apiClient.get<Team[]>('/teams/');
+      const response = await apiClient.get<Initiative[]>('/initiatives/');
       return response.data;
     },
   });
@@ -58,12 +58,12 @@ export const ProjectSettingsPage = () => {
     if (projectQuery.data) {
       setReadRoles(projectQuery.data.read_roles);
       setWriteRoles(projectQuery.data.write_roles);
-      setSelectedTeamId(projectQuery.data.team_id ? String(projectQuery.data.team_id) : NO_TEAM_VALUE);
+      setSelectedInitiativeId(projectQuery.data.initiative_id ? String(projectQuery.data.initiative_id) : NO_INITIATIVE_VALUE);
       setNameText(projectQuery.data.name);
       setIconText(projectQuery.data.icon ?? '');
       setDescriptionText(projectQuery.data.description ?? '');
       setAccessMessage(null);
-      setTeamMessage(null);
+      setInitiativeMessage(null);
       setIdentityMessage(null);
       setDescriptionMessage(null);
       setTemplateMessage(null);
@@ -87,15 +87,18 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const updateTeamOwnership = useMutation({
+  const updateInitiativeOwnership = useMutation({
     mutationFn: async () => {
-      const payload = selectedTeamId === NO_TEAM_VALUE ? { team_id: null } : { team_id: Number(selectedTeamId) };
+      const payload =
+        selectedInitiativeId === NO_INITIATIVE_VALUE
+          ? { initiative_id: null }
+          : { initiative_id: Number(selectedInitiativeId) };
       const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, payload);
       return response.data;
     },
     onSuccess: (data) => {
-      setTeamMessage('Project team updated');
-      setSelectedTeamId(data.team_id ? String(data.team_id) : NO_TEAM_VALUE);
+      setInitiativeMessage('Project initiative updated');
+      setSelectedInitiativeId(data.initiative_id ? String(data.initiative_id) : NO_INITIATIVE_VALUE);
       void queryClient.invalidateQueries({ queryKey: ['projects', parsedProjectId] });
       void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
     },
@@ -204,9 +207,9 @@ export const ProjectSettingsPage = () => {
     return <p className="text-destructive">Invalid project id.</p>;
   }
 
-  const teamsLoading = user?.role === 'admin' ? teamsQuery.isLoading : false;
+  const initiativesLoading = user?.role === 'admin' ? initiativesQuery.isLoading : false;
 
-  if (projectQuery.isLoading || teamsLoading) {
+  if (projectQuery.isLoading || initiativesLoading) {
     return <p className="text-sm text-muted-foreground">Loading project settings…</p>;
   }
 
@@ -355,22 +358,22 @@ export const ProjectSettingsPage = () => {
         </CardContent>
       </Card>
 
-      {project.team ? (
+      {project.initiative ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Project team</CardTitle>
-            <CardDescription>The team currently assigned to this project.</CardDescription>
+            <CardTitle>Project initiative</CardTitle>
+            <CardDescription>The initiative currently assigned to this project.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="font-medium">{project.team.name}</p>
-            {project.team.members.length ? (
+            <p className="font-medium">{project.initiative.name}</p>
+            {project.initiative.members.length ? (
               <ul className="space-y-2 text-sm text-muted-foreground">
-                {project.team.members.map((member) => (
+                {project.initiative.members.map((member) => (
                   <li key={member.id}>{member.full_name ?? member.email}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No team members yet.</p>
+              <p className="text-sm text-muted-foreground">No initiative members yet.</p>
             )}
           </CardContent>
         </Card>
@@ -379,41 +382,41 @@ export const ProjectSettingsPage = () => {
       {user?.role === 'admin' ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Team ownership</CardTitle>
-            <CardDescription>Select which team owns this project.</CardDescription>
+            <CardTitle>Initiative ownership</CardTitle>
+            <CardDescription>Select which initiative owns this project.</CardDescription>
           </CardHeader>
           <CardContent>
-            {teamsQuery.isError ? (
-              <p className="text-sm text-destructive">Unable to load teams.</p>
+            {initiativesQuery.isError ? (
+              <p className="text-sm text-destructive">Unable to load initiatives.</p>
             ) : (
               <form
                 className="flex flex-wrap gap-3"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  updateTeamOwnership.mutate();
+                  updateInitiativeOwnership.mutate();
                 }}
               >
                 <div className="min-w-[220px] flex-1">
-                  <Label htmlFor="project-team">Owning team</Label>
-                  <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                    <SelectTrigger id="project-team" className="mt-2">
-                      <SelectValue placeholder="No team" />
+                  <Label htmlFor="project-initiative">Owning initiative</Label>
+                  <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
+                    <SelectTrigger id="project-initiative" className="mt-2">
+                      <SelectValue placeholder="No initiative" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_TEAM_VALUE}>No team</SelectItem>
-                      {teamsQuery.data?.map((team) => (
-                        <SelectItem key={team.id} value={String(team.id)}>
-                          {team.name}
+                        <SelectContent>
+                      <SelectItem value={NO_INITIATIVE_VALUE}>No initiative</SelectItem>
+                      {initiativesQuery.data?.map((initiative) => (
+                        <SelectItem key={initiative.id} value={String(initiative.id)}>
+                          {initiative.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Button type="submit" disabled={updateTeamOwnership.isPending}>
-                    {updateTeamOwnership.isPending ? 'Saving…' : 'Save team'}
+                  <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
+                    {updateInitiativeOwnership.isPending ? 'Saving…' : 'Save initiative'}
                   </Button>
-                  {teamMessage ? <p className="text-sm text-primary">{teamMessage}</p> : null}
+                  {initiativeMessage ? <p className="text-sm text-primary">{initiativeMessage}</p> : null}
                 </div>
               </form>
             )}
@@ -527,7 +530,7 @@ export const ProjectSettingsPage = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Duplicate project</CardTitle>
-          <CardDescription>Clone this project, including its team and tasks, to jumpstart new work.</CardDescription>
+        <CardDescription>Clone this project, including its initiative and tasks, to jumpstart new work.</CardDescription>
         </CardHeader>
         <CardContent>
           {duplicateMessage ? <p className="text-sm text-primary">{duplicateMessage}</p> : null}

@@ -133,7 +133,7 @@ export const ProjectDetailPage = () => {
     const allowed = new Set<number>();
     allowed.add(project.owner_id);
     project.members.forEach((member) => allowed.add(member.user_id));
-    project.team?.members?.forEach((member) => allowed.add(member.id));
+    project.initiative?.members?.forEach((member) => allowed.add(member.id));
 
     return allUsers
       .filter((user) => allowed.has(user.id))

@@ -32,7 +32,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const userDisplayName = user?.full_name ?? user?.email ?? 'Team member';
+  const userDisplayName = user?.full_name ?? user?.email ?? 'Initiative member';
   const userEmail = user?.email ?? '';
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || undefined;
   const userInitials =

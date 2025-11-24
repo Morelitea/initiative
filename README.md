@@ -28,7 +28,7 @@ cp .env.example .env  # update secrets + Postgres DSN
 alembic upgrade head
 
 # Start the API
-# Optionally explore the API docs at http://localhost:8173/api/v1/docs
+# Optionally explore the API docs at http://localhost:8000/api/v1/docs
 uvicorn app.main:app --reload
 ```
 
@@ -56,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Expose the API URL to the frontend by setting `VITE_API_URL` (defaults to `http://localhost:8173/api/v1`).
+Expose the API URL to the frontend by setting `VITE_API_URL` (defaults to `http://localhost:8000/api/v1`).
 
 ### Docker Compose (recommended for local Postgres 17)
 
@@ -67,7 +67,7 @@ docker-compose up --build
 Services:
 
 - `db` – PostgreSQL 17 with a persistent volume
-- `backend` – FastAPI app served on `http://localhost:8173`
+- `backend` – FastAPI app served on `http://localhost:8000`
 - `frontend` – Static React build served via nginx on `http://localhost:5173`
 
 ## Application Features
@@ -80,14 +80,14 @@ Services:
 - Admin API keys that can be generated from Settings → API Keys and supplied via `Authorization: Bearer <key>` for headless integrations
 - Global roles (`admin`, `project_manager`, `member`) enforced through dependency guards
 - Project-level roles (`admin`, `project_manager`, `member`) for finer-grained control over task/project mutations
-- Team-owned projects restrict visibility/editing to members of the owning team (admins can override)
+- Initiative-owned projects restrict visibility/editing to members of the owning initiative (admins can override)
 
 ### Backend Domain
 
 - Users with hashed passwords, audit timestamps, and relationships to projects/tasks
 - Projects with membership tables and cascading deletes for tasks/memberships
 - Configurable project read/write role lists so owners can decide which project roles can view or edit each board
-- Teams with many-to-many membership, plus team-owned projects that scope access to team members
+- Initiatives with many-to-many membership, plus initiative-owned projects that scope access to initiative members
 - Project archiving with dedicated Archive view; only users with write access can archive/unarchive projects, keeping active boards focused
 - Tasks tied to projects with status + priority enums for Kanban-style workflows
 - Async Postgres engine, session dependency injection, and startup hook that auto-creates tables
@@ -97,13 +97,13 @@ Services:
 - Auth context with persistent JWT tokens and guarded routes
 - React Query hooks for projects/tasks CRUD, with optimistic invalidations
 - Simple project board UI + task status transitions, plus gated project creation for managers/admins
-- Admin-only settings + user management screens for approval queues, allowlists, role changes, password resets, account deletion, team management, OIDC configuration, and API key management
+- Admin-only settings + user management screens for approval queues, allowlists, role changes, password resets, account deletion, initiative management, OIDC configuration, and API key management
 
-### Teams
+### Initiatives
 
-- Admins can create, edit, delete, and manage team membership from the Settings → Teams tab
-- Projects can be assigned to a team; only members of that team (plus admins/owners) can read or write the project, and role-based permissions still apply within the team
-- Team-owned projects automatically surface team membership details in the project view, and project assignment can be updated from the project detail page (admins only)
+- Admins can create, edit, delete, and manage initiative membership from the Settings → Initiatives tab
+- Projects can be assigned to an initiative; only members of that initiative (plus admins/owners) can read or write the project, and role-based permissions still apply within the initiative
+- Initiative-owned projects automatically surface initiative membership details in the project view, and project assignment can be updated from the project detail page (admins only)
 
 ### OIDC
 

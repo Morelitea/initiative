@@ -8,10 +8,10 @@
 
 - `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` — install runtime deps.
 - `cd backend && poetry install` — optional, but grabs dev tools (pytest, Ruff) defined in `pyproject.toml`.
-- `cd backend && uvicorn app.main:app --reload` — run the API on http://localhost:8173.
+- `cd backend && uvicorn app.main:app --reload` — run the API on http://localhost:8000.
 - `cd backend && alembic upgrade head` — apply the latest database migrations (or run `python -m app.db.init_db` to migrate plus seed defaults).
 - `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes.
-- `cd frontend && npm install && npm run dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8173/api/v1`).
+- `cd frontend && npm install && npm run dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8000/api/v1`).
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters.
 
@@ -21,7 +21,7 @@ Python uses 4-space indentation, full type hints, `snake_case` modules/functions
 
 ## Testing Guidelines
 
-Write Pytest suites under `backend/tests`, exercising API routers with `httpx.AsyncClient` fixtures and covering RBAC, JWT flows, and team visibility rules. For new UI logic, add Vitest + Testing Library specs under the relevant feature folder (or `frontend/src/__tests__`); prioritize coverage for auth, project CRUD, and optimistic updates.
+Write Pytest suites under `backend/tests`, exercising API routers with `httpx.AsyncClient` fixtures and covering RBAC, JWT flows, and initiative visibility rules. For new UI logic, add Vitest + Testing Library specs under the relevant feature folder (or `frontend/src/__tests__`); prioritize coverage for auth, project CRUD, and optimistic updates.
 
 ## Commit & Pull Request Guidelines
 

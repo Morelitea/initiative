@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.models.project import ProjectRole
-from app.schemas.team import TeamRead
+from app.schemas.initiative import InitiativeRead
 from app.schemas.user import UserRead
 
 
@@ -16,7 +16,7 @@ class ProjectBase(BaseModel):
 
 class ProjectCreate(ProjectBase):
     owner_id: Optional[int] = None
-    team_id: Optional[int] = None
+    initiative_id: Optional[int] = None
     read_roles: Optional[List[ProjectRole]] = None
     write_roles: Optional[List[ProjectRole]] = None
     is_template: bool = False
@@ -27,7 +27,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     icon: Optional[str] = None
-    team_id: Optional[int] = None
+    initiative_id: Optional[int] = None
     read_roles: Optional[List[ProjectRole]] = None
     write_roles: Optional[List[ProjectRole]] = None
     is_template: Optional[bool] = None
@@ -56,7 +56,7 @@ class ProjectMemberRead(ProjectMemberBase):
 class ProjectRead(ProjectBase):
     id: int
     owner_id: int
-    team_id: Optional[int] = None
+    initiative_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     read_roles: List[ProjectRole] = Field(default_factory=list)
@@ -65,7 +65,7 @@ class ProjectRead(ProjectBase):
     is_template: bool
     archived_at: Optional[datetime] = None
     owner: Optional[UserRead] = None
-    team: Optional[TeamRead] = None
+    initiative: Optional[InitiativeRead] = None
     members: List[ProjectMemberRead] = Field(default_factory=list)
     sort_order: Optional[float] = None
     is_favorited: bool = False

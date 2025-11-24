@@ -97,8 +97,10 @@ const SettingsInterfacePage = lazy(() =>
     default: module.SettingsInterfacePage,
   }))
 );
-const TeamsPage = lazy(() =>
-  import("./pages/TeamsPage").then((module) => ({ default: module.TeamsPage }))
+const InitiativesPage = lazy(() =>
+  import("./pages/InitiativesPage").then((module) => ({
+    default: module.InitiativesPage,
+  }))
 );
 const UsersPage = lazy(() =>
   import("./pages/UsersPage").then((module) => ({ default: module.UsersPage }))
@@ -106,7 +108,7 @@ const UsersPage = lazy(() =>
 
 const AppLayout = () => {
   const { user, logout } = useAuth();
-  const userDisplayName = user?.full_name ?? user?.email ?? "Team member";
+  const userDisplayName = user?.full_name ?? user?.email ?? "Initiative member";
   const userEmail = user?.email ?? "";
   const userInitials =
     userDisplayName
@@ -285,7 +287,7 @@ const AppLayout = () => {
               <Route path="/settings/*" element={<SettingsLayout />}>
                 <Route index element={<SettingsPage />} />
                 <Route path="users" element={<UsersPage />} />
-                <Route path="teams" element={<TeamsPage />} />
+              <Route path="initiatives" element={<InitiativesPage />} />
                 <Route path="auth" element={<SettingsAuthPage />} />
                 <Route path="api-keys" element={<SettingsApiKeysPage />} />
                 <Route path="interface" element={<SettingsInterfacePage />} />

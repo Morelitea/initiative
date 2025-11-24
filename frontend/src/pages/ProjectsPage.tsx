@@ -47,9 +47,9 @@ import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
-import { Project, ProjectReorderPayload, Team } from "../types/api";
+import { Project, ProjectReorderPayload, Initiative } from "../types/api";
 
-const NO_TEAM_VALUE = "none";
+const NO_INITIATIVE_VALUE = "none";
 const NO_TEMPLATE_VALUE = "template-none";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
@@ -62,7 +62,7 @@ export const ProjectsPage = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
-  const [teamId, setTeamId] = useState<string>(NO_TEAM_VALUE);
+  const [initiativeId, setInitiativeId] = useState<string>(NO_INITIATIVE_VALUE);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
     NO_TEMPLATE_VALUE
@@ -131,11 +131,11 @@ export const ProjectsPage = () => {
     },
   });
 
-  const teamsQuery = useQuery<Team[]>({
-    queryKey: ["teams"],
+  const initiativesQuery = useQuery<Initiative[]>({
+    queryKey: ["initiatives"],
     enabled: user?.role === "admin",
     queryFn: async () => {
-      const response = await apiClient.get<Team[]>("/teams/");
+      const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
     },
   });
@@ -176,7 +176,7 @@ export const ProjectsPage = () => {
         name: string;
         description: string;
         icon?: string;
-        team_id?: number;
+        initiative_id?: number;
         template_id?: number;
         is_template?: boolean;
       } = { name, description };
@@ -184,8 +184,8 @@ export const ProjectsPage = () => {
       if (trimmedIcon) {
         payload.icon = trimmedIcon;
       }
-      if (user?.role === "admin" && teamId !== NO_TEAM_VALUE) {
-        payload.team_id = Number(teamId);
+      if (user?.role === "admin" && initiativeId !== NO_INITIATIVE_VALUE) {
+        payload.initiative_id = Number(initiativeId);
       }
       payload.is_template = isTemplateProject;
       if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
@@ -198,7 +198,7 @@ export const ProjectsPage = () => {
       setName("");
       setDescription("");
       setIcon("");
-      setTeamId(NO_TEAM_VALUE);
+      setInitiativeId(NO_INITIATIVE_VALUE);
       setSelectedTemplateId(NO_TEMPLATE_VALUE);
       setIsTemplateProject(false);
       setIsComposerOpen(false);
@@ -395,7 +395,7 @@ export const ProjectsPage = () => {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
         <p className="text-muted-foreground">
-          Track initiatives, collaborate with your team, and move work forward.
+          Track initiatives, collaborate with your organization, and move work forward.
         </p>
       </div>
 
@@ -487,7 +487,7 @@ export const ProjectsPage = () => {
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    {template.team ? <p>Team: {template.team.name}</p> : null}
+                    {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
                     <p>
                       Last updated: {new Date(template.updated_at).toLocaleString()}
                     </p>
@@ -538,7 +538,7 @@ export const ProjectsPage = () => {
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    {archived.team ? <p>Team: {archived.team.name}</p> : null}
+                    {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
                     <p>
                       Archived at:{" "}
                       {archived.archived_at
@@ -597,8 +597,7 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle>Create project</CardTitle>
                     <CardDescription>
-                      Give the project a name, optional description, and owning
-                      team.
+                      Give the project a name, optional description, and owning initiative.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -626,7 +625,7 @@ export const ProjectsPage = () => {
                       </Label>
                       <Textarea
                         id="project-description"
-                        placeholder="Share context to help the team prioritize."
+                        placeholder="Share context to help the initiative prioritize."
                         rows={3}
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
@@ -634,30 +633,25 @@ export const ProjectsPage = () => {
                     </div>
                     {user?.role === "admin" ? (
                       <div className="space-y-2">
-                        <Label>Team (optional)</Label>
-                        {teamsQuery.isLoading ? (
+                        <Label>Initiative (optional)</Label>
+                        {initiativesQuery.isLoading ? (
                           <p className="text-sm text-muted-foreground">
-                            Loading teams…
+                            Loading initiatives…
                           </p>
-                        ) : teamsQuery.isError ? (
+                        ) : initiativesQuery.isError ? (
                           <p className="text-sm text-destructive">
-                            Unable to load teams.
+                            Unable to load initiatives.
                           </p>
-                    ) : (
-                      <Select value={teamId} onValueChange={setTeamId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="No team" />
-                        </SelectTrigger>
+                        ) : (
+                          <Select value={initiativeId} onValueChange={setInitiativeId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="No initiative" />
+                            </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={NO_TEAM_VALUE}>
-                                No team
-                              </SelectItem>
-                              {teamsQuery.data?.map((team) => (
-                                <SelectItem
-                                  key={team.id}
-                                  value={String(team.id)}
-                                >
-                                  {team.name}
+                              <SelectItem value={NO_INITIATIVE_VALUE}>No initiative</SelectItem>
+                              {initiativesQuery.data?.map((initiative) => (
+                                <SelectItem key={initiative.id} value={String(initiative.id)}>
+                                  {initiative.name}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -794,7 +788,7 @@ const ProjectCardLink = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
-          {project.team ? <Badge>Team: {project.team.name}</Badge> : null}
+        {project.initiative ? <Badge>Initiative: {project.initiative.name}</Badge> : null}
           <p>
             Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
           </p>
@@ -874,7 +868,7 @@ const ProjectRowLink = ({
               Updated {new Date(project.updated_at).toLocaleDateString(undefined)}
             </p>
           </div>
-          {project.team ? <Badge>Team: {project.team.name}</Badge> : null}
+          {project.initiative ? <Badge>Initiative: {project.initiative.name}</Badge> : null}
         </div>
       </Card>
     </Link>

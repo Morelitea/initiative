@@ -8,7 +8,7 @@ from sqlmodel import select, delete
 
 from app.api.deps import SessionDep, get_current_active_user
 from app.models.project import Project, ProjectMember, ProjectRole
-from app.models.team import TeamMember
+from app.models.initiative import InitiativeMember
 from app.models.task import Task, TaskAssignee
 from app.models.user import User, UserRole
 from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskUpdate
@@ -85,20 +85,23 @@ async def _get_project_and_membership(
         project_access.write_roles_set(project) if access == "write" else project_access.read_roles_set(project)
     )
     user_project_role = project_access.user_role_to_project_role(user.role)
-    team_member = False
-    if project.team_id:
-        team_stmt = select(TeamMember).where(TeamMember.team_id == project.team_id, TeamMember.user_id == user.id)
-        team_member = (await session.exec(team_stmt)).one_or_none() is not None
-        if not team_member and user.role != UserRole.admin and project.owner_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's team")
+    initiative_member = False
+    if project.initiative_id:
+        initiative_stmt = select(InitiativeMember).where(
+            InitiativeMember.initiative_id == project.initiative_id,
+            InitiativeMember.user_id == user.id,
+        )
+        initiative_member = (await session.exec(initiative_stmt)).one_or_none() is not None
+        if not initiative_member and user.role != UserRole.admin and project.owner_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this initiative")
 
     has_global_access = user_project_role.value in allowed_roles
     has_membership_access = membership and membership.role.value in allowed_roles
 
     if not membership:
         if has_global_access:
-            if project.team_id and not team_member and user.role != UserRole.admin and project.owner_id != user.id:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's team")
+            if project.initiative_id and not initiative_member and user.role != UserRole.admin and project.owner_id != user.id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this initiative")
             return project, None
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project")
 
@@ -125,8 +128,10 @@ async def _allowed_project_ids(session: SessionDep, user: User) -> Optional[set[
     memberships = membership_result.all()
     membership_map = {membership.project_id: membership.role for membership in memberships}
     user_project_role = project_access.user_role_to_project_role(user.role)
-    team_ids_result = await session.exec(select(TeamMember.team_id).where(TeamMember.user_id == user.id))
-    team_ids = set(team_ids_result.all())
+    initiative_ids_result = await session.exec(
+        select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == user.id)
+    )
+    initiative_ids = set(initiative_ids_result.all())
 
     project_result = await session.exec(select(Project))
     ids: set[int] = set()
@@ -136,7 +141,7 @@ async def _allowed_project_ids(session: SessionDep, user: User) -> Optional[set[
         if project.owner_id == user.id:
             ids.add(project.id)
             continue
-        if project.team_id and project.team_id not in team_ids and user.role != UserRole.admin:
+        if project.initiative_id and project.initiative_id not in initiative_ids and user.role != UserRole.admin:
             continue
         allowed_roles = project_access.read_roles_set(project)
         membership_role = membership_map.get(project.id)
