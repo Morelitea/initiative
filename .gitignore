@@ -5,6 +5,7 @@
 .vscode/
 .idea/
 *.log
+db/
 
 # Python
 __pycache__/
