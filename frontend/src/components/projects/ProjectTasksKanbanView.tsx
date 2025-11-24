@@ -13,6 +13,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { taskStatusOrder } from "./projectTasksConfig";
 import { Badge } from "../ui/badge";
 import { Markdown } from "../Markdown";
+import { TaskAssigneeList } from "./TaskAssigneeList";
 
 type ProjectTasksKanbanViewProps = {
   groupedTasks: Record<TaskStatus, Task[]>;
@@ -85,12 +86,9 @@ const TaskDragOverlay = ({
         <Markdown content={task.description} className="text-xs [&>*]:my-1" />
       ) : null}
     </div>
-    <div className="text-xs text-muted-foreground space-y-1">
+    <div className="space-y-1 text-xs text-muted-foreground">
       {task.assignees.length > 0 ? (
-        <p>
-          Assigned:{" "}
-          {task.assignees.map((assignee) => assignee.full_name ?? assignee.email).join(", ")}
-        </p>
+        <TaskAssigneeList assignees={task.assignees} className="text-xs" />
       ) : null}
       {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
     </div>

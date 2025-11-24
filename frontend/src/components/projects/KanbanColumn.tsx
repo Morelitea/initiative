@@ -6,6 +6,7 @@ import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
 import { truncateText } from "../../lib/text";
+import { TaskAssigneeList } from "./TaskAssigneeList";
 
 interface KanbanColumnProps {
   status: TaskStatus;
@@ -115,12 +116,9 @@ const KanbanTaskCard = ({
         {task.description ? (
           <p className="text-xs text-muted-foreground">{truncateText(task.description, 80)}</p>
         ) : null}
-        <div className="text-xs text-muted-foreground">
+        <div className="space-y-1 text-xs text-muted-foreground">
           {task.assignees.length > 0 ? (
-            <p>
-              Assigned:{" "}
-              {task.assignees.map((assignee) => assignee.full_name ?? assignee.email).join(", ")}
-            </p>
+            <TaskAssigneeList assignees={task.assignees} className="text-xs" />
           ) : null}
           {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
         </div>
