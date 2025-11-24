@@ -37,7 +37,7 @@ export const KanbanColumn = ({
   });
 
   return (
-    <Card className="shadow-sm">
+    <Card className="flex h-full flex-col shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg capitalize">
           {status.replace("_", " ")}
@@ -45,7 +45,9 @@ export const KanbanColumn = ({
       </CardHeader>
       <CardContent
         ref={setNodeRef}
-        className={`space-y-3 ${isOver ? "bg-muted/40" : ""}`}
+        className={`flex-1 space-y-3 overflow-y-auto ${
+          isOver ? "bg-muted/40" : ""
+        }`}
       >
         <SortableContext
           items={tasks.map((task) => task.id.toString())}

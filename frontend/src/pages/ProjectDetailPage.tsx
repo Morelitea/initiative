@@ -5,7 +5,9 @@ import {
   closestCenter,
   closestCorners,
   DndContext,
+  DragOverlay,
   DragEndEvent,
+  DragStartEvent,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -34,6 +36,7 @@ import { toast } from 'sonner';
 import { ProjectTaskComposer } from '../components/projects/ProjectTaskComposer';
 import { KanbanColumn } from '../components/projects/KanbanColumn';
 import { SortableTaskRow } from '../components/projects/SortableTaskRow';
+import { FavoriteProjectButton } from '../components/projects/FavoriteProjectButton';
 
 const taskStatusOrder: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
 
@@ -68,6 +71,7 @@ export const ProjectDetailPage = () => {
   const [listStatusFilter, setListStatusFilter] = useState<'all' | 'incomplete' | TaskStatus>('all');
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const { user } = useAuth();
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
@@ -79,6 +83,24 @@ export const ProjectDetailPage = () => {
     },
     enabled: Number.isFinite(parsedProjectId),
   });
+
+  const viewedProjectId = projectQuery.data?.id;
+  const activeTask = orderedTasks.find((task) => task.id === activeTaskId) ?? null;
+
+  useEffect(() => {
+    if (!viewedProjectId) {
+      return;
+    }
+    const recordView = async () => {
+      try {
+        await apiClient.post(`/projects/${viewedProjectId}/view`);
+        await queryClient.invalidateQueries({ queryKey: ['projects', 'recent'] });
+      } catch (error) {
+        console.error('Failed to record project view', error);
+      }
+    };
+    void recordView();
+  }, [viewedProjectId]);
 
   const tasksQuery = useQuery<Task[]>({
     queryKey: ['tasks', parsedProjectId],
@@ -452,12 +474,25 @@ export const ProjectDetailPage = () => {
     navigate(`/tasks/${taskId}/edit`);
   };
 
+  const handleTaskDragStart = (event: DragStartEvent) => {
+    const taskType = event.active.data.current?.type;
+    if (taskType !== 'task' && taskType !== 'list-task') {
+      return;
+    }
+    const id = Number(event.active.id);
+    if (Number.isFinite(id)) {
+      setActiveTaskId(id);
+    }
+  };
+
   const handleKanbanDragEnd = (event: DragEndEvent) => {
     if (!canReorderTasks) {
+      setActiveTaskId(null);
       return;
     }
     const { active, over } = event;
     if (!over) {
+      setActiveTaskId(null);
       return;
     }
     const activeId = Number(active.id);
@@ -487,14 +522,17 @@ export const ProjectDetailPage = () => {
     }
 
     moveTaskInOrder(activeId, targetStatus, overTaskId);
+    setActiveTaskId(null);
   };
 
   const handleListDragEnd = (event: DragEndEvent) => {
     if (!canReorderTasks) {
+      setActiveTaskId(null);
       return;
     }
     const { active, over } = event;
     if (!over) {
+      setActiveTaskId(null);
       return;
     }
     const activeId = Number(active.id);
@@ -503,6 +541,7 @@ export const ProjectDetailPage = () => {
       return;
     }
     reorderListTasks(activeId, overId);
+    setActiveTaskId(null);
   };
 
   return (
@@ -515,6 +554,10 @@ export const ProjectDetailPage = () => {
           {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
           <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
         </div>
+        <FavoriteProjectButton
+          projectId={project.id}
+          isFavorited={project.is_favorited ?? false}
+        />
         <Badge variant={projectIsArchived ? 'destructive' : 'secondary'}>
           {projectIsArchived ? 'Archived' : 'Active'}
         </Badge>
@@ -614,7 +657,13 @@ export const ProjectDetailPage = () => {
           </div>
 
           <TabsContent value="kanban">
-            <DndContext sensors={kanbanSensors} collisionDetection={closestCorners} onDragEnd={handleKanbanDragEnd}>
+            <DndContext
+              sensors={kanbanSensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleTaskDragStart}
+              onDragEnd={handleKanbanDragEnd}
+              onDragCancel={() => setActiveTaskId(null)}
+            >
               <div className="-mx-4 overflow-x-auto pb-4">
                 <div className="flex gap-4 px-4">
                   {taskStatusOrder.map((status) => (
@@ -631,6 +680,9 @@ export const ProjectDetailPage = () => {
                   ))}
                 </div>
               </div>
+              <DragOverlay>
+                {activeTask ? <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} /> : null}
+              </DragOverlay>
             </DndContext>
           </TabsContent>
 
@@ -644,7 +696,13 @@ export const ProjectDetailPage = () => {
                 {listTasks.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No tasks yet.</p>
                 ) : (
-                  <DndContext sensors={listSensors} collisionDetection={closestCenter} onDragEnd={handleListDragEnd}>
+                  <DndContext
+                    sensors={listSensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleTaskDragStart}
+                    onDragEnd={handleListDragEnd}
+                    onDragCancel={() => setActiveTaskId(null)}
+                  >
                     <SortableContext
                       items={listTasks.map((task) => task.id.toString())}
                       strategy={verticalListSortingStrategy}
@@ -727,3 +785,28 @@ export const ProjectDetailPage = () => {
     </div>
   );
 };
+
+const TaskDragOverlay = ({
+  task,
+  priorityVariant,
+}: {
+  task: Task;
+  priorityVariant: Record<TaskPriority, 'default' | 'secondary' | 'destructive'>;
+}) => (
+  <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
+    <div className="space-y-1">
+      <p className="font-medium">{task.title}</p>
+      {task.description ? <Markdown content={task.description} className="text-xs [&>*]:my-1" /> : null}
+    </div>
+    <div className="text-xs text-muted-foreground space-y-1">
+      {task.assignees.length > 0 ? (
+        <p>
+          Assigned:{' '}
+          {task.assignees.map((assignee) => assignee.full_name ?? assignee.email).join(', ')}
+        </p>
+      ) : null}
+      {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+    </div>
+    <Badge variant={priorityVariant[task.priority]}>Priority: {task.priority.replace('_', ' ')}</Badge>
+  </div>
+);
