@@ -56,6 +56,25 @@ export interface Project {
 
 export type TaskStatus = "backlog" | "in_progress" | "blocked" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskRecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";
+export type TaskRecurrenceEnds = "never" | "on_date" | "after_occurrences";
+export type TaskRecurrenceMonthlyMode = "day_of_month" | "weekday";
+export type TaskWeekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
+
+export interface TaskRecurrence {
+  frequency: TaskRecurrenceFrequency;
+  interval: number;
+  weekdays: TaskWeekday[];
+  monthly_mode: TaskRecurrenceMonthlyMode;
+  day_of_month?: number | null;
+  month?: number | null;
+  weekday_position?: TaskWeekPosition | null;
+  weekday?: TaskWeekday | null;
+  ends: TaskRecurrenceEnds;
+  end_after_occurrences?: number | null;
+  end_date?: string | null;
+}
 
 export interface Task {
   id: number;
@@ -66,6 +85,8 @@ export interface Task {
   project_id: number;
   assignees: User[];
   due_date?: string;
+  recurrence?: TaskRecurrence | null;
+  recurrence_occurrence_count?: number;
   created_at: string;
   updated_at: string;
   sort_order: number;

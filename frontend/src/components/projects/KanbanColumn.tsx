@@ -6,6 +6,7 @@ import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
 import { truncateText } from "../../lib/text";
+import { summarizeRecurrence } from "../../lib/recurrence";
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
 interface KanbanColumnProps {
@@ -90,6 +91,11 @@ const KanbanTaskCard = ({
     opacity: isDragging ? 0.6 : undefined,
   };
 
+  const recurrenceSummary = task.recurrence
+    ? summarizeRecurrence(task.recurrence, { referenceDate: task.due_date })
+    : null;
+  const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
+
   return (
     <div
       ref={setNodeRef}
@@ -121,6 +127,7 @@ const KanbanTaskCard = ({
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
           ) : null}
           {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+          {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
       </button>
       <Badge variant={priorityVariant[task.priority]}>

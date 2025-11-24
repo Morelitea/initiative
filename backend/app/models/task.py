@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Float
+from sqlalchemy import Column, DateTime, Float, Integer, JSON
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -47,6 +47,11 @@ class Task(SQLModel, table=True):
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),
     )
     due_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    recurrence: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    recurrence_occurrence_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
     sort_order: float = Field(
         default=0,
         sa_column=Column(Float, nullable=False, server_default="0"),

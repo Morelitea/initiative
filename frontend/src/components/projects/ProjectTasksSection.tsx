@@ -18,6 +18,7 @@ import { queryClient } from "../../lib/queryClient";
 import {
   type Task,
   type TaskPriority,
+  type TaskRecurrence,
   type TaskReorderPayload,
   type TaskStatus,
 } from "../../types/api";
@@ -60,6 +61,7 @@ export const ProjectTasksSection = ({
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [dueDate, setDueDate] = useState<string>("");
+  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
@@ -131,6 +133,7 @@ export const ProjectTasksSection = ({
         priority,
         assignee_ids: assigneeIds,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        recurrence,
       };
       const response = await apiClient.post<Task>("/tasks/", payload);
       return response.data;
@@ -141,6 +144,7 @@ export const ProjectTasksSection = ({
       setPriority("medium");
       setAssigneeIds([]);
       setDueDate("");
+      setRecurrence(null);
       setIsComposerOpen(false);
       setOrderedTasks((prev) => [...prev, newTask]);
       void queryClient.invalidateQueries({
@@ -581,6 +585,7 @@ export const ProjectTasksSection = ({
                   priority={priority}
                   assigneeIds={assigneeIds}
                   dueDate={dueDate}
+                  recurrence={recurrence}
                   canWrite={canWriteProject}
                   isArchived={projectIsArchived}
                   isSubmitting={createTask.isPending}
@@ -591,6 +596,7 @@ export const ProjectTasksSection = ({
                   onPriorityChange={setPriority}
                   onAssigneesChange={setAssigneeIds}
                   onDueDateChange={setDueDate}
+                  onRecurrenceChange={setRecurrence}
                   onSubmit={() => createTask.mutate()}
                   onCancel={() => setIsComposerOpen(false)}
                   autoFocusTitle

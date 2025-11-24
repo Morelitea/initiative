@@ -8,8 +8,9 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 import { DateTimePicker } from "../ui/date-time-picker";
-import type { TaskPriority } from "../../types/api";
+import type { TaskPriority, TaskRecurrence } from "../../types/api";
 import { AssigneeSelector } from "./AssigneeSelector";
+import { TaskRecurrenceSelector } from "./TaskRecurrenceSelector";
 
 interface ProjectTaskComposerProps {
   title: string;
@@ -17,6 +18,7 @@ interface ProjectTaskComposerProps {
   priority: TaskPriority;
   assigneeIds: number[];
   dueDate: string;
+  recurrence: TaskRecurrence | null;
   canWrite: boolean;
   isArchived: boolean;
   isSubmitting: boolean;
@@ -27,6 +29,7 @@ interface ProjectTaskComposerProps {
   onPriorityChange: (value: TaskPriority) => void;
   onAssigneesChange: (value: number[]) => void;
   onDueDateChange: (value: string) => void;
+  onRecurrenceChange: (value: TaskRecurrence | null) => void;
   onSubmit: () => void;
   onCancel?: () => void;
   autoFocusTitle?: boolean;
@@ -38,6 +41,7 @@ export const ProjectTaskComposer = ({
   priority,
   assigneeIds,
   dueDate,
+  recurrence,
   canWrite,
   isArchived,
   isSubmitting,
@@ -48,6 +52,7 @@ export const ProjectTaskComposer = ({
   onPriorityChange,
   onAssigneesChange,
   onDueDateChange,
+  onRecurrenceChange,
   onSubmit,
   onCancel,
   autoFocusTitle = false,
@@ -134,6 +139,14 @@ export const ProjectTaskComposer = ({
                       onChange={onDueDateChange}
                       disabled={isSubmitting}
                       placeholder="Optional"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <TaskRecurrenceSelector
+                      recurrence={recurrence}
+                      onChange={onRecurrenceChange}
+                      disabled={isSubmitting}
+                      referenceDate={dueDate}
                     />
                   </div>
                 </AccordionContent>

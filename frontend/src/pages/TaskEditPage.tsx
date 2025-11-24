@@ -19,9 +19,10 @@ import { Textarea } from "../components/ui/textarea";
 import { AssigneeSelector } from "../components/projects/AssigneeSelector";
 import { toast } from "sonner";
 import { useAuth } from "../hooks/useAuth";
-import type { Project, ProjectRole, Task, TaskPriority, TaskStatus, User } from "../types/api";
+import type { Project, ProjectRole, Task, TaskPriority, TaskRecurrence, TaskStatus, User } from "../types/api";
 import { Input } from "../components/ui/input";
 import { DateTimePicker } from "../components/ui/date-time-picker";
+import { TaskRecurrenceSelector } from "../components/projects/TaskRecurrenceSelector";
 
 const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -50,6 +51,7 @@ export const TaskEditPage = () => {
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [dueDate, setDueDate] = useState<string>("");
+  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
 
   const taskQuery = useQuery({
     queryKey: ["task", parsedTaskId],
@@ -87,6 +89,7 @@ export const TaskEditPage = () => {
       setPriority(task.priority);
       setAssigneeIds(task.assignees?.map((assignee) => assignee.id) ?? []);
       setDueDate(toLocalInputValue(task.due_date));
+      setRecurrence(task.recurrence ?? null);
     }
   }, [taskQuery.data]);
 
@@ -102,6 +105,7 @@ export const TaskEditPage = () => {
         priority,
         assignee_ids: assigneeIds,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        recurrence,
       };
       const response = await apiClient.patch<Task>(`/tasks/${parsedTaskId}`, payload);
       return response.data;
@@ -113,6 +117,7 @@ export const TaskEditPage = () => {
       setPriority(updatedTask.priority);
       setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
       setDueDate(toLocalInputValue(updatedTask.due_date));
+      setRecurrence(updatedTask.recurrence ?? null);
       toast.success("Task updated");
     },
   });
@@ -327,6 +332,12 @@ export const TaskEditPage = () => {
                 />
               </div>
             </div>
+            <TaskRecurrenceSelector
+              recurrence={recurrence}
+              onChange={setRecurrence}
+              disabled={isReadOnly}
+              referenceDate={dueDate || task.due_date}
+            />
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={updateTask.isPending || isReadOnly}>

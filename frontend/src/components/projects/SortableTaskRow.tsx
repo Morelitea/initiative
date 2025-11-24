@@ -6,6 +6,7 @@ import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
 import { truncateText } from "../../lib/text";
+import { summarizeRecurrence } from "../../lib/recurrence";
 import { Checkbox } from "../ui/checkbox";
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
@@ -41,6 +42,10 @@ export const SortableTaskRow = ({
     transition,
   };
   const isDone = task.status === "done";
+  const recurrenceSummary = task.recurrence
+    ? summarizeRecurrence(task.recurrence, { referenceDate: task.due_date })
+    : null;
+  const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
 
   const handleCompletionToggle = (checked: boolean) => {
     if (statusDisabled) {
@@ -93,6 +98,7 @@ export const SortableTaskRow = ({
                 <TaskAssigneeList assignees={task.assignees} className="text-xs" />
               ) : null}
               {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+              {recurrenceText ? <p>{recurrenceText}</p> : null}
             </div>
           </button>
         </div>

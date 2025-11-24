@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "../api/client";
+import { summarizeRecurrence } from "../lib/recurrence";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Label } from "../components/ui/label";
@@ -255,6 +256,9 @@ export const MyTasksPage = () => {
               <tbody className="divide-y">
                 {sortedTasks.map((task) => {
                   const project = projectsById[task.project_id];
+                  const recurrenceSummary = task.recurrence
+                    ? summarizeRecurrence(task.recurrence, { referenceDate: task.due_date })
+                    : null;
                   return (
                     <tr key={task.id}>
                       <td className="py-3">
@@ -291,6 +295,9 @@ export const MyTasksPage = () => {
                         {task.due_date
                           ? new Date(task.due_date).toLocaleDateString()
                           : "No due date"}
+                        {recurrenceSummary ? (
+                          <p className="text-xs text-muted-foreground">{recurrenceSummary}</p>
+                        ) : null}
                       </td>
                       <td className="py-3">
                         <Select

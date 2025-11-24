@@ -9,11 +9,14 @@ from sqlmodel import select, delete
 from app.api.deps import SessionDep, get_current_active_user
 from app.models.project import Project, ProjectMember, ProjectRole
 from app.models.initiative import InitiativeMember
-from app.models.task import Task, TaskAssignee
+from app.models.task import Task, TaskAssignee, TaskStatus
 from app.models.user import User, UserRole
-from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskUpdate
+from pydantic import ValidationError
+
+from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.services.realtime import broadcast_event
 from app.services import project_access
+from app.services.recurrence import get_next_due_date
 
 router = APIRouter()
 
@@ -53,6 +56,43 @@ async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: lis
 
     await session.flush()
     await session.refresh(task, attribute_names=["assignees"])
+
+
+async def _advance_recurrence_if_needed(
+    session: SessionDep,
+    task: Task,
+    *,
+    previous_status: TaskStatus,
+    now: datetime,
+) -> bool:
+    if (
+        previous_status == TaskStatus.done
+        or task.status != TaskStatus.done
+        or not task.recurrence
+        or task.due_date is None
+    ):
+        return False
+
+    try:
+        recurrence = TaskRecurrence.model_validate(task.recurrence)
+    except ValidationError:
+        return False
+
+    next_due = get_next_due_date(
+        task.due_date,
+        recurrence,
+        completed_occurrences=task.recurrence_occurrence_count,
+    )
+    if next_due is None:
+        return False
+
+    task.status = TaskStatus.backlog
+    task.due_date = next_due
+    task.sort_order = await _next_sort_order(session, task.project_id)
+    task.recurrence_occurrence_count = task.recurrence_occurrence_count + 1
+    task.updated_at = now
+    session.add(task)
+    return True
 
 
 async def _get_project_and_membership(
@@ -229,18 +269,29 @@ async def update_task(
 
     update_data = task_in.dict(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
+    previous_status = task.status
     status_changed = False
     for field, value in update_data.items():
         if field == "status" and value is not None and value != task.status:
             status_changed = True
+        if field == "recurrence":
+            if value is None:
+                task.recurrence_occurrence_count = 0
+                setattr(task, field, None)
+                continue
+            if isinstance(value, TaskRecurrence):
+                value = value.model_dump(mode="json")
         setattr(task, field, value)
-    task.updated_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    task.updated_at = now
 
     if status_changed:
         task.sort_order = await _next_sort_order(session, task.project_id)
 
     if assignee_ids is not None:
         await _set_task_assignees(session, task, assignee_ids)
+
+    await _advance_recurrence_if_needed(session, task, previous_status=previous_status, now=now)
 
     session.add(task)
     await session.commit()
@@ -294,12 +345,14 @@ async def reorder_tasks(
     now = datetime.now(timezone.utc)
     for item in reorder_in.items:
         task = task_map[item.id]
+        previous_status = task.status
         if task.project_id != reorder_in.project_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task project mismatch")
         task.status = item.status
         task.sort_order = item.sort_order
         task.updated_at = now
         session.add(task)
+        await _advance_recurrence_if_needed(session, task, previous_status=previous_status, now=now)
 
     await session.commit()
 
