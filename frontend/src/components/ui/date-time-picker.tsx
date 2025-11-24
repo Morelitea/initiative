@@ -1,11 +1,11 @@
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon } from "lucide-react";
 
-import { cn } from "../../lib/utils";
-import { Button } from "./button";
-import { Calendar } from "./calendar";
-import { Input } from "./input";
-import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DateTimePickerProps {
   id?: string;
@@ -69,29 +69,46 @@ export const DateTimePicker = ({
           type="button"
           variant="outline"
           disabled={disabled}
+          data-empty={!selectedDate}
           className={cn(
-            "w-full justify-start text-left font-normal",
-            !selectedDate && "text-muted-foreground"
+            "data-[empty=true]:text-muted-foreground inline-flex w-full items-center justify-start gap-2 text-left font-normal",
+            "min-h-10"
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {selectedDate ? format(selectedDate, "PP p") : placeholder}
+          <CalendarIcon className="h-4 w-4" />
+          {selectedDate ? format(selectedDate, "PP p") : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={selectedDate} onSelect={handleSelectDate} initialFocus />
-        <div className="flex items-center gap-2 border-t p-3">
-          <Input
-            type="time"
-            step={300}
-            value={timeValue}
-            onChange={(event) => handleTimeChange(event.target.value)}
-            disabled={!selectedDate || disabled}
-          />
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={handleSelectDate}
+          initialFocus
+          className="p-3 w-75"
+        />
+        <div className="flex items-end gap-3 border-t bg-muted/30 p-3">
+          <div className="flex flex-1 flex-col gap-1">
+            <label
+              htmlFor={`${id ?? "datetime"}-time`}
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Time
+            </label>
+            <Input
+              id={`${id ?? "datetime"}-time`}
+              type="time"
+              step={300}
+              value={timeValue}
+              onChange={(event) => handleTimeChange(event.target.value)}
+              disabled={!selectedDate || disabled}
+            />
+          </div>
           <Button
             type="button"
             variant="ghost"
             size="sm"
+            className="text-xs text-muted-foreground"
             onClick={handleClear}
             disabled={!selectedDate || disabled}
           >

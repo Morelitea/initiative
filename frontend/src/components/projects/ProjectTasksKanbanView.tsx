@@ -52,7 +52,7 @@ export const ProjectTasksKanbanView = ({
     <div className="overflow-x-auto pb-4">
       <div className="flex gap-4">
         {taskStatusOrder.map((status) => (
-          <div key={status} className="w-80 shrink-0">
+          <div key={status} className="w-89 shrink-0">
             <KanbanColumn
               status={status}
               tasks={groupedTasks[status]}

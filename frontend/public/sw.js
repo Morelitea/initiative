@@ -70,15 +70,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const isStaticAsset = STATIC_ASSETS.includes(requestPath) || request.mode === "navigate";
+
+  if (!isStaticAsset) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ||
-        fetch(request).then((response) => {
-          const responseClone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(request, responseClone));
-          return response;
-        })
-    )
+    caches.open(STATIC_CACHE).then(async (cache) => {
+      const cached = await cache.match(requestPath === "/" ? "index.html" : requestPath);
+      if (cached) {
+        return cached;
+      }
+      const response = await fetch(request);
+      // Only cache successful responses
+      if (response.ok) {
+        const cacheKey = requestPath === "/" ? "index.html" : requestPath;
+        await cache.put(cacheKey, response.clone());
+      }
+      return response;
+    })
   );
 });
