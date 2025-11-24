@@ -10,18 +10,19 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Kanban, List } from "lucide-react";
+import { Calendar, Kanban, List } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "../../api/client";
-import { queryClient } from "../../lib/queryClient";
+import { apiClient } from "@/api/client";
+import { queryClient } from "@/lib/queryClient";
 import {
   type Task,
   type TaskPriority,
   type TaskRecurrence,
   type TaskReorderPayload,
   type TaskStatus,
-} from "../../types/api";
+} from "@/types/api";
+import { ProjectCalendarView } from "./ProjectCalendarView";
 import { ProjectTaskComposer } from "./ProjectTaskComposer";
 import { ProjectTasksFilters } from "./ProjectTasksFilters";
 import { priorityVariant, type DueFilterOption, type UserOption } from "./projectTasksConfig";
@@ -31,7 +32,7 @@ import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 type StoredFilters = {
-  viewMode: "kanban" | "list";
+  viewMode: "kanban" | "list" | "calendar";
   assigneeFilter: string;
   dueFilter: DueFilterOption;
   listStatusFilter: "all" | "incomplete" | TaskStatus;
@@ -63,7 +64,7 @@ export const ProjectTasksSection = ({
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "list" | "calendar">("kanban");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
@@ -92,7 +93,11 @@ export const ProjectTasksSection = ({
       const raw = localStorage.getItem(filterStorageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StoredFilters>;
-        if (parsed.viewMode === "kanban" || parsed.viewMode === "list") {
+        if (
+          parsed.viewMode === "kanban" ||
+          parsed.viewMode === "list" ||
+          parsed.viewMode === "calendar"
+        ) {
           setViewMode(parsed.viewMode);
         }
         if (parsed.assigneeFilter) {
@@ -486,7 +491,7 @@ export const ProjectTasksSection = ({
     <div className="space-y-4">
       <Tabs
         value={viewMode}
-        onValueChange={(value) => setViewMode(value as "kanban" | "list")}
+        onValueChange={(value) => setViewMode(value as "kanban" | "list" | "calendar")}
         className="space-y-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -504,6 +509,10 @@ export const ProjectTasksSection = ({
             <TabsTrigger value="list" className="inline-flex items-center gap-2">
               <List className="h-4 w-4" />
               List
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="inline-flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Calendar
             </TabsTrigger>
           </TabsList>
         </div>
@@ -552,6 +561,13 @@ export const ProjectTasksSection = ({
                 status,
               })
             }
+            onTaskClick={onTaskClick}
+          />
+        </TabsContent>
+        <TabsContent value="calendar">
+          <ProjectCalendarView
+            tasks={filteredTasks}
+            canOpenTask={canEditTaskDetails}
             onTaskClick={onTaskClick}
           />
         </TabsContent>

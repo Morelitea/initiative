@@ -2,13 +2,13 @@ import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "../api/client";
-import { ProjectOverviewCard } from "../components/projects/ProjectOverviewCard";
-import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
-import { Button } from "../components/ui/button";
-import { useAuth } from "../hooks/useAuth";
-import { queryClient } from "../lib/queryClient";
-import type { Project, Task, User } from "../types/api";
+import { apiClient } from "@/api/client";
+import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
+import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
+import type { Project, Task, User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams();

@@ -2,10 +2,10 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import type { DueFilterOption, UserOption } from "./projectTasksConfig";
 import { taskStatusOrder } from "./projectTasksConfig";
-import type { TaskStatus } from "../../types/api";
+import type { TaskStatus } from "@/types/api";
 
 type ProjectTasksFiltersProps = {
-  viewMode: "kanban" | "list";
+  viewMode: "kanban" | "list" | "calendar";
   userOptions: UserOption[];
   assigneeFilter: "all" | string;
   dueFilter: DueFilterOption;
