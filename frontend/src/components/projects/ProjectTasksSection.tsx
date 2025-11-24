@@ -10,7 +10,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Calendar, Kanban, List } from "lucide-react";
+import { Calendar, Kanban, List, GanttChart } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -23,6 +23,7 @@ import {
   type TaskStatus,
 } from "@/types/api";
 import { ProjectCalendarView } from "./ProjectCalendarView";
+import { ProjectGanttView } from "./ProjectGanttView";
 import { ProjectTaskComposer } from "./ProjectTaskComposer";
 import { ProjectTasksFilters } from "./ProjectTasksFilters";
 import { priorityVariant, type DueFilterOption, type UserOption } from "./projectTasksConfig";
@@ -32,7 +33,7 @@ import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 type StoredFilters = {
-  viewMode: "kanban" | "list" | "calendar";
+  viewMode: "kanban" | "list" | "calendar" | "gantt";
   assigneeFilter: string;
   dueFilter: DueFilterOption;
   listStatusFilter: "all" | "incomplete" | TaskStatus;
@@ -64,7 +65,7 @@ export const ProjectTasksSection = ({
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [viewMode, setViewMode] = useState<"kanban" | "list" | "calendar">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "list" | "calendar" | "gantt">("kanban");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
@@ -96,7 +97,8 @@ export const ProjectTasksSection = ({
         if (
           parsed.viewMode === "kanban" ||
           parsed.viewMode === "list" ||
-          parsed.viewMode === "calendar"
+          parsed.viewMode === "calendar" ||
+          parsed.viewMode === "gantt"
         ) {
           setViewMode(parsed.viewMode);
         }
@@ -491,7 +493,7 @@ export const ProjectTasksSection = ({
     <div className="space-y-4">
       <Tabs
         value={viewMode}
-        onValueChange={(value) => setViewMode(value as "kanban" | "list" | "calendar")}
+        onValueChange={(value) => setViewMode(value as "kanban" | "list" | "calendar" | "gantt")}
         className="space-y-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -513,6 +515,10 @@ export const ProjectTasksSection = ({
             <TabsTrigger value="calendar" className="inline-flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Calendar
+            </TabsTrigger>
+            <TabsTrigger value="gantt" className="inline-flex items-center gap-2">
+              <GanttChart className="h-4 w-4" />
+              Gantt
             </TabsTrigger>
           </TabsList>
         </div>
@@ -566,6 +572,13 @@ export const ProjectTasksSection = ({
         </TabsContent>
         <TabsContent value="calendar">
           <ProjectCalendarView
+            tasks={filteredTasks}
+            canOpenTask={canEditTaskDetails}
+            onTaskClick={onTaskClick}
+          />
+        </TabsContent>
+        <TabsContent value="gantt">
+          <ProjectGanttView
             tasks={filteredTasks}
             canOpenTask={canEditTaskDetails}
             onTaskClick={onTaskClick}

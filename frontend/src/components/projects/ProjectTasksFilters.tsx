@@ -5,7 +5,7 @@ import { taskStatusOrder } from "./projectTasksConfig";
 import type { TaskStatus } from "@/types/api";
 
 type ProjectTasksFiltersProps = {
-  viewMode: "kanban" | "list" | "calendar";
+  viewMode: "kanban" | "list" | "calendar" | "gantt";
   userOptions: UserOption[];
   assigneeFilter: "all" | string;
   dueFilter: DueFilterOption;
