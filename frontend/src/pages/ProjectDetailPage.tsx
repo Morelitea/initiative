@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -14,6 +15,7 @@ import {
   DragOverlay,
   DragEndEvent,
   DragStartEvent,
+  DragOverEvent,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -71,6 +73,12 @@ import { KanbanColumn } from "../components/projects/KanbanColumn";
 import { SortableTaskRow } from "../components/projects/SortableTaskRow";
 import { FavoriteProjectButton } from "../components/projects/FavoriteProjectButton";
 import { Kanban, List } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../components/ui/tooltip";
 
 const taskStatusOrder: TaskStatus[] = [
   "backlog",
@@ -116,6 +124,7 @@ export const ProjectDetailPage = () => {
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
+  const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
   const { user } = useAuth();
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
@@ -330,6 +339,34 @@ export const ProjectDetailPage = () => {
       },
     });
 
+  const project = projectQuery.data;
+  const initiativeColor = resolveInitiativeColor(project?.initiative?.color);
+  const detailCardStyle = useMemo(
+    () => buildProjectDetailBackground(initiativeColor),
+    [initiativeColor]
+  );
+  const membershipRole = project?.members.find(
+    (member) => member.user_id === user?.id
+  )?.role;
+  const userProjectRole =
+    (user?.role as "admin" | "project_manager" | "member" | undefined) ??
+    undefined;
+  const projectWriteRoles = project?.write_roles ?? [];
+  const canManageSettings =
+    user?.role === "admin" ||
+    membershipRole === "admin" ||
+    membershipRole === "project_manager";
+  const canWriteProject =
+    user?.role === "admin" ||
+    (membershipRole ? projectWriteRoles.includes(membershipRole) : false) ||
+    (userProjectRole ? projectWriteRoles.includes(userProjectRole) : false);
+  const projectIsArchived = project?.is_archived ?? false;
+  const canEditTaskDetails = Boolean(
+    project && canWriteProject && !projectIsArchived
+  );
+  const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
+  const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
+
   const fetchedTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const tasks = orderedTasks.length > 0 ? orderedTasks : fetchedTasks;
 
@@ -422,6 +459,34 @@ export const ProjectDetailPage = () => {
     [parsedProjectId, persistTaskOrderMutate, isPersistingOrder]
   );
 
+  useEffect(() => {
+    if (!canEditTaskDetails) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || isComposerOpen) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        if (
+          target.isContentEditable ||
+          tagName === "INPUT" ||
+          tagName === "TEXTAREA" ||
+          tagName === "SELECT" ||
+          tagName === "BUTTON"
+        ) {
+          return;
+        }
+      }
+      event.preventDefault();
+      setIsComposerOpen(true);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [canEditTaskDetails, isComposerOpen]);
+
   const moveTaskInOrder = useCallback(
     (taskId: number, targetStatus: TaskStatus, overTaskId: number | null) => {
       let nextState: Task[] | null = null;
@@ -513,7 +578,7 @@ export const ProjectDetailPage = () => {
     return <p className="text-sm text-muted-foreground">Loading project…</p>;
   }
 
-  if (projectQuery.isError || tasksQuery.isError || !projectQuery.data) {
+  if (projectQuery.isError || tasksQuery.isError || !project) {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
@@ -524,27 +589,6 @@ export const ProjectDetailPage = () => {
     );
   }
 
-  const project = projectQuery.data;
-  const initiativeColor = resolveInitiativeColor(project.initiative?.color);
-  const detailCardStyle = buildProjectDetailBackground(initiativeColor);
-  const membershipRole = project.members.find(
-    (member) => member.user_id === user?.id
-  )?.role;
-  const userProjectRole =
-    (user?.role as "admin" | "project_manager" | "member" | undefined) ??
-    undefined;
-  const canManageSettings =
-    user?.role === "admin" ||
-    membershipRole === "admin" ||
-    membershipRole === "project_manager";
-  const canWriteProject =
-    user?.role === "admin" ||
-    (membershipRole ? project.write_roles.includes(membershipRole) : false) ||
-    (userProjectRole ? project.write_roles.includes(userProjectRole) : false);
-  const projectIsArchived = project.is_archived;
-  const canEditTaskDetails = canWriteProject && !projectIsArchived;
-  const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
-  const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
   const handleTaskClick = (taskId: number) => {
     if (!canEditTaskDetails) {
       return;
@@ -561,16 +605,20 @@ export const ProjectDetailPage = () => {
     if (Number.isFinite(id)) {
       setActiveTaskId(id);
     }
+    lastKanbanOverRef.current = null;
   };
 
   const handleKanbanDragEnd = (event: DragEndEvent) => {
     if (!canReorderTasks) {
       setActiveTaskId(null);
+      lastKanbanOverRef.current = null;
       return;
     }
     const { active, over } = event;
-    if (!over) {
+    const finalOver = over ?? lastKanbanOverRef.current;
+    if (!finalOver) {
       setActiveTaskId(null);
+      lastKanbanOverRef.current = null;
       return;
     }
     const activeId = Number(active.id);
@@ -583,7 +631,7 @@ export const ProjectDetailPage = () => {
       return;
     }
 
-    const overData = over.data.current as
+    const overData = finalOver.data.current as
       | { type?: string; status?: TaskStatus }
       | undefined;
     let targetStatus = activeTask.status;
@@ -591,7 +639,7 @@ export const ProjectDetailPage = () => {
 
     if (overData?.type === "task") {
       targetStatus = overData.status ?? targetStatus;
-      const parsed = Number(over.id);
+      const parsed = Number(finalOver.id);
       overTaskId = Number.isFinite(parsed) ? parsed : null;
     } else if (overData?.type === "column") {
       targetStatus = overData.status ?? targetStatus;
@@ -603,6 +651,13 @@ export const ProjectDetailPage = () => {
 
     moveTaskInOrder(activeId, targetStatus, overTaskId);
     setActiveTaskId(null);
+    lastKanbanOverRef.current = null;
+  };
+
+  const handleKanbanDragOver = (event: DragOverEvent) => {
+    if (event.over) {
+      lastKanbanOverRef.current = event.over;
+    }
   };
 
   const handleListDragEnd = (event: DragEndEvent) => {
@@ -802,11 +857,15 @@ export const ProjectDetailPage = () => {
               sensors={kanbanSensors}
               collisionDetection={closestCorners}
               onDragStart={handleTaskDragStart}
+              onDragOver={handleKanbanDragOver}
               onDragEnd={handleKanbanDragEnd}
-              onDragCancel={() => setActiveTaskId(null)}
+              onDragCancel={() => {
+                setActiveTaskId(null);
+                lastKanbanOverRef.current = null;
+              }}
             >
-              <div className="-mx-4 overflow-x-auto pb-4">
-                <div className="flex gap-4 px-4">
+              <div className="overflow-x-auto pb-4">
+                <div className="flex gap-4">
                   {taskStatusOrder.map((status) => (
                     <div key={status} className="w-80 shrink-0">
                       <KanbanColumn
@@ -897,12 +956,21 @@ export const ProjectDetailPage = () => {
       </div>
       {canEditTaskDetails ? (
         <>
-          <Button
-            className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-            onClick={() => setIsComposerOpen(true)}
-          >
-            Add Task
-          </Button>
+          <TooltipProvider>
+            <Tooltip delayDuration={400}>
+              <TooltipTrigger asChild>
+                <Button
+                  className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+                  onClick={() => setIsComposerOpen(true)}
+                >
+                  Add Task
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={32}>
+                Hit &lsquo;enter&rsquo; to create a new task
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {isComposerOpen ? (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
               <div

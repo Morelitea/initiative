@@ -274,8 +274,8 @@ const AppLayout = () => {
             onClearRecent={handleClearRecent}
           />
         ) : null}
-        <main className="flex-1 bg-muted/50 pb-20">
-          <div className="container p-4 md:p-8">
+        <main className="flex-1 min-w-0 bg-muted/50 pb-20">
+          <div className="container min-w-0 p-4 md:p-8">
             <Routes>
               <Route path="/" element={<ProjectsPage />} />
               <Route
