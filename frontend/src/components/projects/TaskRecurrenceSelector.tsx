@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type {
   TaskRecurrence,
   TaskRecurrenceFrequency,
@@ -71,10 +73,22 @@ export const TaskRecurrenceSelector = ({
   disabled = false,
   referenceDate,
 }: TaskRecurrenceSelectorProps) => {
-  const preset = detectRecurrencePreset(recurrence);
+  const detectedPreset = detectRecurrencePreset(recurrence);
+  const [forceCustomMode, setForceCustomMode] = useState(detectedPreset === "custom");
+  useEffect(() => {
+    if (recurrence === null && forceCustomMode) {
+      setForceCustomMode(false);
+      return;
+    }
+    if (detectedPreset === "custom" && recurrence && !forceCustomMode) {
+      setForceCustomMode(true);
+    }
+  }, [detectedPreset, forceCustomMode, recurrence]);
+
+  const preset = forceCustomMode ? "custom" : detectedPreset;
   const anchorDate = getAnchorDate(referenceDate);
   const summary = summarizeRecurrence(recurrence, { referenceDate });
-  const showCustomFields = preset === "custom" && recurrence !== null;
+  const showCustomFields = forceCustomMode && recurrence !== null;
 
   const ensureRule = (): TaskRecurrence => {
     if (recurrence) {
@@ -89,9 +103,11 @@ export const TaskRecurrenceSelector = ({
 
   const handlePresetChange = (value: RecurrencePreset) => {
     if (value === "custom") {
+      setForceCustomMode(true);
       onChange(ensureRule());
       return;
     }
+    setForceCustomMode(false);
     const next = createRecurrenceFromPreset(value, referenceDate);
     onChange(next);
   };
