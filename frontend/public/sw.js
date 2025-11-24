@@ -30,6 +30,7 @@ self.addEventListener("activate", (event) => {
 });
 
 const API_PATTERN = /\/api\/v1\/(projects|tasks)/;
+const AUTH_PATTERN = /\/api\/v1\/auth\//;
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
@@ -37,7 +38,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (API_PATTERN.test(new URL(request.url).pathname)) {
+  const requestPath = new URL(request.url).pathname;
+
+  if (AUTH_PATTERN.test(requestPath)) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  if (API_PATTERN.test(requestPath)) {
     event.respondWith(
       caches.open(DATA_CACHE).then(async (cache) => {
         try {
