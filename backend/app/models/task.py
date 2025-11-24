@@ -46,6 +46,7 @@ class Task(SQLModel, table=True):
         default=TaskPriority.medium,
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),
     )
+    start_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     due_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     recurrence: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
     recurrence_occurrence_count: int = Field(

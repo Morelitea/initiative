@@ -88,6 +88,7 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     status: TaskStatus = TaskStatus.backlog
     priority: TaskPriority = TaskPriority.medium
+    start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence] = None
 
@@ -103,6 +104,7 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[int]] = None
+    start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence | None] = None
 

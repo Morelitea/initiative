@@ -92,9 +92,11 @@ const KanbanTaskCard = ({
   };
 
   const recurrenceSummary = task.recurrence
-    ? summarizeRecurrence(task.recurrence, { referenceDate: task.due_date })
+    ? summarizeRecurrence(task.recurrence, { referenceDate: task.start_date || task.due_date })
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
+  const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
+  const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
 
   return (
     <div
@@ -126,7 +128,8 @@ const KanbanTaskCard = ({
           {task.assignees.length > 0 ? (
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
           ) : null}
-          {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+          {formattedStart ? <p>Starts: {formattedStart}</p> : null}
+          {formattedDue ? <p>Due: {formattedDue}</p> : null}
           {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
       </button>

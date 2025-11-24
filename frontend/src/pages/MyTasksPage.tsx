@@ -257,7 +257,7 @@ export const MyTasksPage = () => {
                 {sortedTasks.map((task) => {
                   const project = projectsById[task.project_id];
                   const recurrenceSummary = task.recurrence
-                    ? summarizeRecurrence(task.recurrence, { referenceDate: task.due_date })
+                    ? summarizeRecurrence(task.recurrence, { referenceDate: task.start_date || task.due_date })
                     : null;
                   return (
                     <tr key={task.id}>
@@ -292,12 +292,21 @@ export const MyTasksPage = () => {
                         <Badge variant="secondary">{task.priority.replace("_", " ")}</Badge>
                       </td>
                       <td className="py-3">
-                        {task.due_date
-                          ? new Date(task.due_date).toLocaleDateString()
-                          : "No due date"}
-                        {recurrenceSummary ? (
-                          <p className="text-xs text-muted-foreground">{recurrenceSummary}</p>
-                        ) : null}
+                        <div className="space-y-1">
+                          <p className="text-sm">
+                            {task.start_date
+                              ? `Starts ${new Date(task.start_date).toLocaleDateString()}`
+                              : "No start"}
+                          </p>
+                          <p className="text-sm">
+                            {task.due_date
+                              ? `Due ${new Date(task.due_date).toLocaleDateString()}`
+                              : "No due date"}
+                          </p>
+                          {recurrenceSummary ? (
+                            <p className="text-xs text-muted-foreground">{recurrenceSummary}</p>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="py-3">
                         <Select

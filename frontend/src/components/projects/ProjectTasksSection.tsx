@@ -60,6 +60,7 @@ export const ProjectTasksSection = ({
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
+  const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
@@ -132,6 +133,7 @@ export const ProjectTasksSection = ({
         description,
         priority,
         assignee_ids: assigneeIds,
+        start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         recurrence,
       };
@@ -143,6 +145,7 @@ export const ProjectTasksSection = ({
       setDescription("");
       setPriority("medium");
       setAssigneeIds([]);
+      setStartDate("");
       setDueDate("");
       setRecurrence(null);
       setIsComposerOpen(false);
@@ -584,6 +587,7 @@ export const ProjectTasksSection = ({
                   description={description}
                   priority={priority}
                   assigneeIds={assigneeIds}
+                  startDate={startDate}
                   dueDate={dueDate}
                   recurrence={recurrence}
                   canWrite={canWriteProject}
@@ -595,6 +599,7 @@ export const ProjectTasksSection = ({
                   onDescriptionChange={setDescription}
                   onPriorityChange={setPriority}
                   onAssigneesChange={setAssigneeIds}
+                  onStartDateChange={setStartDate}
                   onDueDateChange={setDueDate}
                   onRecurrenceChange={setRecurrence}
                   onSubmit={() => createTask.mutate()}

@@ -50,6 +50,7 @@ export const TaskEditPage = () => {
   const [status, setStatus] = useState<TaskStatus>("backlog");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
+  const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
 
@@ -88,6 +89,7 @@ export const TaskEditPage = () => {
       setStatus(task.status);
       setPriority(task.priority);
       setAssigneeIds(task.assignees?.map((assignee) => assignee.id) ?? []);
+      setStartDate(toLocalInputValue(task.start_date));
       setDueDate(toLocalInputValue(task.due_date));
       setRecurrence(task.recurrence ?? null);
     }
@@ -104,6 +106,7 @@ export const TaskEditPage = () => {
         status,
         priority,
         assignee_ids: assigneeIds,
+        start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         recurrence,
       };
@@ -116,6 +119,7 @@ export const TaskEditPage = () => {
       setStatus(updatedTask.status);
       setPriority(updatedTask.priority);
       setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
+      setStartDate(toLocalInputValue(updatedTask.start_date));
       setDueDate(toLocalInputValue(updatedTask.due_date));
       setRecurrence(updatedTask.recurrence ?? null);
       toast.success("Task updated");
@@ -321,22 +325,34 @@ export const TaskEditPage = () => {
                   emptyMessage="No initiative members available yet."
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-due-date">Due date</Label>
-                <DateTimePicker
-                  id="task-due-date"
-                  value={dueDate}
-                  onChange={setDueDate}
-                  disabled={isReadOnly}
-                  placeholder="Optional"
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="task-start-date">Start date</Label>
+                  <DateTimePicker
+                    id="task-start-date"
+                    value={startDate}
+                    onChange={setStartDate}
+                    disabled={isReadOnly}
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-due-date">Due date</Label>
+                  <DateTimePicker
+                    id="task-due-date"
+                    value={dueDate}
+                    onChange={setDueDate}
+                    disabled={isReadOnly}
+                    placeholder="Optional"
+                  />
+                </div>
               </div>
             </div>
             <TaskRecurrenceSelector
               recurrence={recurrence}
               onChange={setRecurrence}
               disabled={isReadOnly}
-              referenceDate={dueDate || task.due_date}
+              referenceDate={dueDate || startDate || task.due_date || task.start_date}
             />
 
             <div className="flex flex-wrap gap-3">

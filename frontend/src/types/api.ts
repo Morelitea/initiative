@@ -84,6 +84,7 @@ export interface Task {
   priority: TaskPriority;
   project_id: number;
   assignees: User[];
+  start_date?: string;
   due_date?: string;
   recurrence?: TaskRecurrence | null;
   recurrence_occurrence_count?: number;
