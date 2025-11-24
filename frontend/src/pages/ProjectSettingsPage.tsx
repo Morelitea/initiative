@@ -39,28 +39,21 @@ export const ProjectSettingsPage = () => {
   const { user } = useAuth();
   const [readRoles, setReadRoles] = useState<ProjectRole[]>([]);
   const [writeRoles, setWriteRoles] = useState<ProjectRole[]>([]);
-  const [selectedInitiativeId, setSelectedInitiativeId] =
-    useState<string>(NO_INITIATIVE_VALUE);
+  const [selectedInitiativeId, setSelectedInitiativeId] = useState<string>(NO_INITIATIVE_VALUE);
   const [accessMessage, setAccessMessage] = useState<string | null>(null);
-  const [initiativeMessage, setInitiativeMessage] = useState<string | null>(
-    null
-  );
+  const [initiativeMessage, setInitiativeMessage] = useState<string | null>(null);
   const [nameText, setNameText] = useState<string>("");
   const [iconText, setIconText] = useState<string>("");
   const [identityMessage, setIdentityMessage] = useState<string | null>(null);
   const [descriptionText, setDescriptionText] = useState<string>("");
-  const [descriptionMessage, setDescriptionMessage] = useState<string | null>(
-    null
-  );
+  const [descriptionMessage, setDescriptionMessage] = useState<string | null>(null);
   const [templateMessage, setTemplateMessage] = useState<string | null>(null);
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
 
   const projectQuery = useQuery<Project>({
     queryKey: ["projects", parsedProjectId],
     queryFn: async () => {
-      const response = await apiClient.get<Project>(
-        `/projects/${parsedProjectId}`
-      );
+      const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
       return response.data;
     },
     enabled: Number.isFinite(parsedProjectId),
@@ -97,13 +90,10 @@ export const ProjectSettingsPage = () => {
 
   const updateAccess = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.patch<Project>(
-        `/projects/${parsedProjectId}`,
-        {
-          read_roles: readRoles,
-          write_roles: writeRoles,
-        }
-      );
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
+        read_roles: readRoles,
+        write_roles: writeRoles,
+      });
       return response.data;
     },
     onSuccess: (data) => {
@@ -125,10 +115,7 @@ export const ProjectSettingsPage = () => {
         selectedInitiativeId === NO_INITIATIVE_VALUE
           ? { initiative_id: null }
           : { initiative_id: Number(selectedInitiativeId) };
-      const response = await apiClient.patch<Project>(
-        `/projects/${parsedProjectId}`,
-        payload
-      );
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, payload);
       return response.data;
     },
     onSuccess: (data) => {
@@ -152,10 +139,7 @@ export const ProjectSettingsPage = () => {
         name: nameText.trim() || projectQuery.data?.name || "",
         icon: trimmedIcon ? trimmedIcon : null,
       };
-      const response = await apiClient.patch<Project>(
-        `/projects/${parsedProjectId}`,
-        payload
-      );
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, payload);
       return response.data;
     },
     onSuccess: (data) => {
@@ -204,12 +188,9 @@ export const ProjectSettingsPage = () => {
 
   const updateDescription = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.patch<Project>(
-        `/projects/${parsedProjectId}`,
-        {
-          description: descriptionText,
-        }
-      );
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
+        description: descriptionText,
+      });
       return response.data;
     },
     onSuccess: (data) => {
@@ -226,12 +207,9 @@ export const ProjectSettingsPage = () => {
 
   const duplicateProject = useMutation({
     mutationFn: async (name?: string) => {
-      const response = await apiClient.post<Project>(
-        `/projects/${parsedProjectId}/duplicate`,
-        {
-          name: name?.trim() || undefined,
-        }
-      );
+      const response = await apiClient.post<Project>(`/projects/${parsedProjectId}/duplicate`, {
+        name: name?.trim() || undefined,
+      });
       return response.data;
     },
     onSuccess: (data) => {
@@ -247,19 +225,14 @@ export const ProjectSettingsPage = () => {
 
   const toggleTemplateStatus = useMutation({
     mutationFn: async (nextStatus: boolean) => {
-      const response = await apiClient.patch<Project>(
-        `/projects/${parsedProjectId}`,
-        {
-          is_template: nextStatus,
-        }
-      );
+      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
+        is_template: nextStatus,
+      });
       return response.data;
     },
     onSuccess: (data, nextStatus) => {
       setTemplateMessage(
-        nextStatus
-          ? "Project marked as template"
-          : "Project removed from templates"
+        nextStatus ? "Project marked as template" : "Project removed from templates"
       );
       void queryClient.invalidateQueries({
         queryKey: ["projects", parsedProjectId],
@@ -290,13 +263,10 @@ export const ProjectSettingsPage = () => {
     return <p className="text-destructive">Invalid project id.</p>;
   }
 
-  const initiativesLoading =
-    user?.role === "admin" ? initiativesQuery.isLoading : false;
+  const initiativesLoading = user?.role === "admin" ? initiativesQuery.isLoading : false;
 
   if (projectQuery.isLoading || initiativesLoading) {
-    return (
-      <p className="text-sm text-muted-foreground">Loading project settings…</p>
-    );
+    return <p className="text-sm text-muted-foreground">Loading project settings…</p>;
   }
 
   if (projectQuery.isError || !projectQuery.data) {
@@ -311,24 +281,16 @@ export const ProjectSettingsPage = () => {
   }
 
   const project = projectQuery.data;
-  const membershipRole = project.members.find(
-    (member) => member.user_id === user?.id
-  )?.role;
+  const membershipRole = project.members.find((member) => member.user_id === user?.id)?.role;
   const userProjectRole = (user?.role as ProjectRole | undefined) ?? undefined;
   const canManageAccess =
-    user?.role === "admin" ||
-    membershipRole === "admin" ||
-    membershipRole === "project_manager";
+    user?.role === "admin" || membershipRole === "admin" || membershipRole === "project_manager";
   const canWriteProject =
     user?.role === "admin" ||
     (membershipRole ? project.write_roles.includes(membershipRole) : false) ||
     (userProjectRole ? project.write_roles.includes(userProjectRole) : false);
 
-  const projectRoleOptions: ProjectRole[] = [
-    "admin",
-    "project_manager",
-    "member",
-  ];
+  const projectRoleOptions: ProjectRole[] = ["admin", "project_manager", "member"];
 
   if (!canManageAccess && !canWriteProject) {
     return (
@@ -339,9 +301,7 @@ export const ProjectSettingsPage = () => {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Project settings</CardTitle>
-            <CardDescription>
-              You do not have permission to manage this project.
-            </CardDescription>
+            <CardDescription>You do not have permission to manage this project.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -354,9 +314,7 @@ export const ProjectSettingsPage = () => {
         <Link to={`/projects/${project.id}`}>← Back to project</Link>
       </Button>
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Project settings
-        </h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Project settings</h1>
         <p className="text-muted-foreground">
           Configure access, ownership, and archival status for{" "}
           {project.icon ? `${project.icon} ${project.name}` : project.name}.
@@ -412,17 +370,13 @@ export const ProjectSettingsPage = () => {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Button type="submit" disabled={updateIdentity.isPending}>
-                    {updateIdentity.isPending
-                      ? "Saving…"
-                      : "Save project details"}
+                    {updateIdentity.isPending ? "Saving…" : "Save project details"}
                   </Button>
                   {identityMessage ? (
                     <p className="text-sm text-primary">{identityMessage}</p>
                   ) : null}
                   {updateIdentity.isError ? (
-                    <p className="text-sm text-destructive">
-                      Unable to update project.
-                    </p>
+                    <p className="text-sm text-destructive">Unable to update project.</p>
                   ) : null}
                 </div>
               </form>
@@ -458,9 +412,7 @@ export const ProjectSettingsPage = () => {
                 />
                 <div className="flex flex-col gap-2">
                   <Button type="submit" disabled={updateDescription.isPending}>
-                    {updateDescription.isPending
-                      ? "Saving…"
-                      : "Save description"}
+                    {updateDescription.isPending ? "Saving…" : "Save description"}
                   </Button>
                   {descriptionMessage ? (
                     <p className="text-sm text-primary">{descriptionMessage}</p>
@@ -480,9 +432,7 @@ export const ProjectSettingsPage = () => {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Project initiative</CardTitle>
-            <CardDescription>
-              The initiative currently assigned to this project.
-            </CardDescription>
+            <CardDescription>The initiative currently assigned to this project.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="font-medium">{project.initiative.name}</p>
@@ -493,9 +443,7 @@ export const ProjectSettingsPage = () => {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No initiative members yet.
-              </p>
+              <p className="text-sm text-muted-foreground">No initiative members yet.</p>
             )}
           </CardContent>
         </Card>
@@ -505,15 +453,11 @@ export const ProjectSettingsPage = () => {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Initiative ownership</CardTitle>
-            <CardDescription>
-              Select which initiative owns this project.
-            </CardDescription>
+            <CardDescription>Select which initiative owns this project.</CardDescription>
           </CardHeader>
           <CardContent>
             {initiativesQuery.isError ? (
-              <p className="text-sm text-destructive">
-                Unable to load initiatives.
-              </p>
+              <p className="text-sm text-destructive">Unable to load initiatives.</p>
             ) : (
               <form
                 className="flex flex-wrap items-end gap-3"
@@ -524,22 +468,14 @@ export const ProjectSettingsPage = () => {
               >
                 <div className="min-w-[220px] flex-1">
                   <Label htmlFor="project-initiative">Owning initiative</Label>
-                  <Select
-                    value={selectedInitiativeId}
-                    onValueChange={setSelectedInitiativeId}
-                  >
+                  <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
                     <SelectTrigger id="project-initiative" className="mt-2">
                       <SelectValue placeholder="No initiative" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_INITIATIVE_VALUE}>
-                        No initiative
-                      </SelectItem>
+                      <SelectItem value={NO_INITIATIVE_VALUE}>No initiative</SelectItem>
                       {initiativesQuery.data?.map((initiative) => (
-                        <SelectItem
-                          key={initiative.id}
-                          value={String(initiative.id)}
-                        >
+                        <SelectItem key={initiative.id} value={String(initiative.id)}>
                           {initiative.name}
                         </SelectItem>
                       ))}
@@ -547,13 +483,8 @@ export const ProjectSettingsPage = () => {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Button
-                    type="submit"
-                    disabled={updateInitiativeOwnership.isPending}
-                  >
-                    {updateInitiativeOwnership.isPending
-                      ? "Saving…"
-                      : "Save initiative"}
+                  <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
+                    {updateInitiativeOwnership.isPending ? "Saving…" : "Save initiative"}
                   </Button>
                   {initiativeMessage ? (
                     <p className="text-sm text-primary">{initiativeMessage}</p>
@@ -586,10 +517,7 @@ export const ProjectSettingsPage = () => {
                 <Label>Read access</Label>
                 <div className="flex flex-wrap gap-4">
                   {projectRoleOptions.map((role) => (
-                    <label
-                      key={`read-${role}`}
-                      className="flex items-center gap-2 text-sm"
-                    >
+                    <label key={`read-${role}`} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={readRoles.includes(role)}
                         onCheckedChange={() =>
@@ -610,10 +538,7 @@ export const ProjectSettingsPage = () => {
                 <Label>Write access</Label>
                 <div className="flex flex-wrap gap-4">
                   {projectRoleOptions.map((role) => (
-                    <label
-                      key={`write-${role}`}
-                      className="flex items-center gap-2 text-sm"
-                    >
+                    <label key={`write-${role}`} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={writeRoles.includes(role)}
                         onCheckedChange={() =>
@@ -634,9 +559,7 @@ export const ProjectSettingsPage = () => {
                 <Button type="submit" disabled={updateAccess.isPending}>
                   {updateAccess.isPending ? "Saving…" : "Save access"}
                 </Button>
-                {accessMessage ? (
-                  <p className="text-sm text-primary">{accessMessage}</p>
-                ) : null}
+                {accessMessage ? <p className="text-sm text-primary">{accessMessage}</p> : null}
               </div>
             </form>
           </CardContent>
@@ -647,8 +570,7 @@ export const ProjectSettingsPage = () => {
         <CardHeader>
           <CardTitle>Template status</CardTitle>
           <CardDescription>
-            Convert this project into a reusable template or revert it back to a
-            standard project.
+            Convert this project into a reusable template or revert it back to a standard project.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -657,9 +579,7 @@ export const ProjectSettingsPage = () => {
               ? "This project is currently a template and appears on the Templates page."
               : "This project behaves like a standard project."}
           </p>
-          {templateMessage ? (
-            <p className="text-sm text-primary">{templateMessage}</p>
-          ) : null}
+          {templateMessage ? <p className="text-sm text-primary">{templateMessage}</p> : null}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-3">
           {canWriteProject ? (
@@ -672,9 +592,7 @@ export const ProjectSettingsPage = () => {
               }}
               disabled={toggleTemplateStatus.isPending}
             >
-              {project.is_template
-                ? "Convert to standard project"
-                : "Mark as template"}
+              {project.is_template ? "Convert to standard project" : "Mark as template"}
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -693,14 +611,11 @@ export const ProjectSettingsPage = () => {
         <CardHeader>
           <CardTitle>Duplicate project</CardTitle>
           <CardDescription>
-            Clone this project, including its initiative and tasks, to jumpstart
-            new work.
+            Clone this project, including its initiative and tasks, to jumpstart new work.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {duplicateMessage ? (
-            <p className="text-sm text-primary">{duplicateMessage}</p>
-          ) : null}
+          {duplicateMessage ? <p className="text-sm text-primary">{duplicateMessage}</p> : null}
         </CardContent>
         <CardFooter>
           {canWriteProject ? (
@@ -708,10 +623,7 @@ export const ProjectSettingsPage = () => {
               type="button"
               onClick={() => {
                 const defaultName = `${project.name} copy`;
-                const newName = window.prompt(
-                  "Name for duplicated project",
-                  defaultName
-                );
+                const newName = window.prompt("Name for duplicated project", defaultName);
                 if (newName === null) {
                   return;
                 }
@@ -720,9 +632,7 @@ export const ProjectSettingsPage = () => {
               }}
               disabled={duplicateProject.isPending}
             >
-              {duplicateProject.isPending
-                ? "Duplicating…"
-                : "Duplicate project"}
+              {duplicateProject.isPending ? "Duplicating…" : "Duplicate project"}
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -736,9 +646,7 @@ export const ProjectSettingsPage = () => {
         <CardHeader>
           <CardTitle>Archive status</CardTitle>
           <CardDescription>
-            {project.is_archived
-              ? "This project is archived."
-              : "This project is active."}
+            {project.is_archived ? "This project is archived." : "This project is active."}
           </CardDescription>
         </CardHeader>
         <CardFooter>
@@ -747,9 +655,7 @@ export const ProjectSettingsPage = () => {
               type="button"
               variant="outline"
               onClick={() =>
-                project.is_archived
-                  ? unarchiveProject.mutate()
-                  : archiveProject.mutate()
+                project.is_archived ? unarchiveProject.mutate() : archiveProject.mutate()
               }
               disabled={archiveProject.isPending || unarchiveProject.isPending}
             >
@@ -776,9 +682,7 @@ export const ProjectSettingsPage = () => {
               type="button"
               variant="destructive"
               onClick={() => {
-                if (
-                  window.confirm("Delete this project? This cannot be undone.")
-                ) {
+                if (window.confirm("Delete this project? This cannot be undone.")) {
                   deleteProject.mutate();
                 }
               }}

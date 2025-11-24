@@ -1,35 +1,47 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { apiClient } from '../api/client';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { useAuth } from '../hooks/useAuth';
-import { useRoleLabels, getRoleLabel } from '../hooks/useRoleLabels';
-import { queryClient } from '../lib/queryClient';
-import { User, UserRole } from '../types/api';
+import { apiClient } from "../api/client";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { useAuth } from "../hooks/useAuth";
+import { useRoleLabels, getRoleLabel } from "../hooks/useRoleLabels";
+import { queryClient } from "../lib/queryClient";
+import { User, UserRole } from "../types/api";
 
-const USERS_QUERY_KEY = ['users'];
-const ROLE_OPTIONS: UserRole[] = ['admin', 'project_manager', 'member'];
+const USERS_QUERY_KEY = ["users"];
+const ROLE_OPTIONS: UserRole[] = ["admin", "project_manager", "member"];
 const SUPER_USER_ID = 1;
 
 export const UsersPage = () => {
   const { user: currentUser } = useAuth();
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === "admin";
   const { data: roleLabels } = useRoleLabels();
 
   const usersQuery = useQuery<User[]>({
     queryKey: USERS_QUERY_KEY,
     enabled: isAdmin,
     queryFn: async () => {
-      const response = await apiClient.get<User[]>('/users/');
+      const response = await apiClient.get<User[]>("/users/");
       return response.data;
     },
   });
 
   const updateUser = useMutation({
-    mutationFn: async ({ userId, data }: { userId: number; data: Partial<User> & { password?: string } }) => {
+    mutationFn: async ({
+      userId,
+      data,
+    }: {
+      userId: number;
+      data: Partial<User> & { password?: string };
+    }) => {
       const response = await apiClient.patch<User>(`/users/${userId}`, data);
       return response.data;
     },
@@ -75,7 +87,9 @@ export const UsersPage = () => {
   };
 
   if (!isAdmin) {
-    return <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>
+    );
   }
 
   if (usersQuery.isLoading) {
@@ -96,55 +110,53 @@ export const UsersPage = () => {
         {usersQuery.data.map((user) => {
           const isSuperUser = user.id === SUPER_USER_ID;
           return (
-          <div
-            className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4"
-            key={user.id}
-          >
-            <div>
-              <p className="font-medium">{user.full_name ?? user.email}</p>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
-              <p className="text-xs text-muted-foreground">
-                Status: {user.is_active ? 'Active' : 'Pending approval'}
-              </p>
+            <div
+              className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4"
+              key={user.id}
+            >
+              <div>
+                <p className="font-medium">{user.full_name ?? user.email}</p>
+                <p className="text-sm text-muted-foreground">{user.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  Status: {user.is_active ? "Active" : "Pending approval"}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 min-w-[220px]">
+                <Select
+                  value={user.role}
+                  onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}
+                  disabled={isSuperUser}
+                >
+                  <SelectTrigger disabled={isSuperUser}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((roleOption) => (
+                      <SelectItem key={roleOption} value={roleOption}>
+                        {getRoleLabel(roleOption, roleLabels)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleResetPassword(user.id, user.email)}
+                  disabled={updateUser.isPending}
+                >
+                  Reset password
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => handleDeleteUser(user.id, user.email)}
+                  disabled={isSuperUser || deleteUser.isPending || currentUser?.id === user.id}
+                >
+                  Delete user
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-col gap-2 min-w-[220px]">
-              <Select
-                value={user.role}
-                onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}
-                disabled={isSuperUser}
-              >
-                <SelectTrigger disabled={isSuperUser}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLE_OPTIONS.map((roleOption) => (
-                    <SelectItem key={roleOption} value={roleOption}>
-                      {getRoleLabel(roleOption, roleLabels)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleResetPassword(user.id, user.email)}
-                disabled={updateUser.isPending}
-              >
-                Reset password
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => handleDeleteUser(user.id, user.email)}
-                disabled={
-                  isSuperUser || deleteUser.isPending || currentUser?.id === user.id
-                }
-              >
-                Delete user
-              </Button>
-            </div>
-          </div>
-        );
+          );
         })}
       </CardContent>
     </Card>

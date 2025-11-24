@@ -1,22 +1,29 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 
-import { apiClient } from '../api/client';
-import { Markdown } from '../components/Markdown';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { useAuth } from '../hooks/useAuth';
-import { queryClient } from '../lib/queryClient';
-import { Project } from '../types/api';
+import { apiClient } from "../api/client";
+import { Markdown } from "../components/Markdown";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { useAuth } from "../hooks/useAuth";
+import { queryClient } from "../lib/queryClient";
+import { Project } from "../types/api";
 
 export const ArchivePage = () => {
   const { user } = useAuth();
-  const canManageProjects = user?.role === 'admin' || user?.role === 'project_manager';
+  const canManageProjects = user?.role === "admin" || user?.role === "project_manager";
 
   const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ['projects', 'archived'],
+    queryKey: ["projects", "archived"],
     queryFn: async () => {
-      const response = await apiClient.get<Project[]>('/projects/', { params: { archived: true } });
+      const response = await apiClient.get<Project[]>("/projects/", { params: { archived: true } });
       return response.data;
     },
   });
@@ -26,8 +33,8 @@ export const ArchivePage = () => {
       await apiClient.post(`/projects/${projectId}/unarchive`, {});
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
-      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ["projects", "archived"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 
@@ -61,12 +68,15 @@ export const ArchivePage = () => {
             <Card key={project.id} className="shadow-sm">
               <CardHeader>
                 <CardTitle className="text-xl">{project.name}</CardTitle>
-                {project.description ? <Markdown content={project.description} className="text-sm" /> : null}
+                {project.description ? (
+                  <Markdown content={project.description} className="text-sm" />
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
                 <p>
-                  Archived at: {project.archived_at ? new Date(project.archived_at).toLocaleString() : 'Unknown'}
+                  Archived at:{" "}
+                  {project.archived_at ? new Date(project.archived_at).toLocaleString() : "Unknown"}
                 </p>
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">

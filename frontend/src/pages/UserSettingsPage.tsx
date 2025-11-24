@@ -4,22 +4,11 @@ import { Link } from "react-router-dom";
 
 import { apiClient } from "../api/client";
 import { Button } from "../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Switch } from "../components/ui/switch";
 import { useAuth } from "../hooks/useAuth";
 import type { User } from "../types/api";
@@ -46,9 +35,7 @@ export const UserSettingsPage = () => {
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? "");
   const [avatarBase64, setAvatarBase64] = useState(user?.avatar_base64 ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(
-    user?.show_project_sidebar ?? true
-  );
+  const [showSidebar, setShowSidebar] = useState(user?.show_project_sidebar ?? true);
   const [showTabs, setShowTabs] = useState(user?.show_project_tabs ?? false);
 
   useEffect(() => {
@@ -63,13 +50,7 @@ export const UserSettingsPage = () => {
       return avatarUrl || user?.avatar_url || "";
     }
     return avatarBase64 || user?.avatar_base64 || "";
-  }, [
-    avatarMode,
-    avatarUrl,
-    avatarBase64,
-    user?.avatar_url,
-    user?.avatar_base64,
-  ]);
+  }, [avatarMode, avatarUrl, avatarBase64, user?.avatar_url, user?.avatar_base64]);
 
   const updateProfile = useMutation({
     mutationFn: async () => {
@@ -142,9 +123,7 @@ export const UserSettingsPage = () => {
   if (!user) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">
-          You need to be logged in to manage your profile.
-        </p>
+        <p className="text-destructive">You need to be logged in to manage your profile.</p>
         <Button asChild variant="link" className="px-0">
           <Link to="/login">Go to login</Link>
         </Button>
@@ -164,17 +143,12 @@ export const UserSettingsPage = () => {
       <div className="flex items-center gap-3">
         <Avatar className="h-16 w-16">
           {avatarPreview ? (
-            <AvatarImage
-              src={dataUrl(avatarPreview)}
-              alt={fullName || user.email}
-            />
+            <AvatarImage src={dataUrl(avatarPreview)} alt={fullName || user.email} />
           ) : null}
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            User settings
-          </h1>
+          <h1 className="text-3xl font-semibold tracking-tight">User settings</h1>
           <p className="text-sm text-muted-foreground">
             Keep your account details and interface preferences up to date.
           </p>
@@ -184,9 +158,7 @@ export const UserSettingsPage = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Personal info</CardTitle>
-          <CardDescription>
-            Update your name, password, and avatar.
-          </CardDescription>
+          <CardDescription>Update your name, password, and avatar.</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -199,9 +171,7 @@ export const UserSettingsPage = () => {
             <div className="space-y-2">
               <Label>Email</Label>
               <Input value={user.email} disabled readOnly />
-              <p className="text-xs text-muted-foreground">
-                Email addresses cannot be changed.
-              </p>
+              <p className="text-xs text-muted-foreground">Email addresses cannot be changed.</p>
             </div>
 
             <div className="space-y-2">
@@ -241,20 +211,14 @@ export const UserSettingsPage = () => {
               <Label>Avatar</Label>
               <Tabs
                 value={avatarMode}
-                onValueChange={(value) =>
-                  setAvatarMode(value as "upload" | "url")
-                }
+                onValueChange={(value) => setAvatarMode(value as "upload" | "url")}
               >
                 <TabsList>
                   <TabsTrigger value="upload">Upload</TabsTrigger>
                   <TabsTrigger value="url">URL</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" className="space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                  />
+                  <Input type="file" accept="image/*" onChange={handleAvatarUpload} />
                   {avatarBase64 ? (
                     <Button
                       type="button"
@@ -317,9 +281,7 @@ export const UserSettingsPage = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Interface settings</CardTitle>
-          <CardDescription>
-            Choose how project shortcuts appear across the app.
-          </CardDescription>
+          <CardDescription>Choose how project shortcuts appear across the app.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between gap-4">

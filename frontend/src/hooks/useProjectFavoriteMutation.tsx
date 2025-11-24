@@ -1,8 +1,8 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { queryClient } from '../lib/queryClient';
-import type { Project } from '../types/api';
+import { apiClient } from "../api/client";
+import { queryClient } from "../lib/queryClient";
+import type { Project } from "../types/api";
 
 interface ToggleArgs {
   projectId: number;
@@ -19,7 +19,9 @@ const updateProjectListFavorite = (projects: Project[] | undefined, response: To
     return projects;
   }
   return projects.map((project) =>
-    project.id === response.project_id ? { ...project, is_favorited: response.is_favorited } : project
+    project.id === response.project_id
+      ? { ...project, is_favorited: response.is_favorited }
+      : project
   );
 };
 
@@ -34,16 +36,18 @@ export const useProjectFavoriteMutation = () =>
       return { project_id: projectId, is_favorited: nextState };
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Project[]>(['projects'], (projects) => updateProjectListFavorite(projects, data));
-      queryClient.setQueryData<Project[]>(['projects', 'templates'], (projects) =>
+      queryClient.setQueryData<Project[]>(["projects"], (projects) =>
         updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project[]>(['projects', 'archived'], (projects) =>
+      queryClient.setQueryData<Project[]>(["projects", "templates"], (projects) =>
         updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project>(['projects', data.project_id], (project) =>
+      queryClient.setQueryData<Project[]>(["projects", "archived"], (projects) =>
+        updateProjectListFavorite(projects, data)
+      );
+      queryClient.setQueryData<Project>(["projects", data.project_id], (project) =>
         project ? { ...project, is_favorited: data.is_favorited } : project
       );
-      queryClient.invalidateQueries({ queryKey: ['projects', 'favorites'] });
+      queryClient.invalidateQueries({ queryKey: ["projects", "favorites"] });
     },
   });

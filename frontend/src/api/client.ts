@@ -1,7 +1,7 @@
-import axios from 'axios';
+import axios from "axios";
 
-const DEFAULT_API_BASE_URL = '/api/v1';
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
+const DEFAULT_API_BASE_URL = "/api/v1";
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
 const resolveApiBaseUrl = (): string => {
   const envValue = import.meta.env.VITE_API_URL?.trim();
@@ -9,7 +9,7 @@ const resolveApiBaseUrl = (): string => {
     return DEFAULT_API_BASE_URL;
   }
 
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return envValue;
   }
 
@@ -29,7 +29,7 @@ const resolveApiBaseUrl = (): string => {
 
     return resolved.toString();
   } catch {
-    if (envValue.startsWith('/')) {
+    if (envValue.startsWith("/")) {
       return envValue;
     }
   }
@@ -39,7 +39,7 @@ const resolveApiBaseUrl = (): string => {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
-export const AUTH_UNAUTHORIZED_EVENT = 'initiative:auth:unauthorized';
+export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 
 let authToken: string | null = null;
 
@@ -50,7 +50,7 @@ export const setAuthToken = (token: string | null) => {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -63,7 +63,7 @@ apiClient.interceptors.request.use((config) => {
 });
 
 const emitUnauthorized = () => {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
   }
 };

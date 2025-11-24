@@ -1,34 +1,40 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { queryClient } from '../lib/queryClient';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Textarea } from '../components/ui/textarea';
-import { AssigneeSelector } from '../components/projects/AssigneeSelector';
-import { toast } from 'sonner';
-import { useAuth } from '../hooks/useAuth';
-import type { Project, ProjectRole, Task, TaskPriority, TaskStatus, User } from '../types/api';
-import { Input } from '../components/ui/input';
-import { DateTimePicker } from '../components/ui/date-time-picker';
+import { apiClient } from "../api/client";
+import { queryClient } from "../lib/queryClient";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Label } from "../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { Textarea } from "../components/ui/textarea";
+import { AssigneeSelector } from "../components/projects/AssigneeSelector";
+import { toast } from "sonner";
+import { useAuth } from "../hooks/useAuth";
+import type { Project, ProjectRole, Task, TaskPriority, TaskStatus, User } from "../types/api";
+import { Input } from "../components/ui/input";
+import { DateTimePicker } from "../components/ui/date-time-picker";
 
-const taskStatusOrder: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
-const priorityOrder: TaskPriority[] = ['low', 'medium', 'high', 'urgent'];
+const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
+const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 const toLocalInputValue = (value?: string | null) => {
   if (!value) {
-    return '';
+    return "";
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return '';
+    return "";
   }
-  const pad = (segment: number) => segment.toString().padStart(2, '0');
+  const pad = (segment: number) => segment.toString().padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
@@ -38,15 +44,15 @@ export const TaskEditPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<TaskStatus>('backlog');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<TaskStatus>("backlog");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
-  const [dueDate, setDueDate] = useState<string>('');
+  const [dueDate, setDueDate] = useState<string>("");
 
   const taskQuery = useQuery({
-    queryKey: ['task', parsedTaskId],
+    queryKey: ["task", parsedTaskId],
     enabled: Number.isFinite(parsedTaskId),
     queryFn: async () => {
       const response = await apiClient.get<Task>(`/tasks/${parsedTaskId}`);
@@ -55,16 +61,16 @@ export const TaskEditPage = () => {
   });
 
   const usersQuery = useQuery({
-    queryKey: ['users'],
+    queryKey: ["users"],
     queryFn: async () => {
-      const response = await apiClient.get<User[]>('/users/');
+      const response = await apiClient.get<User[]>("/users/");
       return response.data;
     },
   });
 
   const projectId = taskQuery.data?.project_id;
   const projectQuery = useQuery({
-    queryKey: ['project', projectId],
+    queryKey: ["project", projectId],
     enabled: Number.isFinite(projectId),
     queryFn: async () => {
       const response = await apiClient.get<Project>(`/projects/${projectId}`);
@@ -76,7 +82,7 @@ export const TaskEditPage = () => {
     if (taskQuery.data) {
       const task = taskQuery.data;
       setTitle(task.title);
-      setDescription(task.description ?? '');
+      setDescription(task.description ?? "");
       setStatus(task.status);
       setPriority(task.priority);
       setAssigneeIds(task.assignees?.map((assignee) => assignee.id) ?? []);
@@ -102,12 +108,12 @@ export const TaskEditPage = () => {
     },
     onSuccess: (updatedTask) => {
       setTitle(updatedTask.title);
-      setDescription(updatedTask.description ?? '');
+      setDescription(updatedTask.description ?? "");
       setStatus(updatedTask.status);
       setPriority(updatedTask.priority);
       setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
       setDueDate(toLocalInputValue(updatedTask.due_date));
-      toast.success('Task updated');
+      toast.success("Task updated");
     },
   });
 
@@ -116,9 +122,9 @@ export const TaskEditPage = () => {
       await apiClient.delete(`/tasks/${parsedTaskId}`);
     },
     onSuccess: () => {
-      toast.success('Task deleted');
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      void queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      toast.success("Task deleted");
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
       navigate(projectLink);
     },
   });
@@ -196,15 +202,15 @@ export const TaskEditPage = () => {
   const userProjectRole = user?.role as ProjectRole | undefined;
   const writeRoles = project?.write_roles ?? [];
   const canWriteProject =
-    user?.role === 'admin' ||
+    user?.role === "admin" ||
     (membershipRole ? writeRoles.includes(membershipRole) : false) ||
     (userProjectRole ? writeRoles.includes(userProjectRole) : false);
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
-    ? 'You only have read access to this project, so task fields are disabled.'
+    ? "You only have read access to this project, so task fields are disabled."
     : projectIsArchived
-      ? 'This project is archived. Unarchive it from project settings to edit tasks.'
+      ? "This project is archived. Unarchive it from project settings to edit tasks."
       : null;
 
   return (
@@ -216,7 +222,7 @@ export const TaskEditPage = () => {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">{title || task.title}</h1>
           <Badge variant="secondary" className="capitalize">
-            {status.replace('_', ' ')}
+            {status.replace("_", " ")}
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground">Edit every detail of this task.</p>
@@ -272,7 +278,7 @@ export const TaskEditPage = () => {
                   <SelectContent>
                     {taskStatusOrder.map((value) => (
                       <SelectItem key={value} value={value}>
-                        {value.replace('_', ' ')}
+                        {value.replace("_", " ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -291,7 +297,7 @@ export const TaskEditPage = () => {
                   <SelectContent>
                     {priorityOrder.map((value) => (
                       <SelectItem key={value} value={value}>
-                        {value.replace('_', ' ')}
+                        {value.replace("_", " ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -324,7 +330,7 @@ export const TaskEditPage = () => {
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={updateTask.isPending || isReadOnly}>
-                {updateTask.isPending ? 'Saving…' : 'Save task'}
+                {updateTask.isPending ? "Saving…" : "Save task"}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate(projectLink)}>
                 Cancel
@@ -334,13 +340,13 @@ export const TaskEditPage = () => {
                   type="button"
                   variant="destructive"
                   onClick={() => {
-                    if (window.confirm('Delete this task? This cannot be undone.')) {
+                    if (window.confirm("Delete this task? This cannot be undone.")) {
                       deleteTask.mutate();
                     }
                   }}
                   disabled={deleteTask.isPending}
                 >
-                  {deleteTask.isPending ? 'Deleting…' : 'Delete task'}
+                  {deleteTask.isPending ? "Deleting…" : "Delete task"}
                 </Button>
               ) : null}
             </div>

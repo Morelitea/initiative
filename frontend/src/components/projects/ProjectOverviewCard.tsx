@@ -33,15 +33,10 @@ export const ProjectOverviewCard = ({
     <div className="space-y-4 rounded-2xl border bg-card/90 p-6 shadow-sm" style={detailCardStyle}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-3">
-          {project.icon ? (
-            <span className="text-4xl leading-none">{project.icon}</span>
-          ) : null}
+          {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
           <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
         </div>
-        <FavoriteProjectButton
-          projectId={project.id}
-          isFavorited={project.is_favorited ?? false}
-        />
+        <FavoriteProjectButton projectId={project.id} isFavorited={project.is_favorited ?? false} />
         <Badge variant={projectIsArchived ? "destructive" : "secondary"}>
           {projectIsArchived ? "Archived" : "Active"}
         </Badge>

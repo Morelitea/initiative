@@ -17,13 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  GripVertical,
-  LayoutGrid,
-  ScrollText,
-  Archive,
-  List,
-} from "lucide-react";
+import { GripVertical, LayoutGrid, ScrollText, Archive, List } from "lucide-react";
 
 import { apiClient } from "../api/client";
 import { Markdown } from "../components/Markdown";
@@ -46,21 +40,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { EmojiPicker } from "../components/EmojiPicker";
 import { Switch } from "../components/ui/switch";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
-import {
-  InitiativeColorDot,
-  resolveInitiativeColor,
-} from "../lib/initiativeColors";
+import { InitiativeColorDot, resolveInitiativeColor } from "../lib/initiativeColors";
 import { Project, ProjectReorderPayload, Initiative } from "../types/api";
 
 const NO_INITIATIVE_VALUE = "none";
@@ -73,15 +59,13 @@ const PROJECT_VIEW_KEY = "project:list:view-mode";
 
 export const ProjectsPage = () => {
   const { user } = useAuth();
-  const canManageProjects =
-    user?.role === "admin" || user?.role === "project_manager";
+  const canManageProjects = user?.role === "admin" || user?.role === "project_manager";
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
   const [initiativeId, setInitiativeId] = useState<string>(NO_INITIATIVE_VALUE);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] =
-    useState<string>(NO_TEMPLATE_VALUE);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
     if (typeof window === "undefined") {
@@ -120,9 +104,7 @@ export const ProjectsPage = () => {
     },
   });
 
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    INITIATIVE_FILTER_ALL
-  );
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const unarchiveProject = useMutation({
     mutationFn: async (projectId: number) => {
@@ -143,9 +125,7 @@ export const ProjectsPage = () => {
     const stored = localStorage.getItem(PROJECT_VIEW_KEY);
     return stored === "list" || stored === "grid" ? stored : "grid";
   });
-  const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">(
-    "active"
-  );
+  const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: ["projects"],
@@ -254,9 +234,7 @@ export const ProjectsPage = () => {
     if (!Number.isFinite(templateId)) {
       return;
     }
-    const template = templatesQuery.data?.find(
-      (item) => item.id === templateId
-    );
+    const template = templatesQuery.data?.find((item) => item.id === templateId);
     if (!template) {
       return;
     }
@@ -286,10 +264,7 @@ export const ProjectsPage = () => {
     createProject.mutate();
   };
 
-  const projects = useMemo(
-    () => projectsQuery.data ?? [],
-    [projectsQuery.data]
-  );
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
   const availableInitiatives = useMemo(() => {
     const map = new Map<number, Initiative>();
@@ -298,30 +273,22 @@ export const ProjectsPage = () => {
         map.set(project.initiative.id, project.initiative);
       }
     });
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [projects]);
 
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return projects.filter((project) => {
-      const matchesSearch = !query
-        ? true
-        : project.name.toLowerCase().includes(query);
-      const projectInitiativeId =
-        project.initiative?.id ?? project.initiative_id ?? null;
+      const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
+      const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
       const matchesInitiative =
         initiativeFilter === INITIATIVE_FILTER_ALL ||
         (initiativeFilter === INITIATIVE_FILTER_UNASSIGNED &&
-          (projectInitiativeId === null ||
-            projectInitiativeId === undefined)) ||
+          (projectInitiativeId === null || projectInitiativeId === undefined)) ||
         (projectInitiativeId !== null &&
           projectInitiativeId !== undefined &&
           initiativeFilter === projectInitiativeId.toString());
-      const matchesFavorites = !favoritesOnly
-        ? true
-        : Boolean(project.is_favorited);
+      const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
       return matchesSearch && matchesInitiative && matchesFavorites;
     });
   }, [projects, searchQuery, initiativeFilter, favoritesOnly]);
@@ -331,27 +298,15 @@ export const ProjectsPage = () => {
     if (sortMode === "alphabetical") {
       next.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortMode === "created") {
-      next.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     } else if (sortMode === "updated") {
-      next.sort(
-        (a, b) =>
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
+      next.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
     } else if (sortMode === "recently_viewed") {
       next.sort((a, b) => {
-        const aViewed = a.last_viewed_at
-          ? new Date(a.last_viewed_at).getTime()
-          : 0;
-        const bViewed = b.last_viewed_at
-          ? new Date(b.last_viewed_at).getTime()
-          : 0;
+        const aViewed = a.last_viewed_at ? new Date(a.last_viewed_at).getTime() : 0;
+        const bViewed = b.last_viewed_at ? new Date(b.last_viewed_at).getTime() : 0;
         if (aViewed === bViewed) {
-          return (
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-          );
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
         }
         return bViewed - aViewed;
       });
@@ -359,12 +314,8 @@ export const ProjectsPage = () => {
       const orderMap = new Map<number, number>();
       customOrder.forEach((id, index) => orderMap.set(id, index));
       next.sort((a, b) => {
-        const aIndex = orderMap.has(a.id)
-          ? orderMap.get(a.id)!
-          : Number.MAX_SAFE_INTEGER;
-        const bIndex = orderMap.has(b.id)
-          ? orderMap.get(b.id)!
-          : Number.MAX_SAFE_INTEGER;
+        const aIndex = orderMap.has(a.id) ? orderMap.get(a.id)! : Number.MAX_SAFE_INTEGER;
+        const bIndex = orderMap.has(b.id) ? orderMap.get(b.id)! : Number.MAX_SAFE_INTEGER;
         return aIndex - bIndex;
       });
     }
@@ -460,37 +411,25 @@ export const ProjectsPage = () => {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
         <p className="text-muted-foreground">
-          Track initiatives, collaborate with your organization, and move work
-          forward.
+          Track initiatives, collaborate with your organization, and move work forward.
         </p>
       </div>
 
       <Tabs
         value={tabValue}
-        onValueChange={(value) =>
-          setTabValue(value as "active" | "templates" | "archive")
-        }
+        onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
         className="space-y-6"
       >
         <TabsList>
-          <TabsTrigger
-            value="active"
-            className="inline-flex items-center gap-2"
-          >
+          <TabsTrigger value="active" className="inline-flex items-center gap-2">
             <LayoutGrid className="h-4 w-4" />
             Active Projects
           </TabsTrigger>
-          <TabsTrigger
-            value="templates"
-            className="inline-flex items-center gap-2"
-          >
+          <TabsTrigger value="templates" className="inline-flex items-center gap-2">
             <ScrollText className="h-4 w-4" />
             Templates
           </TabsTrigger>
-          <TabsTrigger
-            value="archive"
-            className="inline-flex items-center gap-2"
-          >
+          <TabsTrigger value="archive" className="inline-flex items-center gap-2">
             <Archive className="h-4 w-4" />
             Archive
           </TabsTrigger>
@@ -504,17 +443,11 @@ export const ProjectsPage = () => {
               className="w-auto"
             >
               <TabsList className="grid grid-cols-2">
-                <TabsTrigger
-                  value="grid"
-                  className="inline-flex items-center gap-2"
-                >
+                <TabsTrigger value="grid" className="inline-flex items-center gap-2">
                   <LayoutGrid className="h-4 w-4" />
                   Grid
                 </TabsTrigger>
-                <TabsTrigger
-                  value="list"
-                  className="inline-flex items-center gap-2"
-                >
+                <TabsTrigger value="list" className="inline-flex items-center gap-2">
                   <List className="h-4 w-4" />
                   List
                 </TabsTrigger>
@@ -533,28 +466,16 @@ export const ProjectsPage = () => {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="project-initiative-filter">
-                  Filter by initiative
-                </Label>
-                <Select
-                  value={initiativeFilter}
-                  onValueChange={setInitiativeFilter}
-                >
+                <Label htmlFor="project-initiative-filter">Filter by initiative</Label>
+                <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
                   <SelectTrigger id="project-initiative-filter">
                     <SelectValue placeholder="All initiatives" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      All initiatives
-                    </SelectItem>
-                    <SelectItem value={INITIATIVE_FILTER_UNASSIGNED}>
-                      No initiative
-                    </SelectItem>
+                    <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                    <SelectItem value={INITIATIVE_FILTER_UNASSIGNED}>No initiative</SelectItem>
                     {availableInitiatives.map((initiative) => (
-                      <SelectItem
-                        key={initiative.id}
-                        value={initiative.id.toString()}
-                      >
+                      <SelectItem key={initiative.id} value={initiative.id.toString()}>
                         {initiative.name}
                       </SelectItem>
                     ))}
@@ -567,12 +488,7 @@ export const ProjectsPage = () => {
                   value={sortMode}
                   onValueChange={(value) =>
                     setSortMode(
-                      value as
-                        | "custom"
-                        | "updated"
-                        | "created"
-                        | "alphabetical"
-                        | "recently_viewed"
+                      value as "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
                     )
                   }
                 >
@@ -581,9 +497,7 @@ export const ProjectsPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="custom">Custom (drag & drop)</SelectItem>
-                    <SelectItem value="recently_viewed">
-                      Recently opened
-                    </SelectItem>
+                    <SelectItem value="recently_viewed">Recently opened</SelectItem>
                     <SelectItem value="updated">Recently updated</SelectItem>
                     <SelectItem value="created">Recently created</SelectItem>
                     <SelectItem value="alphabetical">Alphabetical</SelectItem>
@@ -596,14 +510,10 @@ export const ProjectsPage = () => {
                   <Switch
                     id="favorites-only"
                     checked={favoritesOnly}
-                    onCheckedChange={(checked) =>
-                      setFavoritesOnly(Boolean(checked))
-                    }
+                    onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
                     aria-label="Filter to favorite projects"
                   />
-                  <span className="text-sm text-muted-foreground">
-                    Show only favorites
-                  </span>
+                  <span className="text-sm text-muted-foreground">Show only favorites</span>
                 </div>
               </div>
             </div>
@@ -624,9 +534,7 @@ export const ProjectsPage = () => {
           {templatesQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading templates…</p>
           ) : templatesQuery.isError ? (
-            <p className="text-sm text-destructive">
-              Unable to load templates.
-            </p>
+            <p className="text-sm text-destructive">Unable to load templates.</p>
           ) : templatesQuery.data?.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {templatesQuery.data.map((template) => (
@@ -634,20 +542,12 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle className="text-xl">{template.name}</CardTitle>
                     {template.description ? (
-                      <Markdown
-                        content={template.description}
-                        className="text-sm"
-                      />
+                      <Markdown content={template.description} className="text-sm" />
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    {template.initiative ? (
-                      <p>Initiative: {template.initiative.name}</p>
-                    ) : null}
-                    <p>
-                      Last updated:{" "}
-                      {new Date(template.updated_at).toLocaleString()}
-                    </p>
+                    {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
+                    <p>Last updated: {new Date(template.updated_at).toLocaleString()}</p>
                   </CardContent>
                   <CardFooter className="flex flex-wrap gap-3">
                     <Button asChild variant="link" className="px-0">
@@ -681,13 +581,9 @@ export const ProjectsPage = () => {
 
         <TabsContent value="archive">
           {archivedQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">
-              Loading archived projects…
-            </p>
+            <p className="text-sm text-muted-foreground">Loading archived projects…</p>
           ) : archivedQuery.isError ? (
-            <p className="text-sm text-destructive">
-              Unable to load archived projects.
-            </p>
+            <p className="text-sm text-destructive">Unable to load archived projects.</p>
           ) : archivedQuery.data?.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {archivedQuery.data.map((archived) => (
@@ -695,16 +591,11 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle className="text-xl">{archived.name}</CardTitle>
                     {archived.description ? (
-                      <Markdown
-                        content={archived.description}
-                        className="text-sm"
-                      />
+                      <Markdown content={archived.description} className="text-sm" />
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
-                    {archived.initiative ? (
-                      <p>Initiative: {archived.initiative.name}</p>
-                    ) : null}
+                    {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
                     <p>
                       Archived at:{" "}
                       {archived.archived_at
@@ -734,9 +625,7 @@ export const ProjectsPage = () => {
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle>No archived projects</CardTitle>
-                <CardDescription>
-                  Active projects stay on the Active tab.
-                </CardDescription>
+                <CardDescription>Active projects stay on the Active tab.</CardDescription>
               </CardHeader>
             </Card>
           )}
@@ -763,8 +652,7 @@ export const ProjectsPage = () => {
                   <CardHeader>
                     <CardTitle>Create project</CardTitle>
                     <CardDescription>
-                      Give the project a name, optional description, and owning
-                      initiative.
+                      Give the project a name, optional description, and owning initiative.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -787,9 +675,7 @@ export const ProjectsPage = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="project-description">
-                        Description (Markdown supported)
-                      </Label>
+                      <Label htmlFor="project-description">Description (Markdown supported)</Label>
                       <Textarea
                         id="project-description"
                         placeholder="Share context to help the initiative prioritize."
@@ -802,30 +688,18 @@ export const ProjectsPage = () => {
                       <div className="space-y-2">
                         <Label>Initiative (optional)</Label>
                         {initiativesQuery.isLoading ? (
-                          <p className="text-sm text-muted-foreground">
-                            Loading initiatives…
-                          </p>
+                          <p className="text-sm text-muted-foreground">Loading initiatives…</p>
                         ) : initiativesQuery.isError ? (
-                          <p className="text-sm text-destructive">
-                            Unable to load initiatives.
-                          </p>
+                          <p className="text-sm text-destructive">Unable to load initiatives.</p>
                         ) : (
-                          <Select
-                            value={initiativeId}
-                            onValueChange={setInitiativeId}
-                          >
+                          <Select value={initiativeId} onValueChange={setInitiativeId}>
                             <SelectTrigger>
                               <SelectValue placeholder="No initiative" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={NO_INITIATIVE_VALUE}>
-                                No initiative
-                              </SelectItem>
+                              <SelectItem value={NO_INITIATIVE_VALUE}>No initiative</SelectItem>
                               {initiativesQuery.data?.map((initiative) => (
-                                <SelectItem
-                                  key={initiative.id}
-                                  value={String(initiative.id)}
-                                >
+                                <SelectItem key={initiative.id} value={String(initiative.id)}>
                                   {initiative.name}
                                 </SelectItem>
                               ))}
@@ -835,17 +709,11 @@ export const ProjectsPage = () => {
                       </div>
                     ) : null}
                     <div className="space-y-2">
-                      <Label htmlFor="project-template">
-                        Template (optional)
-                      </Label>
+                      <Label htmlFor="project-template">Template (optional)</Label>
                       {templatesQuery.isLoading ? (
-                        <p className="text-sm text-muted-foreground">
-                          Loading templates…
-                        </p>
+                        <p className="text-sm text-muted-foreground">Loading templates…</p>
                       ) : templatesQuery.isError ? (
-                        <p className="text-sm text-destructive">
-                          Unable to load templates.
-                        </p>
+                        <p className="text-sm text-destructive">Unable to load templates.</p>
                       ) : (
                         <Select
                           value={selectedTemplateId}
@@ -856,14 +724,9 @@ export const ProjectsPage = () => {
                             <SelectValue placeholder="No template" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={NO_TEMPLATE_VALUE}>
-                              No template
-                            </SelectItem>
+                            <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
                             {templatesQuery.data?.map((template) => (
-                              <SelectItem
-                                key={template.id}
-                                value={String(template.id)}
-                              >
+                              <SelectItem key={template.id} value={String(template.id)}>
                                 {template.name}
                               </SelectItem>
                             ))}
@@ -872,22 +735,18 @@ export const ProjectsPage = () => {
                       )}
                       {isTemplateProject ? (
                         <p className="text-xs text-muted-foreground">
-                          Disable &ldquo;Save as template&rdquo; to pick a
-                          template.
+                          Disable &ldquo;Save as template&rdquo; to pick a template.
                         </p>
                       ) : null}
                     </div>
                     <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
                       <div>
-                        <Label
-                          htmlFor="create-as-template"
-                          className="text-base"
-                        >
+                        <Label htmlFor="create-as-template" className="text-base">
                           Save as template
                         </Label>
                         <p className="text-xs text-muted-foreground">
-                          Template projects live under the Templates tab and can
-                          be reused to spin up new work.
+                          Template projects live under the Templates tab and can be reused to spin
+                          up new work.
                         </p>
                       </div>
                       <Switch
@@ -904,9 +763,7 @@ export const ProjectsPage = () => {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button type="submit" disabled={createProject.isPending}>
-                        {createProject.isPending
-                          ? "Creating…"
-                          : "Create project"}
+                        {createProject.isPending ? "Creating…" : "Create project"}
                       </Button>
                       <Button
                         type="button"
@@ -917,9 +774,7 @@ export const ProjectsPage = () => {
                         Cancel
                       </Button>
                       {createProject.isError ? (
-                        <p className="text-sm text-destructive">
-                          Unable to create project.
-                        </p>
+                        <p className="text-sm text-destructive">Unable to create project.</p>
                       ) : null}
                     </div>
                   </CardContent>
@@ -941,9 +796,7 @@ const ProjectCardLink = ({
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
 }) => {
   const initiative = project.initiative;
-  const initiativeColor = initiative
-    ? resolveInitiativeColor(initiative.color)
-    : null;
+  const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
 
   return (
     <div className="relative">
@@ -975,18 +828,13 @@ const ProjectCardLink = ({
           ) : null}
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              {project.icon ? (
-                <span className="text-2xl leading-none">{project.icon}</span>
-              ) : null}
+              {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <InitiativeLabel initiative={initiative} />
-            <p>
-              Updated{" "}
-              {new Date(project.updated_at).toLocaleDateString(undefined)}
-            </p>
+            <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
           </CardContent>
         </Card>
       </Link>
@@ -995,14 +843,7 @@ const ProjectCardLink = ({
 };
 
 const SortableProjectCardLink = ({ project }: { project: Project }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
   const style = {
@@ -1018,11 +859,7 @@ const SortableProjectCardLink = ({ project }: { project: Project }) => {
     },
   };
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={isDragging ? "opacity-70" : undefined}
-    >
+    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
       <ProjectCardLink project={project} dragHandleProps={dragHandleProps} />
     </div>
   );
@@ -1060,28 +897,15 @@ const ProjectRowLink = ({
       </div>
       <Link to={`/projects/${project.id}`} className="block">
         <Card
-          className={`shadow-sm p-4 pr-16 ${
-            initiativeColor ? "border-l-4" : ""
-          }`}
-          style={
-            initiativeColor ? { borderLeftColor: initiativeColor } : undefined
-          }
+          className={`shadow-sm p-4 pr-16 ${initiativeColor ? "border-l-4" : ""}`}
+          style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
         >
-          <div
-            className={`flex flex-wrap items-center gap-4 ${
-              dragHandleProps ? "pl-10" : ""
-            }`}
-          >
-            {project.icon ? (
-              <span className="text-2xl leading-none">{project.icon}</span>
-            ) : null}
+          <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
+            {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
             <div className="flex-1 min-w-[200px]">
               <p className="font-semibold">{project.name}</p>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                <p>
-                  Updated{" "}
-                  {new Date(project.updated_at).toLocaleDateString(undefined)}
-                </p>
+                <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
                 <InitiativeLabel initiative={project.initiative} />
               </div>
             </div>
@@ -1093,14 +917,7 @@ const ProjectRowLink = ({
 };
 
 const SortableProjectRowLink = ({ project }: { project: Project }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
   const style = {
@@ -1116,21 +933,13 @@ const SortableProjectRowLink = ({ project }: { project: Project }) => {
     },
   };
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={isDragging ? "opacity-70" : undefined}
-    >
+    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
       <ProjectRowLink project={project} dragHandleProps={dragHandleProps} />
     </div>
   );
 };
 
-const InitiativeLabel = ({
-  initiative,
-}: {
-  initiative?: Initiative | null;
-}) => {
+const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => {
   if (!initiative) {
     return null;
   }

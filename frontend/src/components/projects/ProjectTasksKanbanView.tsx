@@ -66,9 +66,7 @@ export const ProjectTasksKanbanView = ({
       </div>
     </div>
     <DragOverlay>
-      {activeTask ? (
-        <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} />
-      ) : null}
+      {activeTask ? <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} /> : null}
     </DragOverlay>
   </DndContext>
 );
@@ -90,10 +88,8 @@ const TaskDragOverlay = ({
     <div className="text-xs text-muted-foreground space-y-1">
       {task.assignees.length > 0 ? (
         <p>
-          Assigned: {" "}
-          {task.assignees
-            .map((assignee) => assignee.full_name ?? assignee.email)
-            .join(", ")}
+          Assigned:{" "}
+          {task.assignees.map((assignee) => assignee.full_name ?? assignee.email).join(", ")}
         </p>
       ) : null}
       {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}

@@ -1,50 +1,56 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { Badge } from '../components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { useAuth } from '../hooks/useAuth';
-import { queryClient } from '../lib/queryClient';
-import type { Project, Task, TaskPriority, TaskStatus } from '../types/api';
+import { apiClient } from "../api/client";
+import { Badge } from "../components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Label } from "../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { useAuth } from "../hooks/useAuth";
+import { queryClient } from "../lib/queryClient";
+import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
 
-const statusOptions: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'done'];
-const priorityOrder: TaskPriority[] = ['low', 'medium', 'high', 'urgent'];
+const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
+const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 export const MyTasksPage = () => {
   const { user } = useAuth();
 
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ['tasks', 'all'],
+    queryKey: ["tasks", "all"],
     queryFn: async () => {
-      const response = await apiClient.get<Task[]>('/tasks/');
+      const response = await apiClient.get<Task[]>("/tasks/");
       return response.data;
     },
   });
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ['projects'],
+    queryKey: ["projects"],
     queryFn: async () => {
-      const response = await apiClient.get<Project[]>('/projects/');
+      const response = await apiClient.get<Project[]>("/projects/");
       return response.data;
     },
   });
 
   const templatesQuery = useQuery<Project[]>({
-    queryKey: ['projects', 'templates'],
+    queryKey: ["projects", "templates"],
     queryFn: async () => {
-      const response = await apiClient.get<Project[]>('/projects/', { params: { template: true } });
+      const response = await apiClient.get<Project[]>("/projects/", { params: { template: true } });
       return response.data;
     },
   });
 
   const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ['projects', 'archived'],
+    queryKey: ["projects", "archived"],
     queryFn: async () => {
-      const response = await apiClient.get<Project[]>('/projects/', { params: { archived: true } });
+      const response = await apiClient.get<Project[]>("/projects/", { params: { archived: true } });
       return response.data;
     },
   });
@@ -55,7 +61,7 @@ export const MyTasksPage = () => {
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task[] | undefined>(['tasks', 'all'], (prev) => {
+      queryClient.setQueryData<Task[] | undefined>(["tasks", "all"], (prev) => {
         if (!prev) {
           return prev;
         }
@@ -64,9 +70,9 @@ export const MyTasksPage = () => {
     },
   });
 
-  const [statusFilter, setStatusFilter] = useState<'all' | 'incomplete' | TaskStatus>('incomplete');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all');
-  const [sortMode, setSortMode] = useState<'due' | 'priority' | 'alphabetical'>('due');
+  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatus>("incomplete");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
+  const [sortMode, setSortMode] = useState<"due" | "priority" | "alphabetical">("due");
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -102,15 +108,15 @@ export const MyTasksPage = () => {
 
   const filteredTasks = useMemo(() => {
     return myTasks.filter((task) => {
-      if (statusFilter === 'incomplete') {
-        if (task.status === 'done') {
+      if (statusFilter === "incomplete") {
+        if (task.status === "done") {
           return false;
         }
-      } else if (statusFilter !== 'all' && task.status !== statusFilter) {
+      } else if (statusFilter !== "all" && task.status !== statusFilter) {
         return false;
       }
 
-      if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
+      if (priorityFilter !== "all" && task.priority !== priorityFilter) {
         return false;
       }
       return true;
@@ -119,13 +125,13 @@ export const MyTasksPage = () => {
 
   const sortedTasks = useMemo(() => {
     const next = [...filteredTasks];
-    if (sortMode === 'due') {
+    if (sortMode === "due") {
       next.sort((a, b) => {
         if (!a.due_date) return 1;
         if (!b.due_date) return -1;
         return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
       });
-    } else if (sortMode === 'priority') {
+    } else if (sortMode === "priority") {
       const order = new Map(priorityOrder.map((value, index) => [value, index]));
       next.sort((a, b) => {
         const aRank = order.get(a.priority) ?? 0;
@@ -147,7 +153,12 @@ export const MyTasksPage = () => {
     return <p className="text-sm text-muted-foreground">Loading your tasks…</p>;
   }
 
-  if (tasksQuery.isError || projectsQuery.isError || templatesQuery.isError || archivedProjectsQuery.isError) {
+  if (
+    tasksQuery.isError ||
+    projectsQuery.isError ||
+    templatesQuery.isError ||
+    archivedProjectsQuery.isError
+  ) {
     return <p className="text-sm text-destructive">Unable to load your tasks.</p>;
   }
 
@@ -166,7 +177,10 @@ export const MyTasksPage = () => {
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1">
             <Label htmlFor="task-status-filter">Status</Label>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
+            >
               <SelectTrigger id="task-status-filter">
                 <SelectValue />
               </SelectTrigger>
@@ -175,7 +189,7 @@ export const MyTasksPage = () => {
                 <SelectItem value="all">All statuses</SelectItem>
                 {statusOptions.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status.replace('_', ' ')}
+                    {status.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -183,7 +197,10 @@ export const MyTasksPage = () => {
           </div>
           <div className="space-y-1">
             <Label htmlFor="task-priority-filter">Priority</Label>
-            <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}>
+            <Select
+              value={priorityFilter}
+              onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}
+            >
               <SelectTrigger id="task-priority-filter">
                 <SelectValue />
               </SelectTrigger>
@@ -191,7 +208,7 @@ export const MyTasksPage = () => {
                 <SelectItem value="all">All priorities</SelectItem>
                 {priorityOrder.map((priority) => (
                   <SelectItem key={priority} value={priority}>
-                    {priority.replace('_', ' ')}
+                    {priority.replace("_", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -199,7 +216,10 @@ export const MyTasksPage = () => {
           </div>
           <div className="space-y-1">
             <Label htmlFor="task-sort">Sort</Label>
-            <Select value={sortMode} onValueChange={(value) => setSortMode(value as typeof sortMode)}>
+            <Select
+              value={sortMode}
+              onValueChange={(value) => setSortMode(value as typeof sortMode)}
+            >
               <SelectTrigger id="task-sort">
                 <SelectValue />
               </SelectTrigger>
@@ -246,13 +266,18 @@ export const MyTasksPage = () => {
                             {task.title}
                           </Link>
                           {task.description ? (
-                            <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {task.description}
+                            </p>
                           ) : null}
                         </div>
                       </td>
                       <td className="py-3">
                         {project ? (
-                          <Link to={`/projects/${project.id}`} className="text-primary hover:underline">
+                          <Link
+                            to={`/projects/${project.id}`}
+                            className="text-primary hover:underline"
+                          >
                             {project.name}
                           </Link>
                         ) : (
@@ -260,15 +285,22 @@ export const MyTasksPage = () => {
                         )}
                       </td>
                       <td className="py-3">
-                        <Badge variant="secondary">{task.priority.replace('_', ' ')}</Badge>
+                        <Badge variant="secondary">{task.priority.replace("_", " ")}</Badge>
                       </td>
                       <td className="py-3">
-                        {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}
+                        {task.due_date
+                          ? new Date(task.due_date).toLocaleDateString()
+                          : "No due date"}
                       </td>
                       <td className="py-3">
                         <Select
                           value={task.status}
-                          onValueChange={(value) => updateTaskStatus.mutate({ taskId: task.id, status: value as TaskStatus })}
+                          onValueChange={(value) =>
+                            updateTaskStatus.mutate({
+                              taskId: task.id,
+                              status: value as TaskStatus,
+                            })
+                          }
                           disabled={updateTaskStatus.isPending}
                         >
                           <SelectTrigger className="w-[160px]">
@@ -277,7 +309,7 @@ export const MyTasksPage = () => {
                           <SelectContent>
                             {statusOptions.map((status) => (
                               <SelectItem key={status} value={status}>
-                                {status.replace('_', ' ')}
+                                {status.replace("_", " ")}
                               </SelectItem>
                             ))}
                           </SelectContent>

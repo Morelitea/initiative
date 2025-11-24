@@ -57,8 +57,13 @@
   }
 
   body {
-    font-family: "Outfit", system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", sans-serif;
+    font-family:
+      "Outfit",
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
     @apply bg-background text-foreground min-h-screen antialiased;
   }
 

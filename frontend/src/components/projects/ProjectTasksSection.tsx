@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   DragEndEvent,
@@ -29,26 +23,12 @@ import {
 } from "../../types/api";
 import { ProjectTaskComposer } from "./ProjectTaskComposer";
 import { ProjectTasksFilters } from "./ProjectTasksFilters";
-import {
-  priorityVariant,
-  type DueFilterOption,
-  type UserOption,
-} from "./projectTasksConfig";
+import { priorityVariant, type DueFilterOption, type UserOption } from "./projectTasksConfig";
 import { ProjectTasksKanbanView } from "./ProjectTasksKanbanView";
 import { ProjectTasksListView } from "./ProjectTasksListView";
 import { Button } from "../ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 type StoredFilters = {
   viewMode: "kanban" | "list";
   assigneeFilter: string;
@@ -83,9 +63,9 @@ export const ProjectTasksSection = ({
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
-  const [listStatusFilter, setListStatusFilter] = useState<
-    "all" | "incomplete" | TaskStatus
-  >("all");
+  const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
+    "all"
+  );
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
@@ -140,14 +120,7 @@ export const ProjectTasksSection = ({
       listStatusFilter,
     };
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
-  }, [
-    filterStorageKey,
-    filtersLoaded,
-    viewMode,
-    assigneeFilter,
-    dueFilter,
-    listStatusFilter,
-  ]);
+  }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilter, dueFilter, listStatusFilter]);
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -178,13 +151,7 @@ export const ProjectTasksSection = ({
   });
 
   const updateTaskStatus = useMutation({
-    mutationFn: async ({
-      taskId,
-      status,
-    }: {
-      taskId: number;
-      status: TaskStatus;
-    }) => {
+    mutationFn: async ({ taskId, status }: { taskId: number; status: TaskStatus }) => {
       const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
         status,
       });
@@ -195,12 +162,8 @@ export const ProjectTasksSection = ({
         if (!prev.length) {
           return prev;
         }
-        const next = prev.map((task) =>
-          task.id === updatedTask.id ? updatedTask : task
-        );
-        return [...next].sort(
-          (a, b) => a.sort_order - b.sort_order || a.id - b.id
-        );
+        const next = prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+        return [...next].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
       });
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
@@ -209,27 +172,25 @@ export const ProjectTasksSection = ({
     },
   });
 
-  const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } =
-    useMutation({
-      mutationFn: async (payload: TaskReorderPayload) => {
-        const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
-        return response.data;
-      },
-      onSuccess: (data) => {
-        setOrderedTasks(data);
-        void queryClient.invalidateQueries({
-          queryKey: ["tasks", projectId],
-        });
-      },
-    });
+  const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
+    mutationFn: async (payload: TaskReorderPayload) => {
+      const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setOrderedTasks(data);
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", projectId],
+      });
+    },
+  });
 
   const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
   const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
 
   const fetchedTasks = useMemo(() => projectTasks ?? [], [projectTasks]);
   const tasks = orderedTasks.length > 0 ? orderedTasks : fetchedTasks;
-  const activeTask =
-    orderedTasks.find((task) => task.id === activeTaskId) ?? null;
+  const activeTask = orderedTasks.find((task) => task.id === activeTaskId) ?? null;
 
   const filteredTasks = useMemo(() => {
     if (assigneeFilter === "all" && dueFilter === "all") {
@@ -459,9 +420,7 @@ export const ProjectTasksSection = ({
       return;
     }
 
-    const overData = finalOver.data.current as
-      | { type?: string; status?: TaskStatus }
-      | undefined;
+    const overData = finalOver.data.current as { type?: string; status?: TaskStatus } | undefined;
     let targetStatus = currentTask.status;
     let overTaskId: number | null = null;
 
@@ -500,11 +459,7 @@ export const ProjectTasksSection = ({
     }
     const activeId = Number(active.id);
     const overId = Number(over.id);
-    if (
-      !Number.isFinite(activeId) ||
-      !Number.isFinite(overId) ||
-      activeId === overId
-    ) {
+    if (!Number.isFinite(activeId) || !Number.isFinite(overId) || activeId === overId) {
       return;
     }
     reorderListTasks(activeId, overId);

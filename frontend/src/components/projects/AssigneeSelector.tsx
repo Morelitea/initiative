@@ -53,7 +53,13 @@ export const AssigneeSelector = ({
         )}
       </div>
       {selectedIds.length > 0 ? (
-        <Button type="button" variant="ghost" size="sm" onClick={() => onChange([])} disabled={disabled}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onChange([])}
+          disabled={disabled}
+        >
           Clear assignees
         </Button>
       ) : null}

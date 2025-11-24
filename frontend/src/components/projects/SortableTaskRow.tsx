@@ -3,13 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
 import { Badge } from "../ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
 import { truncateText } from "../../lib/text";
 import { Checkbox } from "../ui/checkbox";
@@ -19,10 +13,7 @@ interface SortableTaskRowProps {
   dragDisabled: boolean;
   statusDisabled: boolean;
   statusOrder: TaskStatus[];
-  priorityVariant: Record<
-    TaskPriority,
-    "default" | "secondary" | "destructive"
-  >;
+  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onStatusChange: (taskId: number, status: TaskStatus) => void;
   onTaskClick: (taskId: number) => void;
   canOpenTask: boolean;
@@ -38,14 +29,7 @@ export const SortableTaskRow = ({
   onTaskClick,
   canOpenTask,
 }: SortableTaskRowProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "list-task" },
     disabled: dragDisabled,
@@ -68,11 +52,7 @@ export const SortableTaskRow = ({
   };
 
   return (
-    <tr
-      ref={setNodeRef}
-      style={style}
-      className={isDragging ? "bg-muted/60" : undefined}
-    >
+    <tr ref={setNodeRef} style={style} className={isDragging ? "bg-muted/60" : undefined}>
       <td className="py-3 pl-3 pr-2">
         <Checkbox
           checked={isDone}
@@ -105,9 +85,7 @@ export const SortableTaskRow = ({
           >
             <p className="font-medium">{task.title}</p>
             {task.description ? (
-              <p className="text-sm text-muted-foreground">
-                {truncateText(task.description, 100)}
-              </p>
+              <p className="text-sm text-muted-foreground">{truncateText(task.description, 100)}</p>
             ) : null}
             <div className="text-xs text-muted-foreground">
               {task.assignees.length > 0 ? (
@@ -118,17 +96,13 @@ export const SortableTaskRow = ({
                     .join(", ")}
                 </p>
               ) : null}
-              {task.due_date ? (
-                <p>Due: {new Date(task.due_date).toLocaleString()}</p>
-              ) : null}
+              {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
             </div>
           </button>
         </div>
       </td>
       <td className="py-3 align-top">
-        <Badge variant={priorityVariant[task.priority]}>
-          {task.priority.replace("_", " ")}
-        </Badge>
+        <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
       </td>
       <td className="py-3 align-top">
         <Select

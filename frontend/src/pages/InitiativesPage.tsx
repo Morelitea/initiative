@@ -1,27 +1,33 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { FormEvent, useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { Markdown } from '../components/Markdown';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { useAuth } from '../hooks/useAuth';
-import { queryClient } from '../lib/queryClient';
-import { Initiative, User } from '../types/api';
+import { apiClient } from "../api/client";
+import { Markdown } from "../components/Markdown";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { useAuth } from "../hooks/useAuth";
+import { queryClient } from "../lib/queryClient";
+import { Initiative, User } from "../types/api";
 
-const INITIATIVES_QUERY_KEY = ['initiatives'];
-const NO_USER_VALUE = 'none';
-const DEFAULT_INITIATIVE_COLOR = '#6366F1';
+const INITIATIVES_QUERY_KEY = ["initiatives"];
+const NO_USER_VALUE = "none";
+const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativesPage = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const [initiativeName, setInitiativeName] = useState('');
-  const [initiativeDescription, setInitiativeDescription] = useState('');
+  const isAdmin = user?.role === "admin";
+  const [initiativeName, setInitiativeName] = useState("");
+  const [initiativeDescription, setInitiativeDescription] = useState("");
   const [initiativeColor, setInitiativeColor] = useState(DEFAULT_INITIATIVE_COLOR);
   const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
 
@@ -29,23 +35,23 @@ export const InitiativesPage = () => {
     queryKey: INITIATIVES_QUERY_KEY,
     enabled: isAdmin,
     queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>('/initiatives/');
+      const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
     },
   });
 
   const usersQuery = useQuery<User[]>({
-    queryKey: ['users'],
+    queryKey: ["users"],
     enabled: isAdmin,
     queryFn: async () => {
-      const response = await apiClient.get<User[]>('/users/');
+      const response = await apiClient.get<User[]>("/users/");
       return response.data;
     },
   });
 
   const createInitiative = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<Initiative>('/initiatives/', {
+      const response = await apiClient.post<Initiative>("/initiatives/", {
         name: initiativeName,
         description: initiativeDescription,
         color: initiativeColor,
@@ -53,8 +59,8 @@ export const InitiativesPage = () => {
       return response.data;
     },
     onSuccess: () => {
-      setInitiativeName('');
-      setInitiativeDescription('');
+      setInitiativeName("");
+      setInitiativeDescription("");
       setInitiativeColor(DEFAULT_INITIATIVE_COLOR);
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
@@ -93,7 +99,9 @@ export const InitiativesPage = () => {
 
   const addInitiativeMember = useMutation({
     mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
-      const response = await apiClient.post<Initiative>(`/initiatives/${initiativeId}/members`, { user_id: userId });
+      const response = await apiClient.post<Initiative>(`/initiatives/${initiativeId}/members`, {
+        user_id: userId,
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -103,7 +111,9 @@ export const InitiativesPage = () => {
 
   const removeInitiativeMember = useMutation({
     mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
-      const response = await apiClient.delete<Initiative>(`/initiatives/${initiativeId}/members/${userId}`);
+      const response = await apiClient.delete<Initiative>(
+        `/initiatives/${initiativeId}/members/${userId}`
+      );
       return response.data;
     },
     onSuccess: () => {
@@ -135,7 +145,7 @@ export const InitiativesPage = () => {
 
   const handleInitiativeFieldUpdate = (
     initiativeId: number,
-    field: 'name' | 'description',
+    field: "name" | "description",
     currentValue: string
   ) => {
     const nextValue = window.prompt(`Update initiative ${field}`, currentValue) ?? undefined;
@@ -153,7 +163,7 @@ export const InitiativesPage = () => {
     const confirmation = window.prompt(
       `Deleting initiative "${name}" will permanently delete all of its projects and tasks.\n\nType "delete" to confirm.`
     );
-    if (!confirmation || confirmation.trim().toLowerCase() !== 'delete') {
+    if (!confirmation || confirmation.trim().toLowerCase() !== "delete") {
       return;
     }
     deleteInitiative.mutate(initiativeId);
@@ -176,26 +186,39 @@ export const InitiativesPage = () => {
   };
 
   if (!isAdmin) {
-    return <p className="text-sm text-muted-foreground">You need admin permissions to manage initiatives.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        You need admin permissions to manage initiatives.
+      </p>
+    );
   }
 
   if (initiativesQuery.isLoading || usersQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading initiatives…</p>;
   }
 
-  if (initiativesQuery.isError || usersQuery.isError || !initiativesQuery.data || !usersQuery.data) {
+  if (
+    initiativesQuery.isError ||
+    usersQuery.isError ||
+    !initiativesQuery.data ||
+    !usersQuery.data
+  ) {
     return <p className="text-sm text-destructive">Unable to load initiatives.</p>;
   }
 
   const availableUsers = (initiative: Initiative) =>
-    usersQuery.data?.filter((candidate) => !initiative.members.some((member) => member.id === candidate.id)) ?? [];
+    usersQuery.data?.filter(
+      (candidate) => !initiative.members.some((member) => member.id === candidate.id)
+    ) ?? [];
 
   return (
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Create initiative</CardTitle>
-          <CardDescription>Organize projects and members under a shared initiative.</CardDescription>
+          <CardDescription>
+            Organize projects and members under a shared initiative.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleCreateInitiative}>
@@ -226,7 +249,7 @@ export const InitiativesPage = () => {
               </p>
             </div>
             <Button type="submit" disabled={createInitiative.isPending}>
-              {createInitiative.isPending ? 'Creating…' : 'Create initiative'}
+              {createInitiative.isPending ? "Creating…" : "Create initiative"}
             </Button>
           </form>
         </CardContent>
@@ -255,7 +278,9 @@ export const InitiativesPage = () => {
                     id={`initiative-color-${initiative.id}`}
                     type="color"
                     value={initiative.color ?? DEFAULT_INITIATIVE_COLOR}
-                    onChange={(event) => handleInitiativeColorChange(initiative.id, event.target.value)}
+                    onChange={(event) =>
+                      handleInitiativeColorChange(initiative.id, event.target.value)
+                    }
                     className="h-8 w-14 cursor-pointer rounded-md border bg-transparent p-1"
                     aria-label={`Color for ${initiative.name}`}
                     disabled={updateInitiative.isPending}
@@ -265,7 +290,9 @@ export const InitiativesPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleInitiativeFieldUpdate(initiative.id, 'name', initiative.name)}
+                    onClick={() =>
+                      handleInitiativeFieldUpdate(initiative.id, "name", initiative.name)
+                    }
                   >
                     Rename
                   </Button>
@@ -273,7 +300,11 @@ export const InitiativesPage = () => {
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      handleInitiativeFieldUpdate(initiative.id, 'description', initiative.description ?? '')
+                      handleInitiativeFieldUpdate(
+                        initiative.id,
+                        "description",
+                        initiative.description ?? ""
+                      )
                     }
                   >
                     Edit description
@@ -315,7 +346,9 @@ export const InitiativesPage = () => {
               <div className="flex items-end gap-2">
                 <Select
                   value={selectedUsers[initiative.id] ?? NO_USER_VALUE}
-                  onValueChange={(value) => setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))}
+                  onValueChange={(value) =>
+                    setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))
+                  }
                 >
                   <SelectTrigger className="w-72">
                     <SelectValue placeholder="Select member" />

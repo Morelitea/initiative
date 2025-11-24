@@ -1,7 +1,7 @@
-import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from "react";
 
-import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from '../api/client';
-import { User } from '../types/api';
+import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "../api/client";
+import { User } from "../types/api";
 
 interface LoginPayload {
   email: string;
@@ -25,7 +25,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const TOKEN_STORAGE_KEY = 'initiative-token';
+const TOKEN_STORAGE_KEY = "initiative-token";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       return;
     }
-    const response = await apiClient.get<User>('/users/me');
+    const response = await apiClient.get<User>("/users/me");
     setUser(response.data);
   }, [token]);
 
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         await refreshUser();
       } catch (error) {
-        console.error('Failed to restore session', error);
+        console.error("Failed to restore session", error);
         setToken(null);
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         setUser(null);
@@ -66,15 +66,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async ({ email, password }: LoginPayload) => {
     const params = new URLSearchParams();
-    params.append('username', email);
-    params.append('password', password);
-    params.append('grant_type', 'password');
-    params.append('scope', '');
-    params.append('client_id', '');
-    params.append('client_secret', '');
+    params.append("username", email);
+    params.append("password", password);
+    params.append("grant_type", "password");
+    params.append("scope", "");
+    params.append("client_id", "");
+    params.append("client_secret", "");
 
-    const response = await apiClient.post<{ access_token: string }>('/auth/token', params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    const response = await apiClient.post<{ access_token: string }>("/auth/token", params, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
     const newToken = response.data.access_token;
     setToken(newToken);
@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const register = async ({ email, password, full_name }: RegisterPayload) => {
-    const response = await apiClient.post<User>('/auth/register', { email, password, full_name });
+    const response = await apiClient.post<User>("/auth/register", { email, password, full_name });
     return response.data;
   };
 
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(accessToken);
     localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
     setAuthToken(accessToken);
-    const me = await apiClient.get<User>('/users/me');
+    const me = await apiClient.get<User>("/users/me");
     setUser(me.data);
   };
 
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return undefined;
     }
     const handleUnauthorized = () => {
@@ -132,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

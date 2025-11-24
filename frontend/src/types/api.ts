@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'project_manager' | 'member';
+export type UserRole = "admin" | "project_manager" | "member";
 
 export interface User {
   id: number;
@@ -14,7 +14,7 @@ export interface User {
   show_project_tabs?: boolean;
 }
 
-export type ProjectRole = 'admin' | 'project_manager' | 'member';
+export type ProjectRole = "admin" | "project_manager" | "member";
 
 export interface ProjectMember {
   user_id: number;
@@ -54,8 +54,8 @@ export interface Project {
   last_viewed_at?: string | null;
 }
 
-export type TaskStatus = 'backlog' | 'in_progress' | 'blocked' | 'done';
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskStatus = "backlog" | "in_progress" | "blocked" | "done";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface Task {
   id: number;

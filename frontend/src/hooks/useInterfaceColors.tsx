@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
+import { apiClient } from "../api/client";
 
 interface InterfaceSettings {
   light_accent_color: string;
@@ -11,12 +11,12 @@ interface InterfaceSettings {
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
 const hexToHsl = (hex: string) => {
-  let normalized = hex.replace('#', '');
+  let normalized = hex.replace("#", "");
   if (normalized.length === 3) {
     normalized = normalized
-      .split('')
+      .split("")
       .map((char) => `${char}${char}`)
-      .join('');
+      .join("");
   }
   const bigint = parseInt(normalized, 16);
   const r = (bigint >> 16) & 255;
@@ -71,17 +71,17 @@ const applyInterfaceColors = (settings: InterfaceSettings) => {
   const light = hexToHsl(settings.light_accent_color);
   const dark = hexToHsl(settings.dark_accent_color);
   const root = document.documentElement;
-  root.style.setProperty('--accent-light-color', hslToString(light));
-  root.style.setProperty('--accent-light-surface', hslToString(lighten(light, 30)));
-  root.style.setProperty('--accent-dark-color', hslToString(dark));
-  root.style.setProperty('--accent-dark-surface', hslToString(darken(dark, 35)));
+  root.style.setProperty("--accent-light-color", hslToString(light));
+  root.style.setProperty("--accent-light-surface", hslToString(lighten(light, 30)));
+  root.style.setProperty("--accent-dark-color", hslToString(dark));
+  root.style.setProperty("--accent-dark-surface", hslToString(darken(dark, 35)));
 };
 
 export const useInterfaceColors = () => {
   const query = useQuery({
-    queryKey: ['interface-settings'],
+    queryKey: ["interface-settings"],
     queryFn: async () => {
-      const response = await apiClient.get<InterfaceSettings>('/settings/interface');
+      const response = await apiClient.get<InterfaceSettings>("/settings/interface");
       return response.data;
     },
     staleTime: 1000 * 60 * 10,

@@ -93,16 +93,17 @@ export const ProjectTaskComposer = ({
                       id="task-description"
                       rows={3}
                       value={description}
-                      onChange={(event) =>
-                        onDescriptionChange(event.target.value)
-                      }
+                      onChange={(event) => onDescriptionChange(event.target.value)}
                       placeholder="Share context, links, or acceptance criteria."
                     />
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="task-priority">Priority</Label>
-                      <Select value={priority} onValueChange={(value) => onPriorityChange(value as TaskPriority)}>
+                      <Select
+                        value={priority}
+                        onValueChange={(value) => onPriorityChange(value as TaskPriority)}
+                      >
                         <SelectTrigger id="task-priority">
                           <SelectValue />
                         </SelectTrigger>
@@ -147,15 +148,11 @@ export const ProjectTaskComposer = ({
                   Cancel
                 </Button>
               ) : null}
-              {hasError ? (
-                <p className="text-sm text-destructive">Unable to create task.</p>
-              ) : null}
+              {hasError ? <p className="text-sm text-destructive">Unable to create task.</p> : null}
             </div>
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            You need write access to create tasks.
-          </p>
+          <p className="text-sm text-muted-foreground">You need write access to create tasks.</p>
         )}
       </CardContent>
     </Card>

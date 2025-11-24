@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { apiClient } from '../api/client';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { queryClient } from '../lib/queryClient';
+import { apiClient } from "../api/client";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { queryClient } from "../lib/queryClient";
 
 interface InterfaceSettings {
   light_accent_color: string;
@@ -16,26 +23,26 @@ interface InterfaceSettings {
 
 export const SettingsInterfacePage = () => {
   const interfaceQuery = useQuery({
-    queryKey: ['interface-settings'],
+    queryKey: ["interface-settings"],
     queryFn: async () => {
-      const response = await apiClient.get<InterfaceSettings>('/settings/interface');
+      const response = await apiClient.get<InterfaceSettings>("/settings/interface");
       return response.data;
     },
   });
 
   const updateInterface = useMutation({
     mutationFn: async (payload: InterfaceSettings) => {
-      const response = await apiClient.put<InterfaceSettings>('/settings/interface', payload);
+      const response = await apiClient.put<InterfaceSettings>("/settings/interface", payload);
       return response.data;
     },
     onSuccess: () => {
-      toast.success('Interface settings updated');
-      void queryClient.invalidateQueries({ queryKey: ['interface-settings'] });
+      toast.success("Interface settings updated");
+      void queryClient.invalidateQueries({ queryKey: ["interface-settings"] });
     },
   });
 
-  const [lightColor, setLightColor] = useState('#2563eb');
-  const [darkColor, setDarkColor] = useState('#60a5fa');
+  const [lightColor, setLightColor] = useState("#2563eb");
+  const [darkColor, setDarkColor] = useState("#60a5fa");
 
   useEffect(() => {
     if (interfaceQuery.data) {
@@ -114,7 +121,7 @@ export const SettingsInterfacePage = () => {
 
           <CardFooter className="col-span-full flex flex-wrap gap-3">
             <Button type="submit" disabled={updateInterface.isPending}>
-              {updateInterface.isPending ? 'Saving…' : 'Save interface settings'}
+              {updateInterface.isPending ? "Saving…" : "Save interface settings"}
             </Button>
           </CardFooter>
         </form>

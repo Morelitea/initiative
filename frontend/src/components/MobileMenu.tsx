@@ -1,12 +1,12 @@
-import { Menu } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Menu } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 
-import { cn } from '../lib/utils';
-import type { User } from '../types/api';
-import { ModeToggle } from './ModeToggle';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { Button } from './ui/button';
+import { cn } from "../lib/utils";
+import type { User } from "../types/api";
+import { ModeToggle } from "./ModeToggle";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Button } from "./ui/button";
 import {
   Sheet,
   SheetContent,
@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from './ui/sheet';
+} from "./ui/sheet";
 
 export interface NavItem {
   label: string;
@@ -32,15 +32,15 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const userDisplayName = user?.full_name ?? user?.email ?? 'Initiative member';
-  const userEmail = user?.email ?? '';
+  const userDisplayName = user?.full_name ?? user?.email ?? "Initiative member";
+  const userEmail = user?.email ?? "";
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || undefined;
   const userInitials =
     userDisplayName
       .split(/\s+/)
       .map((part) => part.charAt(0).toUpperCase())
-      .join('')
-      .slice(0, 2) || 'PP';
+      .join("")
+      .slice(0, 2) || "PP";
 
   useEffect(() => {
     setIsOpen(false);
@@ -66,7 +66,10 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
             <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="flex h-full w-80 max-w-[85vw] flex-col gap-4 border-r bg-card p-6">
+        <SheetContent
+          side="left"
+          className="flex h-full w-80 max-w-[85vw] flex-col gap-4 border-r bg-card p-6"
+        >
           <SheetHeader className="items-start text-left">
             <SheetTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Navigation
@@ -80,7 +83,9 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
                 <AvatarFallback>{userInitials}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-base font-semibold leading-tight text-foreground">{userDisplayName}</p>
+                <p className="text-base font-semibold leading-tight text-foreground">
+                  {userDisplayName}
+                </p>
                 {userEmail ? <p className="text-sm text-muted-foreground">{userEmail}</p> : null}
               </div>
             </div>
@@ -96,8 +101,10 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
                 end={item.end}
                 className={({ isActive }) =>
                   cn(
-                    'rounded-md px-3 py-2 text-base font-medium transition-colors',
-                    isActive ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                    "rounded-md px-3 py-2 text-base font-medium transition-colors",
+                    isActive
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                   )
                 }
                 onClick={() => setIsOpen(false)}
@@ -107,14 +114,14 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
             ))}
           </nav>
           <div className="mt-auto space-y-2 border-t border-border pt-4">
-          <Link
-            to="/profile"
-            onClick={() => setIsOpen(false)}
-            className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
-          >
-            User settings
-          </Link>
-            {user?.role === 'admin' ? (
+            <Link
+              to="/profile"
+              onClick={() => setIsOpen(false)}
+              className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+            >
+              User settings
+            </Link>
+            {user?.role === "admin" ? (
               <Link
                 to="/settings"
                 onClick={() => setIsOpen(false)}

@@ -1,12 +1,5 @@
 import { Suspense, lazy } from "react";
-import {
-  BrowserRouter,
-  Link,
-  NavLink,
-  Route,
-  Routes,
-  useLocation,
-} from "react-router-dom";
+import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ModeToggle } from "./components/ModeToggle";
@@ -176,9 +169,7 @@ const AppLayout = () => {
   };
 
   const activeProjectMatch = location.pathname.match(/^\/projects\/(\d+)/);
-  const activeProjectId = activeProjectMatch
-    ? Number(activeProjectMatch[1])
-    : null;
+  const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -189,11 +180,7 @@ const AppLayout = () => {
             to="/"
             className="flex items-center gap-3 text-lg font-semibold tracking-tight text-primary"
           >
-            <LogoIcon
-              className="h-8 w-8"
-              aria-hidden="true"
-              focusable="false"
-            />
+            <LogoIcon className="h-8 w-8" aria-hidden="true" focusable="false" />
             initiative
           </Link>
           <nav className="hidden items-center gap-4 text-sm font-medium text-muted-foreground md:flex">
@@ -202,9 +189,7 @@ const AppLayout = () => {
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) =>
-                  isActive ? "text-foreground" : undefined
-                }
+                className={({ isActive }) => (isActive ? "text-foreground" : undefined)}
               >
                 {item.label}
               </NavLink>
@@ -220,9 +205,7 @@ const AppLayout = () => {
                     aria-label="Account menu"
                   >
                     <Avatar>
-                      {avatarSrc ? (
-                        <AvatarImage src={avatarSrc} alt={userDisplayName} />
-                      ) : null}
+                      {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
                       <AvatarFallback>{userInitials}</AvatarFallback>
                     </Avatar>
                   </button>
@@ -230,12 +213,8 @@ const AppLayout = () => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {userDisplayName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {userEmail}
-                      </p>
+                      <p className="text-sm font-medium leading-none">{userDisplayName}</p>
+                      <p className="text-xs text-muted-foreground">{userEmail}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -248,9 +227,7 @@ const AppLayout = () => {
                     </DropdownMenuItem>
                   ) : null}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => logout()}>
-                    Sign out
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => logout()}>Sign out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
@@ -278,21 +255,15 @@ const AppLayout = () => {
           <div className="container min-w-0 p-4 md:p-8">
             <Routes>
               <Route path="/" element={<ProjectsPage />} />
-              <Route
-                path="/projects/:projectId"
-                element={<ProjectDetailPage />}
-              />
-              <Route
-                path="/projects/:projectId/settings"
-                element={<ProjectSettingsPage />}
-              />
+              <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+              <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
               <Route path="/tasks/:taskId/edit" element={<TaskEditPage />} />
               <Route path="/tasks" element={<MyTasksPage />} />
               <Route path="/profile" element={<UserSettingsPage />} />
               <Route path="/settings/*" element={<SettingsLayout />}>
                 <Route index element={<SettingsPage />} />
                 <Route path="users" element={<UsersPage />} />
-              <Route path="initiatives" element={<InitiativesPage />} />
+                <Route path="initiatives" element={<InitiativesPage />} />
                 <Route path="auth" element={<SettingsAuthPage />} />
                 <Route path="api-keys" element={<SettingsApiKeysPage />} />
                 <Route path="interface" element={<SettingsInterfacePage />} />
@@ -308,13 +279,7 @@ const AppLayout = () => {
 
 export const App = () => (
   <BrowserRouter>
-    <Suspense
-      fallback={
-        <div className="py-10 text-center text-muted-foreground">
-          Loading...
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="py-10 text-center text-muted-foreground">Loading...</div>}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

@@ -1,34 +1,45 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
-import { apiClient } from '../api/client';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { useAuth } from '../hooks/useAuth';
-import { RegisterPage } from './RegisterPage';
+import { apiClient } from "../api/client";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { useAuth } from "../hooks/useAuth";
+import { RegisterPage } from "./RegisterPage";
 
 export const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [oidcLoginUrl, setOidcLoginUrl] = useState<string | null>(null);
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
-  const [bootstrapStatus, setBootstrapStatus] = useState<'loading' | 'required' | 'ready'>('loading');
+  const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
+    "loading"
+  );
 
   useEffect(() => {
     const fetchOidcStatus = async () => {
       try {
-        const response = await apiClient.get<{ enabled: boolean; login_url?: string; provider_name?: string }>(
-          '/auth/oidc/status'
-        );
+        const response = await apiClient.get<{
+          enabled: boolean;
+          login_url?: string;
+          provider_name?: string;
+        }>("/auth/oidc/status");
         if (response.data.enabled && response.data.login_url) {
           setOidcLoginUrl(response.data.login_url);
-          setOidcProviderName(response.data.provider_name ?? 'Single Sign-On');
+          setOidcProviderName(response.data.provider_name ?? "Single Sign-On");
         } else {
           setOidcLoginUrl(null);
           setOidcProviderName(null);
@@ -44,10 +55,10 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await apiClient.get<{ has_users: boolean }>('/auth/bootstrap');
-        setBootstrapStatus(response.data.has_users ? 'ready' : 'required');
+        const response = await apiClient.get<{ has_users: boolean }>("/auth/bootstrap");
+        setBootstrapStatus(response.data.has_users ? "ready" : "required");
       } catch {
-        setBootstrapStatus('ready');
+        setBootstrapStatus("ready");
       }
     };
     void fetchBootstrapStatus();
@@ -59,16 +70,16 @@ export const LoginPage = () => {
     setError(null);
     try {
       await login({ email, password });
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     } catch (err) {
       console.error(err);
-      setError('Unable to log in. Check your credentials.');
+      setError("Unable to log in. Check your credentials.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (bootstrapStatus === 'loading') {
+  if (bootstrapStatus === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -76,7 +87,7 @@ export const LoginPage = () => {
     );
   }
 
-  if (bootstrapStatus === 'required') {
+  if (bootstrapStatus === "required") {
     return <RegisterPage bootstrapMode />;
   }
 
@@ -116,7 +127,7 @@ export const LoginPage = () => {
               />
             </div>
             <Button className="w-full" type="submit" disabled={submitting}>
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? "Signing in…" : "Sign in"}
             </Button>
             {oidcLoginUrl ? (
               <Button
@@ -125,7 +136,7 @@ export const LoginPage = () => {
                 className="w-full"
                 onClick={() => (window.location.href = oidcLoginUrl)}
               >
-                Continue with {oidcProviderName ?? 'Single Sign-On'}
+                Continue with {oidcProviderName ?? "Single Sign-On"}
               </Button>
             ) : null}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -133,7 +144,7 @@ export const LoginPage = () => {
         </CardContent>
         <CardFooter className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
           <p>
-            Need an account?{' '}
+            Need an account?{" "}
             <Link className="text-primary underline-offset-4 hover:underline" to="/register">
               Register
             </Link>

@@ -1,21 +1,21 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { useAuth } from '../hooks/useAuth';
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { useAuth } from "../hooks/useAuth";
 
 const settingsTabs = [
-  { value: 'registration', label: 'Registration', path: '/settings' },
-  { value: 'users', label: 'Users', path: '/settings/users' },
-  { value: 'initiatives', label: 'Initiatives', path: '/settings/initiatives' },
-  { value: 'auth', label: 'Auth', path: '/settings/auth' },
-  { value: 'api-keys', label: 'API Keys', path: '/settings/api-keys' },
-  { value: 'interface', label: 'Interface', path: '/settings/interface' },
-  { value: 'roles', label: 'Role labels', path: '/settings/roles' },
+  { value: "registration", label: "Registration", path: "/settings" },
+  { value: "users", label: "Users", path: "/settings/users" },
+  { value: "initiatives", label: "Initiatives", path: "/settings/initiatives" },
+  { value: "auth", label: "Auth", path: "/settings/auth" },
+  { value: "api-keys", label: "API Keys", path: "/settings/api-keys" },
+  { value: "interface", label: "Interface", path: "/settings/interface" },
+  { value: "roles", label: "Role labels", path: "/settings/roles" },
 ];
 
 export const SettingsLayout = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === "admin";
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -23,23 +23,27 @@ export const SettingsLayout = () => {
     return (
       <div className="space-y-4">
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>
+        <p className="text-sm text-muted-foreground">
+          You need admin permissions to view this page.
+        </p>
       </div>
     );
   }
 
-  const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
   const tabsBySpecificity = [...settingsTabs].sort((a, b) => b.path.length - a.path.length);
   const activeTab =
     tabsBySpecificity.find(
       (tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`)
-    )?.value ?? 'registration';
+    )?.value ?? "registration";
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage workspace access, initiatives, and authentication.</p>
+        <p className="text-muted-foreground">
+          Manage workspace access, initiatives, and authentication.
+        </p>
       </div>
       <Tabs
         value={activeTab}

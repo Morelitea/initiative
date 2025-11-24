@@ -1,22 +1,29 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 
-import { apiClient } from '../api/client';
-import { Markdown } from '../components/Markdown';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { useAuth } from '../hooks/useAuth';
-import { queryClient } from '../lib/queryClient';
-import { Project } from '../types/api';
+import { apiClient } from "../api/client";
+import { Markdown } from "../components/Markdown";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { useAuth } from "../hooks/useAuth";
+import { queryClient } from "../lib/queryClient";
+import { Project } from "../types/api";
 
 export const TemplatesPage = () => {
   const { user } = useAuth();
-  const canManageProjects = user?.role === 'admin' || user?.role === 'project_manager';
+  const canManageProjects = user?.role === "admin" || user?.role === "project_manager";
 
   const templatesQuery = useQuery<Project[]>({
-    queryKey: ['projects', 'templates'],
+    queryKey: ["projects", "templates"],
     queryFn: async () => {
-      const response = await apiClient.get<Project[]>('/projects/', { params: { template: true } });
+      const response = await apiClient.get<Project[]>("/projects/", { params: { template: true } });
       return response.data;
     },
   });
@@ -26,8 +33,8 @@ export const TemplatesPage = () => {
       await apiClient.patch(`/projects/${projectId}`, { is_template: false });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['projects', 'templates'] });
-      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ["projects", "templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 
@@ -54,7 +61,9 @@ export const TemplatesPage = () => {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>No templates available</CardTitle>
-            <CardDescription>Create a template from any project in the project settings page.</CardDescription>
+            <CardDescription>
+              Create a template from any project in the project settings page.
+            </CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -63,7 +72,9 @@ export const TemplatesPage = () => {
             <Card key={project.id} className="shadow-sm">
               <CardHeader>
                 <CardTitle className="text-xl">{project.name}</CardTitle>
-                {project.description ? <Markdown content={project.description} className="text-sm" /> : null}
+                {project.description ? (
+                  <Markdown content={project.description} className="text-sm" />
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}

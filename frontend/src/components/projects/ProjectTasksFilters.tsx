@@ -1,11 +1,5 @@
 import { Label } from "../ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import type { DueFilterOption, UserOption } from "./projectTasksConfig";
 import { taskStatusOrder } from "./projectTasksConfig";
 import type { TaskStatus } from "../../types/api";
@@ -18,9 +12,7 @@ type ProjectTasksFiltersProps = {
   listStatusFilter: "all" | "incomplete" | TaskStatus;
   onAssigneeFilterChange: (value: string) => void;
   onDueFilterChange: (value: DueFilterOption) => void;
-  onListStatusFilterChange: (
-    value: "all" | "incomplete" | TaskStatus
-  ) => void;
+  onListStatusFilterChange: (value: "all" | "incomplete" | TaskStatus) => void;
 };
 
 export const ProjectTasksFilters = ({
@@ -35,10 +27,7 @@ export const ProjectTasksFilters = ({
 }: ProjectTasksFiltersProps) => (
   <div className="flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3">
     <div className="w-48">
-      <Label
-        htmlFor="assignee-filter"
-        className="text-xs font-medium text-muted-foreground"
-      >
+      <Label htmlFor="assignee-filter" className="text-xs font-medium text-muted-foreground">
         Filter by assignee
       </Label>
       <Select value={assigneeFilter} onValueChange={onAssigneeFilterChange}>
@@ -56,13 +45,13 @@ export const ProjectTasksFilters = ({
       </Select>
     </div>
     <div className="w-48">
-      <Label
-        htmlFor="due-filter"
-        className="text-xs font-medium text-muted-foreground"
-      >
+      <Label htmlFor="due-filter" className="text-xs font-medium text-muted-foreground">
         Due filter
       </Label>
-      <Select value={dueFilter} onValueChange={(value) => onDueFilterChange(value as DueFilterOption)}>
+      <Select
+        value={dueFilter}
+        onValueChange={(value) => onDueFilterChange(value as DueFilterOption)}
+      >
         <SelectTrigger id="due-filter">
           <SelectValue placeholder="All due dates" />
         </SelectTrigger>
@@ -77,10 +66,7 @@ export const ProjectTasksFilters = ({
     </div>
     {viewMode === "list" ? (
       <div className="w-44">
-        <Label
-          htmlFor="status-filter"
-          className="text-xs font-medium text-muted-foreground"
-        >
+        <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
           Filter by status
         </Label>
         <Select

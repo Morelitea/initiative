@@ -1,11 +1,11 @@
-import { ReactNode, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Clock3, Star, X } from 'lucide-react';
+import { ReactNode, useState } from "react";
+import { Link } from "react-router-dom";
+import { ChevronDown, ChevronRight, Clock3, Star, X } from "lucide-react";
 
-import { cn } from '../../lib/utils';
-import { InitiativeColorDot } from '../../lib/initiativeColors';
-import type { Project } from '../../types/api';
-import { Button } from '../ui/button';
+import { cn } from "../../lib/utils";
+import { InitiativeColorDot } from "../../lib/initiativeColors";
+import type { Project } from "../../types/api";
+import { Button } from "../ui/button";
 
 interface ProjectShortcutsSidebarProps {
   favorites?: Project[];
@@ -48,7 +48,10 @@ const Section = ({
       <div className="mt-2 space-y-1">
         {items && items.length > 0 ? (
           items.map((project) => (
-            <div key={project.id} className="group flex items-center justify-between rounded-md px-2 py-1 text-sm">
+            <div
+              key={project.id}
+              className="group flex items-center justify-between rounded-md px-2 py-1 text-sm"
+            >
               <Link
                 to={`/projects/${project.id}`}
                 className="flex flex-1 items-center gap-2 truncate text-muted-foreground transition group-hover:text-foreground"
@@ -56,7 +59,9 @@ const Section = ({
                 {project.initiative ? (
                   <InitiativeColorDot color={project.initiative.color} className="h-2 w-2" />
                 ) : null}
-                {project.icon ? <span className="text-base leading-none">{project.icon}</span> : null}
+                {project.icon ? (
+                  <span className="text-base leading-none">{project.icon}</span>
+                ) : null}
                 <span className="truncate">{project.name}</span>
               </Link>
               {onClearRecent ? (
@@ -96,11 +101,13 @@ export const ProjectShortcutsSidebar = ({
   return (
     <aside
       className={cn(
-        'hidden w-72 flex-shrink-0 flex-col border-r bg-card/40 p-4 text-sm lg:flex',
+        "hidden w-72 flex-shrink-0 flex-col border-r bg-card/40 p-4 text-sm lg:flex",
         className
       )}
     >
-      <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Projects</h2>
+      <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Projects
+      </h2>
       {loading ? (
         <p className="text-xs text-muted-foreground">Loading shortcuts…</p>
       ) : (

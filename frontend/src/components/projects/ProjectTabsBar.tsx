@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Link } from "react-router-dom";
+import { X } from "lucide-react";
 
-import { cn } from '../../lib/utils';
-import { InitiativeColorDot } from '../../lib/initiativeColors';
-import type { Project } from '../../types/api';
-import { Button } from '../ui/button';
+import { cn } from "../../lib/utils";
+import { InitiativeColorDot } from "../../lib/initiativeColors";
+import type { Project } from "../../types/api";
+import { Button } from "../ui/button";
 
 interface ProjectTabsBarProps {
   projects?: Project[];
@@ -13,7 +13,12 @@ interface ProjectTabsBarProps {
   onClose: (projectId: number) => void;
 }
 
-export const ProjectTabsBar = ({ projects, activeProjectId, loading, onClose }: ProjectTabsBarProps) => {
+export const ProjectTabsBar = ({
+  projects,
+  activeProjectId,
+  loading,
+  onClose,
+}: ProjectTabsBarProps) => {
   if (!loading && (!projects || projects.length === 0)) {
     return null;
   }
@@ -31,16 +36,18 @@ export const ProjectTabsBar = ({ projects, activeProjectId, loading, onClose }: 
                 <Link
                   to={`/projects/${project.id}`}
                   className={cn(
-                    'group inline-flex items-center gap-2 rounded-t-md border border-transparent px-3 py-2 text-sm transition',
+                    "group inline-flex items-center gap-2 rounded-t-md border border-transparent px-3 py-2 text-sm transition",
                     isActive
-                      ? 'border-border bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? "border-border bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {project.initiative ? (
                     <InitiativeColorDot color={project.initiative.color} className="h-2 w-2" />
                   ) : null}
-                  {project.icon ? <span className="text-base leading-none">{project.icon}</span> : null}
+                  {project.icon ? (
+                    <span className="text-base leading-none">{project.icon}</span>
+                  ) : null}
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </Link>
                 <Button

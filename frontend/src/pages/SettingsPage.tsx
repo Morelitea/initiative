@@ -1,46 +1,46 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { FormEvent, useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { useAuth } from '../hooks/useAuth';
-import { queryClient } from '../lib/queryClient';
-import { RegistrationSettings } from '../types/api';
+import { apiClient } from "../api/client";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { useAuth } from "../hooks/useAuth";
+import { queryClient } from "../lib/queryClient";
+import { RegistrationSettings } from "../types/api";
 
-const REGISTRATION_SETTINGS_QUERY_KEY = ['registration-settings'];
+const REGISTRATION_SETTINGS_QUERY_KEY = ["registration-settings"];
 
 export const SettingsPage = () => {
   const { user } = useAuth();
-  const [domainsInput, setDomainsInput] = useState('');
+  const [domainsInput, setDomainsInput] = useState("");
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === "admin";
 
   const settingsQuery = useQuery<RegistrationSettings>({
     queryKey: REGISTRATION_SETTINGS_QUERY_KEY,
     enabled: isAdmin,
     queryFn: async () => {
-      const response = await apiClient.get<RegistrationSettings>('/settings/registration');
+      const response = await apiClient.get<RegistrationSettings>("/settings/registration");
       return response.data;
     },
   });
 
   useEffect(() => {
     if (settingsQuery.data) {
-      setDomainsInput(settingsQuery.data.auto_approved_domains.join(', '));
+      setDomainsInput(settingsQuery.data.auto_approved_domains.join(", "));
     }
   }, [settingsQuery.data]);
 
   const updateAllowList = useMutation({
     mutationFn: async (domains: string[]) => {
-      const response = await apiClient.put<RegistrationSettings>('/settings/registration', {
+      const response = await apiClient.put<RegistrationSettings>("/settings/registration", {
         auto_approved_domains: domains,
       });
       return response.data;
     },
     onSuccess: (data) => {
-      setDomainsInput(data.auto_approved_domains.join(', '));
+      setDomainsInput(data.auto_approved_domains.join(", "));
       queryClient.setQueryData(REGISTRATION_SETTINGS_QUERY_KEY, data);
     },
   });
@@ -55,7 +55,9 @@ export const SettingsPage = () => {
   });
 
   if (!isAdmin) {
-    return <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>
+    );
   }
 
   if (settingsQuery.isLoading) {
@@ -69,7 +71,7 @@ export const SettingsPage = () => {
   const handleDomainsSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const domains = domainsInput
-      .split(',')
+      .split(",")
       .map((domain) => domain.trim().toLowerCase())
       .filter(Boolean);
     updateAllowList.mutate(domains);
@@ -80,7 +82,9 @@ export const SettingsPage = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Auto-approved email domains</CardTitle>
-          <CardDescription>Enter a comma-separated list of domains that should be auto-approved.</CardDescription>
+          <CardDescription>
+            Enter a comma-separated list of domains that should be auto-approved.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleDomainsSubmit}>
@@ -91,7 +95,7 @@ export const SettingsPage = () => {
               placeholder="example.com, company.org"
             />
             <Button type="submit" disabled={updateAllowList.isPending}>
-              {updateAllowList.isPending ? 'Saving…' : 'Save allow list'}
+              {updateAllowList.isPending ? "Saving…" : "Save allow list"}
             </Button>
           </form>
         </CardContent>
@@ -100,7 +104,9 @@ export const SettingsPage = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Pending users</CardTitle>
-          <CardDescription>Approve people who registered with non-allow-listed emails.</CardDescription>
+          <CardDescription>
+            Approve people who registered with non-allow-listed emails.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {settingsQuery.data.pending_users.length === 0 ? (

@@ -1,22 +1,22 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { FormEvent, useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { ROLE_LABELS_QUERY_KEY, DEFAULT_ROLE_LABELS, useRoleLabels } from '../hooks/useRoleLabels';
-import type { RoleLabels } from '../types/api';
+import { apiClient } from "../api/client";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { ROLE_LABELS_QUERY_KEY, DEFAULT_ROLE_LABELS, useRoleLabels } from "../hooks/useRoleLabels";
+import type { RoleLabels } from "../types/api";
 
 const ROLE_FIELDS: { key: keyof RoleLabels; label: string; helper: string }[] = [
-  { key: 'admin', label: 'Admin label', helper: 'Shown anywhere the admin role appears.' },
+  { key: "admin", label: "Admin label", helper: "Shown anywhere the admin role appears." },
   {
-    key: 'project_manager',
-    label: 'Project manager label',
-    helper: 'Used for the project_manager role (e.g. “Team lead”).',
+    key: "project_manager",
+    label: "Project manager label",
+    helper: "Used for the project_manager role (e.g. “Team lead”).",
   },
-  { key: 'member', label: 'Member label', helper: 'Displayed for standard project members.' },
+  { key: "member", label: "Member label", helper: "Displayed for standard project members." },
 ];
 
 export const SettingsRolesPage = () => {
@@ -33,12 +33,12 @@ export const SettingsRolesPage = () => {
 
   const updateLabels = useMutation({
     mutationFn: async (payload: RoleLabels) => {
-      const response = await apiClient.put<RoleLabels>('/settings/roles', payload);
+      const response = await apiClient.put<RoleLabels>("/settings/roles", payload);
       return response.data;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(ROLE_LABELS_QUERY_KEY, data);
-      setMessage('Role labels updated');
+      setMessage("Role labels updated");
     },
   });
 
@@ -64,7 +64,9 @@ export const SettingsRolesPage = () => {
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle>Role labels</CardTitle>
-        <CardDescription>Customize how each project role is described throughout the workspace.</CardDescription>
+        <CardDescription>
+          Customize how each project role is described throughout the workspace.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-6" onSubmit={handleSubmit}>
@@ -83,7 +85,7 @@ export const SettingsRolesPage = () => {
           ))}
           <div className="flex flex-col gap-2">
             <Button type="submit" disabled={updateLabels.isPending}>
-              {updateLabels.isPending ? 'Saving…' : 'Save role labels'}
+              {updateLabels.isPending ? "Saving…" : "Save role labels"}
             </Button>
             {message ? <p className="text-sm text-primary">{message}</p> : null}
             {updateLabels.isError ? (

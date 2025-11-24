@@ -1,38 +1,39 @@
-const STATIC_CACHE = 'initiative-static-v1';
-const DATA_CACHE = 'initiative-data-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/icons/pwa-icon.svg'
-];
+const STATIC_CACHE = "initiative-static-v1";
+const DATA_CACHE = "initiative-data-v1";
+const STATIC_ASSETS = ["/", "/index.html", "/manifest.webmanifest", "/icons/logo.svg"];
 
-self.addEventListener('install', (event) => {
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
+    caches
+      .open(STATIC_CACHE)
+      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((key) => {
-          if (![STATIC_CACHE, DATA_CACHE].includes(key)) {
-            return caches.delete(key);
-          }
-          return null;
-        })
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.map((key) => {
+            if (![STATIC_CACHE, DATA_CACHE].includes(key)) {
+              return caches.delete(key);
+            }
+            return null;
+          })
+        )
       )
-    ).then(() => self.clients.claim())
+      .then(() => self.clients.claim())
   );
 });
 
 const API_PATTERN = /\/api\/v1\/(projects|tasks)/;
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   const { request } = event;
-  if (request.method !== 'GET') {
+  if (request.method !== "GET") {
     return;
   }
 
@@ -48,7 +49,7 @@ self.addEventListener('fetch', (event) => {
           if (cached) {
             return cached;
           }
-          throw new Error('Network error and no cached data available');
+          throw new Error("Network error and no cached data available");
         }
       })
     );

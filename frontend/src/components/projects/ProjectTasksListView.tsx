@@ -5,10 +5,7 @@ import {
   type DragStartEvent,
   type DndContextProps,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { Task, TaskPriority, TaskStatus } from "../../types/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -45,9 +42,7 @@ export const ProjectTasksListView = ({
   <Card className="shadow-sm">
     <CardHeader>
       <CardTitle>Task list</CardTitle>
-      <CardDescription>
-        View every task at once and update their status inline.
-      </CardDescription>
+      <CardDescription>View every task at once and update their status inline.</CardDescription>
     </CardHeader>
     <CardContent className="overflow-x-auto">
       {listTasks.length === 0 ? (

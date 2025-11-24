@@ -111,13 +111,12 @@ export const ProjectDetailPage = () => {
   }
 
   const membershipRole = project.members.find((member) => member.user_id === user?.id)?.role;
-  const userProjectRole = (user?.role as "admin" | "project_manager" | "member" | undefined) ?? undefined;
+  const userProjectRole =
+    (user?.role as "admin" | "project_manager" | "member" | undefined) ?? undefined;
   const projectWriteRoles = project.write_roles ?? [];
 
   const canManageSettings =
-    user?.role === "admin" ||
-    membershipRole === "admin" ||
-    membershipRole === "project_manager";
+    user?.role === "admin" || membershipRole === "admin" || membershipRole === "project_manager";
   const canWriteProject =
     user?.role === "admin" ||
     (membershipRole ? projectWriteRoles.includes(membershipRole) : false) ||

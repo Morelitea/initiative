@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
-import { API_BASE_URL } from '../api/client';
-import { queryClient } from '../lib/queryClient';
-import { useAuth } from './useAuth';
+import { API_BASE_URL } from "../api/client";
+import { queryClient } from "../lib/queryClient";
+import { useAuth } from "./useAuth";
 
 const invalidateByKey = (key: string) => {
   void queryClient.invalidateQueries({
@@ -12,34 +12,34 @@ const invalidateByKey = (key: string) => {
 };
 
 const invalidateProjectById = (projectId: unknown) => {
-  if (typeof projectId !== 'number') {
+  if (typeof projectId !== "number") {
     return;
   }
-  void queryClient.invalidateQueries({ queryKey: ['projects', projectId] });
+  void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
 };
 
 const buildWebsocketUrl = (token: string) => {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return null;
   }
   try {
     const base =
-      API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')
+      API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://")
         ? new URL(API_BASE_URL)
         : new URL(API_BASE_URL, window.location.origin);
 
-    const normalizedPath = base.pathname.endsWith('/')
+    const normalizedPath = base.pathname.endsWith("/")
       ? base.pathname.slice(0, -1)
-      : base.pathname || '/api/v1';
+      : base.pathname || "/api/v1";
 
-    base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
     base.pathname = `${normalizedPath}/events/updates`;
-    base.search = '';
-    base.hash = '';
-    base.searchParams.set('token', token);
+    base.search = "";
+    base.hash = "";
+    base.searchParams.set("token", token);
     return base.toString();
   } catch {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     return `${protocol}://${window.location.host}/api/v1/events/updates?token=${encodeURIComponent(token)}`;
   }
 };
@@ -88,15 +88,18 @@ export const useRealtimeUpdates = () => {
 
       websocket.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as { resource?: string; data?: Record<string, unknown> };
+          const payload = JSON.parse(event.data) as {
+            resource?: string;
+            data?: Record<string, unknown>;
+          };
           switch (payload.resource) {
-            case 'task': {
-              invalidateByKey('tasks');
+            case "task": {
+              invalidateByKey("tasks");
               invalidateProjectById(payload.data?.project_id);
               break;
             }
-            case 'project':
-              invalidateByKey('projects');
+            case "project":
+              invalidateByKey("projects");
               break;
             default:
               break;

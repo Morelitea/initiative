@@ -1,11 +1,11 @@
-import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 
-import { cn } from '../../lib/utils';
-import { Button } from './button';
-import { Calendar } from './calendar';
-import { Input } from './input';
-import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { cn } from "../../lib/utils";
+import { Button } from "./button";
+import { Calendar } from "./calendar";
+import { Input } from "./input";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
 interface DateTimePickerProps {
   id?: string;
@@ -19,7 +19,7 @@ interface DateTimePickerProps {
 const formatForStorage = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm");
 
 const applyTimeToDate = (date: Date, time: string) => {
-  const [hours, minutes] = time.split(':').map((segment) => Number.parseInt(segment, 10));
+  const [hours, minutes] = time.split(":").map((segment) => Number.parseInt(segment, 10));
   const next = new Date(date);
   next.setHours(Number.isFinite(hours) ? hours : 0);
   next.setMinutes(Number.isFinite(minutes) ? minutes : 0);
@@ -33,18 +33,18 @@ export const DateTimePicker = ({
   value,
   onChange,
   disabled = false,
-  placeholder = 'Pick a date and time',
-  clearLabel = 'Clear',
+  placeholder = "Pick a date and time",
+  clearLabel = "Clear",
 }: DateTimePickerProps) => {
   const selectedDate = value ? new Date(value) : undefined;
-  const timeValue = selectedDate ? format(selectedDate, 'HH:mm') : '';
+  const timeValue = selectedDate ? format(selectedDate, "HH:mm") : "";
 
   const handleSelectDate = (date: Date | undefined) => {
     if (!date) {
-      onChange('');
+      onChange("");
       return;
     }
-    const baseTime = selectedDate ? format(selectedDate, 'HH:mm') : format(new Date(), 'HH:mm');
+    const baseTime = selectedDate ? format(selectedDate, "HH:mm") : format(new Date(), "HH:mm");
     const next = applyTimeToDate(date, baseTime);
     onChange(formatForStorage(next));
   };
@@ -58,7 +58,7 @@ export const DateTimePicker = ({
   };
 
   const handleClear = () => {
-    onChange('');
+    onChange("");
   };
 
   return (
@@ -70,12 +70,12 @@ export const DateTimePicker = ({
           variant="outline"
           disabled={disabled}
           className={cn(
-            'w-full justify-start text-left font-normal',
-            !selectedDate && 'text-muted-foreground'
+            "w-full justify-start text-left font-normal",
+            !selectedDate && "text-muted-foreground"
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {selectedDate ? format(selectedDate, 'PP p') : placeholder}
+          {selectedDate ? format(selectedDate, "PP p") : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

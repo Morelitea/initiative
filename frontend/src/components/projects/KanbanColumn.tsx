@@ -1,9 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 import { Badge } from "../ui/badge";
@@ -15,10 +11,7 @@ interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
   canWrite: boolean;
-  priorityVariant: Record<
-    TaskPriority,
-    "default" | "secondary" | "destructive"
-  >;
+  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onTaskClick: (taskId: number) => void;
   canOpenTask: boolean;
 }
@@ -39,15 +32,11 @@ export const KanbanColumn = ({
   return (
     <Card className="flex h-full flex-col shadow-sm">
       <CardHeader>
-        <CardTitle className="text-lg capitalize">
-          {status.replace("_", " ")}
-        </CardTitle>
+        <CardTitle className="text-lg capitalize">{status.replace("_", " ")}</CardTitle>
       </CardHeader>
       <CardContent
         ref={setNodeRef}
-        className={`flex-1 space-y-3 overflow-y-auto ${
-          isOver ? "bg-muted/40" : ""
-        }`}
+        className={`flex-1 space-y-3 overflow-y-auto ${isOver ? "bg-muted/40" : ""}`}
       >
         <SortableContext
           items={tasks.map((task) => task.id.toString())}
@@ -76,10 +65,7 @@ export const KanbanColumn = ({
 interface KanbanTaskCardProps {
   task: Task;
   canWrite: boolean;
-  priorityVariant: Record<
-    TaskPriority,
-    "default" | "secondary" | "destructive"
-  >;
+  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onTaskClick: (taskId: number) => void;
   canOpenTask: boolean;
 }
@@ -91,14 +77,7 @@ const KanbanTaskCard = ({
   onTaskClick,
   canOpenTask,
 }: KanbanTaskCardProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "task", status: task.status },
     disabled: !canWrite,
@@ -134,22 +113,16 @@ const KanbanTaskCard = ({
       >
         <p className="font-medium">{task.title}</p>
         {task.description ? (
-          <p className="text-xs text-muted-foreground">
-            {truncateText(task.description, 80)}
-          </p>
+          <p className="text-xs text-muted-foreground">{truncateText(task.description, 80)}</p>
         ) : null}
         <div className="text-xs text-muted-foreground">
           {task.assignees.length > 0 ? (
             <p>
               Assigned:{" "}
-              {task.assignees
-                .map((assignee) => assignee.full_name ?? assignee.email)
-                .join(", ")}
+              {task.assignees.map((assignee) => assignee.full_name ?? assignee.email).join(", ")}
             </p>
           ) : null}
-          {task.due_date ? (
-            <p>Due: {new Date(task.due_date).toLocaleString()}</p>
-          ) : null}
+          {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
         </div>
       </button>
       <Badge variant={priorityVariant[task.priority]}>

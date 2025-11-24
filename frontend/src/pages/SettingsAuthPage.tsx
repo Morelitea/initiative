@@ -1,12 +1,19 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { FormEvent, useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from '../api/client';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Switch } from '../components/ui/switch';
+import { apiClient } from "../api/client";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Switch } from "../components/ui/switch";
 
 interface OidcSettings {
   enabled: boolean;
@@ -19,31 +26,31 @@ interface OidcSettings {
 }
 
 export const SettingsAuthPage = () => {
-  const [clientSecret, setClientSecret] = useState('');
+  const [clientSecret, setClientSecret] = useState("");
   const [formState, setFormState] = useState({
     enabled: false,
-    discovery_url: '',
-    client_id: '',
-    provider_name: '',
-    scopes: 'openid profile email',
+    discovery_url: "",
+    client_id: "",
+    provider_name: "",
+    scopes: "openid profile email",
   });
 
   const oidcQuery = useQuery<OidcSettings>({
-    queryKey: ['settings', 'oidc'],
+    queryKey: ["settings", "oidc"],
     queryFn: async () => {
-      const response = await apiClient.get<OidcSettings>('/settings/auth');
+      const response = await apiClient.get<OidcSettings>("/settings/auth");
       return response.data;
     },
   });
 
   const updateOidcSettings = useMutation({
     mutationFn: async (payload: OidcSettings & { client_secret?: string }) => {
-      const response = await apiClient.put<OidcSettings>('/settings/auth', payload);
+      const response = await apiClient.put<OidcSettings>("/settings/auth", payload);
       return response.data;
     },
     onSuccess: () => {
       void oidcQuery.refetch();
-      setClientSecret('');
+      setClientSecret("");
     },
   });
 
@@ -52,10 +59,10 @@ export const SettingsAuthPage = () => {
       const settings = oidcQuery.data;
       setFormState({
         enabled: settings.enabled,
-        discovery_url: settings.discovery_url ?? '',
-        client_id: settings.client_id ?? '',
-        provider_name: settings.provider_name ?? '',
-        scopes: settings.scopes.join(' '),
+        discovery_url: settings.discovery_url ?? "",
+        client_id: settings.client_id ?? "",
+        provider_name: settings.provider_name ?? "",
+        scopes: settings.scopes.join(" "),
       });
     }
   }, [oidcQuery.data]);
@@ -90,15 +97,22 @@ export const SettingsAuthPage = () => {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
             <div>
-              <Label htmlFor="oidc-enabled" className="flex items-center gap-2 text-base font-medium">
+              <Label
+                htmlFor="oidc-enabled"
+                className="flex items-center gap-2 text-base font-medium"
+              >
                 Enabled
               </Label>
-              <p className="text-sm text-muted-foreground">Allow users to authenticate via your OIDC provider.</p>
+              <p className="text-sm text-muted-foreground">
+                Allow users to authenticate via your OIDC provider.
+              </p>
             </div>
             <Switch
               id="oidc-enabled"
               checked={formState.enabled}
-              onCheckedChange={(checked) => setFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))}
+              onCheckedChange={(checked) =>
+                setFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))
+              }
             />
           </div>
           <div className="space-y-2">
@@ -107,7 +121,9 @@ export const SettingsAuthPage = () => {
               id="discovery-url"
               type="url"
               value={formState.discovery_url}
-              onChange={(event) => setFormState((prev) => ({ ...prev, discovery_url: event.target.value }))}
+              onChange={(event) =>
+                setFormState((prev) => ({ ...prev, discovery_url: event.target.value }))
+              }
             />
           </div>
           <div className="space-y-2">
@@ -115,7 +131,9 @@ export const SettingsAuthPage = () => {
             <Input
               id="client-id"
               value={formState.client_id}
-              onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
+              onChange={(event) =>
+                setFormState((prev) => ({ ...prev, client_id: event.target.value }))
+              }
             />
           </div>
           <div className="space-y-2">
@@ -127,14 +145,18 @@ export const SettingsAuthPage = () => {
               onChange={(event) => setClientSecret(event.target.value)}
               placeholder="••••••••"
             />
-            <p className="text-xs text-muted-foreground">Leave blank to keep the existing secret.</p>
+            <p className="text-xs text-muted-foreground">
+              Leave blank to keep the existing secret.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="provider-name">Provider name</Label>
             <Input
               id="provider-name"
               value={formState.provider_name}
-              onChange={(event) => setFormState((prev) => ({ ...prev, provider_name: event.target.value }))}
+              onChange={(event) =>
+                setFormState((prev) => ({ ...prev, provider_name: event.target.value }))
+              }
               placeholder="Single Sign-On"
             />
           </div>
@@ -143,21 +165,24 @@ export const SettingsAuthPage = () => {
             <Input
               id="scopes"
               value={formState.scopes}
-              onChange={(event) => setFormState((prev) => ({ ...prev, scopes: event.target.value }))}
+              onChange={(event) =>
+                setFormState((prev) => ({ ...prev, scopes: event.target.value }))
+              }
               placeholder="openid profile email"
             />
           </div>
           <Button type="submit" disabled={updateOidcSettings.isPending}>
-            {updateOidcSettings.isPending ? 'Saving…' : 'Save auth settings'}
+            {updateOidcSettings.isPending ? "Saving…" : "Save auth settings"}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground">
         <div>
-          Authorization callback: <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.redirect_uri}</code>
+          Authorization callback:{" "}
+          <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.redirect_uri}</code>
         </div>
         <div>
-          Post-login redirect:{' '}
+          Post-login redirect:{" "}
           <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.post_login_redirect}</code>
         </div>
       </CardFooter>
