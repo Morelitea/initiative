@@ -38,7 +38,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const requestPath = new URL(request.url).pathname;
+  const requestUrl = new URL(request.url);
+  const requestPath = requestUrl.pathname;
 
   if (AUTH_PATTERN.test(requestPath)) {
     event.respondWith(fetch(request));
@@ -61,6 +62,11 @@ self.addEventListener("fetch", (event) => {
         }
       })
     );
+    return;
+  }
+
+  if (requestPath.startsWith("/api/")) {
+    event.respondWith(fetch(request));
     return;
   }
 
