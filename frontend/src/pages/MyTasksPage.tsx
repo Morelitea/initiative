@@ -257,7 +257,9 @@ export const MyTasksPage = () => {
                 {sortedTasks.map((task) => {
                   const project = projectsById[task.project_id];
                   const recurrenceSummary = task.recurrence
-                    ? summarizeRecurrence(task.recurrence, { referenceDate: task.start_date || task.due_date })
+                    ? summarizeRecurrence(task.recurrence, {
+                        referenceDate: task.start_date || task.due_date,
+                      })
                     : null;
                   return (
                     <tr key={task.id}>

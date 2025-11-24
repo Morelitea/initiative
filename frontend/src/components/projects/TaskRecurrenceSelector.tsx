@@ -209,7 +209,10 @@ export const TaskRecurrenceSelector = ({
     { value: "none", label: "Does not repeat" },
     { value: "daily", label: "Daily" },
     { value: "weekdays", label: "Every weekday (Mon–Fri)" },
-    { value: "weekly", label: `Weekly on ${anchorDate.toLocaleDateString(undefined, { weekday: "long" })}` },
+    {
+      value: "weekly",
+      label: `Weekly on ${anchorDate.toLocaleDateString(undefined, { weekday: "long" })}`,
+    },
     { value: "monthly", label: `Monthly on day ${anchorDate.getDate()}` },
     {
       value: "yearly",
@@ -225,7 +228,11 @@ export const TaskRecurrenceSelector = ({
     <div className="space-y-4 rounded-md border border-dashed border-border/70 p-4">
       <div className="space-y-2">
         <Label>Repeat</Label>
-        <Select value={preset} onValueChange={(value) => handlePresetChange(value as RecurrencePreset)} disabled={disabled}>
+        <Select
+          value={preset}
+          onValueChange={(value) => handlePresetChange(value as RecurrencePreset)}
+          disabled={disabled}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Does not repeat" />
           </SelectTrigger>
@@ -293,8 +300,10 @@ export const TaskRecurrenceSelector = ({
                       disabled={disabled}
                       className={cn(
                         "rounded-md border px-3 py-1 text-sm",
-                        checked ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground",
-                        disabled ? "opacity-70" : "",
+                        checked
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-foreground",
+                        disabled ? "opacity-70" : ""
                       )}
                     >
                       {weekday.short}
@@ -312,7 +321,9 @@ export const TaskRecurrenceSelector = ({
                   <Label>Month</Label>
                   <Select
                     value={(recurrence.month ?? anchorDate.getMonth() + 1).toString()}
-                    onValueChange={(value) => onChange(updateYearlyMonth(ensureRule(), Number(value)))}
+                    onValueChange={(value) =>
+                      onChange(updateYearlyMonth(ensureRule(), Number(value)))
+                    }
                     disabled={disabled}
                   >
                     <SelectTrigger>
@@ -356,7 +367,9 @@ export const TaskRecurrenceSelector = ({
                     min={1}
                     max={31}
                     value={recurrence.day_of_month ?? anchorDate.getDate()}
-                    onChange={(event) => onChange(updateMonthlyDay(ensureRule(), Number(event.target.value)))}
+                    onChange={(event) =>
+                      onChange(updateMonthlyDay(ensureRule(), Number(event.target.value)))
+                    }
                     disabled={disabled}
                   />
                 ) : (
@@ -368,8 +381,8 @@ export const TaskRecurrenceSelector = ({
                           updateMonthlyWeekday(
                             ensureRule(),
                             value as TaskWeekPosition,
-                            (recurrence.weekday ?? "monday") as TaskWeekday,
-                          ),
+                            (recurrence.weekday ?? "monday") as TaskWeekday
+                          )
                         )
                       }
                       disabled={disabled}
@@ -392,8 +405,8 @@ export const TaskRecurrenceSelector = ({
                           updateMonthlyWeekday(
                             ensureRule(),
                             (recurrence.weekday_position ?? "first") as TaskWeekPosition,
-                            value as TaskWeekday,
-                          ),
+                            value as TaskWeekday
+                          )
                         )
                       }
                       disabled={disabled}
@@ -417,7 +430,11 @@ export const TaskRecurrenceSelector = ({
 
           <div className="space-y-2">
             <Label>Ends</Label>
-            <Select value={recurrence.ends ?? "never"} onValueChange={(value) => handleEndsChange(value as TaskRecurrence["ends"])} disabled={disabled}>
+            <Select
+              value={recurrence.ends ?? "never"}
+              onValueChange={(value) => handleEndsChange(value as TaskRecurrence["ends"])}
+              disabled={disabled}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -434,7 +451,9 @@ export const TaskRecurrenceSelector = ({
                 onChange={(event) =>
                   onChange({
                     ...recurrence,
-                    end_date: event.target.value ? new Date(event.target.value).toISOString() : null,
+                    end_date: event.target.value
+                      ? new Date(event.target.value).toISOString()
+                      : null,
                   })
                 }
                 disabled={disabled}

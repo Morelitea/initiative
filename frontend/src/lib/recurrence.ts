@@ -5,7 +5,14 @@ import type {
   TaskWeekday,
 } from "../types/api";
 
-export type RecurrencePreset = "none" | "daily" | "weekly" | "weekdays" | "monthly" | "yearly" | "custom";
+export type RecurrencePreset =
+  | "none"
+  | "daily"
+  | "weekly"
+  | "weekdays"
+  | "monthly"
+  | "yearly"
+  | "custom";
 
 type WeekdayConfig = {
   value: TaskWeekday;
@@ -26,7 +33,7 @@ export const WEEKDAYS: WeekdayConfig[] = [
 
 const WEEKDAY_ORDER: Record<TaskWeekday, number> = WEEKDAYS.reduce(
   (acc, item, index) => ({ ...acc, [item.value]: index }),
-  {} as Record<TaskWeekday, number>,
+  {} as Record<TaskWeekday, number>
 );
 
 const POSITION_LABELS: Record<TaskWeekPosition, string> = {
@@ -107,7 +114,7 @@ const baseRule = (): TaskRecurrence => ({
 
 export const createRecurrenceFromPreset = (
   preset: RecurrencePreset,
-  referenceDate?: string | null,
+  referenceDate?: string | null
 ): TaskRecurrence | null => {
   const anchor = getReferenceDate(referenceDate);
   switch (preset) {
@@ -159,7 +166,10 @@ export const detectRecurrencePreset = (rule: TaskRecurrence | null): RecurrenceP
   if (rule.frequency === "weekly" && rule.interval === 1) {
     const weekdays = sortWeekdays(rule.weekdays);
     const weekdayPreset = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-    if (weekdays.length === weekdayPreset.length && weekdays.every((day, index) => day === weekdayPreset[index])) {
+    if (
+      weekdays.length === weekdayPreset.length &&
+      weekdays.every((day, index) => day === weekdayPreset[index])
+    ) {
       return "weekdays";
     }
     if (weekdays.length === 1) {
@@ -192,7 +202,9 @@ const formatWeekdayList = (weekdays: TaskWeekday[]) => {
   if (!weekdays.length) {
     return "";
   }
-  const labels = sortWeekdays(weekdays).map((day) => WEEKDAYS.find((config) => config.value === day)?.label ?? day);
+  const labels = sortWeekdays(weekdays).map(
+    (day) => WEEKDAYS.find((config) => config.value === day)?.label ?? day
+  );
   if (labels.length === 1) {
     return labels[0] ?? "";
   }
@@ -220,7 +232,8 @@ const describeMonthlyDetail = (rule: TaskRecurrence) => {
     return `on day ${rule.day_of_month}`;
   }
   if (rule.weekday_position && rule.weekday) {
-    const weekdayLabel = WEEKDAYS.find((item) => item.value === rule.weekday)?.label ?? rule.weekday;
+    const weekdayLabel =
+      WEEKDAYS.find((item) => item.value === rule.weekday)?.label ?? rule.weekday;
     return `on the ${POSITION_LABELS[rule.weekday_position]} ${weekdayLabel}`;
   }
   return "";
@@ -228,7 +241,7 @@ const describeMonthlyDetail = (rule: TaskRecurrence) => {
 
 export const summarizeRecurrence = (
   rule: TaskRecurrence | null,
-  options?: { referenceDate?: string | null },
+  options?: { referenceDate?: string | null }
 ): string => {
   if (!rule) {
     return "Does not repeat";
@@ -296,11 +309,15 @@ export const withEndDate = (rule: TaskRecurrence, endDate?: string | null): Task
 export const withOccurrenceCount = (rule: TaskRecurrence, count?: number): TaskRecurrence => ({
   ...rule,
   ends: typeof count === "number" ? "after_occurrences" : "never",
-  end_after_occurrences: typeof count === "number" ? Math.max(1, Math.min(1000, Math.floor(count))) : null,
+  end_after_occurrences:
+    typeof count === "number" ? Math.max(1, Math.min(1000, Math.floor(count))) : null,
   end_date: null,
 });
 
-export const updateWeeklyWeekdays = (rule: TaskRecurrence, weekdays: TaskWeekday[]): TaskRecurrence => ({
+export const updateWeeklyWeekdays = (
+  rule: TaskRecurrence,
+  weekdays: TaskWeekday[]
+): TaskRecurrence => ({
   ...rule,
   weekdays: sortWeekdays(weekdays),
 });
@@ -316,7 +333,7 @@ export const updateMonthlyDay = (rule: TaskRecurrence, dayOfMonth: number): Task
 export const updateMonthlyWeekday = (
   rule: TaskRecurrence,
   position: TaskWeekPosition,
-  weekday: TaskWeekday,
+  weekday: TaskWeekday
 ): TaskRecurrence => ({
   ...rule,
   monthly_mode: "weekday",
@@ -330,19 +347,27 @@ export const updateYearlyMonth = (rule: TaskRecurrence, month: number): TaskRecu
   month: Math.max(1, Math.min(12, Math.floor(month))),
 });
 
-export const ensureYearlyDefaults = (rule: TaskRecurrence, referenceDate?: string | null): TaskRecurrence => {
+export const ensureYearlyDefaults = (
+  rule: TaskRecurrence,
+  referenceDate?: string | null
+): TaskRecurrence => {
   const anchor = getReferenceDate(referenceDate);
   return {
     ...rule,
     month: rule.month ?? anchor.getMonth() + 1,
     monthly_mode: rule.monthly_mode ?? "day_of_month",
-    day_of_month: rule.monthly_mode === "day_of_month" ? rule.day_of_month ?? anchor.getDate() : null,
-    weekday: rule.monthly_mode === "weekday" ? rule.weekday ?? getWeekdayFromDate(anchor) : null,
-    weekday_position: rule.monthly_mode === "weekday" ? rule.weekday_position ?? getWeekPosition(anchor) : null,
+    day_of_month:
+      rule.monthly_mode === "day_of_month" ? (rule.day_of_month ?? anchor.getDate()) : null,
+    weekday: rule.monthly_mode === "weekday" ? (rule.weekday ?? getWeekdayFromDate(anchor)) : null,
+    weekday_position:
+      rule.monthly_mode === "weekday" ? (rule.weekday_position ?? getWeekPosition(anchor)) : null,
   };
 };
 
-export const ensureMonthlyDefaults = (rule: TaskRecurrence, referenceDate?: string | null): TaskRecurrence => {
+export const ensureMonthlyDefaults = (
+  rule: TaskRecurrence,
+  referenceDate?: string | null
+): TaskRecurrence => {
   const anchor = getReferenceDate(referenceDate);
   if (rule.monthly_mode === "weekday") {
     return {

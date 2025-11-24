@@ -59,7 +59,14 @@ export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskRecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";
 export type TaskRecurrenceEnds = "never" | "on_date" | "after_occurrences";
 export type TaskRecurrenceMonthlyMode = "day_of_month" | "weekday";
-export type TaskWeekday = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+export type TaskWeekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
 
 export interface TaskRecurrence {
