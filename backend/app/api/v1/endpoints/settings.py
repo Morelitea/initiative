@@ -14,6 +14,8 @@ from app.schemas.settings import (
     OIDCSettingsUpdate,
     RegistrationSettingsResponse,
     RegistrationSettingsUpdate,
+    RoleLabelsResponse,
+    RoleLabelsUpdate,
 )
 from app.services import api_keys as api_keys_service
 from app.services import app_settings as app_settings_service
@@ -106,6 +108,12 @@ async def get_interface_settings(session: SessionDep) -> InterfaceSettingsRespon
     )
 
 
+@router.get("/roles", response_model=RoleLabelsResponse)
+async def get_role_labels(session: SessionDep) -> RoleLabelsResponse:
+    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+    return RoleLabelsResponse(**settings_obj.role_labels)
+
+
 @router.get("/api-keys", response_model=ApiKeyListResponse)
 async def list_api_keys(session: SessionDep, current_admin: AdminUser) -> ApiKeyListResponse:
     keys = await api_keys_service.list_api_keys(session, user=current_admin)
@@ -149,3 +157,16 @@ async def update_interface_settings(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
     )
+
+
+@router.put("/roles", response_model=RoleLabelsResponse)
+async def update_role_labels(
+    payload: RoleLabelsUpdate,
+    session: SessionDep,
+    _: AdminUser,
+) -> RoleLabelsResponse:
+    updated = await app_settings_service.update_role_labels(
+        session,
+        labels={k: v for k, v in payload.dict(exclude_unset=True).items()},
+    )
+    return RoleLabelsResponse(**updated.role_labels)

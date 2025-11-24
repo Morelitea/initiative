@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../hooks/useAuth';
+import { useRoleLabels, getRoleLabel } from '../hooks/useRoleLabels';
 import { queryClient } from '../lib/queryClient';
 import { User, UserRole } from '../types/api';
 
@@ -16,6 +17,7 @@ const SUPER_USER_ID = 1;
 export const UsersPage = () => {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
+  const { data: roleLabels } = useRoleLabels();
 
   const usersQuery = useQuery<User[]>({
     queryKey: USERS_QUERY_KEY,
@@ -117,7 +119,7 @@ export const UsersPage = () => {
                 <SelectContent>
                   {ROLE_OPTIONS.map((roleOption) => (
                     <SelectItem key={roleOption} value={roleOption}>
-                      {roleOption.replace('_', ' ')}
+                      {getRoleLabel(roleOption, roleLabels)}
                     </SelectItem>
                   ))}
                 </SelectContent>

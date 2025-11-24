@@ -43,3 +43,15 @@ class InterfaceSettingsResponse(BaseModel):
 class InterfaceSettingsUpdate(BaseModel):
     light_accent_color: str
     dark_accent_color: str
+
+
+class RoleLabelsResponse(BaseModel):
+    admin: str
+    project_manager: str
+    member: str
+
+
+class RoleLabelsUpdate(BaseModel):
+    admin: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    project_manager: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    member: Optional[str] = Field(default=None, min_length=1, max_length=64)

@@ -1,12 +1,14 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
-from app.models.app_setting import AppSetting
+from app.models.app_setting import AppSetting, DEFAULT_ROLE_LABELS
+from app.models.project import ProjectRole
 
 DEFAULT_SETTING_ID = 1
+ROLE_KEYS = [role.value for role in ProjectRole]
 
 
 def _normalize_domains(domains: Iterable[str]) -> list[str]:
@@ -31,6 +33,24 @@ def _normalize_scopes(scopes: Iterable[str]) -> list[str]:
     return normalized or ["openid", "profile", "email"]
 
 
+def _normalize_role_labels(
+    labels: Mapping[str, str] | None,
+    *,
+    base: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    normalized = dict(base or DEFAULT_ROLE_LABELS)
+    for role in ROLE_KEYS:
+        normalized.setdefault(role, DEFAULT_ROLE_LABELS[role])
+    if not labels:
+        return normalized
+    for role, value in labels.items():
+        if role not in ROLE_KEYS or value is None:
+            continue
+        cleaned = value.strip()
+        normalized[role] = cleaned or DEFAULT_ROLE_LABELS[role]
+    return normalized
+
+
 async def get_or_create_app_settings(
     session: AsyncSession,
     *,
@@ -53,6 +73,7 @@ async def get_or_create_app_settings(
         oidc_scopes=_normalize_scopes(app_config.OIDC_SCOPES),
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
+        role_labels=_normalize_role_labels(None),
     )
     session.add(app_settings)
     await session.commit()
@@ -112,6 +133,18 @@ async def update_interface_colors(
     app_settings = await get_or_create_app_settings(session)
     app_settings.light_accent_color = light_accent_color
     app_settings.dark_accent_color = dark_accent_color
+    session.add(app_settings)
+    await session.commit()
+    await session.refresh(app_settings)
+    return app_settings
+
+
+async def update_role_labels(
+    session: AsyncSession,
+    labels: Mapping[str, str | None],
+) -> AppSetting:
+    app_settings = await get_or_create_app_settings(session)
+    app_settings.role_labels = _normalize_role_labels(labels, base=app_settings.role_labels)
     session.add(app_settings)
     await session.commit()
     await session.refresh(app_settings)

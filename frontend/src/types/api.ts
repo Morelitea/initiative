@@ -107,3 +107,9 @@ export interface ApiKeyCreateResponse {
   api_key: ApiKeyMetadata;
   secret: string;
 }
+
+export interface RoleLabels {
+  admin: string;
+  project_manager: string;
+  member: string;
+}

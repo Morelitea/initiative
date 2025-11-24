@@ -14,6 +14,7 @@ import { EmojiPicker } from '../components/EmojiPicker';
 import { useAuth } from '../hooks/useAuth';
 import { queryClient } from '../lib/queryClient';
 import { Project, ProjectRole, Initiative } from '../types/api';
+import { useRoleLabels, getRoleLabel } from '../hooks/useRoleLabels';
 
 const INITIATIVES_QUERY_KEY = ['initiatives'];
 const NO_INITIATIVE_VALUE = 'none';
@@ -202,6 +203,8 @@ export const ProjectSettingsPage = () => {
       navigate('/');
     },
   });
+
+  const { data: roleLabels } = useRoleLabels();
 
   if (!Number.isFinite(parsedProjectId)) {
     return <p className="text-destructive">Invalid project id.</p>;
@@ -443,7 +446,7 @@ export const ProjectSettingsPage = () => {
                 <Label>Read access</Label>
                 <div className="flex flex-wrap gap-4">
                   {projectRoleOptions.map((role) => (
-                    <label key={`read-${role}`} className="flex items-center gap-2 text-sm capitalize">
+                    <label key={`read-${role}`} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={readRoles.includes(role)}
                         onCheckedChange={() =>
@@ -452,7 +455,7 @@ export const ProjectSettingsPage = () => {
                           )
                         }
                       />
-                      {role.replace('_', ' ')}
+                      {getRoleLabel(role, roleLabels)}
                     </label>
                   ))}
                 </div>
@@ -462,7 +465,7 @@ export const ProjectSettingsPage = () => {
                 <Label>Write access</Label>
                 <div className="flex flex-wrap gap-4">
                   {projectRoleOptions.map((role) => (
-                    <label key={`write-${role}`} className="flex items-center gap-2 text-sm capitalize">
+                    <label key={`write-${role}`} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={writeRoles.includes(role)}
                         onCheckedChange={() =>
@@ -471,7 +474,7 @@ export const ProjectSettingsPage = () => {
                           )
                         }
                       />
-                      {role.replace('_', ' ')}
+                      {getRoleLabel(role, roleLabels)}
                     </label>
                   ))}
                 </div>
