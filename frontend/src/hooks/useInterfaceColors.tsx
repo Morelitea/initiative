@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "../api/client";
+import { setAccentFaviconColors, syncFaviconWithTheme } from "@/lib/favicon";
 
 interface InterfaceSettings {
   light_accent_color: string;
@@ -105,6 +106,9 @@ export const useInterfaceColors = () => {
   useEffect(() => {
     if (query.data) {
       applyInterfaceColors(query.data);
+      setAccentFaviconColors(query.data.light_accent_color, query.data.dark_accent_color);
+      const isDark = document.documentElement.classList.contains("dark");
+      syncFaviconWithTheme(isDark ? "dark" : "light");
     }
   }, [query.data]);
 

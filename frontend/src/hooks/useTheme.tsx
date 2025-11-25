@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { syncFaviconWithTheme } from "@/lib/favicon";
 
 type Theme = "light" | "dark";
 
@@ -43,6 +44,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
+    syncFaviconWithTheme(theme);
   }, [theme]);
 
   useEffect(() => {
