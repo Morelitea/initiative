@@ -11,6 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { Calendar, Kanban, List, GanttChart } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -30,14 +31,25 @@ import { priorityVariant, type DueFilterOption, type UserOption } from "./projec
 import { ProjectTasksKanbanView } from "./ProjectTasksKanbanView";
 import { ProjectTasksListView } from "./ProjectTasksListView";
 import { Button } from "../ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+
+type ViewMode = "list" | "kanban" | "calendar" | "gantt";
+
 type StoredFilters = {
-  viewMode: "list" | "kanban" | "calendar" | "gantt";
+  viewMode: ViewMode;
   assigneeFilter: string;
   dueFilter: DueFilterOption;
   listStatusFilter: "all" | "incomplete" | TaskStatus;
 };
+
+const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] = [
+  { value: "list", label: "List", icon: List },
+  { value: "kanban", label: "Kanban", icon: Kanban },
+  { value: "calendar", label: "Calendar", icon: Calendar },
+  { value: "gantt", label: "Gantt", icon: GanttChart },
+];
 
 type ProjectTasksSectionProps = {
   projectId: number;
@@ -65,7 +77,7 @@ export const ProjectTasksSection = ({
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar" | "gantt">("list");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
@@ -81,6 +93,12 @@ export const ProjectTasksSection = ({
     () => (Number.isFinite(projectId) ? `project:${projectId}:view-filters` : null),
     [projectId]
   );
+
+  const handleViewModeChange = (value: string) => {
+    if (value === "list" || value === "kanban" || value === "calendar" || value === "gantt") {
+      setViewMode(value);
+    }
+  };
 
   useEffect(() => {
     setOrderedTasks(projectTasks);
@@ -491,11 +509,7 @@ export const ProjectTasksSection = ({
 
   return (
     <div className="space-y-4">
-      <Tabs
-        value={viewMode}
-        onValueChange={(value) => setViewMode(value as "list" | "kanban" | "calendar" | "gantt")}
-        className="space-y-4"
-      >
+      <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Project tasks</h2>
@@ -503,24 +517,33 @@ export const ProjectTasksSection = ({
               Switch between Kanban and List views to track progress.
             </p>
           </div>
-          <TabsList>
-            <TabsTrigger value="list" className="inline-flex items-center gap-2">
-              <List className="h-4 w-4" />
-              List
-            </TabsTrigger>
-            <TabsTrigger value="kanban" className="inline-flex items-center gap-2">
-              <Kanban className="h-4 w-4" />
-              Kanban
-            </TabsTrigger>
-            <TabsTrigger value="calendar" className="inline-flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Calendar
-            </TabsTrigger>
-            <TabsTrigger value="gantt" className="inline-flex items-center gap-2">
-              <GanttChart className="h-4 w-4" />
-              Gantt
-            </TabsTrigger>
-          </TabsList>
+          <div className="w-full sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-3">
+            <div className="w-full sm:hidden">
+              <Select value={viewMode} onValueChange={handleViewModeChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select view" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_VIEW_OPTIONS.map(({ value, label, icon: Icon }) => (
+                    <SelectItem key={value} value={value}>
+                      <Icon className="mr-2 inline h-4 w-4" />
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="hidden sm:block">
+              <TabsList>
+                {TASK_VIEW_OPTIONS.map(({ value, label, icon: Icon }) => (
+                  <TabsTrigger key={value} value={value} className="gap-2">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </div>
         </div>
 
         <ProjectTasksFilters
