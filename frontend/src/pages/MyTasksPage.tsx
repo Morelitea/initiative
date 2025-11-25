@@ -25,6 +25,7 @@ import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
 
 const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const INITIATIVE_FILTER_ALL = "all";
 const getDefaultFiltersVisibility = () => {
   if (typeof window === "undefined") {
     return true;
@@ -86,6 +87,7 @@ export const MyTasksPage = () => {
   const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
   const [sortMode, setSortMode] = useState<"due" | "priority" | "alphabetical">("due");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -93,6 +95,18 @@ export const MyTasksPage = () => {
       result[project.id] = project;
     });
     return result;
+  }, [projectsQuery.data]);
+
+  const initiativeOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    projectsQuery.data?.forEach((project) => {
+      if (project.initiative_id && project.initiative?.name) {
+        map.set(project.initiative_id, project.initiative.name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id: String(id), name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [projectsQuery.data]);
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
@@ -120,6 +134,8 @@ export const MyTasksPage = () => {
   }, [tasks, user, excludedProjectIds]);
 
   const filteredTasks = useMemo(() => {
+    const selectedInitiativeId =
+      initiativeFilter === INITIATIVE_FILTER_ALL ? null : Number(initiativeFilter);
     return myTasks.filter((task) => {
       if (statusFilter === "incomplete") {
         if (task.status === "done") {
@@ -132,9 +148,16 @@ export const MyTasksPage = () => {
       if (priorityFilter !== "all" && task.priority !== priorityFilter) {
         return false;
       }
+
+      if (selectedInitiativeId) {
+        const project = projectsById[task.project_id];
+        if (!project || project.initiative_id !== selectedInitiativeId) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [myTasks, statusFilter, priorityFilter]);
+  }, [myTasks, statusFilter, priorityFilter, initiativeFilter, projectsById]);
 
   const sortedTasks = useMemo(() => {
     const next = [...filteredTasks];
@@ -267,6 +290,27 @@ export const MyTasksPage = () => {
               </Select>
             </div>
             <div className="w-full sm:w-60 lg:flex-1">
+              <Label
+                htmlFor="task-initiative-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Initiative
+              </Label>
+              <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
+                <SelectTrigger id="task-initiative-filter">
+                  <SelectValue placeholder="All initiatives" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                  {initiativeOptions.map((initiative) => (
+                    <SelectItem key={initiative.id} value={initiative.id}>
+                      {initiative.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-60 lg:flex-1">
               <Label htmlFor="task-sort" className="text-xs font-medium text-muted-foreground">
                 Sort
               </Label>
@@ -294,11 +338,12 @@ export const MyTasksPage = () => {
         isEmpty={sortedTasks.length === 0}
         emptyMessage="No tasks match the current filters."
       >
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="text-left text-muted-foreground">
             <tr>
               <th className="pb-2 px-2 font-medium">Done</th>
               <th className="pb-2 px-2 font-medium">Task</th>
+              <th className="pb-2 px-2 font-medium">Initiative</th>
               <th className="pb-2 px-2 font-medium">Project</th>
               <th className="pb-2 px-2 font-medium">Priority</th>
               <th className="pb-2 px-2 font-medium">Status</th>
@@ -307,6 +352,7 @@ export const MyTasksPage = () => {
           <tbody className="divide-y">
             {sortedTasks.map((task) => {
               const project = projectsById[task.project_id];
+              const initiative = project?.initiative;
               const recurrenceSummary = task.recurrence
                 ? summarizeRecurrence(task.recurrence, {
                     referenceDate: task.start_date || task.due_date,
@@ -357,6 +403,21 @@ export const MyTasksPage = () => {
                         {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
                       </div>
                     </div>
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    {initiative ? (
+                      <div className="flex items-center gap-2">
+                        {initiative.color ? (
+                          <span
+                            className="h-2.5 w-2.5 rounded-full border border-border/40"
+                            style={{ backgroundColor: initiative.color }}
+                          />
+                        ) : null}
+                        <span className="text-sm font-medium text-foreground">{initiative.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top">
                     {project ? (
