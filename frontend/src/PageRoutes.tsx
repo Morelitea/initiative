@@ -2,6 +2,7 @@ import { lazy, useEffect, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 
 const PAGE_TRANSITION_DURATION_MS = 300;
@@ -92,6 +93,7 @@ const UserSettingsNotificationsPage = lazy(() =>
 export const PageRoutes = () => {
   const location = useLocation();
   const { user, refreshUser } = useAuth();
+  const prefersReducedMotion = usePrefersReducedMotion();
   // Keep rendering the previous route until the fade-out completes.
   const [displayLocation, setDisplayLocation] = useState(location);
   const [transitionStage, setTransitionStage] = useState<TransitionStage>("fadeIn");
@@ -101,13 +103,19 @@ export const PageRoutes = () => {
     `${displayLocation.pathname}${displayLocation.search}${displayLocation.hash}`;
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setDisplayLocation(location);
+      setTransitionStage("fadeIn");
+      return;
+    }
+
     if (locationKey !== displayKey) {
       setTransitionStage("fadeOut");
     }
-  }, [locationKey, displayKey]);
+  }, [prefersReducedMotion, location, locationKey, displayKey]);
 
   useEffect(() => {
-    if (transitionStage !== "fadeOut") {
+    if (prefersReducedMotion || transitionStage !== "fadeOut") {
       return;
     }
 
@@ -117,12 +125,13 @@ export const PageRoutes = () => {
     }, PAGE_TRANSITION_DURATION_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [transitionStage, location]);
+  }, [prefersReducedMotion, transitionStage, location]);
 
   return (
     <div
       className={cn(
-        "transition-all duration-300 ease-in-out",
+        !prefersReducedMotion &&
+          "transition-all duration-300 ease-in-out",
         transitionStage === "fadeIn"
           ? "opacity-100 translate-y-0"
           : "pointer-events-none opacity-0 translate-y-2"
