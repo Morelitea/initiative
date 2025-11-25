@@ -17,6 +17,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "../hooks/useRoleLabels";
 import { queryClient } from "../lib/queryClient";
 import type { RegistrationSettings, User, UserRole } from "../types/api";
+import { Label } from "@/components/ui/label";
 
 const REGISTRATION_SETTINGS_QUERY_KEY = ["registration-settings"];
 const USERS_QUERY_KEY = ["users"];
@@ -233,23 +234,28 @@ export const SettingsUsersPage = () => {
                     Status: {workspaceUser.is_active ? "Active" : "Pending approval"}
                   </p>
                 </div>
-                <div className="flex min-w-[220px] flex-col gap-2">
-                  <Select
-                    value={workspaceUser.role}
-                    onValueChange={(value) => handleRoleChange(workspaceUser.id, value as UserRole)}
-                    disabled={isSuperUser}
-                  >
-                    <SelectTrigger disabled={isSuperUser}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLE_OPTIONS.map((roleOption) => (
-                        <SelectItem key={roleOption} value={roleOption}>
-                          {getRoleLabel(roleOption, roleLabels)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="inline-flex min-w-[220px]  gap-2">
+                  <Label className="flex items-center gap-2">
+                    Role:
+                    <Select
+                      value={workspaceUser.role}
+                      onValueChange={(value) =>
+                        handleRoleChange(workspaceUser.id, value as UserRole)
+                      }
+                      disabled={isSuperUser}
+                    >
+                      <SelectTrigger disabled={isSuperUser} className="min-w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLE_OPTIONS.map((roleOption) => (
+                          <SelectItem key={roleOption} value={roleOption}>
+                            {getRoleLabel(roleOption, roleLabels)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Label>
                   <Button
                     type="button"
                     variant="outline"
