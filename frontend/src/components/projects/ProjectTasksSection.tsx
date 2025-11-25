@@ -226,13 +226,17 @@ export const ProjectTasksSection = ({
       return response.data;
     },
     onSuccess: (updatedTask) => {
+      let nextState: Task[] | null = null;
       setOrderedTasks((prev) => {
         if (!prev.length) {
           return prev;
         }
-        const next = prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
-        return [...next].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+        nextState = prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+        return nextState;
       });
+      if (nextState) {
+        persistOrder(nextState);
+      }
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
