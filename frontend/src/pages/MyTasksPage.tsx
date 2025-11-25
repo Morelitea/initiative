@@ -343,11 +343,16 @@ export const MyTasksPage = () => {
                         </p>
                       ) : null}
                       <div className="space-y-1 text-xs text-muted-foreground">
-                        {task.start_date ? (
-                          <p>Starts: {new Date(task.start_date).toLocaleString()}</p>
-                        ) : null}
-                        {task.due_date ? (
-                          <p>Due: {new Date(task.due_date).toLocaleString()}</p>
+                        {task.start_date || task.due_date ? (
+                          <p>
+                            {task.start_date
+                              ? `Starts: ${new Date(task.start_date).toLocaleString()}`
+                              : null}
+                            {task.start_date && task.due_date ? <span> &mdash; </span> : null}
+                            {task.due_date
+                              ? `Due: ${new Date(task.due_date).toLocaleString()}`
+                              : null}
+                          </p>
                         ) : null}
                         {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
                       </div>

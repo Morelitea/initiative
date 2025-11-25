@@ -105,8 +105,13 @@ export const SortableTaskRow = ({
               {task.assignees.length > 0 ? (
                 <TaskAssigneeList assignees={task.assignees} className="text-xs" />
               ) : null}
-              {formattedStart ? <p>Starts: {formattedStart}</p> : null}
-              {formattedDue ? <p>Due: {formattedDue}</p> : null}
+              {formattedStart || formattedDue ? (
+                <p>
+                  {formattedStart ? `Starts: ${formattedStart}` : null}
+                  {formattedStart && formattedDue ? <span> &mdash; </span> : null}
+                  {formattedDue ? `Due: ${formattedDue}` : null}
+                </p>
+              ) : null}
               {recurrenceText ? <p>{recurrenceText}</p> : null}
             </div>
           </button>
