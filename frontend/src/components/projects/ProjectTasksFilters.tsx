@@ -1,7 +1,13 @@
-import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import type { DueFilterOption, UserOption } from "./projectTasksConfig";
-import { taskStatusOrder } from "./projectTasksConfig";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
+import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 import type { TaskStatus } from "@/types/api";
 
 type ProjectTasksFiltersProps = {

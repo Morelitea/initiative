@@ -1,4 +1,4 @@
-import type { TaskPriority, TaskStatus } from "../../types/api";
+import type { TaskPriority, TaskStatus } from "@/types/api";
 
 export const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 

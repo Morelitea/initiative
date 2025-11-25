@@ -2,12 +2,12 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Badge } from "../ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import type { Task, TaskPriority, TaskStatus } from "../../types/api";
-import { truncateText } from "../../lib/text";
-import { summarizeRecurrence } from "../../lib/recurrence";
-import { TaskAssigneeList } from "./TaskAssigneeList";
+import type { Task, TaskPriority, TaskStatus } from "@/types/api";
+import { truncateText } from "@/lib/text";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 
 interface KanbanColumnProps {
   status: TaskStatus;

@@ -7,10 +7,10 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import type { Task, TaskPriority, TaskStatus } from "../../types/api";
-import { TasksTableCard } from "../tasks/TasksTableCard";
-import { SortableTaskRow } from "./SortableTaskRow";
-import { taskStatusOrder } from "./projectTasksConfig";
+import type { Task, TaskPriority, TaskStatus } from "@/types/api";
+import { TasksTableCard } from "@/components/tasks/TasksTableCard";
+import { SortableTaskRow } from "@/components/projects/SortableTaskRow";
+import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 
 type ProjectTasksListViewProps = {
   listTasks: Task[];

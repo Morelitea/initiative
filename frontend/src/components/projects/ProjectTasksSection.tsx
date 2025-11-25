@@ -23,18 +23,28 @@ import {
   type TaskReorderPayload,
   type TaskStatus,
 } from "@/types/api";
-import { ProjectCalendarView } from "./ProjectCalendarView";
-import { ProjectGanttView } from "./ProjectGanttView";
-import { ProjectTaskComposer } from "./ProjectTaskComposer";
-import { ProjectTasksFilters } from "./ProjectTasksFilters";
-import { priorityVariant, type DueFilterOption, type UserOption } from "./projectTasksConfig";
-import { ProjectTasksKanbanView } from "./ProjectTasksKanbanView";
-import { ProjectTasksListView } from "./ProjectTasksListView";
-import { Button } from "../ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
+import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
+import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
+import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
+import {
+  priorityVariant,
+  type DueFilterOption,
+  type UserOption,
+} from "@/components/projects/projectTasksConfig";
+import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
+import { ProjectTasksListView } from "@/components/projects/ProjectTasksListView";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type ViewMode = "list" | "kanban" | "calendar" | "gantt";
 

@@ -1,8 +1,8 @@
 import type { MouseEvent } from "react";
 import { Star } from "lucide-react";
 
-import { cn } from "../../lib/utils";
-import { useProjectFavoriteMutation } from "../../hooks/useProjectFavoriteMutation";
+import { cn } from "@/lib/utils";
+import { useProjectFavoriteMutation } from "@/hooks/useProjectFavoriteMutation";
 
 interface FavoriteProjectButtonProps {
   projectId: number;

@@ -1,16 +1,27 @@
 import { FormEvent } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Button } from "../ui/button";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Textarea } from "../ui/textarea";
-import { DateTimePicker } from "../ui/date-time-picker";
-import type { TaskPriority, TaskRecurrence } from "../../types/api";
-import { AssigneeSelector } from "./AssigneeSelector";
-import { TaskRecurrenceSelector } from "./TaskRecurrenceSelector";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import type { TaskPriority, TaskRecurrence } from "@/types/api";
+import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
+import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 
 interface ProjectTaskComposerProps {
   title: string;

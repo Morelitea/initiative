@@ -2,10 +2,10 @@ import { ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, Clock3, Star, X } from "lucide-react";
 
-import { cn } from "../../lib/utils";
-import { InitiativeColorDot } from "../../lib/initiativeColors";
-import type { Project } from "../../types/api";
-import { Button } from "../ui/button";
+import { cn } from "@/lib/utils";
+import { InitiativeColorDot } from "@/lib/initiativeColors";
+import type { Project } from "@/types/api";
+import { Button } from "@/components/ui/button";
 
 interface ProjectShortcutsSidebarProps {
   favorites?: Project[];

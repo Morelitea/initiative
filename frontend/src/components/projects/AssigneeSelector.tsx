@@ -1,5 +1,5 @@
-import { Checkbox } from "../ui/checkbox";
-import { Button } from "../ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 interface AssigneeOption {
   id: number;

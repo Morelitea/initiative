@@ -1,25 +1,22 @@
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
 
-import { Badge } from "../ui/badge";
-import { Markdown } from "../Markdown";
+import { Badge } from "@/components/ui/badge";
+import { Markdown } from "@/components/Markdown";
 import { FavoriteProjectButton } from "./FavoriteProjectButton";
 import {
   InitiativeColorDot,
   INITIATIVE_COLOR_FALLBACK,
   resolveInitiativeColor,
-} from "../../lib/initiativeColors";
-import type { Project } from "../../types/api";
+} from "@/lib/initiativeColors";
+import type { Project } from "@/types/api";
 
 type ProjectOverviewCardProps = {
   project: Project;
   projectIsArchived: boolean;
 };
 
-export const ProjectOverviewCard = ({
-  project,
-  projectIsArchived,
-}: ProjectOverviewCardProps) => {
+export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverviewCardProps) => {
   const detailCardStyle = useMemo(() => {
     const initiativeColor = resolveInitiativeColor(project.initiative?.color);
     return buildProjectDetailBackground(initiativeColor);

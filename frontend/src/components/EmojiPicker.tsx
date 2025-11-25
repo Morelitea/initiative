@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import EmojiPickerBase, { EmojiClickData, Theme } from "emoji-picker-react";
 
-import { Button } from "./ui/button";
+import { Button } from "@/components/ui/button";
 
 interface EmojiPickerProps {
   id?: string;

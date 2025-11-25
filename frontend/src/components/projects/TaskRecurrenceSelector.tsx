@@ -5,12 +5,18 @@ import type {
   TaskRecurrenceFrequency,
   TaskWeekPosition,
   TaskWeekday,
-} from "../../types/api";
-import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-import { cn } from "../../lib/utils";
+} from "@/types/api";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   WEEKDAYS,
   RecurrencePreset,
@@ -23,7 +29,7 @@ import {
   updateMonthlyWeekday,
   updateWeeklyWeekdays,
   updateYearlyMonth,
-} from "../../lib/recurrence";
+} from "@/lib/recurrence";
 
 const MONTH_OPTIONS = [
   "January",

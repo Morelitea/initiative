@@ -7,12 +7,12 @@ import {
   type DragStartEvent,
   type DndContextProps,
 } from "@dnd-kit/core";
-import type { Task, TaskPriority, TaskStatus } from "../../types/api";
+import type { Task, TaskPriority, TaskStatus } from "@/types/api";
 
-import { KanbanColumn } from "./KanbanColumn";
-import { taskStatusOrder } from "./projectTasksConfig";
-import { Badge } from "../ui/badge";
-import { Markdown } from "../Markdown";
+import { KanbanColumn } from "@/components/projects/KanbanColumn";
+import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
+import { Badge } from "@/components/ui/badge";
+import { Markdown } from "@/components/Markdown";
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
 type ProjectTasksKanbanViewProps = {

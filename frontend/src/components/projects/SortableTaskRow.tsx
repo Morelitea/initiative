@@ -2,13 +2,19 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
-import { Badge } from "../ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import type { Task, TaskPriority, TaskStatus } from "../../types/api";
-import { truncateText } from "../../lib/text";
-import { summarizeRecurrence } from "../../lib/recurrence";
-import { Checkbox } from "../ui/checkbox";
-import { TaskAssigneeList } from "./TaskAssigneeList";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Task, TaskPriority, TaskStatus } from "@/types/api";
+import { truncateText } from "@/lib/text";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 
 interface SortableTaskRowProps {
   task: Task;

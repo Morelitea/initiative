@@ -1,6 +1,6 @@
-import type { User } from "../../types/api";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { cn } from "../../lib/utils";
+import type { User } from "@/types/api";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
 interface TaskAssigneeListProps {
   assignees: User[];

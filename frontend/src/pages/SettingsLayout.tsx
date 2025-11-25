@@ -4,8 +4,7 @@ import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useAuth } from "../hooks/useAuth";
 
 const settingsTabs = [
-  { value: "registration", label: "Registration", path: "/settings" },
-  { value: "users", label: "Users", path: "/settings/users" },
+  { value: "users", label: "Users", path: "/settings" },
   { value: "initiatives", label: "Initiatives", path: "/settings/initiatives" },
   { value: "auth", label: "Auth", path: "/settings/auth" },
   { value: "api-keys", label: "API Keys", path: "/settings/api-keys" },
