@@ -6,8 +6,8 @@ import { ChevronDown, Filter } from "lucide-react";
 import { apiClient } from "../api/client";
 import { summarizeRecurrence } from "../lib/recurrence";
 import { Badge } from "../components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import { Label } from "../components/ui/label";
 import {
   Select,
@@ -18,11 +18,9 @@ import {
 } from "../components/ui/select";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "../components/ui/collapsible";
+import { priorityVariant } from "../components/projects/projectTasksConfig";
+import { TasksTableCard } from "../components/tasks/TasksTableCard";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
 
 const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
@@ -272,7 +270,10 @@ export const MyTasksPage = () => {
               <Label htmlFor="task-sort" className="text-xs font-medium text-muted-foreground">
                 Sort
               </Label>
-              <Select value={sortMode} onValueChange={(value) => setSortMode(value as typeof sortMode)}>
+              <Select
+                value={sortMode}
+                onValueChange={(value) => setSortMode(value as typeof sortMode)}
+              >
                 <SelectTrigger id="task-sort">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
@@ -287,113 +288,119 @@ export const MyTasksPage = () => {
         </CollapsibleContent>
       </Collapsible>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Assigned tasks</CardTitle>
-          <CardDescription>Update status directly from this view.</CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          {sortedTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tasks match the current filters.</p>
-          ) : (
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="text-left text-muted-foreground">
-                <tr>
-                  <th className="pb-2 font-medium">Task</th>
-                  <th className="pb-2 font-medium">Project</th>
-                  <th className="pb-2 font-medium">Priority</th>
-                  <th className="pb-2 font-medium">Due</th>
-                  <th className="pb-2 font-medium">Status</th>
+      <TasksTableCard
+        title="Assigned tasks"
+        description="Update status directly from this view."
+        isEmpty={sortedTasks.length === 0}
+        emptyMessage="No tasks match the current filters."
+      >
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="text-left text-muted-foreground">
+            <tr>
+              <th className="pb-2 px-2 font-medium">Done</th>
+              <th className="pb-2 px-2 font-medium">Task</th>
+              <th className="pb-2 px-2 font-medium">Project</th>
+              <th className="pb-2 px-2 font-medium">Priority</th>
+              <th className="pb-2 px-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {sortedTasks.map((task) => {
+              const project = projectsById[task.project_id];
+              const recurrenceSummary = task.recurrence
+                ? summarizeRecurrence(task.recurrence, {
+                    referenceDate: task.start_date || task.due_date,
+                  })
+                : null;
+              return (
+                <tr key={task.id}>
+                  <td className="px-2 py-4 align-top">
+                    <Checkbox
+                      checked={task.status === "done"}
+                      onCheckedChange={(value) =>
+                        updateTaskStatus.mutate({
+                          taskId: task.id,
+                          status: value ? "done" : "in_progress",
+                        })
+                      }
+                      disabled={updateTaskStatus.isPending}
+                      aria-label={
+                        task.status === "done" ? "Mark task as in progress" : "Mark task as done"
+                      }
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-col text-left">
+                      <Link
+                        to={`/tasks/${task.id}/edit`}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {task.title}
+                      </Link>
+                      {task.description ? (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {task.description}
+                        </p>
+                      ) : null}
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {task.start_date ? (
+                          <p>Starts: {new Date(task.start_date).toLocaleString()}</p>
+                        ) : null}
+                        {task.due_date ? (
+                          <p>Due: {new Date(task.due_date).toLocaleString()}</p>
+                        ) : null}
+                        {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    {project ? (
+                      <Link
+                        to={`/projects/${project.id}`}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        {project.name}
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        Project #{task.project_id}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    <Badge variant={priorityVariant[task.priority]}>
+                      {task.priority.replace("_", " ")}
+                    </Badge>
+                  </td>
+                  <td className="px-2 py-2 align-top">
+                    <Select
+                      value={task.status}
+                      onValueChange={(value) =>
+                        updateTaskStatus.mutate({
+                          taskId: task.id,
+                          status: value as TaskStatus,
+                        })
+                      }
+                      disabled={updateTaskStatus.isPending}
+                    >
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.replace("_", " ")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y">
-                {sortedTasks.map((task) => {
-                  const project = projectsById[task.project_id];
-                  const recurrenceSummary = task.recurrence
-                    ? summarizeRecurrence(task.recurrence, {
-                        referenceDate: task.start_date || task.due_date,
-                      })
-                    : null;
-                  return (
-                    <tr key={task.id}>
-                      <td className="py-3">
-                        <div className="flex flex-col">
-                          <Link
-                            to={`/tasks/${task.id}/edit`}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {task.title}
-                          </Link>
-                          {task.description ? (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {task.description}
-                            </p>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        {project ? (
-                          <Link
-                            to={`/projects/${project.id}`}
-                            className="text-primary hover:underline"
-                          >
-                            {project.name}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">Project #{task.project_id}</span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        <Badge variant="secondary">{task.priority.replace("_", " ")}</Badge>
-                      </td>
-                      <td className="py-3">
-                        <div className="space-y-1">
-                          <p className="text-sm">
-                            {task.start_date
-                              ? `Starts ${new Date(task.start_date).toLocaleDateString()}`
-                              : "No start"}
-                          </p>
-                          <p className="text-sm">
-                            {task.due_date
-                              ? `Due ${new Date(task.due_date).toLocaleDateString()}`
-                              : "No due date"}
-                          </p>
-                          {recurrenceSummary ? (
-                            <p className="text-xs text-muted-foreground">{recurrenceSummary}</p>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        <Select
-                          value={task.status}
-                          onValueChange={(value) =>
-                            updateTaskStatus.mutate({
-                              taskId: task.id,
-                              status: value as TaskStatus,
-                            })
-                          }
-                          disabled={updateTaskStatus.isPending}
-                        >
-                          <SelectTrigger className="w-[160px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {statusOptions.map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {status.replace("_", " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </tbody>
+        </table>
+      </TasksTableCard>
     </div>
   );
 };

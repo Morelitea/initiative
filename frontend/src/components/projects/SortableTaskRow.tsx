@@ -61,7 +61,7 @@ export const SortableTaskRow = ({
 
   return (
     <tr ref={setNodeRef} style={style} className={isDragging ? "bg-muted/60" : undefined}>
-      <td className="py-3 pl-3 pr-2">
+      <td className="py-4 px-2 align-top">
         <Checkbox
           checked={isDone}
           onCheckedChange={(value) => handleCompletionToggle(Boolean(value))}
@@ -69,7 +69,7 @@ export const SortableTaskRow = ({
           aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
         />
       </td>
-      <td className="py-3">
+      <td className="py-2 px-2">
         <div className="flex items-start gap-2">
           <button
             type="button"
@@ -106,10 +106,10 @@ export const SortableTaskRow = ({
           </button>
         </div>
       </td>
-      <td className="py-3 align-top">
+      <td className="py-2 px-2 align-top">
         <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
       </td>
-      <td className="py-3 align-top">
+      <td className="py-2 px-2 align-top">
         <Select
           value={task.status}
           onValueChange={(value) => {
