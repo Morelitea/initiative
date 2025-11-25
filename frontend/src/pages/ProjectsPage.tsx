@@ -17,12 +17,21 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, LayoutGrid, ScrollText, Archive, List } from "lucide-react";
+import {
+  GripVertical,
+  LayoutGrid,
+  ScrollText,
+  Archive,
+  List,
+  Filter,
+  ChevronDown,
+} from "lucide-react";
 
 import { apiClient } from "../api/client";
 import { Markdown } from "../components/Markdown";
 import { FavoriteProjectButton } from "../components/projects/FavoriteProjectButton";
 import { Button } from "../components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -56,6 +65,12 @@ const INITIATIVE_FILTER_UNASSIGNED = "unassigned";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
+const getDefaultFiltersVisibility = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  return window.matchMedia("(min-width: 640px)").matches;
+};
 
 export const ProjectsPage = () => {
   const { user } = useAuth();
@@ -126,6 +141,7 @@ export const ProjectsPage = () => {
     return stored === "list" || stored === "grid" ? stored : "grid";
   });
   const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: ["projects"],
@@ -162,6 +178,23 @@ export const ProjectsPage = () => {
       return response.data;
     },
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mediaQuery = window.matchMedia("(min-width: 640px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setFiltersOpen(event.matches);
+    };
+    setFiltersOpen(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
 
   const reorderProjects = useMutation({
     mutationFn: async (orderedIds: number[]) => {
@@ -454,70 +487,113 @@ export const ProjectsPage = () => {
               </TabsList>
             </Tabs>
           </div>
-          <div className="space-y-4 rounded-md border border-muted/70 bg-card/30 p-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-              <div className="space-y-1 md:col-span-2 xl:col-span-2">
-                <Label htmlFor="project-search">Filter by name</Label>
-                <Input
-                  id="project-search"
-                  placeholder="Search projects"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+            <div className="flex items-center justify-between sm:hidden">
+              <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Filter className="h-4 w-4" />
+                Filters
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="project-initiative-filter">Filter by initiative</Label>
-                <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-                  <SelectTrigger id="project-initiative-filter">
-                    <SelectValue placeholder="All initiatives" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                    <SelectItem value={INITIATIVE_FILTER_UNASSIGNED}>No initiative</SelectItem>
-                    {availableInitiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={initiative.id.toString()}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="project-sort">Sort projects</Label>
-                <Select
-                  value={sortMode}
-                  onValueChange={(value) =>
-                    setSortMode(
-                      value as "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
-                    )
-                  }
-                >
-                  <SelectTrigger id="project-sort">
-                    <SelectValue placeholder="Select sort order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="custom">Custom (drag & drop)</SelectItem>
-                    <SelectItem value="recently_viewed">Recently opened</SelectItem>
-                    <SelectItem value="updated">Recently updated</SelectItem>
-                    <SelectItem value="created">Recently created</SelectItem>
-                    <SelectItem value="alphabetical">Alphabetical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="favorites-only">Favorites</Label>
-                <div className="flex h-10 items-center gap-3 rounded-md border bg-background/60 px-3">
-                  <Switch
-                    id="favorites-only"
-                    checked={favoritesOnly}
-                    onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
-                    aria-label="Filter to favorite projects"
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 px-3">
+                  {filtersOpen ? "Hide" : "Show"} filters
+                  <ChevronDown
+                    className={`ml-1 h-4 w-4 transition-transform ${
+                      filtersOpen ? "rotate-180" : ""
+                    }`}
                   />
-                  <span className="text-sm text-muted-foreground">Show only favorites</span>
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+              <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+                <div className="w-full lg:flex-1">
+                  <Label
+                    htmlFor="project-search"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Filter by name
+                  </Label>
+                  <Input
+                    id="project-search"
+                    placeholder="Search projects"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                  />
+                </div>
+                <div className="w-full sm:w-60">
+                  <Label
+                    htmlFor="project-initiative-filter"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Filter by initiative
+                  </Label>
+                  <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
+                    <SelectTrigger id="project-initiative-filter">
+                      <SelectValue placeholder="All initiatives" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                      <SelectItem value={INITIATIVE_FILTER_UNASSIGNED}>No initiative</SelectItem>
+                      {availableInitiatives.map((initiative) => (
+                        <SelectItem key={initiative.id} value={initiative.id.toString()}>
+                          {initiative.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-60">
+                  <Label
+                    htmlFor="project-sort"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Sort projects
+                  </Label>
+                  <Select
+                    value={sortMode}
+                    onValueChange={(value) =>
+                      setSortMode(
+                        value as
+                          | "custom"
+                          | "updated"
+                          | "created"
+                          | "alphabetical"
+                          | "recently_viewed"
+                      )
+                    }
+                  >
+                    <SelectTrigger id="project-sort">
+                      <SelectValue placeholder="Select sort order" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Custom (drag & drop)</SelectItem>
+                      <SelectItem value="recently_viewed">Recently opened</SelectItem>
+                      <SelectItem value="updated">Recently updated</SelectItem>
+                      <SelectItem value="created">Recently created</SelectItem>
+                      <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-60">
+                  <Label
+                    htmlFor="favorites-only"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Favorites
+                  </Label>
+                  <div className="flex h-10 items-center gap-3 rounded-md border bg-background/60 px-3">
+                    <Switch
+                      id="favorites-only"
+                      checked={favoritesOnly}
+                      onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
+                      aria-label="Filter to favorite projects"
+                    />
+                    <span className="text-sm text-muted-foreground">Show only favorites</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {sortedProjects.length === 0 ? (
             <p className="text-sm text-muted-foreground">
