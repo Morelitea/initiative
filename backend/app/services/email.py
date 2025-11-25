@@ -64,7 +64,7 @@ def _build_html_layout(title: str, body: str, accent_color: str) -> str:
         This message was sent by Initiative. If you weren't expecting it, you can ignore this email.
       </p>
       <p>
-        <a href="{app_config.APP_URL}/profile">Update notification settings</a>.
+        <a href="{app_config.APP_URL}/profile/notifications">Update notification settings</a>.
       </p>
     </div>
   </body>
