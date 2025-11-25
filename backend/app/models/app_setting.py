@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 
-from sqlalchemy import Column, JSON, String
+from sqlalchemy import Boolean, Column, Integer, JSON, String
 from sqlmodel import Field, SQLModel
 
 DEFAULT_ROLE_LABELS = {
@@ -40,3 +40,17 @@ class AppSetting(SQLModel, table=True):
         default_factory=lambda: DEFAULT_ROLE_LABELS.copy(),
         sa_column=Column(JSON, nullable=False, server_default=json.dumps(DEFAULT_ROLE_LABELS)),
     )
+    smtp_host: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
+    smtp_port: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
+    smtp_secure: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    smtp_reject_unauthorized: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    smtp_username: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
+    smtp_password: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
+    smtp_from_address: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
+    smtp_test_recipient: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))

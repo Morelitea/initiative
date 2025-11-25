@@ -56,6 +56,11 @@ const SettingsBrandingPage = lazy(() =>
     default: module.SettingsBrandingPage,
   }))
 );
+const SettingsEmailPage = lazy(() =>
+  import("./pages/SettingsEmailPage").then((module) => ({
+    default: module.SettingsEmailPage,
+  }))
+);
 const InitiativesPage = lazy(() =>
   import("./pages/InitiativesPage").then((module) => ({
     default: module.InitiativesPage,
@@ -76,6 +81,7 @@ export const PageRoutes = () => (
       <Route path="auth" element={<SettingsAuthPage />} />
       <Route path="api-keys" element={<SettingsApiKeysPage />} />
       <Route path="branding" element={<SettingsBrandingPage />} />
+      <Route path="email" element={<SettingsEmailPage />} />
     </Route>
   </Routes>
 );

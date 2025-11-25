@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import suppress
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -6,6 +9,7 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal, run_migrations
 from app.services import app_settings as app_settings_service
+from app.services import notifications as notifications_service
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -70,3 +74,14 @@ async def on_startup() -> None:
     await run_migrations()
     async with AsyncSessionLocal() as session:
         await app_settings_service.get_or_create_app_settings(session)
+    app.state.notification_tasks = notifications_service.start_background_tasks()
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    tasks = getattr(app.state, "notification_tasks", [])
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        with suppress(asyncio.CancelledError):
+            await task

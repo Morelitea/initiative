@@ -6,8 +6,12 @@ from sqlmodel import select
 from app.api.deps import SessionDep, require_roles
 from app.core.config import settings as app_config
 from app.models.user import User, UserRole
+from app.models.app_setting import AppSetting
 from app.schemas.api_key import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyListResponse
 from app.schemas.settings import (
+    EmailSettingsResponse,
+    EmailSettingsUpdate,
+    EmailTestRequest,
     InterfaceSettingsResponse,
     InterfaceSettingsUpdate,
     OIDCSettingsResponse,
@@ -19,6 +23,7 @@ from app.schemas.settings import (
 )
 from app.services import api_keys as api_keys_service
 from app.services import app_settings as app_settings_service
+from app.services import email as email_service
 
 router = APIRouter()
 
@@ -31,6 +36,19 @@ def _backend_redirect_uri() -> str:
 
 def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
+
+
+def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
+    return EmailSettingsResponse(
+        host=settings_obj.smtp_host,
+        port=settings_obj.smtp_port,
+        secure=settings_obj.smtp_secure,
+        reject_unauthorized=settings_obj.smtp_reject_unauthorized,
+        username=settings_obj.smtp_username,
+        has_password=bool(settings_obj.smtp_password),
+        from_address=settings_obj.smtp_from_address,
+        test_recipient=settings_obj.smtp_test_recipient,
+    )
 
 
 @router.get("/registration", response_model=RegistrationSettingsResponse)
@@ -170,3 +188,51 @@ async def update_role_labels(
         labels={k: v for k, v in payload.dict(exclude_unset=True).items()},
     )
     return RoleLabelsResponse(**updated.role_labels)
+
+
+@router.get("/email", response_model=EmailSettingsResponse)
+async def get_email_settings(session: SessionDep, _: AdminUser) -> EmailSettingsResponse:
+    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+    return _email_settings_payload(settings_obj)
+
+
+@router.put("/email", response_model=EmailSettingsResponse)
+async def update_email_settings(
+    payload: EmailSettingsUpdate,
+    session: SessionDep,
+    _: AdminUser,
+) -> EmailSettingsResponse:
+    data = payload.model_dump(exclude_unset=True)
+    password_provided = "password" in data
+    updated = await app_settings_service.update_email_settings(
+        session,
+        host=payload.host,
+        port=payload.port,
+        secure=payload.secure,
+        reject_unauthorized=payload.reject_unauthorized,
+        username=payload.username,
+        password=payload.password,
+        password_provided=password_provided,
+        from_address=payload.from_address,
+        test_recipient=payload.test_recipient,
+    )
+    return _email_settings_payload(updated)
+
+
+@router.post("/email/test")
+async def send_test_email(
+    payload: EmailTestRequest,
+    session: SessionDep,
+    _: AdminUser,
+) -> dict:
+    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+    recipient = payload.recipient or settings_obj.smtp_test_recipient
+    if not recipient:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide a test email address.")
+    try:
+        await email_service.send_test_email(session, recipient)
+    except email_service.EmailNotConfiguredError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP settings are incomplete.") from None
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return {"status": "sent"}

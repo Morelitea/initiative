@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 import hashlib
 import hmac
+import logging
 import secrets
 import time
-from typing import Any
+from typing import Any, Annotated
 from urllib.parse import urlencode
 
 import httpx
@@ -13,19 +15,29 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep, get_current_active_user
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
 from app.schemas.token import Token
+from app.schemas.auth import (
+    PasswordResetRequest,
+    PasswordResetSubmit,
+    VerificationConfirmRequest,
+    VerificationSendResponse,
+)
 from app.schemas.user import UserCreate, UserRead
 from app.services import app_settings as app_settings_service
+from app.services import email as email_service
+from app.services import user_tokens
+from app.models.user_token import UserTokenPurpose
 
 router = APIRouter()
 
 STATE_TTL_SECONDS = 600
 _oidc_metadata_cache: dict[str, dict[str, Any]] = {}
 SUPER_USER_ID = 1
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -50,6 +62,7 @@ async def register_user(user_in: UserCreate, session: SessionDep) -> User:
         hashed_password=get_password_hash(user_in.password),
         role=UserRole.admin if is_first_user else UserRole.member,
         is_active=is_auto_approved,
+        email_verified=is_first_user,
     )
 
     session.add(user)
@@ -60,6 +73,20 @@ async def register_user(user_in: UserCreate, session: SessionDep) -> User:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create user") from exc
 
     await session.refresh(user)
+
+    if not user.email_verified:
+        try:
+            token = await user_tokens.create_token(
+                session,
+                user_id=user.id,
+                purpose=UserTokenPurpose.email_verification,
+                expires_minutes=60 * 24,
+            )
+            await email_service.send_verification_email(session, user, token)
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping verification email for %s", user.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send verification email: %s", exc)
     return user
 
 
@@ -83,6 +110,8 @@ async def login_access_token(
 
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+    if not user.email_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email not verified")
 
     access_token = create_access_token(subject=str(user.id))
     return Token(access_token=access_token)
@@ -247,6 +276,7 @@ async def oidc_callback(
             is_active=True,
             avatar_url=avatar_url,
             avatar_base64=None,
+            email_verified=True,
         )
         session.add(user)
         await session.commit()
@@ -255,6 +285,9 @@ async def oidc_callback(
         updated = False
         if not user.is_active:
             user.is_active = True
+            updated = True
+        if not user.email_verified:
+            user.email_verified = True
             updated = True
         if full_name and user.full_name != full_name:
             user.full_name = full_name
@@ -273,3 +306,94 @@ async def oidc_callback(
     redirect_params = {"token": app_token}
     redirect_url = f"{_frontend_redirect_uri()}?{urlencode(redirect_params)}"
     return RedirectResponse(redirect_url)
+
+
+@router.post("/verification/send", response_model=VerificationSendResponse)
+async def resend_verification_email(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> VerificationSendResponse:
+    if current_user.email_verified:
+        return VerificationSendResponse(status="already_verified")
+    try:
+        token = await user_tokens.create_token(
+            session,
+            user_id=current_user.id,
+            purpose=UserTokenPurpose.email_verification,
+            expires_minutes=60 * 24,
+        )
+        await email_service.send_verification_email(session, current_user, token)
+    except email_service.EmailNotConfiguredError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP settings are incomplete.") from None
+    except RuntimeError as exc:  # pragma: no cover
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return VerificationSendResponse(status="sent")
+
+
+@router.post("/verification/confirm", response_model=VerificationSendResponse)
+async def confirm_verification(payload: VerificationConfirmRequest, session: SessionDep) -> VerificationSendResponse:
+    record = await user_tokens.consume_token(
+        session,
+        token=payload.token,
+        purpose=UserTokenPurpose.email_verification,
+    )
+    if not record:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+    user_stmt = select(User).where(User.id == record.user_id)
+    user_result = await session.exec(user_stmt)
+    user = user_result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not user.email_verified:
+        user.email_verified = True
+        user.updated_at = datetime.now(timezone.utc)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+    return VerificationSendResponse(status="verified")
+
+
+@router.post("/password/forgot", response_model=VerificationSendResponse)
+async def request_password_reset(payload: PasswordResetRequest, session: SessionDep) -> VerificationSendResponse:
+    stmt = select(User).where(User.email == payload.email)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user or not user.is_active:
+        return VerificationSendResponse(status="sent")
+    try:
+        token = await user_tokens.create_token(
+            session,
+            user_id=user.id,
+            purpose=UserTokenPurpose.password_reset,
+            expires_minutes=60,
+        )
+        await email_service.send_password_reset_email(session, user, token)
+    except email_service.EmailNotConfiguredError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP settings are incomplete.") from None
+    except RuntimeError as exc:  # pragma: no cover
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return VerificationSendResponse(status="sent")
+
+
+@router.post("/password/reset", response_model=VerificationSendResponse)
+async def reset_password(payload: PasswordResetSubmit, session: SessionDep) -> VerificationSendResponse:
+    record = await user_tokens.consume_token(
+        session,
+        token=payload.token,
+        purpose=UserTokenPurpose.password_reset,
+    )
+    if not record:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+    stmt = select(User).where(User.id == record.user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.hashed_password = get_password_hash(payload.password)
+    if not user.email_verified:
+        user.email_verified = True
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return VerificationSendResponse(status="reset")

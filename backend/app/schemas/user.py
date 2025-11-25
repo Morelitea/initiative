@@ -25,17 +25,32 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None
     show_project_sidebar: Optional[bool] = None
     show_project_tabs: Optional[bool] = None
+    timezone: Optional[str] = None
+    overdue_notification_time: Optional[str] = None
+    notify_initiative_addition: Optional[bool] = None
+    notify_task_assignment: Optional[bool] = None
+    notify_project_added: Optional[bool] = None
+    notify_overdue_tasks: Optional[bool] = None
 
 
 class UserRead(UserBase):
     id: int
     is_active: bool
+    email_verified: bool
     created_at: datetime
     updated_at: datetime
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
     show_project_sidebar: bool = True
     show_project_tabs: bool = False
+    timezone: str = "UTC"
+    overdue_notification_time: str = "21:00"
+    notify_initiative_addition: bool = True
+    notify_task_assignment: bool = True
+    notify_project_added: bool = True
+    notify_overdue_tasks: bool = True
+    last_overdue_notification_at: Optional[datetime] = None
+    last_task_assignment_digest_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -52,3 +67,9 @@ class UserSelfUpdate(BaseModel):
     avatar_url: Optional[str] = None
     show_project_sidebar: Optional[bool] = None
     show_project_tabs: Optional[bool] = None
+    timezone: Optional[str] = None
+    overdue_notification_time: Optional[str] = None
+    notify_initiative_addition: Optional[bool] = None
+    notify_task_assignment: Optional[bool] = None
+    notify_project_added: Optional[bool] = None
+    notify_overdue_tasks: Optional[bool] = None

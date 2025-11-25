@@ -11,6 +11,13 @@ DEFAULT_SETTING_ID = 1
 ROLE_KEYS = [role.value for role in ProjectRole]
 
 
+def _normalize_optional_string(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 def _normalize_domains(domains: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     normalized: list[str] = []
@@ -74,6 +81,14 @@ async def get_or_create_app_settings(
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
         role_labels=_normalize_role_labels(None),
+        smtp_host=_normalize_optional_string(app_config.SMTP_HOST),
+        smtp_port=app_config.SMTP_PORT if app_config.SMTP_HOST else None,
+        smtp_secure=bool(app_config.SMTP_SECURE),
+        smtp_reject_unauthorized=bool(app_config.SMTP_REJECT_UNAUTHORIZED),
+        smtp_username=_normalize_optional_string(app_config.SMTP_USERNAME),
+        smtp_password=_normalize_optional_string(app_config.SMTP_PASSWORD),
+        smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
+        smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
     )
     session.add(app_settings)
     await session.commit()
@@ -145,6 +160,35 @@ async def update_role_labels(
 ) -> AppSetting:
     app_settings = await get_or_create_app_settings(session)
     app_settings.role_labels = _normalize_role_labels(labels, base=app_settings.role_labels)
+    session.add(app_settings)
+    await session.commit()
+    await session.refresh(app_settings)
+    return app_settings
+
+
+async def update_email_settings(
+    session: AsyncSession,
+    *,
+    host: str | None,
+    port: int | None,
+    secure: bool,
+    reject_unauthorized: bool,
+    username: str | None,
+    password: str | None,
+    password_provided: bool,
+    from_address: str | None,
+    test_recipient: str | None,
+) -> AppSetting:
+    app_settings = await get_or_create_app_settings(session)
+    app_settings.smtp_host = _normalize_optional_string(host)
+    app_settings.smtp_port = port if port else None
+    app_settings.smtp_secure = bool(secure)
+    app_settings.smtp_reject_unauthorized = bool(reject_unauthorized)
+    app_settings.smtp_username = _normalize_optional_string(username)
+    if password_provided:
+        app_settings.smtp_password = _normalize_optional_string(password)
+    app_settings.smtp_from_address = _normalize_optional_string(from_address)
+    app_settings.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(app_settings)
     await session.commit()
     await session.refresh(app_settings)

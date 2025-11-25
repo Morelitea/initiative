@@ -17,6 +17,7 @@ from app.schemas.initiative import (
     InitiativeUpdate,
 )
 from app.schemas.user import UserRead
+from app.services import notifications as notifications_service
 
 router = APIRouter()
 
@@ -119,11 +120,15 @@ async def add_initiative_member(initiative_id: int, payload: InitiativeMemberAdd
     )
     result = await session.exec(stmt)
     membership = result.one_or_none()
+    created = False
     if not membership:
         session.add(InitiativeMember(initiative_id=initiative_id, user_id=payload.user_id))
         await session.commit()
+        created = True
     await session.refresh(initiative)
     await session.refresh(initiative, attribute_names=["members"])
+    if created:
+        await notifications_service.notify_initiative_membership(session, user, initiative.name)
     return _serialize_initiative(initiative)
 
 

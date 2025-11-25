@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.services.realtime import broadcast_event
 from app.services import project_access
+from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 
 router = APIRouter()
@@ -224,7 +225,7 @@ async def create_task(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Task:
-    await _ensure_can_manage(session, task_in.project_id, current_user)
+    project, _ = await _get_project_and_membership(session, task_in.project_id, current_user, access="write")
 
     sort_order = await _next_sort_order(session, task_in.project_id)
     task_data = task_in.dict(exclude={"assignee_ids"})
@@ -232,6 +233,15 @@ async def create_task(
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
+    if project and task.assignees:
+        for assignee in task.assignees:
+            await notifications_service.enqueue_task_assignment_event(
+                session,
+                task=task,
+                assignee=assignee,
+                assigned_by=current_user,
+                project_name=project.name,
+            )
     await session.commit()
     task = await _fetch_task(session, task.id)
     if task is None:
@@ -265,7 +275,7 @@ async def update_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    await _ensure_can_manage(session, task.project_id, current_user)
+    project, _ = await _get_project_and_membership(session, task.project_id, current_user, access="write")
 
     update_data = task_in.dict(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
@@ -288,11 +298,23 @@ async def update_task(
     if status_changed:
         task.sort_order = await _next_sort_order(session, task.project_id)
 
+    new_assignees: list[User] = []
     if assignee_ids is not None:
+        existing_assignee_ids = {assignee.id for assignee in task.assignees}
         await _set_task_assignees(session, task, assignee_ids)
+        new_assignees = [assignee for assignee in task.assignees if assignee.id not in existing_assignee_ids]
 
     await _advance_recurrence_if_needed(session, task, previous_status=previous_status, now=now)
 
+    if new_assignees and project:
+        for assignee in new_assignees:
+            await notifications_service.enqueue_task_assignment_event(
+                session,
+                task=task,
+                assignee=assignee,
+                assigned_by=current_user,
+                project_name=project.name,
+            )
     session.add(task)
     await session.commit()
     task = await _fetch_task(session, task.id)

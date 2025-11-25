@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     OIDC_POST_LOGIN_REDIRECT: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
     OIDC_SCOPES: list[str] | str | None = None
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_SECURE: bool = False
+    SMTP_REJECT_UNAUTHORIZED: bool = True
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_ADDRESS: str | None = None
+    SMTP_TEST_RECIPIENT: str | None = None
 
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None
     FIRST_SUPERUSER_PASSWORD: str | None = None

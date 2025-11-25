@@ -39,6 +39,10 @@ Key environment variables (see `.env.example`):
 - `AUTO_APPROVED_EMAIL_DOMAINS` – comma-separated list of email domains that should be activated automatically on signup
 - `APP_URL` – public base URL for the app; used to derive OIDC callback URLs (e.g., `https://app.example.com`)
 - `FIRST_SUPERUSER_*` – optional bootstrap admin created via `python -m app.db.init_db`
+- `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_REJECT_UNAUTHORIZED` – SMTP server connection details used for transactional email
+- `SMTP_USERNAME` / `SMTP_PASSWORD` – credentials for the SMTP relay (leave blank for anonymous)
+- `SMTP_FROM_ADDRESS` – display + email address used as the `From` header, e.g. `Initiative <no-reply@example.com>`
+- `SMTP_TEST_RECIPIENT` – optional default inbox for the “Send test email” button in Settings → Email
 
 ### Database migrations
 

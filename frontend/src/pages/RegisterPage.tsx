@@ -35,9 +35,12 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setInfoMessage(null);
     try {
       const createdUser = await register({ email, password, full_name: fullName });
-      if (createdUser.is_active) {
+      if (createdUser.is_active && createdUser.email_verified) {
         await login({ email, password });
         navigate("/", { replace: true });
+      } else if (createdUser.is_active && !createdUser.email_verified) {
+        setInfoMessage("Thanks! Check your inbox to verify your email before signing in.");
+        setPassword("");
       } else {
         setInfoMessage("Thanks! Your account is pending approval from an administrator.");
         setPassword("");

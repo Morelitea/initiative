@@ -21,6 +21,21 @@ const RegisterPage = lazy(() =>
     default: module.RegisterPage,
   }))
 );
+const ForgotPasswordPage = lazy(() =>
+  import("./pages/ForgotPasswordPage").then((module) => ({
+    default: module.ForgotPasswordPage,
+  }))
+);
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPasswordPage").then((module) => ({
+    default: module.ResetPasswordPage,
+  }))
+);
+const VerifyEmailPage = lazy(() =>
+  import("./pages/VerifyEmailPage").then((module) => ({
+    default: module.VerifyEmailPage,
+  }))
+);
 const OidcCallbackPage = lazy(() =>
   import("./pages/OidcCallbackPage").then((module) => ({
     default: module.OidcCallbackPage,
@@ -117,6 +132,9 @@ export const App = () => (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/oidc/callback" element={<OidcCallbackPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/*" element={<AppLayout />} />

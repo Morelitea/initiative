@@ -73,7 +73,7 @@ export const LoginPage = () => {
       navigate("/", { replace: true });
     } catch (err) {
       console.error(err);
-      setError("Unable to log in. Check your credentials.");
+      setError(err instanceof Error ? err.message : "Unable to log in. Check your credentials.");
     } finally {
       setSubmitting(false);
     }
@@ -125,6 +125,11 @@ export const LoginPage = () => {
                 autoComplete="current-password"
                 required
               />
+              <div className="text-right">
+                <Link className="text-sm text-primary underline-offset-4 hover:underline" to="/forgot-password">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
             <Button className="w-full" type="submit" disabled={submitting}>
               {submitting ? "Signing in…" : "Sign in"}

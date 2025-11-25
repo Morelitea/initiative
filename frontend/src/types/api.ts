@@ -6,12 +6,21 @@ export interface User {
   full_name?: string;
   role: UserRole;
   is_active: boolean;
+  email_verified: boolean;
   created_at: string;
   updated_at: string;
   avatar_base64?: string | null;
   avatar_url?: string | null;
   show_project_sidebar?: boolean;
   show_project_tabs?: boolean;
+  timezone?: string;
+  overdue_notification_time?: string;
+  notify_initiative_addition?: boolean;
+  notify_task_assignment?: boolean;
+  notify_project_added?: boolean;
+  notify_overdue_tasks?: boolean;
+  last_overdue_notification_at?: string | null;
+  last_task_assignment_digest_at?: string | null;
 }
 
 export type ProjectRole = "admin" | "project_manager" | "member";
@@ -141,4 +150,15 @@ export interface RoleLabels {
   admin: string;
   project_manager: string;
   member: string;
+}
+
+export interface EmailSettings {
+  host?: string | null;
+  port?: number | null;
+  secure: boolean;
+  reject_unauthorized: boolean;
+  username?: string | null;
+  has_password: boolean;
+  from_address?: string | null;
+  test_recipient?: string | null;
 }

@@ -9,6 +9,7 @@ const settingsTabs = [
   { value: "auth", label: "Auth", path: "/settings/auth" },
   { value: "api-keys", label: "API Keys", path: "/settings/api-keys" },
   { value: "branding", label: "Branding", path: "/settings/branding" },
+  { value: "email", label: "Email", path: "/settings/email" },
 ];
 
 export const SettingsLayout = () => {

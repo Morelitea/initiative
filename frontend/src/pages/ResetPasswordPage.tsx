@@ -1,0 +1,120 @@
+import { FormEvent, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+
+import { apiClient } from "@/api/client";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export const ResetPasswordPage = () => {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const token = params.get("token") ?? "";
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token) {
+      setError("Reset link is missing. Use the email link again.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setStatus("submitting");
+    setError(null);
+    try {
+      await apiClient.post("/auth/password/reset", { token, password });
+      setStatus("success");
+    } catch (err) {
+      console.error(err);
+      setError("Unable to reset password. The link may have expired.");
+      setStatus("idle");
+    }
+  };
+
+  if (!token) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader>
+            <CardTitle>Reset password</CardTitle>
+            <CardDescription>This link is invalid. Request a new one.</CardDescription>
+          </CardHeader>
+          <CardFooter className="text-sm text-muted-foreground">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
+              Request password reset
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader>
+          <CardTitle>Choose a new password</CardTitle>
+          <CardDescription>Enter and confirm your new password to continue.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {status === "success" ? (
+            <div className="space-y-4 text-sm text-primary">
+              <p>Password updated successfully.</p>
+              <Button className="w-full" onClick={() => navigate("/login")}>
+                Go to sign in
+              </Button>
+            </div>
+          ) : (
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                />
+              </div>
+              <Button className="w-full" type="submit" disabled={status === "submitting"}>
+                {status === "submitting" ? "Updating…" : "Reset password"}
+              </Button>
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            </form>
+          )}
+        </CardContent>
+        {status !== "success" ? (
+          <CardFooter className="text-sm text-muted-foreground">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
+              Need a new link?
+            </Link>
+          </CardFooter>
+        ) : null}
+      </Card>
+    </div>
+  );
+};

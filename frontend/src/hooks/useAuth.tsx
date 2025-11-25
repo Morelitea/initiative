@@ -1,4 +1,5 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from "react";
+import type { AxiosError } from "axios";
 
 import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "../api/client";
 import { User } from "../types/api";
@@ -73,15 +74,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     params.append("client_id", "");
     params.append("client_secret", "");
 
-    const response = await apiClient.post<{ access_token: string }>("/auth/token", params, {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    });
-    const newToken = response.data.access_token;
-    setToken(newToken);
-    localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-    setAuthToken(newToken);
-
-    await refreshUser();
+    try {
+      const response = await apiClient.post<{ access_token: string }>("/auth/token", params, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      const newToken = response.data.access_token;
+      setToken(newToken);
+      localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
+      setAuthToken(newToken);
+      await refreshUser();
+    } catch (error) {
+      const axiosError = error as AxiosError<{ detail?: string }>;
+      const detail = axiosError.response?.data?.detail;
+      throw new Error(detail ?? "Unable to log in. Check your credentials.");
+    }
   };
 
   const register = async ({ email, password, full_name }: RegisterPayload) => {

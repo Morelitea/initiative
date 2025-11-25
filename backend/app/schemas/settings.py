@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import UserRead
 
@@ -55,3 +55,29 @@ class RoleLabelsUpdate(BaseModel):
     admin: Optional[str] = Field(default=None, min_length=1, max_length=64)
     project_manager: Optional[str] = Field(default=None, min_length=1, max_length=64)
     member: Optional[str] = Field(default=None, min_length=1, max_length=64)
+
+
+class EmailSettingsResponse(BaseModel):
+    host: Optional[str] = None
+    port: Optional[int] = None
+    secure: bool = False
+    reject_unauthorized: bool = True
+    username: Optional[str] = None
+    has_password: bool = False
+    from_address: Optional[str] = None
+    test_recipient: Optional[EmailStr] = None
+
+
+class EmailSettingsUpdate(BaseModel):
+    host: Optional[str] = None
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
+    secure: bool = False
+    reject_unauthorized: bool = True
+    username: Optional[str] = None
+    password: Optional[str] = None
+    from_address: Optional[str] = None
+    test_recipient: Optional[EmailStr] = None
+
+
+class EmailTestRequest(BaseModel):
+    recipient: Optional[EmailStr] = None

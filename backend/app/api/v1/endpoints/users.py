@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from typing import Annotated, List
+import re
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select, delete
@@ -9,12 +11,38 @@ from app.core.security import get_password_hash
 from app.models.task import TaskAssignee
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserRead, UserSelfUpdate, UserUpdate
+from app.services import notifications as notifications_service
 
 router = APIRouter()
 
 AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
 
 SUPER_USER_ID = 1
+TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+
+
+def _normalize_timezone(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    try:
+        ZoneInfo(cleaned)
+    except ZoneInfoNotFoundError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone")
+    return cleaned
+
+
+def _normalize_notification_time(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if not TIME_PATTERN.match(cleaned):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid time format")
+    return cleaned
 
 
 @router.get("/me", response_model=UserRead)
@@ -40,6 +68,7 @@ async def create_user(user_in: UserCreate, session: SessionDep, _: AdminUser) ->
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
         role=user_in.role,
+        email_verified=True,
     )
     session.add(user)
     await session.commit()
@@ -84,6 +113,25 @@ async def update_users_me(
         current_user.show_project_sidebar = bool(update_data["show_project_sidebar"])
     if "show_project_tabs" in update_data:
         current_user.show_project_tabs = bool(update_data["show_project_tabs"])
+    if "timezone" in update_data:
+        normalized_timezone = _normalize_timezone(update_data["timezone"])
+        if normalized_timezone:
+            current_user.timezone = normalized_timezone
+    if "overdue_notification_time" in update_data:
+        normalized_time = _normalize_notification_time(update_data["overdue_notification_time"])
+        if normalized_time:
+            current_user.overdue_notification_time = normalized_time
+    for field in [
+        "notify_initiative_addition",
+        "notify_task_assignment",
+        "notify_project_added",
+        "notify_overdue_tasks",
+    ]:
+        if field in update_data:
+            new_value = bool(update_data[field])
+            setattr(current_user, field, new_value)
+            if field == "notify_task_assignment" and not new_value:
+                await notifications_service.clear_task_assignment_queue_for_user(session, current_user.id)
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
@@ -116,6 +164,18 @@ async def update_user(user_id: int, user_in: UserUpdate, session: SessionDep, _:
         if user.avatar_url:
             user.avatar_base64 = None
     for field, value in update_data.items():
+        if field == "timezone":
+            normalized_timezone = _normalize_timezone(value)
+            if normalized_timezone:
+                setattr(user, field, normalized_timezone)
+            continue
+        if field == "overdue_notification_time":
+            normalized_time = _normalize_notification_time(value)
+            if normalized_time:
+                setattr(user, field, normalized_time)
+            continue
+        if field == "notify_task_assignment" and value is False:
+            await notifications_service.clear_task_assignment_queue_for_user(session, user.id)
         setattr(user, field, value)
     user.updated_at = datetime.now(timezone.utc)
 

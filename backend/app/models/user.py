@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Column, DateTime, Text, Boolean
+from sqlalchemy import Column, DateTime, Text, Boolean, String
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.initiative import Initiative, InitiativeMember
@@ -46,6 +46,42 @@ class User(SQLModel, table=True):
     show_project_tabs: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    email_verified: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    timezone: str = Field(
+        default="UTC",
+        sa_column=Column(String(64), nullable=False, server_default="UTC"),
+    )
+    overdue_notification_time: str = Field(
+        default="21:00",
+        sa_column=Column(String(5), nullable=False, server_default="21:00"),
+    )
+    notify_initiative_addition: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    notify_task_assignment: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    notify_project_added: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    notify_overdue_tasks: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    last_overdue_notification_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    last_task_assignment_digest_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")

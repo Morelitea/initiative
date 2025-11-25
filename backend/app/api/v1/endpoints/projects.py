@@ -13,6 +13,7 @@ from app.models.task import Task, TaskAssignee
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User, UserRole
 from app.services import project_access
+from app.services import notifications as notifications_service
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
@@ -532,6 +533,17 @@ async def create_project(
     await session.refresh(project)
 
     project = await _get_project_or_404(project.id, session)
+    if project.initiative_id and project.initiative:
+        for member in project.initiative.members:
+            if member.id == manager_user.id:
+                continue
+            await notifications_service.notify_project_added(
+                session,
+                member,
+                initiative_name=project.initiative.name,
+                project_name=project.name,
+                project_id=project.id,
+            )
     await broadcast_event("project", "created", _project_payload(project))
     return await _project_read_for_user(session, manager_user, project)
 
@@ -598,6 +610,17 @@ async def duplicate_project(
     await session.commit()
 
     new_project = await _get_project_or_404(new_project.id, session)
+    if new_project.initiative_id and new_project.initiative:
+        for member in new_project.initiative.members:
+            if member.id == current_user.id:
+                continue
+            await notifications_service.notify_project_added(
+                session,
+                member,
+                initiative_name=new_project.initiative.name,
+                project_name=new_project.name,
+                project_id=new_project.id,
+            )
     await broadcast_event("project", "created", _project_payload(new_project))
     return await _project_read_for_user(session, current_user, new_project)
 
@@ -765,6 +788,7 @@ async def update_project(
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="write", require_manager=True)
     _ensure_not_archived(project)
+    previous_initiative_id = project.initiative_id
 
     update_data = project_in.dict(exclude_unset=True)
     if "initiative_id" in update_data:
@@ -784,6 +808,21 @@ async def update_project(
     session.add(project)
     await session.commit()
     project = await _get_project_or_404(project.id, session)
+    if (
+        project.initiative_id
+        and project.initiative
+        and project.initiative_id != previous_initiative_id
+    ):
+        for member in project.initiative.members:
+            if member.id == current_user.id:
+                continue
+            await notifications_service.notify_project_added(
+                session,
+                member,
+                initiative_name=project.initiative.name,
+                project_name=project.name,
+                project_id=project.id,
+            )
     await broadcast_event("project", "updated", _project_payload(project))
     return await _project_read_for_user(session, current_user, project)
 

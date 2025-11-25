@@ -24,6 +24,7 @@ async def init_superuser() -> None:
             full_name=settings.FIRST_SUPERUSER_FULL_NAME,
             hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
             role=UserRole.admin,
+            email_verified=True,
         )
         session.add(superuser)
         await session.commit()
