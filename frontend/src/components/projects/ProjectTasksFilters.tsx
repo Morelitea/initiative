@@ -26,7 +26,7 @@ export const ProjectTasksFilters = ({
   onListStatusFilterChange,
 }: ProjectTasksFiltersProps) => (
   <div className="flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3">
-    <div className="w-48">
+    <div className="w-full sm:w-48">
       <Label htmlFor="assignee-filter" className="text-xs font-medium text-muted-foreground">
         Filter by assignee
       </Label>
@@ -44,7 +44,7 @@ export const ProjectTasksFilters = ({
         </SelectContent>
       </Select>
     </div>
-    <div className="w-48">
+    <div className="w-full sm:w-48">
       <Label htmlFor="due-filter" className="text-xs font-medium text-muted-foreground">
         Due filter
       </Label>
@@ -65,7 +65,7 @@ export const ProjectTasksFilters = ({
       </Select>
     </div>
     {viewMode === "list" ? (
-      <div className="w-44">
+      <div className="w-full sm:w-44">
         <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
           Filter by status
         </Label>

@@ -10,7 +10,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Calendar, Kanban, List, GanttChart } from "lucide-react";
+import { Calendar, Kanban, List, GanttChart, Filter, ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +31,7 @@ import { priorityVariant, type DueFilterOption, type UserOption } from "./projec
 import { ProjectTasksKanbanView } from "./ProjectTasksKanbanView";
 import { ProjectTasksListView } from "./ProjectTasksListView";
 import { Button } from "../ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
@@ -50,6 +51,13 @@ const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] 
   { value: "calendar", label: "Calendar", icon: Calendar },
   { value: "gantt", label: "Gantt", icon: GanttChart },
 ];
+
+const getDefaultFiltersVisibility = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  return window.matchMedia("(min-width: 640px)").matches;
+};
 
 type ProjectTasksSectionProps = {
   projectId: number;
@@ -83,6 +91,7 @@ export const ProjectTasksSection = ({
   const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
     "all"
   );
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
@@ -103,6 +112,23 @@ export const ProjectTasksSection = ({
   useEffect(() => {
     setOrderedTasks(projectTasks);
   }, [projectTasks]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mediaQuery = window.matchMedia("(min-width: 640px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setFiltersOpen(event.matches);
+    };
+    setFiltersOpen(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
 
   useEffect(() => {
     if (!filterStorageKey || filtersLoaded) {
@@ -546,16 +572,34 @@ export const ProjectTasksSection = ({
           </div>
         </div>
 
-        <ProjectTasksFilters
-          viewMode={viewMode}
-          userOptions={userOptions}
-          assigneeFilter={assigneeFilter}
-          dueFilter={dueFilter}
-          listStatusFilter={listStatusFilter}
-          onAssigneeFilterChange={setAssigneeFilter}
-          onDueFilterChange={setDueFilter}
-          onListStatusFilterChange={setListStatusFilter}
-        />
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+          <div className="flex items-center justify-between sm:hidden">
+            <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Filter className="h-4 w-4" />
+              Filters
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-3">
+                {filtersOpen ? "Hide" : "Show"} filters
+                <ChevronDown
+                  className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent forceMount className="mt-2 sm:mt-0 data-[state=closed]:hidden">
+            <ProjectTasksFilters
+              viewMode={viewMode}
+              userOptions={userOptions}
+              assigneeFilter={assigneeFilter}
+              dueFilter={dueFilter}
+              listStatusFilter={listStatusFilter}
+              onAssigneeFilterChange={setAssigneeFilter}
+              onDueFilterChange={setDueFilter}
+              onListStatusFilterChange={setListStatusFilter}
+            />
+          </CollapsibleContent>
+        </Collapsible>
 
         <TabsContent value="kanban">
           <ProjectTasksKanbanView
