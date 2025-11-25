@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -124,21 +125,14 @@ export const SettingsBrandingPage = () => {
           ) : (
             <form className="grid gap-6 md:grid-cols-2" onSubmit={handleInterfaceSubmit}>
               <div className="space-y-3 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="light-accent">Light mode accent</Label>
-                  <Input
-                    type="color"
-                    id="light-accent"
-                    className="h-10 w-16 cursor-pointer border-none bg-transparent p-0"
-                    value={lightColor}
-                    onChange={(event) => setLightColor(event.target.value)}
-                  />
-                </div>
-                <Input
-                  type="text"
+                <Label htmlFor="light-accent" className="text-sm font-medium">
+                  Light mode accent
+                </Label>
+                <ColorPickerPopover
+                  id="light-accent"
                   value={lightColor}
-                  onChange={(event) => setLightColor(event.target.value)}
-                  className="font-mono"
+                  onChange={setLightColor}
+                  triggerLabel="Adjust"
                 />
                 <p className="text-xs text-muted-foreground">
                   Buttons, highlights, and focus states use this color while the app is in light mode.
@@ -146,21 +140,14 @@ export const SettingsBrandingPage = () => {
               </div>
 
               <div className="space-y-3 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="dark-accent">Dark mode accent</Label>
-                  <Input
-                    type="color"
-                    id="dark-accent"
-                    className="h-10 w-16 cursor-pointer border-none bg-transparent p-0"
-                    value={darkColor}
-                    onChange={(event) => setDarkColor(event.target.value)}
-                  />
-                </div>
-                <Input
-                  type="text"
+                <Label htmlFor="dark-accent" className="text-sm font-medium">
+                  Dark mode accent
+                </Label>
+                <ColorPickerPopover
+                  id="dark-accent"
                   value={darkColor}
-                  onChange={(event) => setDarkColor(event.target.value)}
-                  className="font-mono"
+                  onChange={setDarkColor}
+                  triggerLabel="Adjust"
                 />
                 <p className="text-xs text-muted-foreground">
                   Accent and primary elements use this color while dark mode is active.
@@ -220,4 +207,3 @@ export const SettingsBrandingPage = () => {
     </div>
   );
 };
-

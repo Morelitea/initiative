@@ -5,6 +5,7 @@ import { apiClient } from "../api/client";
 import { Markdown } from "../components/Markdown";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { ColorPickerPopover } from "../components/ui/color-picker-popover";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
@@ -30,6 +31,7 @@ export const InitiativesPage = () => {
   const [initiativeDescription, setInitiativeDescription] = useState("");
   const [initiativeColor, setInitiativeColor] = useState(DEFAULT_INITIATIVE_COLOR);
   const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
+  const [initiativeColorDrafts, setInitiativeColorDrafts] = useState<Record<number, string>>({});
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: INITIATIVES_QUERY_KEY,
@@ -83,8 +85,15 @@ export const InitiativesPage = () => {
       const response = await apiClient.patch<Initiative>(`/initiatives/${initiativeId}`, data);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      setInitiativeColorDrafts((prev) => {
+        const next = { ...prev };
+        if (variables?.initiativeId in next) {
+          delete next[variables.initiativeId];
+        }
+        return next;
+      });
     },
   });
 
@@ -157,6 +166,11 @@ export const InitiativesPage = () => {
 
   const handleInitiativeColorChange = (initiativeId: number, value: string) => {
     updateInitiative.mutate({ initiativeId, data: { color: value } });
+  };
+
+  const handleInitiativeColorSave = (initiativeId: number, fallback: string) => {
+    const draft = initiativeColorDrafts[initiativeId] ?? fallback;
+    handleInitiativeColorChange(initiativeId, draft);
   };
 
   const handleDeleteInitiative = (initiativeId: number, name: string) => {
@@ -236,13 +250,11 @@ export const InitiativesPage = () => {
             />
             <div className="space-y-2">
               <Label htmlFor="initiative-color">Color</Label>
-              <input
+              <ColorPickerPopover
                 id="initiative-color"
-                type="color"
                 value={initiativeColor}
-                onChange={(event) => setInitiativeColor(event.target.value)}
-                className="h-11 w-20 cursor-pointer rounded-md border bg-transparent p-1"
-                aria-label="Initiative color"
+                onChange={setInitiativeColor}
+                triggerLabel="Adjust"
               />
               <p className="text-xs text-muted-foreground">
                 This color highlights projects tied to the initiative.
@@ -270,21 +282,43 @@ export const InitiativesPage = () => {
                 )}
               </div>
               <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <div className="w-full max-w-[220px] space-y-2">
                   <Label htmlFor={`initiative-color-${initiative.id}`} className="text-xs">
                     Color
                   </Label>
-                  <input
+                  <ColorPickerPopover
                     id={`initiative-color-${initiative.id}`}
-                    type="color"
-                    value={initiative.color ?? DEFAULT_INITIATIVE_COLOR}
-                    onChange={(event) =>
-                      handleInitiativeColorChange(initiative.id, event.target.value)
+                    value={
+                      initiativeColorDrafts[initiative.id] ??
+                      initiative.color ??
+                      DEFAULT_INITIATIVE_COLOR
                     }
-                    className="h-8 w-14 cursor-pointer rounded-md border bg-transparent p-1"
-                    aria-label={`Color for ${initiative.name}`}
+                    onChange={(nextColor) =>
+                      setInitiativeColorDrafts((prev) => ({ ...prev, [initiative.id]: nextColor }))
+                    }
+                    triggerLabel="Adjust"
                     disabled={updateInitiative.isPending}
                   />
+                  {(() => {
+                    const currentColor = initiative.color ?? DEFAULT_INITIATIVE_COLOR;
+                    const draftColor = initiativeColorDrafts[initiative.id];
+                    const hasPendingDraft =
+                      typeof draftColor === "string" && draftColor !== currentColor;
+                    if (!hasPendingDraft) {
+                      return null;
+                    }
+                    return (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => handleInitiativeColorSave(initiative.id, currentColor)}
+                        disabled={updateInitiative.isPending}
+                      >
+                        Save color
+                      </Button>
+                    );
+                  })()}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
