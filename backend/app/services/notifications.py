@@ -32,7 +32,7 @@ async def enqueue_task_assignment_event(
 ) -> None:
     if assignee.id == assigned_by.id:
         return
-    if not assignee.notify_task_assignment:
+    if assignee.notify_task_assignment is False:
         return
     event = TaskAssignmentDigestItem(
         user_id=assignee.id,
@@ -55,7 +55,7 @@ async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: i
 
 
 async def notify_initiative_membership(session: AsyncSession, user: User, initiative_name: str) -> None:
-    if not user.notify_initiative_addition:
+    if user.notify_initiative_addition is False:
         return
     try:
         await email_service.send_initiative_added_email(session, user, initiative_name)
@@ -73,7 +73,7 @@ async def notify_project_added(
     project_name: str,
     project_id: int,
 ) -> None:
-    if not user.notify_project_added:
+    if user.notify_project_added is False:
         return
     try:
         await email_service.send_project_added_to_initiative_email(
@@ -112,7 +112,7 @@ async def process_task_assignment_digests() -> None:
         now = datetime.now(timezone.utc)
         for user_id in user_ids:
             user = await _load_user(session, user_id)
-            if not user or not user.notify_task_assignment:
+            if not user or user.notify_task_assignment is False:
                 await clear_task_assignment_queue_for_user(session, user_id)
                 await session.commit()
                 continue
@@ -128,11 +128,7 @@ async def process_task_assignment_digests() -> None:
             events = events_result.all()
             if not events:
                 continue
-            earliest = events[0].created_at
-            if user.last_task_assignment_digest_at:
-                if user.last_task_assignment_digest_at + timedelta(hours=1) > now:
-                    continue
-            elif earliest + timedelta(hours=1) > now:
+            if user.last_task_assignment_digest_at and user.last_task_assignment_digest_at + timedelta(hours=1) > now:
                 continue
             assignments = [
                 {
