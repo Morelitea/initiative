@@ -126,12 +126,16 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
         >
           <div
             className="grid text-[11px] font-semibold uppercase text-muted-foreground sm:text-xs"
-            style={{ gridTemplateColumns: `${NAME_COLUMN_WIDTH}px ${timelineWidth}px` }}
+            style={{
+              gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
+            }}
           >
             <div className="border-r border-border bg-card px-3 py-2">Task</div>
             <div
               className="grid bg-background/80"
-              style={{ gridTemplateColumns: `repeat(${daysVisible}, ${DAY_COLUMN_WIDTH}px)` }}
+              style={{
+                gridTemplateColumns: `repeat(${daysVisible}, minmax(${DAY_COLUMN_WIDTH}px, 1fr))`,
+              }}
             >
               {days.map((day) => (
                 <div
@@ -161,7 +165,9 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                   <div
                     key={task.id}
                     className="grid h-16"
-                    style={{ gridTemplateColumns: `${NAME_COLUMN_WIDTH}px ${timelineWidth}px` }}
+                    style={{
+                      gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
+                    }}
                   >
                     <div className="border-r border-border bg-card px-3 py-3 flex flex-col justify-center">
                       <p className="font-medium">{task.title}</p>
@@ -169,7 +175,12 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                         {start.toLocaleDateString()} → {end.toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="relative border-l">
+                    <div
+                      className="grid border-l"
+                      style={{
+                        gridTemplateColumns: `repeat(${daysVisible}, minmax(${DAY_COLUMN_WIDTH}px, 1fr))`,
+                      }}
+                    >
                       {!isOutOfRange && barWidth > 0 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
@@ -177,7 +188,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                               <button
                                 type="button"
                                 className={cn(
-                                  "absolute top-2 flex h-12 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
+                                  "my-2 flex h-12 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
                                   isDone
                                     ? "bg-muted text-muted-foreground"
                                     : isInProgress
@@ -189,11 +200,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                                         : "bg-muted opacity-70"
                                 )}
                                 style={{
-                                  left: clampedStart * DAY_COLUMN_WIDTH,
-                                  width: Math.max(
-                                    barWidth * DAY_COLUMN_WIDTH,
-                                    DAY_COLUMN_WIDTH * 0.6
-                                  ),
+                                  gridColumn: `${clampedStart + 1} / ${clampedEnd + 1}`,
                                 }}
                                 onClick={() => {
                                   if (!canOpenTask) {
@@ -210,7 +217,10 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                           </Tooltip>
                         </TooltipProvider>
                       ) : (
-                        <p className="px-3 py-3 text-xs text-muted-foreground">
+                        <p
+                          className="px-3 py-3 text-xs text-muted-foreground"
+                          style={{ gridColumn: `1 / ${daysVisible + 1}` }}
+                        >
                           Outside current range
                         </p>
                       )}
