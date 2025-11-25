@@ -1,7 +1,12 @@
-import { lazy } from "react";
-import { Route, Routes } from "react-router-dom";
+import { lazy, useEffect, useState } from "react";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+
+const PAGE_TRANSITION_DURATION_MS = 300;
+
+type TransitionStage = "fadeIn" | "fadeOut";
 
 const ProjectsPage = lazy(() =>
   import("./pages/ProjectsPage").then((module) => ({
@@ -85,40 +90,77 @@ const UserSettingsNotificationsPage = lazy(() =>
 );
 
 export const PageRoutes = () => {
+  const location = useLocation();
   const { user, refreshUser } = useAuth();
+  // Keep rendering the previous route until the fade-out completes.
+  const [displayLocation, setDisplayLocation] = useState(location);
+  const [transitionStage, setTransitionStage] = useState<TransitionStage>("fadeIn");
+  const locationKey = location.key ?? `${location.pathname}${location.search}${location.hash}`;
+  const displayKey =
+    displayLocation.key ??
+    `${displayLocation.pathname}${displayLocation.search}${displayLocation.hash}`;
+
+  useEffect(() => {
+    if (locationKey !== displayKey) {
+      setTransitionStage("fadeOut");
+    }
+  }, [locationKey, displayKey]);
+
+  useEffect(() => {
+    if (transitionStage !== "fadeOut") {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDisplayLocation(location);
+      setTransitionStage("fadeIn");
+    }, PAGE_TRANSITION_DURATION_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, [transitionStage, location]);
+
   return (
-    <Routes>
-      <Route path="/" element={<ProjectsPage />} />
-      <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-      <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
-      <Route path="/tasks/:taskId/edit" element={<TaskEditPage />} />
-      <Route path="/tasks" element={<MyTasksPage />} />
-      <Route path="/profile/*" element={<UserSettingsLayout />}>
-        {user && (
-          <>
-            <Route
-              index
-              element={<UserSettingsProfilePage user={user} refreshUser={refreshUser} />}
-            />
-            <Route
-              path="interface"
-              element={<UserSettingsInterfacePage user={user} refreshUser={refreshUser} />}
-            />
-            <Route
-              path="notifications"
-              element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
-            />
-          </>
-        )}
-      </Route>
-      <Route path="/settings/*" element={<SettingsLayout />}>
-        <Route index element={<SettingsUsersPage />} />
-        <Route path="initiatives" element={<SettingsInitiativesPage />} />
-        <Route path="auth" element={<SettingsAuthPage />} />
-        <Route path="api-keys" element={<SettingsApiKeysPage />} />
-        <Route path="branding" element={<SettingsBrandingPage />} />
-        <Route path="email" element={<SettingsEmailPage />} />
-      </Route>
-    </Routes>
+    <div
+      className={cn(
+        "transition-all duration-300 ease-in-out",
+        transitionStage === "fadeIn"
+          ? "opacity-100 translate-y-0"
+          : "pointer-events-none opacity-0 translate-y-2"
+      )}
+    >
+      <Routes location={displayLocation} key={displayKey}>
+        <Route path="/" element={<ProjectsPage />} />
+        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+        <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
+        <Route path="/tasks/:taskId/edit" element={<TaskEditPage />} />
+        <Route path="/tasks" element={<MyTasksPage />} />
+        <Route path="/profile/*" element={<UserSettingsLayout />}>
+          {user && (
+            <>
+              <Route
+                index
+                element={<UserSettingsProfilePage user={user} refreshUser={refreshUser} />}
+              />
+              <Route
+                path="interface"
+                element={<UserSettingsInterfacePage user={user} refreshUser={refreshUser} />}
+              />
+              <Route
+                path="notifications"
+                element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
+              />
+            </>
+          )}
+        </Route>
+        <Route path="/settings/*" element={<SettingsLayout />}>
+          <Route index element={<SettingsUsersPage />} />
+          <Route path="initiatives" element={<SettingsInitiativesPage />} />
+          <Route path="auth" element={<SettingsAuthPage />} />
+          <Route path="api-keys" element={<SettingsApiKeysPage />} />
+          <Route path="branding" element={<SettingsBrandingPage />} />
+          <Route path="email" element={<SettingsEmailPage />} />
+        </Route>
+      </Routes>
+    </div>
   );
 };
