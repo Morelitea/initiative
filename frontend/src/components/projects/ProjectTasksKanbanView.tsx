@@ -2,10 +2,14 @@ import {
   DndContext,
   DragOverlay,
   closestCorners,
+  pointerWithin,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
   type DndContextProps,
+  type DroppableContainer,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import type { Task, TaskPriority, TaskStatus } from "@/types/api";
 
@@ -44,7 +48,7 @@ export const ProjectTasksKanbanView = ({
 }: ProjectTasksKanbanViewProps) => (
   <DndContext
     sensors={sensors}
-    collisionDetection={closestCorners}
+    collisionDetection={kanbanCollisionDetection}
     onDragStart={onDragStart}
     onDragOver={onDragOver}
     onDragEnd={onDragEnd}
@@ -71,6 +75,35 @@ export const ProjectTasksKanbanView = ({
     </DragOverlay>
   </DndContext>
 );
+
+// Prefer pointer-over targets to avoid snapping tasks into neighboring columns.
+const kanbanCollisionDetection: CollisionDetection = (args) => {
+  const pointerIntersections = pointerWithin(args);
+  if (pointerIntersections.length > 0) {
+    const prioritized = [...pointerIntersections].sort((a, b) => {
+      const aType = getDroppableType(args.droppableContainers, a.id);
+      const bType = getDroppableType(args.droppableContainers, b.id);
+
+      if (aType === bType) {
+        return 0;
+      }
+      if (aType === "task") {
+        return -1;
+      }
+      if (bType === "task") {
+        return 1;
+      }
+      return 0;
+    });
+    return prioritized;
+  }
+  return closestCorners(args);
+};
+
+const getDroppableType = (
+  containers: DroppableContainer[],
+  id: UniqueIdentifier
+): string | undefined => containers.find((container) => container.id === id)?.data.current?.type;
 
 const TaskDragOverlay = ({
   task,
