@@ -1,9 +1,7 @@
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 
 import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
 import { Markdown } from "../Markdown";
 import { FavoriteProjectButton } from "./FavoriteProjectButton";
 import {
@@ -15,13 +13,11 @@ import type { Project } from "../../types/api";
 
 type ProjectOverviewCardProps = {
   project: Project;
-  canManageSettings: boolean;
   projectIsArchived: boolean;
 };
 
 export const ProjectOverviewCard = ({
   project,
-  canManageSettings,
   projectIsArchived,
 }: ProjectOverviewCardProps) => {
   const detailCardStyle = useMemo(() => {
@@ -31,16 +27,23 @@ export const ProjectOverviewCard = ({
 
   return (
     <div className="space-y-4 rounded-2xl border bg-card/90 p-6 shadow-sm" style={detailCardStyle}>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3">
-          {project.icon ? <span className="text-4xl leading-none">{project.icon}</span> : null}
-          <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-1 items-center gap-2 sm:gap-3">
+          {project.icon ? (
+            <span className="text-xl leading-none sm:text-4xl">{project.icon}</span>
+          ) : null}
+          <h1 className="text-xl font-semibold tracking-tight sm:text-3xl">{project.name}</h1>
         </div>
-        <FavoriteProjectButton projectId={project.id} isFavorited={project.is_favorited ?? false} />
-        <Badge variant={projectIsArchived ? "destructive" : "secondary"}>
-          {projectIsArchived ? "Archived" : "Active"}
-        </Badge>
-        {project.is_template ? <Badge variant="outline">Template</Badge> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <FavoriteProjectButton
+            projectId={project.id}
+            isFavorited={project.is_favorited ?? false}
+          />
+          <Badge variant={projectIsArchived ? "destructive" : "secondary"}>
+            {projectIsArchived ? "Archived" : "Active"}
+          </Badge>
+          {project.is_template ? <Badge variant="outline">Template</Badge> : null}
+        </div>
       </div>
       {project.initiative ? (
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -54,11 +57,6 @@ export const ProjectOverviewCard = ({
         </p>
       ) : null}
       {project.description ? <Markdown content={project.description} /> : null}
-      {canManageSettings ? (
-        <Button asChild variant="outline" className="w-fit">
-          <Link to={`/projects/${project.id}/settings`}>Open project settings</Link>
-        </Button>
-      ) : null}
       {projectIsArchived ? (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           This project is archived. Unarchive it from settings to add or update tasks.

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Settings } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
@@ -133,14 +134,25 @@ export const ProjectDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="link" className="px-0">
-        <Link to="/">← Back to projects</Link>
-      </Button>
-      <ProjectOverviewCard
-        project={project}
-        canManageSettings={canManageSettings}
-        projectIsArchived={projectIsArchived}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button asChild variant="link" className="px-0">
+          <Link to="/">← Back to projects</Link>
+        </Button>
+        {canManageSettings ? (
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Open project settings"
+          >
+            <Link to={`/projects/${project.id}/settings`}>
+              <Settings className="h-5 w-5" />
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+      <ProjectOverviewCard project={project} projectIsArchived={projectIsArchived} />
       <ProjectTasksSection
         projectId={project.id}
         tasks={tasksQuery.data ?? []}
