@@ -96,8 +96,7 @@ async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
         .distinct()
     )
     result = await session.exec(stmt)
-    rows = result.all()
-    return [row[0] if isinstance(row, tuple) else row for row in rows]
+    return result.scalars().all()
 
 
 async def _load_user(session: AsyncSession, user_id: int) -> User | None:
