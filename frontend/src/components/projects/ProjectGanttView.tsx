@@ -160,16 +160,16 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                 return (
                   <div
                     key={task.id}
-                    className="grid"
+                    className="grid h-16"
                     style={{ gridTemplateColumns: `${NAME_COLUMN_WIDTH}px ${timelineWidth}px` }}
                   >
-                    <div className="border-r border-border bg-card px-3 py-3">
+                    <div className="border-r border-border bg-card px-3 py-3 flex flex-col justify-center">
                       <p className="font-medium">{task.title}</p>
                       <p className="text-[11px] text-muted-foreground sm:text-xs">
                         {start.toLocaleDateString()} → {end.toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="relative border-l" style={{ minHeight: 48 }}>
+                    <div className="relative border-l">
                       {!isOutOfRange && barWidth > 0 ? (
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
@@ -177,7 +177,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                               <button
                                 type="button"
                                 className={cn(
-                                  "absolute top-1 flex h-8 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
+                                  "absolute top-2 flex h-12 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
                                   isDone
                                     ? "bg-muted text-muted-foreground"
                                     : isInProgress
