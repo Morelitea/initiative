@@ -130,11 +130,10 @@ export const PageRoutes = () => {
   return (
     <div
       className={cn(
-        !prefersReducedMotion &&
-          "transition-all duration-300 ease-in-out",
+        !prefersReducedMotion && "transition-all duration-300 ease-in-out",
         transitionStage === "fadeIn"
-          ? "opacity-100 translate-y-0"
-          : "pointer-events-none opacity-0 translate-y-2"
+          ? "opacity-100 mt-0"
+          : "pointer-events-none opacity-0 mt-2"
       )}
     >
       <Routes location={displayLocation} key={displayKey}>
