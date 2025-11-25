@@ -15,11 +15,7 @@ import {
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  DEFAULT_ROLE_LABELS,
-  ROLE_LABELS_QUERY_KEY,
-  useRoleLabels,
-} from "@/hooks/useRoleLabels";
+import { DEFAULT_ROLE_LABELS, ROLE_LABELS_QUERY_KEY, useRoleLabels } from "@/hooks/useRoleLabels";
 import type { RoleLabels } from "@/types/api";
 
 interface InterfaceSettings {
@@ -135,7 +131,8 @@ export const SettingsBrandingPage = () => {
                   triggerLabel="Adjust"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Buttons, highlights, and focus states use this color while the app is in light mode.
+                  Buttons, highlights, and focus states use this color while the app is in light
+                  mode.
                 </p>
               </div>
 

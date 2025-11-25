@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ColorPicker,
   ColorPickerAlpha,
@@ -93,11 +89,7 @@ export const ColorPickerPopover = ({
           aria-label={triggerLabel}
         >
           <span className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="h-6 w-6 rounded-md border"
-              style={swatchStyle}
-            />
+            <span aria-hidden="true" className="h-6 w-6 rounded-md border" style={swatchStyle} />
             {draftColor}
           </span>
           <span className="text-muted-foreground text-[11px] font-normal uppercase">

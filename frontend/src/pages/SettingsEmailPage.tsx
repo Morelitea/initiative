@@ -4,13 +4,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -126,7 +120,9 @@ export const SettingsEmailPage = () => {
               <Input
                 id="smtp-host"
                 value={formState.host}
-                onChange={(event) => setFormState((prev) => ({ ...prev, host: event.target.value }))}
+                onChange={(event) =>
+                  setFormState((prev) => ({ ...prev, host: event.target.value }))
+                }
                 placeholder="smtp.mailprovider.com"
               />
             </div>
@@ -138,7 +134,9 @@ export const SettingsEmailPage = () => {
                 min={1}
                 max={65535}
                 value={formState.port}
-                onChange={(event) => setFormState((prev) => ({ ...prev, port: event.target.value }))}
+                onChange={(event) =>
+                  setFormState((prev) => ({ ...prev, port: event.target.value }))
+                }
                 placeholder="587"
               />
             </div>
@@ -148,12 +146,15 @@ export const SettingsEmailPage = () => {
               <div>
                 <p className="font-medium">Secure (TLS) connection</p>
                 <p className="text-sm text-muted-foreground">
-                  Enable for port 465. Keep disabled for ports 587 or 25 (uses STARTTLS when available).
+                  Enable for port 465. Keep disabled for ports 587 or 25 (uses STARTTLS when
+                  available).
                 </p>
               </div>
               <Switch
                 checked={formState.secure}
-                onCheckedChange={(checked) => setFormState((prev) => ({ ...prev, secure: Boolean(checked) }))}
+                onCheckedChange={(checked) =>
+                  setFormState((prev) => ({ ...prev, secure: Boolean(checked) }))
+                }
               />
             </div>
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
@@ -177,7 +178,9 @@ export const SettingsEmailPage = () => {
               <Input
                 id="smtp-username"
                 value={formState.username}
-                onChange={(event) => setFormState((prev) => ({ ...prev, username: event.target.value }))}
+                onChange={(event) =>
+                  setFormState((prev) => ({ ...prev, username: event.target.value }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -189,7 +192,9 @@ export const SettingsEmailPage = () => {
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder={emailQuery.data.has_password ? "••••••••" : ""}
               />
-              <p className="text-xs text-muted-foreground">Leave blank to keep the existing password.</p>
+              <p className="text-xs text-muted-foreground">
+                Leave blank to keep the existing password.
+              </p>
             </div>
           </div>
           <div className="space-y-2">
@@ -197,8 +202,10 @@ export const SettingsEmailPage = () => {
             <Input
               id="smtp-from"
               value={formState.from_address}
-              onChange={(event) => setFormState((prev) => ({ ...prev, from_address: event.target.value }))}
-              placeholder={'Initiative <no-reply@example.com>'}
+              onChange={(event) =>
+                setFormState((prev) => ({ ...prev, from_address: event.target.value }))
+              }
+              placeholder={"Initiative <no-reply@example.com>"}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">

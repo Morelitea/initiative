@@ -126,7 +126,10 @@ export const LoginPage = () => {
                 required
               />
               <div className="text-right">
-                <Link className="text-sm text-primary underline-offset-4 hover:underline" to="/forgot-password">
+                <Link
+                  className="text-sm text-primary underline-offset-4 hover:underline"
+                  to="/forgot-password"
+                >
                   Forgot password?
                 </Link>
               </div>
