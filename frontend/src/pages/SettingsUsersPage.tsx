@@ -1,22 +1,24 @@
 import { FormEvent, useEffect, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "../api/client";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Input } from "../components/ui/input";
+import { apiClient } from "@/api/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
-import { useAuth } from "../hooks/useAuth";
-import { useRoleLabels, getRoleLabel } from "../hooks/useRoleLabels";
-import { queryClient } from "../lib/queryClient";
-import type { RegistrationSettings, User, UserRole } from "../types/api";
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
+import { queryClient } from "@/lib/queryClient";
+import type { RegistrationSettings, User, UserRole } from "@/types/api";
+import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 
 const REGISTRATION_SETTINGS_QUERY_KEY = ["registration-settings"];
@@ -27,6 +29,7 @@ const SUPER_USER_ID = 1;
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
   const [domainsInput, setDomainsInput] = useState("");
+  const [emailFilter, setEmailFilter] = useState("");
 
   const isAdmin = user?.role === "admin";
 
@@ -154,6 +157,100 @@ export const SettingsUsersPage = () => {
     updateAllowList.mutate(domains);
   };
 
+  const normalizedEmailFilter = emailFilter.trim().toLowerCase();
+  const filteredUsers = usersQuery.data.filter((workspaceUser) => {
+    if (!normalizedEmailFilter) {
+      return true;
+    }
+    return workspaceUser.email.toLowerCase().includes(normalizedEmailFilter);
+  });
+
+  const userColumns: ColumnDef<User>[] = [
+    {
+      id: "user",
+      header: "User",
+      cell: ({ row }) => {
+        const workspaceUser = row.original;
+        const displayName = workspaceUser.full_name?.trim() || "—";
+        return (
+          <div>
+            <p className="font-medium">{displayName}</p>
+            <p className="text-xs text-muted-foreground">
+              Status: {workspaceUser.is_active ? "Active" : "Pending approval"}
+            </p>
+          </div>
+        );
+      },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ row }) => {
+        const workspaceUser = row.original;
+        return <p className="text-sm text-muted-foreground">{workspaceUser.email}</p>;
+      },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "role",
+      header: "Role",
+      cell: ({ row }) => {
+        const workspaceUser = row.original;
+        const isSuperUser = workspaceUser.id === SUPER_USER_ID;
+        return (
+          <div className="flex flex-col gap-1">
+            <Select
+              value={workspaceUser.role}
+              onValueChange={(value) => handleRoleChange(workspaceUser.id, value as UserRole)}
+              disabled={isSuperUser}
+            >
+              <SelectTrigger disabled={isSuperUser} className="min-w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((roleOption) => (
+                  <SelectItem key={roleOption} value={roleOption}>
+                    {getRoleLabel(roleOption, roleLabels)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const workspaceUser = row.original;
+        const isSuperUser = workspaceUser.id === SUPER_USER_ID;
+        const isSelf = workspaceUser.id === user?.id;
+        return (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleResetPassword(workspaceUser.id, workspaceUser.email)}
+              disabled={updateUser.isPending}
+            >
+              Reset password
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => handleDeleteUser(workspaceUser.id, workspaceUser.email)}
+              disabled={isSuperUser || deleteUser.isPending || isSelf}
+            >
+              Delete user
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card className="shadow-sm">
@@ -219,63 +316,19 @@ export const SettingsUsersPage = () => {
           <CardDescription>Update roles, reset passwords, or remove accounts.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {usersQuery.data.map((workspaceUser) => {
-            const isSuperUser = workspaceUser.id === SUPER_USER_ID;
-            const isSelf = workspaceUser.id === user?.id;
-            return (
-              <div
-                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-4"
-                key={workspaceUser.id}
-              >
-                <div>
-                  <p className="font-medium">{workspaceUser.full_name ?? workspaceUser.email}</p>
-                  <p className="text-sm text-muted-foreground">{workspaceUser.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Status: {workspaceUser.is_active ? "Active" : "Pending approval"}
-                  </p>
-                </div>
-                <div className="inline-flex min-w-[220px]  gap-2">
-                  <Label className="flex items-center gap-2">
-                    Role:
-                    <Select
-                      value={workspaceUser.role}
-                      onValueChange={(value) =>
-                        handleRoleChange(workspaceUser.id, value as UserRole)
-                      }
-                      disabled={isSuperUser}
-                    >
-                      <SelectTrigger disabled={isSuperUser} className="min-w-[160px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map((roleOption) => (
-                          <SelectItem key={roleOption} value={roleOption}>
-                            {getRoleLabel(roleOption, roleLabels)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleResetPassword(workspaceUser.id, workspaceUser.email)}
-                    disabled={updateUser.isPending}
-                  >
-                    Reset password
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => handleDeleteUser(workspaceUser.id, workspaceUser.email)}
-                    disabled={isSuperUser || deleteUser.isPending || isSelf}
-                  >
-                    Delete user
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="email-filter" className="text-xs text-muted-foreground">
+              Filter by email
+            </Label>
+            <Input
+              id="email-filter"
+              value={emailFilter}
+              onChange={(event) => setEmailFilter(event.target.value)}
+              placeholder="user@example.com"
+              autoComplete="off"
+            />
+          </div>
+          <DataTable columns={userColumns} data={filteredUsers} />
         </CardContent>
       </Card>
     </div>
