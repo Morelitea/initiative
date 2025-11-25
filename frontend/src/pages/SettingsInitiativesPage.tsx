@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
 import { Initiative, User } from "@/types/api";
@@ -24,8 +26,6 @@ export const SettingsInitiativesPage = () => {
   const [initiativeName, setInitiativeName] = useState("");
   const [initiativeDescription, setInitiativeDescription] = useState("");
   const [initiativeColor, setInitiativeColor] = useState(DEFAULT_INITIATIVE_COLOR);
-  const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
-  const [initiativeColorDrafts, setInitiativeColorDrafts] = useState<Record<number, string>>({});
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: INITIATIVES_QUERY_KEY,
@@ -61,6 +61,117 @@ export const SettingsInitiativesPage = () => {
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
   });
+
+  const handleCreateInitiative = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!initiativeName.trim()) {
+      return;
+    }
+    createInitiative.mutate();
+  };
+
+  if (!isAdmin) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        You need admin permissions to manage initiatives.
+      </p>
+    );
+  }
+
+  if (initiativesQuery.isLoading || usersQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading initiatives…</p>;
+  }
+
+  if (
+    initiativesQuery.isError ||
+    usersQuery.isError ||
+    !initiativesQuery.data ||
+    !usersQuery.data
+  ) {
+    return <p className="text-sm text-destructive">Unable to load initiatives.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Create initiative</CardTitle>
+          <CardDescription>
+            Organize projects and members under a shared initiative.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleCreateInitiative}>
+            <Input
+              placeholder="Initiative name"
+              value={initiativeName}
+              onChange={(event) => setInitiativeName(event.target.value)}
+              required
+            />
+            <Textarea
+              placeholder="Description (supports Markdown)"
+              value={initiativeDescription}
+              onChange={(event) => setInitiativeDescription(event.target.value)}
+              rows={3}
+            />
+            <div className="space-y-2">
+              <Label htmlFor="initiative-color">Color</Label>
+              <ColorPickerPopover
+                id="initiative-color"
+                value={initiativeColor}
+                onChange={setInitiativeColor}
+                triggerLabel="Adjust"
+              />
+              <p className="text-xs text-muted-foreground">
+                This color highlights projects tied to the initiative.
+              </p>
+            </div>
+            <Button type="submit" disabled={createInitiative.isPending}>
+              {createInitiative.isPending ? "Creating…" : "Create initiative"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {initiativesQuery.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No initiatives yet.</p>
+      ) : (
+        initiativesQuery.data.map((initiative) => (
+          <InitiativeCard
+            key={initiative.id}
+            initiative={initiative}
+            usersQuery={usersQuery}
+            initiativesQuery={initiativesQuery}
+          />
+        ))
+      )}
+    </div>
+  );
+};
+
+interface InitiativeCardProps {
+  initiative: Initiative;
+  usersQuery: ReturnType<typeof useQuery<User[]>>;
+  initiativesQuery: ReturnType<typeof useQuery<Initiative[]>>;
+}
+
+const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: InitiativeCardProps) => {
+  const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
+  const [initiativeColorDrafts, setInitiativeColorDrafts] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    if (initiativesQuery.data) {
+      setSelectedUsers((prev) => {
+        const next = { ...prev };
+        for (const initiative of initiativesQuery.data) {
+          if (!(initiative.id in next)) {
+            next[initiative.id] = NO_USER_VALUE;
+          }
+        }
+        return next;
+      });
+    }
+  }, [initiativesQuery.data]);
 
   type InitiativeUpdatePayload = {
     name?: string;
@@ -124,28 +235,6 @@ export const SettingsInitiativesPage = () => {
     },
   });
 
-  useEffect(() => {
-    if (initiativesQuery.data) {
-      setSelectedUsers((prev) => {
-        const next = { ...prev };
-        for (const initiative of initiativesQuery.data) {
-          if (!(initiative.id in next)) {
-            next[initiative.id] = NO_USER_VALUE;
-          }
-        }
-        return next;
-      });
-    }
-  }, [initiativesQuery.data]);
-
-  const handleCreateInitiative = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!initiativeName.trim()) {
-      return;
-    }
-    createInitiative.mutate();
-  };
-
   const handleInitiativeFieldUpdate = (
     initiativeId: number,
     field: "name" | "description",
@@ -193,209 +282,193 @@ export const SettingsInitiativesPage = () => {
     removeInitiativeMember.mutate({ initiativeId, userId });
   };
 
-  if (!isAdmin) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        You need admin permissions to manage initiatives.
-      </p>
-    );
-  }
-
-  if (initiativesQuery.isLoading || usersQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading initiatives…</p>;
-  }
-
-  if (
-    initiativesQuery.isError ||
-    usersQuery.isError ||
-    !initiativesQuery.data ||
-    !usersQuery.data
-  ) {
-    return <p className="text-sm text-destructive">Unable to load initiatives.</p>;
-  }
-
   const availableUsers = (initiative: Initiative) =>
     usersQuery.data?.filter(
       (candidate) => !initiative.members.some((member) => member.id === candidate.id)
     ) ?? [];
 
-  return (
-    <div className="space-y-6">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Create initiative</CardTitle>
-          <CardDescription>
-            Organize projects and members under a shared initiative.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleCreateInitiative}>
-            <Input
-              placeholder="Initiative name"
-              value={initiativeName}
-              onChange={(event) => setInitiativeName(event.target.value)}
-              required
-            />
-            <Textarea
-              placeholder="Description (supports Markdown)"
-              value={initiativeDescription}
-              onChange={(event) => setInitiativeDescription(event.target.value)}
-              rows={3}
-            />
-            <div className="space-y-2">
-              <Label htmlFor="initiative-color">Color</Label>
-              <ColorPickerPopover
-                id="initiative-color"
-                value={initiativeColor}
-                onChange={setInitiativeColor}
-                triggerLabel="Adjust"
-              />
-              <p className="text-xs text-muted-foreground">
-                This color highlights projects tied to the initiative.
-              </p>
-            </div>
-            <Button type="submit" disabled={createInitiative.isPending}>
-              {createInitiative.isPending ? "Creating…" : "Create initiative"}
+  const userColumns: ColumnDef<User>[] = [
+    {
+      id: "user",
+      header: "Member",
+      cell: ({ row }) => {
+        const initiativeUser = row.original;
+        const displayName = initiativeUser.full_name?.trim() || "—";
+        return (
+          <div>
+            <p className="font-medium">{displayName}</p>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ row }) => {
+        const initiativeUser = row.original;
+        return <p className="text-sm text-muted-foreground">{initiativeUser.email}</p>;
+      },
+    },
+    // {
+    //   accessorKey: "role",
+    //   header: "Role",
+    //   cell: ({ row }) => {
+    //     const workspaceUser = row.original;
+    //     const isSuperUser = workspaceUser.id === SUPER_USER_ID;
+    //     return (
+    //       <div className="flex flex-col gap-1">
+    //         <Select
+    //           value={workspaceUser.role}
+    //           onValueChange={(value) => handleRoleChange(workspaceUser.id, value as UserRole)}
+    //           disabled={isSuperUser}
+    //         >
+    //           <SelectTrigger disabled={isSuperUser} className="min-w-[160px]">
+    //             <SelectValue />
+    //           </SelectTrigger>
+    //           <SelectContent>
+    //             {ROLE_OPTIONS.map((roleOption) => (
+    //               <SelectItem key={roleOption} value={roleOption}>
+    //                 {getRoleLabel(roleOption, roleLabels)}
+    //               </SelectItem>
+    //             ))}
+    //           </SelectContent>
+    //         </Select>
+    //       </div>
+    //     );
+    //   },
+    // },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const initiativeUser = row.original;
+        return (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                handleRemoveMember(initiative.id, initiativeUser.id, initiativeUser.email)
+              }
+              disabled={removeInitiativeMember.isPending}
+            >
+              Remove
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        );
+      },
+    },
+  ];
 
-      {initiativesQuery.data.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No initiatives yet.</p>
-      ) : (
-        initiativesQuery.data.map((initiative) => (
-          <Card key={initiative.id} className="shadow-sm">
-            <CardHeader className="flex flex-row items-start justify-between gap-3">
-              <div>
-                <CardTitle>{initiative.name}</CardTitle>
-                {initiative.description ? (
-                  <Markdown content={initiative.description} className="text-sm" />
-                ) : (
-                  <CardDescription>No description yet.</CardDescription>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className="w-full max-w-[220px] space-y-2">
-                  <Label htmlFor={`initiative-color-${initiative.id}`} className="text-xs">
-                    Color
-                  </Label>
-                  <ColorPickerPopover
-                    id={`initiative-color-${initiative.id}`}
-                    value={
-                      initiativeColorDrafts[initiative.id] ??
-                      initiative.color ??
-                      DEFAULT_INITIATIVE_COLOR
-                    }
-                    onChange={(nextColor) =>
-                      setInitiativeColorDrafts((prev) => ({ ...prev, [initiative.id]: nextColor }))
-                    }
-                    triggerLabel="Adjust"
-                    disabled={updateInitiative.isPending}
-                  />
-                  {(() => {
-                    const currentColor = initiative.color ?? DEFAULT_INITIATIVE_COLOR;
-                    const draftColor = initiativeColorDrafts[initiative.id];
-                    const hasPendingDraft =
-                      typeof draftColor === "string" && draftColor !== currentColor;
-                    if (!hasPendingDraft) {
-                      return null;
-                    }
-                    return (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => handleInitiativeColorSave(initiative.id, currentColor)}
-                        disabled={updateInitiative.isPending}
-                      >
-                        Save color
-                      </Button>
-                    );
-                  })()}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      handleInitiativeFieldUpdate(initiative.id, "name", initiative.name)
-                    }
-                  >
-                    Rename
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      handleInitiativeFieldUpdate(
-                        initiative.id,
-                        "description",
-                        initiative.description ?? ""
-                      )
-                    }
-                  >
-                    Edit description
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteInitiative(initiative.id, initiative.name)}
-                    disabled={deleteInitiative.isPending}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm font-medium">Members</p>
-                {initiative.members.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No members yet.</p>
-                ) : (
-                  <ul className="mt-2 space-y-1 text-sm">
-                    {initiative.members.map((member) => (
-                      <li key={member.id} className="flex items-center justify-between gap-2">
-                        <span>{member.full_name ?? member.email}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveMember(initiative.id, member.id, member.email)}
-                          disabled={removeInitiativeMember.isPending}
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="flex items-end gap-2">
-                <SearchableCombobox
-                  value={selectedUsers[initiative.id] ?? NO_USER_VALUE}
-                  onValueChange={(value) =>
-                    setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))
-                  }
-                  placeholder="Select member"
-                  items={availableUsers(initiative).map((candidate) => ({
-                    value: String(candidate.id),
-                    label: candidate.full_name ?? candidate.email,
-                  }))}
-                />
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>{initiative.name}</CardTitle>
+          {initiative.description ? (
+            <Markdown content={initiative.description} className="text-sm" />
+          ) : (
+            <CardDescription>No description yet.</CardDescription>
+          )}
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="w-full max-w-[220px] space-y-2">
+            <Label htmlFor={`initiative-color-${initiative.id}`} className="text-xs">
+              Color
+            </Label>
+            <ColorPickerPopover
+              id={`initiative-color-${initiative.id}`}
+              value={
+                initiativeColorDrafts[initiative.id] ?? initiative.color ?? DEFAULT_INITIATIVE_COLOR
+              }
+              onChange={(nextColor) =>
+                setInitiativeColorDrafts((prev) => ({ ...prev, [initiative.id]: nextColor }))
+              }
+              triggerLabel="Adjust"
+              disabled={updateInitiative.isPending}
+            />
+            {(() => {
+              const currentColor = initiative.color ?? DEFAULT_INITIATIVE_COLOR;
+              const draftColor = initiativeColorDrafts[initiative.id];
+              const hasPendingDraft = typeof draftColor === "string" && draftColor !== currentColor;
+              if (!hasPendingDraft) {
+                return null;
+              }
+              return (
                 <Button
-                  type="button"
+                  size="sm"
                   variant="outline"
-                  onClick={() => handleAddMember(initiative.id)}
-                  disabled={addInitiativeMember.isPending}
+                  className="w-full"
+                  onClick={() => handleInitiativeColorSave(initiative.id, currentColor)}
+                  disabled={updateInitiative.isPending}
                 >
-                  Add member
+                  Save color
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))
-      )}
-    </div>
+              );
+            })()}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleInitiativeFieldUpdate(initiative.id, "name", initiative.name)}
+            >
+              Rename
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                handleInitiativeFieldUpdate(
+                  initiative.id,
+                  "description",
+                  initiative.description ?? ""
+                )
+              }
+            >
+              Edit description
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleDeleteInitiative(initiative.id, initiative.name)}
+              disabled={deleteInitiative.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          {initiative.members.length === 0 ? (
+            <p className="text-s text-muted-foreground">No members yet.</p>
+          ) : (
+            <DataTable columns={userColumns} data={initiative.members} />
+          )}
+        </div>
+        <div className="flex items-end gap-2">
+          <SearchableCombobox
+            value={selectedUsers[initiative.id] ?? NO_USER_VALUE}
+            onValueChange={(value) =>
+              setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))
+            }
+            placeholder="Select member"
+            items={availableUsers(initiative).map((candidate) => ({
+              value: String(candidate.id),
+              label: candidate.full_name ?? candidate.email,
+            }))}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleAddMember(initiative.id)}
+            disabled={addInitiativeMember.isPending}
+          >
+            Add member
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 };

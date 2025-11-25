@@ -181,7 +181,6 @@ export const SettingsUsersPage = () => {
           </div>
         );
       },
-      enableSorting: true,
     },
     {
       accessorKey: "email",
@@ -190,7 +189,6 @@ export const SettingsUsersPage = () => {
         const workspaceUser = row.original;
         return <p className="text-sm text-muted-foreground">{workspaceUser.email}</p>;
       },
-      enableSorting: true,
     },
     {
       accessorKey: "role",
