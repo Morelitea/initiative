@@ -34,15 +34,37 @@ class SMTPConfig:
     from_address: str
 
 
-def _build_html_layout(title: str, body: str) -> str:
+def _accent_color(settings_obj: AppSetting | None) -> str:
+    value = ""
+    if settings_obj and settings_obj.light_accent_color:
+        value = settings_obj.light_accent_color.strip()
+    if not value or not re.match(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", value):
+        return "#2563eb"
+    return value
+
+
+async def _email_context(session: AsyncSession) -> tuple[AppSetting, str]:
+    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+    return settings_obj, _accent_color(settings_obj)
+
+
+def _build_html_layout(title: str, body: str, accent_color: str) -> str:
     return f"""\
 <html>
   <body style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; background-color:#f8fafc; padding:24px;">
     <div style="max-width:520px;margin:0 auto;background-color:#ffffff;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
+      <style>
+        a {{
+          color: {accent_color};
+        }}
+      </style>
       <h2 style="margin-top:0;font-size:22px;color:#0f172a;">{title}</h2>
       <div style="font-size:15px;line-height:1.5;color:#334155;">{body}</div>
       <p style="font-size:12px;color:#94a3b8;margin-top:32px;">
         This message was sent by Initiative. If you weren't expecting it, you can ignore this email.
+      </p>
+      <p>
+        <a href="{app_config.APP_URL}/profile">Update notification settings</a>.
       </p>
     </div>
   </body>
@@ -109,10 +131,12 @@ async def send_email(
     subject: str,
     html_body: str,
     text_body: str | None = None,
+    settings_obj: AppSetting | None = None,
 ) -> None:
     if not recipients:
         raise ValueError("At least one recipient email is required")
-    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+    if settings_obj is None:
+        settings_obj = await app_settings_service.get_or_create_app_settings(session)
     config = _build_smtp_config(settings_obj)
     message = EmailMessage()
     message["Subject"] = subject
@@ -131,9 +155,11 @@ async def send_email(
 
 
 async def send_test_email(session: AsyncSession, recipient: str) -> None:
+    settings_obj, accent = await _email_context(session)
     html_body = _build_html_layout(
         "SMTP test email",
         "<p>This is a test email confirming SMTP settings are configured correctly.</p>",
+        accent,
     )
     await send_email(
         session,
@@ -141,6 +167,7 @@ async def send_test_email(session: AsyncSession, recipient: str) -> None:
         subject="SMTP configuration test",
         html_body=html_body,
         text_body="This is a test email confirming SMTP settings are configured correctly.",
+        settings_obj=settings_obj,
     )
 
 
@@ -152,47 +179,71 @@ def _frontend_url(path: str) -> str:
 
 
 async def send_verification_email(session: AsyncSession, user: User, token: str) -> None:
+    settings_obj, accent = await _email_context(session)
     link = _frontend_url(f"/verify-email?token={token}")
     body = f"""
     <p>Hi {user.full_name or user.email},</p>
     <p>Confirm your email to finish setting up your Initiative account.</p>
     <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:#2563eb;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Verify email</a>
+      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Verify email</a>
     </p>
     <p>If the button doesn't work, copy and paste this link into your browser:<br/><code>{link}</code></p>
     """
-    html_body = _build_html_layout("Verify your email", body)
+    html_body = _build_html_layout("Verify your email", body, accent)
     text_body = f"Confirm your Initiative account by visiting {link}"
-    await send_email(session, recipients=[user.email], subject="Verify your Initiative account", html_body=html_body, text_body=text_body)
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject="Verify your Initiative account",
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
 
 
 async def send_password_reset_email(session: AsyncSession, user: User, token: str) -> None:
+    settings_obj, accent = await _email_context(session)
     link = _frontend_url(f"/reset-password?token={token}")
     body = f"""
     <p>Hello {user.full_name or user.email},</p>
     <p>We received a request to reset your Initiative password.</p>
     <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:#2563eb;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Reset password</a>
+      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Reset password</a>
     </p>
     <p>If you didn't request this, you can ignore this email. The link expires soon.</p>
     """
-    html_body = _build_html_layout("Reset your password", body)
+    html_body = _build_html_layout("Reset your password", body, accent)
     text_body = f"Reset your Initiative password by visiting {link}"
-    await send_email(session, recipients=[user.email], subject="Reset your Initiative password", html_body=html_body, text_body=text_body)
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject="Reset your Initiative password",
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
 
 
 async def send_initiative_added_email(session: AsyncSession, user: User, initiative_name: str) -> None:
+    settings_obj, accent = await _email_context(session)
     link = _frontend_url("/initiatives")
     body = f"""
     <p>Hi {user.full_name or user.email},</p>
     <p>You have been added to the <strong>{initiative_name}</strong> initiative.</p>
     <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:#2563eb;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">View initiatives</a>
+      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">View initiatives</a>
     </p>
     """
-    html_body = _build_html_layout("You joined a new initiative", body)
+    html_body = _build_html_layout("You joined a new initiative", body, accent)
     text_body = f"You have been added to the {initiative_name} initiative. Visit {link} to view it."
-    await send_email(session, recipients=[user.email], subject=f"Added to initiative {initiative_name}", html_body=html_body, text_body=text_body)
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject=f"Added to initiative {initiative_name}",
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
 
 
 async def send_project_added_to_initiative_email(
@@ -203,15 +254,16 @@ async def send_project_added_to_initiative_email(
     project_name: str,
     project_id: int,
 ) -> None:
+    settings_obj, accent = await _email_context(session)
     link = _frontend_url(f"/projects/{project_id}")
     body = f"""
     <p>Hi {user.full_name or user.email},</p>
     <p>A new project, <strong>{project_name}</strong>, was added to the <strong>{initiative_name}</strong> initiative.</p>
     <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:#2563eb;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Open project</a>
+      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Open project</a>
     </p>
     """
-    html_body = _build_html_layout("New project in your initiative", body)
+    html_body = _build_html_layout("New project in your initiative", body, accent)
     text_body = (
         f"A new project, {project_name}, was added to the {initiative_name} initiative. View it at {link}."
     )
@@ -221,6 +273,7 @@ async def send_project_added_to_initiative_email(
         subject=f"New project in {initiative_name}",
         html_body=html_body,
         text_body=text_body,
+        settings_obj=settings_obj,
     )
 
 
@@ -231,6 +284,7 @@ async def send_task_assignment_digest_email(
 ) -> None:
     if not assignments:
         return
+    settings_obj, accent = await _email_context(session)
     items_html = "".join(
         f"<li><strong>{item['task_title']}</strong> in {item['project_name']} (assigned by {item['assigned_by_name']})</li>"
         for item in assignments
@@ -241,7 +295,7 @@ async def send_task_assignment_digest_email(
     <ul>{items_html}</ul>
     <p>Visit Initiative to review the tasks.</p>
     """
-    html_body = _build_html_layout("Task assignment summary", body)
+    html_body = _build_html_layout("Task assignment summary", body, accent)
     text_lines = [
         "Here is your hourly summary of tasks assigned to you:",
         *(f"- {item['task_title']} in {item['project_name']} (assigned by {item['assigned_by_name']})" for item in assignments),
@@ -254,6 +308,7 @@ async def send_task_assignment_digest_email(
         subject="New tasks assigned to you",
         html_body=html_body,
         text_body=text_body,
+        settings_obj=settings_obj,
     )
 
 
@@ -264,6 +319,7 @@ async def send_overdue_tasks_email(
 ) -> None:
     if not tasks:
         return
+    settings_obj, accent = await _email_context(session)
     items_html = "".join(
         f"<li><strong>{item['title']}</strong> (project: {item['project_name']}, due {item['due_date']})</li>"
         for item in tasks
@@ -274,7 +330,7 @@ async def send_overdue_tasks_email(
     <ul>{items_html}</ul>
     <p>Visit Initiative to get back on track.</p>
     """
-    html_body = _build_html_layout("Overdue tasks reminder", body)
+    html_body = _build_html_layout("Overdue tasks reminder", body, accent)
     text_lines = [
         f"You have {len(tasks)} overdue task(s):",
         *(f"- {item['title']} (project: {item['project_name']}, due {item['due_date']})" for item in tasks),
@@ -287,4 +343,5 @@ async def send_overdue_tasks_email(
         subject="Overdue tasks reminder",
         html_body=html_body,
         text_body=text_body,
+        settings_obj=settings_obj,
     )
