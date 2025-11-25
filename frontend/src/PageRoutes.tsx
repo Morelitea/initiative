@@ -38,6 +38,11 @@ const SettingsUsersPage = lazy(() =>
     default: module.SettingsUsersPage,
   }))
 );
+const SettingsInitiativesPage = lazy(() =>
+  import("./pages/SettingsInitiativesPage").then((module) => ({
+    default: module.SettingsInitiativesPage,
+  }))
+);
 const SettingsAuthPage = lazy(() =>
   import("./pages/SettingsAuthPage").then((module) => ({
     default: module.SettingsAuthPage,
@@ -78,11 +83,6 @@ const UserSettingsNotificationsPage = lazy(() =>
     default: module.UserSettingsNotificationsPage,
   }))
 );
-const InitiativesPage = lazy(() =>
-  import("./pages/InitiativesPage").then((module) => ({
-    default: module.InitiativesPage,
-  }))
-);
 
 export const PageRoutes = () => {
   const { user, refreshUser } = useAuth();
@@ -113,7 +113,7 @@ export const PageRoutes = () => {
       </Route>
       <Route path="/settings/*" element={<SettingsLayout />}>
         <Route index element={<SettingsUsersPage />} />
-        <Route path="initiatives" element={<InitiativesPage />} />
+        <Route path="initiatives" element={<SettingsInitiativesPage />} />
         <Route path="auth" element={<SettingsAuthPage />} />
         <Route path="api-keys" element={<SettingsApiKeysPage />} />
         <Route path="branding" element={<SettingsBrandingPage />} />

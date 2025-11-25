@@ -1,30 +1,24 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "../api/client";
-import { Markdown } from "../components/Markdown";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { ColorPickerPopover } from "../components/ui/color-picker-popover";
-import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
-import { Label } from "../components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
-import { useAuth } from "../hooks/useAuth";
-import { queryClient } from "../lib/queryClient";
-import { Initiative, User } from "../types/api";
+import { apiClient } from "@/api/client";
+import { Markdown } from "@/components/Markdown";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { useAuth } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
+import { Initiative, User } from "@/types/api";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 const NO_USER_VALUE = "none";
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
-export const InitiativesPage = () => {
+export const SettingsInitiativesPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [initiativeName, setInitiativeName] = useState("");
@@ -378,24 +372,17 @@ export const InitiativesPage = () => {
                 )}
               </div>
               <div className="flex items-end gap-2">
-                <Select
+                <SearchableCombobox
                   value={selectedUsers[initiative.id] ?? NO_USER_VALUE}
                   onValueChange={(value) =>
                     setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))
                   }
-                >
-                  <SelectTrigger className="w-72">
-                    <SelectValue placeholder="Select member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_USER_VALUE}>Select a user</SelectItem>
-                    {availableUsers(initiative).map((candidate) => (
-                      <SelectItem key={candidate.id} value={String(candidate.id)}>
-                        {candidate.full_name ?? candidate.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Select member"
+                  items={availableUsers(initiative).map((candidate) => ({
+                    value: String(candidate.id),
+                    label: candidate.full_name ?? candidate.email,
+                  }))}
+                />
                 <Button
                   type="button"
                   variant="outline"

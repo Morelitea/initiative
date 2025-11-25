@@ -7,14 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import type { User } from "@/types/api";
 
 const FALLBACK_TIMEZONES = [
@@ -140,18 +134,13 @@ export const UserSettingsNotificationsPage = ({
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Timezone</Label>
-            <Select value={timezone} onValueChange={(value) => setTimezone(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {TIMEZONE_OPTIONS.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableCombobox
+              items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+              value={timezone}
+              onValueChange={(value) => setTimezone(value)}
+              placeholder="Select timezone"
+              emptyMessage="No timezone found."
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="overdue-time">Overdue reminder time</Label>
