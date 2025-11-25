@@ -11,7 +11,7 @@ import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 import type { TaskStatus } from "@/types/api";
 
 type ProjectTasksFiltersProps = {
-  viewMode: "kanban" | "list" | "calendar" | "gantt";
+  viewMode: "kanban" | "table" | "calendar" | "gantt";
   userOptions: UserOption[];
   assigneeFilter: "all" | string;
   dueFilter: DueFilterOption;
@@ -70,7 +70,7 @@ export const ProjectTasksFilters = ({
         </SelectContent>
       </Select>
     </div>
-    {viewMode === "list" ? (
+    {viewMode === "table" ? (
       <div className="w-full sm:w-44">
         <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
           Filter by status

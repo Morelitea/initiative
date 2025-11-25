@@ -10,7 +10,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Calendar, Kanban, List, GanttChart, Filter, ChevronDown } from "lucide-react";
+import { Calendar, Kanban, Table, GanttChart, Filter, ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,7 +33,7 @@ import {
   type UserOption,
 } from "@/components/projects/projectTasksConfig";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
-import { ProjectTasksListView } from "@/components/projects/ProjectTasksListView";
+import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -46,7 +46,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-type ViewMode = "list" | "kanban" | "calendar" | "gantt";
+type ViewMode = "table" | "kanban" | "calendar" | "gantt";
 
 type StoredFilters = {
   viewMode: ViewMode;
@@ -56,7 +56,7 @@ type StoredFilters = {
 };
 
 const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] = [
-  { value: "list", label: "List", icon: List },
+  { value: "table", label: "Table", icon: Table },
   { value: "kanban", label: "Kanban", icon: Kanban },
   { value: "calendar", label: "Calendar", icon: Calendar },
   { value: "gantt", label: "Gantt", icon: GanttChart },
@@ -95,7 +95,7 @@ export const ProjectTasksSection = ({
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
@@ -114,7 +114,7 @@ export const ProjectTasksSection = ({
   );
 
   const handleViewModeChange = (value: string) => {
-    if (value === "list" || value === "kanban" || value === "calendar" || value === "gantt") {
+    if (value === "table" || value === "kanban" || value === "calendar" || value === "gantt") {
       setViewMode(value);
     }
   };
@@ -149,8 +149,8 @@ export const ProjectTasksSection = ({
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StoredFilters>;
         if (
+          parsed.viewMode === "table" ||
           parsed.viewMode === "kanban" ||
-          parsed.viewMode === "list" ||
           parsed.viewMode === "calendar" ||
           parsed.viewMode === "gantt"
         ) {
@@ -322,7 +322,7 @@ export const ProjectTasksSection = ({
     return groups;
   }, [filteredTasks]);
 
-  const listTasks = useMemo(() => {
+  const tableTasks = useMemo(() => {
     if (listStatusFilter === "all") {
       return filteredTasks;
     }
@@ -631,9 +631,9 @@ export const ProjectTasksSection = ({
           />
         </TabsContent>
 
-        <TabsContent value="list">
-          <ProjectTasksListView
-            listTasks={listTasks}
+        <TabsContent value="table">
+          <ProjectTasksTableView
+            tasks={tableTasks}
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
             canEditTaskDetails={canEditTaskDetails}

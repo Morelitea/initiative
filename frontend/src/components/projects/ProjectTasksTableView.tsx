@@ -13,7 +13,7 @@ import { SortableTaskRow } from "@/components/projects/SortableTaskRow";
 import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 
 type ProjectTasksListViewProps = {
-  listTasks: Task[];
+  tasks: Task[];
   sensors: DndContextProps["sensors"];
   canReorderTasks: boolean;
   canEditTaskDetails: boolean;
@@ -26,8 +26,8 @@ type ProjectTasksListViewProps = {
   onTaskClick: (taskId: number) => void;
 };
 
-export const ProjectTasksListView = ({
-  listTasks,
+export const ProjectTasksTableView = ({
+  tasks,
   sensors,
   canReorderTasks,
   canEditTaskDetails,
@@ -42,7 +42,7 @@ export const ProjectTasksListView = ({
   <TasksTableCard
     title="Task list"
     description="View every task at once and update their status inline."
-    isEmpty={listTasks.length === 0}
+    isEmpty={tasks.length === 0}
     emptyMessage="No tasks yet."
   >
     <DndContext
@@ -53,7 +53,7 @@ export const ProjectTasksListView = ({
       onDragCancel={onDragCancel}
     >
       <SortableContext
-        items={listTasks.map((task) => task.id.toString())}
+        items={tasks.map((task) => task.id.toString())}
         strategy={verticalListSortingStrategy}
       >
         <table className="w-full min-w-[720px] text-sm">
@@ -66,7 +66,7 @@ export const ProjectTasksListView = ({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {listTasks.map((task) => (
+            {tasks.map((task) => (
               <SortableTaskRow
                 key={task.id}
                 task={task}
