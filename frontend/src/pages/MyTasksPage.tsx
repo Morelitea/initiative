@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter } from "lucide-react";
 
 import { apiClient } from "../api/client";
@@ -21,6 +22,7 @@ import { queryClient } from "../lib/queryClient";
 import { priorityVariant } from "../components/projects/projectTasksConfig";
 import { TasksTableCard } from "../components/tasks/TasksTableCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
+import { DataTable } from "../components/ui/data-table";
 import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
 
 const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
@@ -180,6 +182,148 @@ export const MyTasksPage = () => {
     return next;
   }, [filteredTasks, sortMode]);
 
+  const columns: ColumnDef<Task>[] = [
+    {
+      id: "completed",
+      header: () => <span className="font-medium">Done</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        return (
+          <Checkbox
+            checked={task.status === "done"}
+            onCheckedChange={(value) =>
+              updateTaskStatus.mutate({
+                taskId: task.id,
+                status: value ? "done" : "in_progress",
+              })
+            }
+            disabled={updateTaskStatus.isPending}
+            aria-label={task.status === "done" ? "Mark task as in progress" : "Mark task as done"}
+          />
+        );
+      },
+      enableSorting: false,
+      size: 64,
+    },
+    {
+      accessorKey: "title",
+      header: () => <span className="font-medium">Task</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        const recurrenceSummary = task.recurrence
+          ? summarizeRecurrence(task.recurrence, {
+              referenceDate: task.start_date || task.due_date,
+            })
+          : null;
+        return (
+          <div className="flex flex-col text-left">
+            <Link
+              to={`/tasks/${task.id}/edit`}
+              className="font-medium text-foreground hover:underline"
+            >
+              {task.title}
+            </Link>
+            {task.description ? (
+              <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+            ) : null}
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {task.start_date || task.due_date ? (
+                <p>
+                  {task.start_date ? `Starts: ${new Date(task.start_date).toLocaleString()}` : null}
+                  {task.start_date && task.due_date ? <span> &mdash; </span> : null}
+                  {task.due_date ? `Due: ${new Date(task.due_date).toLocaleString()}` : null}
+                </p>
+              ) : null}
+              {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "initiative",
+      header: () => <span className="font-medium">Initiative</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        const project = projectsById[task.project_id];
+        const initiative = project?.initiative;
+        if (!initiative) {
+          return <span className="text-sm text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="flex items-center gap-2">
+            {initiative.color ? (
+              <span
+                className="h-2.5 w-2.5 rounded-full border border-border/40"
+                style={{ backgroundColor: initiative.color }}
+              />
+            ) : null}
+            <span className="text-sm font-medium text-foreground">{initiative.name}</span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "project",
+      header: () => <span className="font-medium">Project</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        const project = projectsById[task.project_id];
+        if (!project) {
+          return <span className="text-sm text-muted-foreground">Project #{task.project_id}</span>;
+        }
+        return (
+          <Link
+            to={`/projects/${project.id}`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            {project.name}
+          </Link>
+        );
+      },
+    },
+    {
+      id: "priority",
+      header: () => <span className="font-medium">Priority</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        return (
+          <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
+        );
+      },
+    },
+    {
+      id: "status",
+      header: () => <span className="font-medium">Status</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        return (
+          <Select
+            value={task.status}
+            onValueChange={(value) =>
+              updateTaskStatus.mutate({
+                taskId: task.id,
+                status: value as TaskStatus,
+              })
+            }
+            disabled={updateTaskStatus.isPending}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status.replace("_", " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      },
+    },
+  ];
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -338,134 +482,11 @@ export const MyTasksPage = () => {
         isEmpty={sortedTasks.length === 0}
         emptyMessage="No tasks match the current filters."
       >
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="text-left text-muted-foreground">
-            <tr>
-              <th className="pb-2 px-2 font-medium">Done</th>
-              <th className="pb-2 px-2 font-medium">Task</th>
-              <th className="pb-2 px-2 font-medium">Initiative</th>
-              <th className="pb-2 px-2 font-medium">Project</th>
-              <th className="pb-2 px-2 font-medium">Priority</th>
-              <th className="pb-2 px-2 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {sortedTasks.map((task) => {
-              const project = projectsById[task.project_id];
-              const initiative = project?.initiative;
-              const recurrenceSummary = task.recurrence
-                ? summarizeRecurrence(task.recurrence, {
-                    referenceDate: task.start_date || task.due_date,
-                  })
-                : null;
-              return (
-                <tr key={task.id}>
-                  <td className="px-2 py-4 align-top">
-                    <Checkbox
-                      checked={task.status === "done"}
-                      onCheckedChange={(value) =>
-                        updateTaskStatus.mutate({
-                          taskId: task.id,
-                          status: value ? "done" : "in_progress",
-                        })
-                      }
-                      disabled={updateTaskStatus.isPending}
-                      aria-label={
-                        task.status === "done" ? "Mark task as in progress" : "Mark task as done"
-                      }
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="flex flex-col text-left">
-                      <Link
-                        to={`/tasks/${task.id}/edit`}
-                        className="font-medium text-foreground hover:underline"
-                      >
-                        {task.title}
-                      </Link>
-                      {task.description ? (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {task.description}
-                        </p>
-                      ) : null}
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        {task.start_date || task.due_date ? (
-                          <p>
-                            {task.start_date
-                              ? `Starts: ${new Date(task.start_date).toLocaleString()}`
-                              : null}
-                            {task.start_date && task.due_date ? <span> &mdash; </span> : null}
-                            {task.due_date
-                              ? `Due: ${new Date(task.due_date).toLocaleString()}`
-                              : null}
-                          </p>
-                        ) : null}
-                        {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-2 py-2 align-top">
-                    {initiative ? (
-                      <div className="flex items-center gap-2">
-                        {initiative.color ? (
-                          <span
-                            className="h-2.5 w-2.5 rounded-full border border-border/40"
-                            style={{ backgroundColor: initiative.color }}
-                          />
-                        ) : null}
-                        <span className="text-sm font-medium text-foreground">{initiative.name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2 align-top">
-                    {project ? (
-                      <Link
-                        to={`/projects/${project.id}`}
-                        className="text-sm font-medium text-primary hover:underline"
-                      >
-                        {project.name}
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        Project #{task.project_id}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-2 align-top">
-                    <Badge variant={priorityVariant[task.priority]}>
-                      {task.priority.replace("_", " ")}
-                    </Badge>
-                  </td>
-                  <td className="px-2 py-2 align-top">
-                    <Select
-                      value={task.status}
-                      onValueChange={(value) =>
-                        updateTaskStatus.mutate({
-                          taskId: task.id,
-                          status: value as TaskStatus,
-                        })
-                      }
-                      disabled={updateTaskStatus.isPending}
-                    >
-                      <SelectTrigger className="w-[160px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusOptions.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.replace("_", " ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="w-full overflow-x-auto">
+          <div className="min-w-[900px]">
+            <DataTable columns={columns} data={sortedTasks} />
+          </div>
+        </div>
       </TasksTableCard>
     </div>
   );

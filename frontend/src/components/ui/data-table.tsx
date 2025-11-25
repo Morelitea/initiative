@@ -1,6 +1,7 @@
 "use client";
 
-import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { Fragment, type ReactNode } from "react";
+import { ColumnDef, Row, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 
 import {
   Table,
@@ -14,9 +15,19 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  rowWrapper?: (props: DataTableRowWrapperProps<TData>) => ReactNode;
 }
 
-export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+export interface DataTableRowWrapperProps<TData> {
+  row: Row<TData>;
+  children: ReactNode;
+}
+
+export function DataTable<TData, TValue>({
+  columns,
+  data,
+  rowWrapper,
+}: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
     columns,
@@ -43,15 +54,28 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+            table.getRowModel().rows.map((row) => {
+              const cells = row.getVisibleCells().map((cell) => (
+                <TableCell key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </TableCell>
+              ));
+              if (rowWrapper) {
+                return (
+                  <Fragment key={row.id}>
+                    {rowWrapper({
+                      row,
+                      children: cells,
+                    })}
+                  </Fragment>
+                );
+              }
+              return (
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                  {cells}
+                </TableRow>
+              );
+            })
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">

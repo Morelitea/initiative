@@ -1,16 +1,36 @@
+import { createContext, useContext, useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   DndContext,
   closestCenter,
   type DragEndEvent,
   type DragStartEvent,
   type DndContextProps,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 
 import type { Task, TaskPriority, TaskStatus } from "@/types/api";
 import { TasksTableCard } from "@/components/tasks/TasksTableCard";
-import { SortableTaskRow } from "@/components/projects/SortableTaskRow";
 import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
+import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
+import { TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import { truncateText } from "@/lib/text";
+import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
+import { cn } from "@/lib/utils";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -26,6 +46,58 @@ type ProjectTasksListViewProps = {
   onTaskClick: (taskId: number) => void;
 };
 
+type SortableRowContextValue = {
+  attributes?: DraggableAttributes;
+  listeners?: DraggableSyntheticListeners;
+  setActivatorNodeRef?: (element: HTMLElement | null) => void;
+  dragDisabled: boolean;
+};
+
+const SortableRowContext = createContext<SortableRowContextValue | null>(null);
+
+const useSortableRowContext = () => useContext(SortableRowContext);
+
+const SortableRowWrapper = ({
+  row,
+  children,
+  dragDisabled,
+}: DataTableRowWrapperProps<Task> & { dragDisabled: boolean }) => {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({
+      id: row.original.id.toString(),
+      data: { type: "list-task" },
+      disabled: dragDisabled,
+    });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const contextValue = useMemo(
+    () => ({
+      attributes,
+      listeners,
+      setActivatorNodeRef,
+      dragDisabled,
+    }),
+    [attributes, listeners, setActivatorNodeRef, dragDisabled]
+  );
+
+  return (
+    <SortableRowContext.Provider value={contextValue}>
+      <TableRow
+        ref={setNodeRef}
+        style={style}
+        className={cn(isDragging && "bg-muted/60")}
+        data-state={row.getIsSelected() && "selected"}
+      >
+        {children}
+      </TableRow>
+    </SortableRowContext.Provider>
+  );
+};
+
 export const ProjectTasksTableView = ({
   tasks,
   sensors,
@@ -38,50 +110,199 @@ export const ProjectTasksTableView = ({
   onDragCancel,
   onStatusChange,
   onTaskClick,
-}: ProjectTasksListViewProps) => (
-  <TasksTableCard
-    title="Task list"
-    description="View every task at once and update their status inline."
-    isEmpty={tasks.length === 0}
-    emptyMessage="No tasks yet."
-  >
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onDragCancel={onDragCancel}
+}: ProjectTasksListViewProps) => {
+  const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
+  const columns = useMemo<ColumnDef<Task>[]>(
+    () => [
+      {
+        id: "drag",
+        header: () => <span className="sr-only">Reorder</span>,
+        cell: () => <DragHandleCell />,
+        enableSorting: false,
+        size: 40,
+      },
+      {
+        id: "completed",
+        header: () => <span className="font-medium">Done</span>,
+        cell: ({ row }) => {
+          const task = row.original;
+          const isDone = task.status === "done";
+          return (
+            <Checkbox
+              checked={isDone}
+              onCheckedChange={(value) => {
+                if (statusDisabled) {
+                  return;
+                }
+                const nextStatus: TaskStatus = value ? "done" : "in_progress";
+                if (nextStatus !== task.status) {
+                  onStatusChange(task.id, nextStatus);
+                }
+              }}
+              disabled={statusDisabled}
+              aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
+            />
+          );
+        },
+        enableSorting: false,
+        size: 64,
+      },
+      {
+        accessorKey: "title",
+        header: () => <span className="font-medium">Task</span>,
+        cell: ({ row }) => (
+          <TaskCell
+            task={row.original}
+            canEditTaskDetails={canEditTaskDetails}
+            onTaskClick={onTaskClick}
+          />
+        ),
+      },
+      {
+        id: "priority",
+        header: () => <span className="font-medium">Priority</span>,
+        cell: ({ row }) => {
+          const task = row.original;
+          return <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>;
+        },
+      },
+      {
+        id: "status",
+        header: () => <span className="font-medium">Status</span>,
+        cell: ({ row }) => {
+          const task = row.original;
+          return (
+            <Select
+              value={task.status}
+              onValueChange={(value) => {
+                if (statusDisabled) {
+                  return;
+                }
+                onStatusChange(task.id, value as TaskStatus);
+              }}
+              disabled={statusDisabled}
+            >
+              <SelectTrigger className="w-[160px]" disabled={statusDisabled}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {taskStatusOrder.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status.replace("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        },
+      },
+    ],
+    [canEditTaskDetails, onStatusChange, onTaskClick, priorityVariant, statusDisabled]
+  );
+
+  return (
+    <TasksTableCard
+      title="Task list"
+      description="View every task at once and update their status inline."
+      isEmpty={tasks.length === 0}
+      emptyMessage="No tasks yet."
     >
-      <SortableContext
-        items={tasks.map((task) => task.id.toString())}
-        strategy={verticalListSortingStrategy}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
       >
-        <table className="w-full min-w-[720px] text-sm">
-          <thead>
-            <tr className="text-left text-muted-foreground">
-              <th className="pb-2  px-2 font-medium">Done</th>
-              <th className="pb-2 px-2 font-medium">Task</th>
-              <th className="pb-2 px-2 font-medium">Priority</th>
-              <th className="pb-2 px-2 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {tasks.map((task) => (
-              <SortableTaskRow
-                key={task.id}
-                task={task}
-                dragDisabled={!canReorderTasks}
-                statusDisabled={!canEditTaskDetails || taskActionsDisabled}
-                canOpenTask={canEditTaskDetails}
-                statusOrder={taskStatusOrder}
-                priorityVariant={priorityVariant}
-                onStatusChange={(taskId, value) => onStatusChange(taskId, value)}
-                onTaskClick={onTaskClick}
+        <SortableContext
+          items={tasks.map((task) => task.id.toString())}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[720px]">
+              <DataTable
+                columns={columns}
+                data={tasks}
+                rowWrapper={({ row, children }) => (
+                  <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
+                    {children}
+                  </SortableRowWrapper>
+                )}
               />
-            ))}
-          </tbody>
-        </table>
-      </SortableContext>
-    </DndContext>
-  </TasksTableCard>
-);
+            </div>
+          </div>
+        </SortableContext>
+      </DndContext>
+    </TasksTableCard>
+  );
+};
+
+const DragHandleCell = () => {
+  const sortable = useSortableRowContext();
+  if (!sortable) {
+    return null;
+  }
+  const { dragDisabled, attributes, listeners, setActivatorNodeRef } = sortable;
+  return (
+    <button
+      type="button"
+      className="text-muted-foreground"
+      ref={setActivatorNodeRef}
+      {...(attributes ?? {})}
+      {...(listeners ?? {})}
+      disabled={dragDisabled}
+      aria-label="Reorder task"
+    >
+      <GripVertical className="h-4 w-4" />
+    </button>
+  );
+};
+
+type TaskCellProps = {
+  task: Task;
+  canEditTaskDetails: boolean;
+  onTaskClick: (taskId: number) => void;
+};
+
+const TaskCell = ({ task, canEditTaskDetails, onTaskClick }: TaskCellProps) => {
+  const recurrenceSummary = task.recurrence
+    ? summarizeRecurrence(task.recurrence, {
+        referenceDate: task.start_date || task.due_date,
+      })
+    : null;
+  const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
+  const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
+  const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+
+  return (
+    <button
+      type="button"
+      className="flex w-full flex-col items-start text-left"
+      onClick={() => {
+        if (!canEditTaskDetails) {
+          return;
+        }
+        onTaskClick(task.id);
+      }}
+      disabled={!canEditTaskDetails}
+    >
+      <p className="font-medium">{task.title}</p>
+      {task.description ? (
+        <p className="text-sm text-muted-foreground">{truncateText(task.description, 100)}</p>
+      ) : null}
+      <div className="space-y-1 text-xs text-muted-foreground">
+        {task.assignees.length > 0 ? (
+          <TaskAssigneeList assignees={task.assignees} className="text-xs" />
+        ) : null}
+        {formattedStart || formattedDue ? (
+          <p>
+            {formattedStart ? `Starts: ${formattedStart}` : null}
+            {formattedStart && formattedDue ? <span> &mdash; </span> : null}
+            {formattedDue ? `Due: ${formattedDue}` : null}
+          </p>
+        ) : null}
+        {recurrenceText ? <p>{recurrenceText}</p> : null}
+      </div>
+    </button>
+  );
+};
