@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChevronDown, Filter } from "lucide-react";
 
 import { apiClient } from "../api/client";
 import { summarizeRecurrence } from "../lib/recurrence";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
 import {
   Select,
@@ -16,10 +18,21 @@ import {
 } from "../components/ui/select";
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../components/ui/collapsible";
 import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
 
 const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const getDefaultFiltersVisibility = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  return window.matchMedia("(min-width: 640px)").matches;
+};
 
 export const MyTasksPage = () => {
   const { user } = useAuth();
@@ -74,6 +87,7 @@ export const MyTasksPage = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatus>("incomplete");
   const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
   const [sortMode, setSortMode] = useState<"due" | "priority" | "alphabetical">("due");
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -145,6 +159,23 @@ export const MyTasksPage = () => {
     return next;
   }, [filteredTasks, sortMode]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mediaQuery = window.matchMedia("(min-width: 640px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setFiltersOpen(event.matches);
+    };
+    setFiltersOpen(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
   if (
     tasksQuery.isLoading ||
     projectsQuery.isLoading ||
@@ -170,69 +201,91 @@ export const MyTasksPage = () => {
         <p className="text-muted-foreground">Everything assigned to you across all projects.</p>
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Refine your task list.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor="task-status-filter">Status</Label>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
-            >
-              <SelectTrigger id="task-status-filter">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="incomplete">Incomplete</SelectItem>
-                <SelectItem value="all">All statuses</SelectItem>
-                {statusOptions.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+        <div className="flex items-center justify-between sm:hidden">
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Filter className="h-4 w-4" />
+            Filters
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="task-priority-filter">Priority</Label>
-            <Select
-              value={priorityFilter}
-              onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}
-            >
-              <SelectTrigger id="task-priority-filter">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All priorities</SelectItem>
-                {priorityOrder.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {priority.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-3">
+              {filtersOpen ? "Hide" : "Show"}
+              <span className="ml-1">filters</span>
+              <ChevronDown
+                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+          <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+            <div className="w-full sm:w-60 lg:flex-1">
+              <Label
+                htmlFor="task-status-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Status
+              </Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
+              >
+                <SelectTrigger id="task-status-filter">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="incomplete">Incomplete</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-60 lg:flex-1">
+              <Label
+                htmlFor="task-priority-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Priority
+              </Label>
+              <Select
+                value={priorityFilter}
+                onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}
+              >
+                <SelectTrigger id="task-priority-filter">
+                  <SelectValue placeholder="All priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All priorities</SelectItem>
+                  {priorityOrder.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {priority.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-60 lg:flex-1">
+              <Label htmlFor="task-sort" className="text-xs font-medium text-muted-foreground">
+                Sort
+              </Label>
+              <Select value={sortMode} onValueChange={(value) => setSortMode(value as typeof sortMode)}>
+                <SelectTrigger id="task-sort">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="due">Due date</SelectItem>
+                  <SelectItem value="priority">Priority</SelectItem>
+                  <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="task-sort">Sort</Label>
-            <Select
-              value={sortMode}
-              onValueChange={(value) => setSortMode(value as typeof sortMode)}
-            >
-              <SelectTrigger id="task-sort">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="due">Due date</SelectItem>
-                <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="alphabetical">Alphabetical</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Card className="shadow-sm">
         <CardHeader>
