@@ -51,14 +51,9 @@ const SettingsApiKeysPage = lazy(() =>
     default: module.SettingsApiKeysPage,
   }))
 );
-const SettingsInterfacePage = lazy(() =>
-  import("./pages/SettingsInterfacePage").then((module) => ({
-    default: module.SettingsInterfacePage,
-  }))
-);
-const SettingsRolesPage = lazy(() =>
-  import("./pages/SettingsRolesPage").then((module) => ({
-    default: module.SettingsRolesPage,
+const SettingsBrandingPage = lazy(() =>
+  import("./pages/SettingsBrandingPage").then((module) => ({
+    default: module.SettingsBrandingPage,
   }))
 );
 const InitiativesPage = lazy(() =>
@@ -80,8 +75,7 @@ export const PageRoutes = () => (
       <Route path="initiatives" element={<InitiativesPage />} />
       <Route path="auth" element={<SettingsAuthPage />} />
       <Route path="api-keys" element={<SettingsApiKeysPage />} />
-      <Route path="interface" element={<SettingsInterfacePage />} />
-      <Route path="roles" element={<SettingsRolesPage />} />
+      <Route path="branding" element={<SettingsBrandingPage />} />
     </Route>
   </Routes>
 );

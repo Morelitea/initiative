@@ -8,8 +8,7 @@ const settingsTabs = [
   { value: "initiatives", label: "Initiatives", path: "/settings/initiatives" },
   { value: "auth", label: "Auth", path: "/settings/auth" },
   { value: "api-keys", label: "API Keys", path: "/settings/api-keys" },
-  { value: "interface", label: "Interface", path: "/settings/interface" },
-  { value: "roles", label: "Role labels", path: "/settings/roles" },
+  { value: "branding", label: "Branding", path: "/settings/branding" },
 ];
 
 export const SettingsLayout = () => {
