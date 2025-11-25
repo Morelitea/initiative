@@ -84,6 +84,19 @@ export const ProjectDetailPage = () => {
       }));
   }, [usersQuery.data, projectQuery.data]);
 
+  const project = projectQuery.data;
+  const projectName = project?.name;
+  useEffect(() => {
+    if (typeof document === "undefined" || !projectName) {
+      return;
+    }
+    const previousTitle = document.title || "initiative";
+    document.title = `initiative - ${projectName}`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [projectName]);
+
   if (!Number.isFinite(parsedProjectId)) {
     return (
       <div className="space-y-4">
@@ -99,7 +112,6 @@ export const ProjectDetailPage = () => {
     return <p className="text-sm text-muted-foreground">Loading project…</p>;
   }
 
-  const project = projectQuery.data;
   if (projectQuery.isError || tasksQuery.isError || !project) {
     return (
       <div className="space-y-4">
