@@ -164,7 +164,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                 return (
                   <div
                     key={task.id}
-                    className="grid h-16"
+                    className="grid min-h-16"
                     style={{
                       gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
                     }}
