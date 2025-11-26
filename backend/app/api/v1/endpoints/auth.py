@@ -28,6 +28,7 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserCreate, UserRead
 from app.services import app_settings as app_settings_service
+from app.services import notifications as notifications_service
 from app.services import email as email_service
 from app.services import user_tokens
 from app.models.user_token import UserTokenPurpose
@@ -73,6 +74,9 @@ async def register_user(user_in: UserCreate, session: SessionDep) -> User:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create user") from exc
 
     await session.refresh(user)
+
+    if not user.is_active:
+        await notifications_service.notify_admins_pending_user(session, user)
 
     if not user.email_verified:
         try:

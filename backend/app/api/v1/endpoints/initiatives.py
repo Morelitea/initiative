@@ -128,7 +128,12 @@ async def add_initiative_member(initiative_id: int, payload: InitiativeMemberAdd
     await session.refresh(initiative)
     await session.refresh(initiative, attribute_names=["members"])
     if created:
-        await notifications_service.notify_initiative_membership(session, user, initiative.name)
+        await notifications_service.notify_initiative_membership(
+            session,
+            user,
+            initiative_id=initiative.id,
+            initiative_name=initiative.name,
+        )
     return _serialize_initiative(initiative)
 
 

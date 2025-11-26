@@ -11,6 +11,7 @@ import {
 import { MobileMenu, type NavItem } from "@/components/MobileMenu";
 import { ModeToggle } from "@/components/ModeToggle";
 import { LogoIcon } from "@/components/LogoIcon";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems: NavItem[] = [
@@ -52,42 +53,45 @@ export const AppHeader = () => {
             </NavLink>
           ))}
         </nav>
-        <div className="ml-auto hidden items-center gap-3 md:flex">
-          <ModeToggle />
-          {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="rounded-full border bg-card p-0.5 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  aria-label="Account menu"
-                >
-                  <Avatar>
-                    {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
-                    <AvatarFallback>{userInitials}</AvatarFallback>
-                  </Avatar>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{userDisplayName}</p>
-                    <p className="text-xs text-muted-foreground">{userEmail}</p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/profile">User Settings</Link>
-                </DropdownMenuItem>
-                {user?.role === "admin" ? (
+        <div className="ml-auto flex items-center gap-3">
+          {user ? <NotificationBell /> : null}
+          <div className="hidden items-center gap-3 md:flex">
+            <ModeToggle />
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="rounded-full border bg-card p-0.5 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    aria-label="Account menu"
+                  >
+                    <Avatar>
+                      {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
+                      <AvatarFallback>{userInitials}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{userDisplayName}</p>
+                      <p className="text-xs text-muted-foreground">{userEmail}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/settings">Admin Settings</Link>
+                    <Link to="/profile">User Settings</Link>
                   </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => logout()}>Sign out</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
+                  {user?.role === "admin" ? (
+                    <DropdownMenuItem asChild>
+                      <Link to="/settings">Admin Settings</Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => logout()}>Sign out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>

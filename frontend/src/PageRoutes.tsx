@@ -131,9 +131,7 @@ export const PageRoutes = () => {
     <div
       className={cn(
         !prefersReducedMotion && "transition-all duration-300 ease-in-out",
-        transitionStage === "fadeIn"
-          ? "opacity-100 mt-0"
-          : "pointer-events-none opacity-0 mt-2"
+        transitionStage === "fadeIn" ? "opacity-100 mt-0" : "pointer-events-none opacity-0 mt-2"
       )}
     >
       <Routes location={displayLocation} key={displayKey}>

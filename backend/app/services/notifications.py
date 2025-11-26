@@ -13,8 +13,10 @@ from app.db.session import AsyncSessionLocal
 from app.models.project import Project
 from app.models.task import Task, TaskAssignee, TaskStatus
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.notification import NotificationType
 from app.services import email as email_service
+from app.services import user_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,18 @@ async def enqueue_task_assignment_event(
         assigned_by_id=assigned_by.id,
     )
     session.add(event)
+    await user_notifications.create_notification(
+        session,
+        user_id=assignee.id,
+        notification_type=NotificationType.task_assignment,
+        data={
+            "task_id": task.id,
+            "task_title": task.title,
+            "project_id": task.project_id,
+            "project_name": project_name,
+            "assigned_by_name": assigned_by.full_name or assigned_by.email,
+        },
+    )
 
 
 async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: int) -> None:
@@ -54,7 +68,12 @@ async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: i
     await session.exec(stmt)
 
 
-async def notify_initiative_membership(session: AsyncSession, user: User, initiative_name: str) -> None:
+async def notify_initiative_membership(
+    session: AsyncSession,
+    user: User,
+    initiative_id: int,
+    initiative_name: str,
+) -> None:
     if user.notify_initiative_addition is False:
         return
     try:
@@ -63,6 +82,13 @@ async def notify_initiative_membership(session: AsyncSession, user: User, initia
         logger.warning("SMTP not configured; skipping initiative notification for %s", user.email)
     except RuntimeError as exc:  # pragma: no cover
         logger.error("Failed to send initiative notification: %s", exc)
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.initiative_added,
+        data={"initiative_id": initiative_id, "initiative_name": initiative_name},
+    )
+    await session.commit()
 
 
 async def notify_project_added(
@@ -72,6 +98,7 @@ async def notify_project_added(
     initiative_name: str,
     project_name: str,
     project_id: int,
+    initiative_id: int,
 ) -> None:
     if user.notify_project_added is False:
         return
@@ -87,6 +114,34 @@ async def notify_project_added(
         logger.warning("SMTP not configured; skipping project notification for %s", user.email)
     except RuntimeError as exc:  # pragma: no cover
         logger.error("Failed to send project notification: %s", exc)
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.project_added,
+        data={
+            "initiative_id": initiative_id,
+            "initiative_name": initiative_name,
+            "project_id": project_id,
+            "project_name": project_name,
+        },
+    )
+    await session.commit()
+
+
+async def notify_admins_pending_user(session: AsyncSession, pending_user: User) -> None:
+    stmt = select(User).where(User.role == UserRole.admin, User.is_active.is_(True))
+    result = await session.exec(stmt)
+    admins = result.scalars().all()
+    if not admins:
+        return
+    for admin in admins:
+        await user_notifications.create_notification(
+            session,
+            user_id=admin.id,
+            notification_type=NotificationType.user_pending_approval,
+            data={"user_id": pending_user.id, "email": pending_user.email},
+        )
+    await session.commit()
 
 
 async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:

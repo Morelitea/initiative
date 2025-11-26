@@ -162,3 +162,26 @@ export interface EmailSettings {
   from_address?: string | null;
   test_recipient?: string | null;
 }
+
+export type NotificationType =
+  | "task_assignment"
+  | "initiative_added"
+  | "project_added"
+  | "user_pending_approval";
+
+export interface Notification {
+  id: number;
+  type: NotificationType;
+  data: Record<string, unknown>;
+  created_at: string;
+  read_at?: string | null;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  unread_count: number;
+}
+
+export interface NotificationCountResponse {
+  unread_count: number;
+}

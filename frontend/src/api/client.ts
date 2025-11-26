@@ -64,7 +64,7 @@ apiClient.interceptors.request.use((config) => {
 
 const emitUnauthorized = () => {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+    // window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
   }
 };
 

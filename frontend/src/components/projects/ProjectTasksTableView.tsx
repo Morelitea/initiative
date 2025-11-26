@@ -62,12 +62,19 @@ const SortableRowWrapper = ({
   children,
   dragDisabled,
 }: DataTableRowWrapperProps<Task> & { dragDisabled: boolean }) => {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: row.original.id.toString(),
-      data: { type: "list-task" },
-      disabled: dragDisabled,
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: row.original.id.toString(),
+    data: { type: "list-task" },
+    disabled: dragDisabled,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -163,7 +170,11 @@ export const ProjectTasksTableView = ({
         header: () => <span className="font-medium">Priority</span>,
         cell: ({ row }) => {
           const task = row.original;
-          return <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>;
+          return (
+            <Badge variant={priorityVariant[task.priority]}>
+              {task.priority.replace("_", " ")}
+            </Badge>
+          );
         },
       },
       {

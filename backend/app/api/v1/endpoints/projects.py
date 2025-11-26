@@ -543,6 +543,7 @@ async def create_project(
                 initiative_name=project.initiative.name,
                 project_name=project.name,
                 project_id=project.id,
+                initiative_id=project.initiative.id,
             )
     await broadcast_event("project", "created", _project_payload(project))
     return await _project_read_for_user(session, manager_user, project)
@@ -620,6 +621,7 @@ async def duplicate_project(
                 initiative_name=new_project.initiative.name,
                 project_name=new_project.name,
                 project_id=new_project.id,
+                initiative_id=new_project.initiative.id,
             )
     await broadcast_event("project", "created", _project_payload(new_project))
     return await _project_read_for_user(session, current_user, new_project)
@@ -822,6 +824,7 @@ async def update_project(
                 initiative_name=project.initiative.name,
                 project_name=project.name,
                 project_id=project.id,
+                initiative_id=project.initiative.id,
             )
     await broadcast_event("project", "updated", _project_payload(project))
     return await _project_read_for_user(session, current_user, project)
