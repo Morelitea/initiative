@@ -493,29 +493,6 @@ export const ProjectSettingsPage = () => {
         </CardContent>
       </Card>
 
-      {project.initiative ? (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Project initiative</CardTitle>
-            <CardDescription>The initiative currently assigned to this project.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="font-medium">{project.initiative.name}</p>
-            {project.initiative.members.length ? (
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {project.initiative.members.map((member) => (
-                  <li key={member.user.id}>{member.user.full_name ?? member.user.email}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No initiative {memberLabel} role holders yet.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
-
       {user?.role === "admin" ? (
         <Card className="shadow-sm">
           <CardHeader>
