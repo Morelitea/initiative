@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { RegisterPage } from "./RegisterPage";
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,6 +29,10 @@ export const LoginPage = () => {
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
     "loading"
   );
+  const inviteCodeParam = useMemo(() => {
+    const code = searchParams.get("invite_code");
+    return code && code.trim().length > 0 ? code.trim() : null;
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchOidcStatus = async () => {
@@ -70,7 +75,11 @@ export const LoginPage = () => {
     setError(null);
     try {
       await login({ email, password });
-      navigate("/", { replace: true });
+      if (inviteCodeParam) {
+        navigate(`/invite/${encodeURIComponent(inviteCodeParam)}`, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Unable to log in. Check your credentials.");
@@ -153,7 +162,10 @@ export const LoginPage = () => {
         <CardFooter className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
           <p>
             Need an account?{" "}
-            <Link className="text-primary underline-offset-4 hover:underline" to="/register">
+            <Link
+              className="text-primary underline-offset-4 hover:underline"
+              to={inviteCodeParam ? `/register?invite_code=${encodeURIComponent(inviteCodeParam)}` : "/register"}
+            >
               Register
             </Link>
           </p>

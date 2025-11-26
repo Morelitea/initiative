@@ -1,9 +1,11 @@
 export type UserRole = "admin" | "member";
+export type GuildRole = "admin" | "member";
 
 export type InitiativeRole = "project_manager" | "member";
 
 export interface User {
   id: number;
+  active_guild_id?: number | null;
   email: string;
   full_name?: string;
   role: UserRole;
@@ -56,6 +58,40 @@ export interface InitiativeMember {
   user: User;
   role: InitiativeRole;
   joined_at: string;
+}
+
+export interface Guild {
+  id: number;
+  name: string;
+  description?: string | null;
+  icon_base64?: string | null;
+  role: GuildRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuildInviteStatus {
+  code: string;
+  guild_id?: number | null;
+  guild_name?: string | null;
+  is_valid: boolean;
+  reason?: string | null;
+  expires_at?: string | null;
+  max_uses?: number | null;
+  uses?: number | null;
+}
+
+export interface GuildInviteRead {
+  id: number;
+  code: string;
+  guild_id: number;
+  created_by_user_id?: number | null;
+  expires_at?: string | null;
+  max_uses?: number | null;
+  uses: number;
+  invitee_email?: string | null;
+  created_at: string;
 }
 
 export interface Project {

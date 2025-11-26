@@ -8,6 +8,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
     from app.models.user import User
+    from app.models.guild import Guild
 
 
 class InitiativeRole(str, Enum):
@@ -41,7 +42,8 @@ class Initiative(SQLModel, table=True):
     __tablename__ = "initiatives"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True, nullable=False)
+    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
+    name: str = Field(index=True, nullable=False)
     description: Optional[str] = Field(default=None)
     color: Optional[str] = Field(
         default=None,
@@ -65,3 +67,4 @@ class Initiative(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     projects: List["Project"] = Relationship(back_populates="initiative")
+    guild: Optional["Guild"] = Relationship(back_populates="initiatives")

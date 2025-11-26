@@ -6,17 +6,26 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select, delete
 
-from app.api.deps import SessionDep, get_current_active_user, require_roles
+from app.api.deps import (
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+    GuildContext,
+    require_guild_roles,
+)
 from app.core.security import get_password_hash
 from app.models.task import TaskAssignee
+from app.models.guild import GuildRole, GuildMembership
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserRead, UserSelfUpdate, UserUpdate
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
+from app.services import guilds as guilds_service
 
 router = APIRouter()
 
-AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 SUPER_USER_ID = 1
 TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
@@ -53,19 +62,36 @@ async def read_users_me(session: SessionDep, current_user: Annotated[User, Depen
 
 
 @router.get("/", response_model=List[UserRead])
-async def list_users(session: SessionDep, _: Annotated[User, Depends(get_current_active_user)]) -> List[User]:
-    result = await session.exec(select(User))
+async def list_users(
+    session: SessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[User]:
+    stmt = (
+        select(User)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(GuildMembership.guild_id == guild_context.guild_id)
+        .order_by(User.created_at.asc())
+    )
+    result = await session.exec(stmt)
     users = result.all()
     await initiatives_service.load_user_initiative_roles(session, users)
     return users
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def create_user(user_in: UserCreate, session: SessionDep, _: AdminUser) -> User:
+async def create_user(
+    user_in: UserCreate,
+    session: SessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> User:
     statement = select(User).where(User.email == user_in.email)
     result = await session.exec(statement)
     if result.one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    guild_id = guild_context.guild_id
 
     user = User(
         email=user_in.email,
@@ -73,13 +99,20 @@ async def create_user(user_in: UserCreate, session: SessionDep, _: AdminUser) ->
         hashed_password=get_password_hash(user_in.password),
         role=user_in.role,
         email_verified=True,
+        active_guild_id=guild_id,
     )
     session.add(user)
+    await session.flush()
+    await guilds_service.ensure_membership(
+        session,
+        guild_id=guild_id,
+        user_id=user.id,
+        role=GuildRole.admin if user.role == UserRole.admin else GuildRole.member,
+    )
+    if user.role == UserRole.admin:
+        await initiatives_service.ensure_default_initiative(session, user, guild_id=guild_id)
     await session.commit()
     await session.refresh(user)
-    if user.role == UserRole.admin:
-        async with session.begin():
-            await initiatives_service.ensure_default_initiative(session, user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 
@@ -150,8 +183,22 @@ async def update_users_me(
 
 
 @router.patch("/{user_id}", response_model=UserRead)
-async def update_user(user_id: int, user_in: UserUpdate, session: SessionDep, _: AdminUser) -> User:
-    result = await session.exec(select(User).where(User.id == user_id))
+async def update_user(
+    user_id: int,
+    user_in: UserUpdate,
+    session: SessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> User:
+    stmt = (
+        select(User)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(
+            User.id == user_id,
+            GuildMembership.guild_id == guild_context.guild_id,
+        )
+    )
+    result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -194,17 +241,37 @@ async def update_user(user_id: int, user_in: UserUpdate, session: SessionDep, _:
     user.updated_at = datetime.now(timezone.utc)
 
     session.add(user)
+    await session.flush()
+    await guilds_service.ensure_membership(
+        session,
+        guild_id=guild_context.guild_id,
+        user_id=user.id,
+        role=GuildRole.admin if user.role == UserRole.admin else GuildRole.member,
+    )
+    if user.role == UserRole.admin:
+        await initiatives_service.ensure_default_initiative(session, user, guild_id=guild_context.guild_id)
     await session.commit()
     await session.refresh(user)
-    if user.role == UserRole.admin:
-        await initiatives_service.ensure_default_initiative(session, user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 
 
 @router.post("/{user_id}/approve", response_model=UserRead)
-async def approve_user(user_id: int, session: SessionDep, _: AdminUser) -> User:
-    result = await session.exec(select(User).where(User.id == user_id))
+async def approve_user(
+    user_id: int,
+    session: SessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> User:
+    stmt = (
+        select(User)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(
+            User.id == user_id,
+            GuildMembership.guild_id == guild_context.guild_id,
+        )
+    )
+    result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -220,13 +287,26 @@ async def approve_user(user_id: int, session: SessionDep, _: AdminUser) -> User:
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, session: SessionDep, current_admin: AdminUser) -> None:
+async def delete_user(
+    user_id: int,
+    session: SessionDep,
+    current_admin: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> None:
     if user_id == SUPER_USER_ID:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the super user")
     if user_id == current_admin.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
 
-    result = await session.exec(select(User).where(User.id == user_id))
+    stmt = (
+        select(User)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(
+            User.id == user_id,
+            GuildMembership.guild_id == guild_context.guild_id,
+        )
+    )
+    result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

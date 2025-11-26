@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None
     FIRST_SUPERUSER_PASSWORD: str | None = None
     FIRST_SUPERUSER_FULL_NAME: str | None = None
+    DISABLE_GUILD_CREATION: bool = False
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
     @classmethod

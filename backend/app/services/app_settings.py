@@ -1,13 +1,20 @@
+from __future__ import annotations
+
 from collections.abc import Iterable, Mapping
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
-from app.models.app_setting import AppSetting, DEFAULT_ROLE_LABELS
+from app.models.guild_setting import GuildSetting, DEFAULT_ROLE_LABELS
+from app.services import guilds as guilds_service
 
-DEFAULT_SETTING_ID = 1
 ROLE_KEYS = ["admin", "project_manager", "member"]
+
+
+async def _default_guild_id(session: AsyncSession) -> int:
+    guild = await guilds_service.get_primary_guild(session)
+    return guild.id
 
 
 def _normalize_optional_string(value: str | None) -> str | None:
@@ -57,19 +64,22 @@ def _normalize_role_labels(
     return normalized
 
 
-async def get_or_create_app_settings(
+async def get_or_create_guild_settings(
     session: AsyncSession,
     *,
+    guild_id: int | None = None,
     default_domains: Iterable[str] | None = None,
-) -> AppSetting:
-    result = await session.exec(select(AppSetting).where(AppSetting.id == DEFAULT_SETTING_ID))
-    app_settings = result.one_or_none()
-    if app_settings:
-        return app_settings
+) -> GuildSetting:
+    resolved_guild_id = guild_id or await _default_guild_id(session)
+    stmt = select(GuildSetting).where(GuildSetting.guild_id == resolved_guild_id)
+    result = await session.exec(stmt)
+    settings_row = result.one_or_none()
+    if settings_row:
+        return settings_row
 
     domains = default_domains or app_config.AUTO_APPROVED_EMAIL_DOMAINS
-    app_settings = AppSetting(
-        id=DEFAULT_SETTING_ID,
+    settings_row = GuildSetting(
+        guild_id=resolved_guild_id,
         auto_approved_domains=_normalize_domains(domains),
         oidc_enabled=app_config.OIDC_ENABLED,
         oidc_discovery_url=app_config.OIDC_DISCOVERY_URL,
@@ -89,29 +99,34 @@ async def get_or_create_app_settings(
         smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
         smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
     )
-    session.add(app_settings)
+    session.add(settings_row)
     await session.commit()
-    await session.refresh(app_settings)
-    return app_settings
+    await session.refresh(settings_row)
+    return settings_row
 
 
-async def update_auto_approved_domains(session: AsyncSession, domains: Iterable[str]) -> AppSetting:
-    app_settings = await get_or_create_app_settings(session)
-    app_settings.auto_approved_domains = _normalize_domains(domains)
-    session.add(app_settings)
+async def update_auto_approved_domains(
+    session: AsyncSession,
+    domains: Iterable[str],
+    *,
+    guild_id: int | None = None,
+) -> GuildSetting:
+    settings_row = await get_or_create_guild_settings(session, guild_id=guild_id)
+    settings_row.auto_approved_domains = _normalize_domains(domains)
+    session.add(settings_row)
     await session.commit()
-    await session.refresh(app_settings)
-    return app_settings
+    await session.refresh(settings_row)
+    return settings_row
 
 
-def is_email_auto_approved(email: str, app_settings: AppSetting) -> bool:
-    if not app_settings.auto_approved_domains:
+def is_email_auto_approved(email: str, settings_row: GuildSetting) -> bool:
+    if not settings_row.auto_approved_domains:
         return False
     try:
         domain = email.split("@", maxsplit=1)[1].lower()
     except IndexError:
         return False
-    return domain in app_settings.auto_approved_domains
+    return domain in settings_row.auto_approved_domains
 
 
 async def update_oidc_settings(
@@ -123,19 +138,20 @@ async def update_oidc_settings(
     client_secret: str | None,
     provider_name: str | None,
     scopes: Iterable[str],
-) -> AppSetting:
-    app_settings = await get_or_create_app_settings(session)
-    app_settings.oidc_enabled = enabled
-    app_settings.oidc_discovery_url = discovery_url
-    app_settings.oidc_client_id = client_id
+    guild_id: int | None = None,
+) -> GuildSetting:
+    settings_row = await get_or_create_guild_settings(session, guild_id=guild_id)
+    settings_row.oidc_enabled = enabled
+    settings_row.oidc_discovery_url = discovery_url
+    settings_row.oidc_client_id = client_id
     if client_secret is not None:
-        app_settings.oidc_client_secret = client_secret
-    app_settings.oidc_provider_name = provider_name
-    app_settings.oidc_scopes = _normalize_scopes(scopes)
-    session.add(app_settings)
+        settings_row.oidc_client_secret = client_secret
+    settings_row.oidc_provider_name = provider_name
+    settings_row.oidc_scopes = _normalize_scopes(scopes)
+    session.add(settings_row)
     await session.commit()
-    await session.refresh(app_settings)
-    return app_settings
+    await session.refresh(settings_row)
+    return settings_row
 
 
 async def update_interface_colors(
@@ -143,26 +159,29 @@ async def update_interface_colors(
     *,
     light_accent_color: str,
     dark_accent_color: str,
-) -> AppSetting:
-    app_settings = await get_or_create_app_settings(session)
-    app_settings.light_accent_color = light_accent_color
-    app_settings.dark_accent_color = dark_accent_color
-    session.add(app_settings)
+    guild_id: int | None = None,
+) -> GuildSetting:
+    settings_row = await get_or_create_guild_settings(session, guild_id=guild_id)
+    settings_row.light_accent_color = light_accent_color
+    settings_row.dark_accent_color = dark_accent_color
+    session.add(settings_row)
     await session.commit()
-    await session.refresh(app_settings)
-    return app_settings
+    await session.refresh(settings_row)
+    return settings_row
 
 
 async def update_role_labels(
     session: AsyncSession,
     labels: Mapping[str, str | None],
-) -> AppSetting:
-    app_settings = await get_or_create_app_settings(session)
-    app_settings.role_labels = _normalize_role_labels(labels, base=app_settings.role_labels)
-    session.add(app_settings)
+    *,
+    guild_id: int | None = None,
+) -> GuildSetting:
+    settings_row = await get_or_create_guild_settings(session, guild_id=guild_id)
+    settings_row.role_labels = _normalize_role_labels(labels, base=settings_row.role_labels)
+    session.add(settings_row)
     await session.commit()
-    await session.refresh(app_settings)
-    return app_settings
+    await session.refresh(settings_row)
+    return settings_row
 
 
 async def update_email_settings(
@@ -177,18 +196,19 @@ async def update_email_settings(
     password_provided: bool,
     from_address: str | None,
     test_recipient: str | None,
-) -> AppSetting:
-    app_settings = await get_or_create_app_settings(session)
-    app_settings.smtp_host = _normalize_optional_string(host)
-    app_settings.smtp_port = port if port else None
-    app_settings.smtp_secure = bool(secure)
-    app_settings.smtp_reject_unauthorized = bool(reject_unauthorized)
-    app_settings.smtp_username = _normalize_optional_string(username)
+    guild_id: int | None = None,
+) -> GuildSetting:
+    settings_row = await get_or_create_guild_settings(session, guild_id=guild_id)
+    settings_row.smtp_host = _normalize_optional_string(host)
+    settings_row.smtp_port = port if port else None
+    settings_row.smtp_secure = bool(secure)
+    settings_row.smtp_reject_unauthorized = bool(reject_unauthorized)
+    settings_row.smtp_username = _normalize_optional_string(username)
     if password_provided:
-        app_settings.smtp_password = _normalize_optional_string(password)
-    app_settings.smtp_from_address = _normalize_optional_string(from_address)
-    app_settings.smtp_test_recipient = _normalize_optional_string(test_recipient)
-    session.add(app_settings)
+        settings_row.smtp_password = _normalize_optional_string(password)
+    settings_row.smtp_from_address = _normalize_optional_string(from_address)
+    settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
+    session.add(settings_row)
     await session.commit()
-    await session.refresh(app_settings)
-    return app_settings
+    await session.refresh(settings_row)
+    return settings_row

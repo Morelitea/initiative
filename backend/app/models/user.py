@@ -1,13 +1,16 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, Text, Boolean, String
-from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
 from app.models.initiative import InitiativeMember
 from app.models.task import TaskAssignee
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.models.guild import GuildMembership
 
 
 class UserRole(str, Enum):
@@ -17,7 +20,8 @@ class UserRole(str, Enum):
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+    __allow_unmapped__ = True
 
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True, nullable=False)
@@ -84,11 +88,20 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
+    active_guild_id: Optional[int] = Field(
+        default=None,
+        foreign_key="guilds.id",
+        nullable=True,
+    )
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
     project_permissions: List["ProjectPermission"] = Relationship(back_populates="user")
     initiative_memberships: List["InitiativeMember"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    guild_memberships: List["GuildMembership"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

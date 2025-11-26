@@ -1,6 +1,8 @@
-import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import type { AxiosError } from "axios";
 
+import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import type { GuildInviteStatus } from "@/types/api";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;
@@ -20,6 +23,7 @@ interface RegisterPageProps {
 
 export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { register, login } = useAuth();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -27,6 +31,53 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<GuildInviteStatus | null>(null);
+  const [inviteStatusError, setInviteStatusError] = useState<string | null>(null);
+  const [inviteStatusLoading, setInviteStatusLoading] = useState(false);
+  const inviteCode = useMemo(() => {
+    const code = searchParams.get("invite_code");
+    return code && code.trim().length > 0 ? code.trim() : undefined;
+  }, [searchParams]);
+
+  useEffect(() => {
+    let ignore = false;
+    if (!inviteCode) {
+      setInviteStatus(null);
+      setInviteStatusError(null);
+      setInviteStatusLoading(false);
+      return () => {
+        ignore = true;
+      };
+    }
+    setInviteStatus(null);
+    setInviteStatusError(null);
+    setInviteStatusLoading(true);
+    apiClient
+      .get<GuildInviteStatus>(`/guilds/invite/${encodeURIComponent(inviteCode)}`)
+      .then((response) => {
+        if (ignore) {
+          return;
+        }
+        setInviteStatus(response.data);
+        setInviteStatusError(response.data.is_valid ? null : response.data.reason ?? "Invite is no longer valid.");
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+        console.error("Failed to load invite", error);
+        setInviteStatus(null);
+        setInviteStatusError("Unable to load invite details right now.");
+      })
+      .finally(() => {
+        if (!ignore) {
+          setInviteStatusLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [inviteCode]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -34,7 +85,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setError(null);
     setInfoMessage(null);
     try {
-      const createdUser = await register({ email, password, full_name: fullName });
+      if (inviteCode && inviteStatus && !inviteStatus.is_valid) {
+        setError(inviteStatus.reason ?? "Invite code is no longer valid.");
+        return;
+      }
+      const createdUser = await register({ email, password, full_name: fullName, inviteCode });
       if (createdUser.is_active && createdUser.email_verified) {
         await login({ email, password });
         navigate("/", { replace: true });
@@ -47,7 +102,9 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       }
     } catch (err) {
       console.error(err);
-      setError("Unable to register. Try a different email.");
+      const axiosError = err as AxiosError<{ detail?: string }>;
+      const detail = axiosError.response?.data?.detail;
+      setError(detail ?? "Unable to register. Try a different email.");
     } finally {
       setSubmitting(false);
     }
@@ -94,7 +151,24 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                 required
               />
             </div>
-            <Button className="w-full" type="submit" disabled={submitting}>
+            {inviteCode ? (
+              <p className="text-sm text-muted-foreground">
+                {inviteStatusLoading && "Checking invite…"}
+                {!inviteStatusLoading && inviteStatus && inviteStatus.is_valid
+                  ? `You’re joining ${inviteStatus.guild_name ?? "this guild"}.`
+                  : null}
+                {!inviteStatusLoading && inviteStatusError ? (
+                  <span className="text-destructive">{inviteStatusError}</span>
+                ) : null}
+              </p>
+            ) : null}
+            <Button
+              className="w-full"
+              type="submit"
+              disabled={
+                submitting || (inviteCode ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false) : false)
+              }
+            >
               {submitting ? "Creating account…" : "Sign up"}
             </Button>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}

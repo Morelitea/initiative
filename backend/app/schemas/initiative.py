@@ -53,6 +53,7 @@ class InitiativeMemberRead(BaseModel):
 
 class InitiativeRead(InitiativeBase):
     id: int
+    guild_id: int
     is_default: bool = False
     created_at: datetime
     updated_at: datetime
@@ -76,6 +77,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         )
     return InitiativeRead(
         id=initiative.id,
+        guild_id=initiative.guild_id,
         name=initiative.name,
         description=initiative.description,
         color=initiative.color,

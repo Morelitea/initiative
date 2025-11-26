@@ -5,13 +5,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import SessionDep, get_current_active_user, require_roles
+from app.api.deps import (
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+    GuildContext,
+    require_guild_roles,
+)
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.guild import GuildRole
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services.realtime import broadcast_event
@@ -30,7 +37,8 @@ from app.schemas.initiative import serialize_initiative
 
 router = APIRouter()
 
-AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 MAX_RECENT_PROJECTS = 20
 
@@ -42,12 +50,14 @@ def _project_payload(project: Project) -> dict:
     return payload.model_dump(mode="json")
 
 
-async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
+async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: int | None = None) -> Project:
     statement = select(Project).where(Project.id == project_id).options(
         selectinload(Project.permissions).selectinload(ProjectPermission.user),
         selectinload(Project.owner),
         selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
     )
+    if guild_id is not None:
+        statement = statement.join(Project.initiative).where(Initiative.guild_id == guild_id)
     result = await session.exec(statement)
     project = result.one_or_none()
     if not project:
@@ -55,14 +65,14 @@ async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
     return project
 
 
-async def _get_initiative_or_404(initiative_id: int, session: SessionDep) -> Initiative:
+async def _get_initiative_or_404(initiative_id: int, session: SessionDep, guild_id: int | None = None) -> Initiative:
     result = await session.exec(
         select(Initiative)
         .where(Initiative.id == initiative_id)
         .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
     )
     initiative = result.one_or_none()
-    if not initiative:
+    if not initiative or (guild_id is not None and initiative.guild_id != guild_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
     return initiative
 
@@ -193,22 +203,34 @@ async def _visible_projects(
     session: SessionDep,
     current_user: User,
     *,
+    guild_id: int,
     archived: Optional[bool],
     template: Optional[bool],
+    is_guild_admin: bool,
 ) -> List[Project]:
-    base_statement = select(Project).options(
-        selectinload(Project.permissions).selectinload(ProjectPermission.user),
-        selectinload(Project.owner),
-        selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+    base_statement = (
+        select(Project)
+        .join(Project.initiative)
+        .where(Initiative.guild_id == guild_id)
+        .options(
+            selectinload(Project.permissions).selectinload(ProjectPermission.user),
+            selectinload(Project.owner),
+            selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+        )
     )
     result = await session.exec(base_statement)
     all_projects = result.all()
 
-    if current_user.role == UserRole.admin:
+    if is_guild_admin:
         return [project for project in all_projects if _matches_filters(project, archived=archived, template=template)]
 
     initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == current_user.id)
+        select(InitiativeMember.initiative_id)
+        .join(Initiative, Initiative.id == InitiativeMember.initiative_id)
+        .where(
+            InitiativeMember.user_id == current_user.id,
+            Initiative.guild_id == guild_id,
+        )
     )
     initiative_ids = {row for row in initiative_ids_result.all() if row is not None}
 
@@ -308,12 +330,18 @@ async def _project_meta_for_user(
 async def _projects_by_ids(
     session: SessionDep,
     project_ids: List[int],
+    *,
+    guild_id: int,
 ) -> dict[int, Project]:
     if not project_ids:
         return {}
     stmt = (
         select(Project)
-        .where(Project.id.in_(tuple(project_ids)))
+        .join(Project.initiative)
+        .where(
+            Project.id.in_(tuple(project_ids)),
+            Initiative.guild_id == guild_id,
+        )
         .options(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
@@ -448,8 +476,9 @@ async def _require_project_membership(
     *,
     access: str = "read",
     require_manager: bool = False,
+    guild_role: GuildRole | None = None,
 ):
-    if current_user.role == UserRole.admin:
+    if guild_role == GuildRole.admin:
         return
 
     initiative_membership = await _get_initiative_membership(project, current_user, session)
@@ -471,7 +500,7 @@ async def _require_project_membership(
     if not has_write:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access denied for your role")
 
-    if require_manager and not (is_owner or is_initiative_pm or current_user.role == UserRole.admin):
+    if require_manager and not (is_owner or is_initiative_pm or guild_role == GuildRole.admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
 
 
@@ -479,14 +508,17 @@ async def _require_project_membership(
 async def list_projects(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
     archived: Optional[bool] = Query(default=None),
     template: Optional[bool] = Query(default=None),
 ) -> List[ProjectRead]:
     projects = await _visible_projects(
         session,
         current_user,
+        guild_id=guild_context.guild_id,
         archived=archived,
         template=template,
+        is_guild_admin=guild_context.role == GuildRole.admin,
     )
     return await _project_reads_with_order(session, current_user, projects)
 
@@ -496,13 +528,20 @@ async def create_project(
     project_in: ProjectCreate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRead:
     template_project: Project | None = None
     if project_in.template_id is not None:
-        template_project = await _get_project_or_404(project_in.template_id, session)
+        template_project = await _get_project_or_404(project_in.template_id, session, guild_context.guild_id)
         if not template_project.is_template:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected template is invalid")
-        await _require_project_membership(template_project, current_user, session, access="read")
+        await _require_project_membership(
+            template_project,
+            current_user,
+            session,
+            access="read",
+            guild_role=guild_context.role,
+        )
 
     owner_id = project_in.owner_id or current_user.id
     icon_value = project_in.icon if project_in.icon is not None else (template_project.icon if template_project else None)
@@ -521,8 +560,8 @@ async def create_project(
         members_can_write_value = template_project.members_can_write
     if initiative_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiative is required")
-    initiative = await _get_initiative_or_404(initiative_id, session)
-    if current_user.role != UserRole.admin:
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    if guild_context.role != GuildRole.admin:
         membership = await initiatives_service.get_initiative_membership(
             session,
             initiative_id=initiative_id,
@@ -556,7 +595,7 @@ async def create_project(
 
     await session.commit()
 
-    project = await _get_project_or_404(project.id, session)
+    project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if project.initiative_id and project.initiative:
         for membership in project.initiative.memberships:
             member = membership.user
@@ -579,15 +618,23 @@ async def archive_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="write", require_manager=True)
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
     if not project.is_archived:
         project.is_archived = True
         project.archived_at = datetime.now(timezone.utc)
         session.add(project)
         await session.commit()
-    updated = await _get_project_or_404(project_id, session)
+    updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await broadcast_event("project", "updated", _project_payload(updated))
     return await _project_read_for_user(session, current_user, updated)
 
@@ -598,14 +645,22 @@ async def duplicate_project(
     duplicate_in: ProjectDuplicateRequest,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRead:
-    source_project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(source_project, current_user, session, access="read", require_manager=True)
+    source_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        source_project,
+        current_user,
+        session,
+        access="read",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
 
     owner_id = current_user.id
     initiative_id = source_project.initiative_id
     if initiative_id is not None:
-        await _get_initiative_or_404(initiative_id, session)
+        await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
         await _ensure_user_in_initiative(initiative_id, owner_id, session)
 
     new_name = (
@@ -637,7 +692,7 @@ async def duplicate_project(
     await _duplicate_template_tasks(session, source_project, new_project)
     await session.commit()
 
-    new_project = await _get_project_or_404(new_project.id, session)
+    new_project = await _get_project_or_404(new_project.id, session, guild_context.guild_id)
     if new_project.initiative_id and new_project.initiative:
         for membership in new_project.initiative.memberships:
             member = membership.user
@@ -660,15 +715,23 @@ async def unarchive_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="write", require_manager=True)
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
     if project.is_archived:
         project.is_archived = False
         project.archived_at = None
         session.add(project)
         await session.commit()
-    updated = await _get_project_or_404(project_id, session)
+    updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await broadcast_event("project", "updated", _project_payload(updated))
     return await _project_read_for_user(session, current_user, updated)
 
@@ -677,6 +740,7 @@ async def unarchive_project(
 async def recent_projects(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
     stmt = (
         select(RecentProjectView)
@@ -689,7 +753,7 @@ async def recent_projects(
     if not records:
         return []
     project_ids = [record.project_id for record in records]
-    project_map = await _projects_by_ids(session, project_ids)
+    project_map = await _projects_by_ids(session, project_ids, guild_id=guild_context.guild_id)
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
 
     payloads: List[ProjectRead] = []
@@ -698,7 +762,13 @@ async def recent_projects(
         if not project:
             continue
         try:
-            await _require_project_membership(project, current_user, session, access="read")
+            await _require_project_membership(
+                project,
+                current_user,
+                session,
+                access="read",
+                guild_role=guild_context.role,
+            )
         except HTTPException:
             continue
         payloads.append(
@@ -716,6 +786,7 @@ async def recent_projects(
 async def favorite_projects(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
     stmt = (
         select(ProjectFavorite)
@@ -727,7 +798,7 @@ async def favorite_projects(
     if not favorites:
         return []
     project_ids = [favorite.project_id for favorite in favorites]
-    project_map = await _projects_by_ids(session, project_ids)
+    project_map = await _projects_by_ids(session, project_ids, guild_id=guild_context.guild_id)
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
 
     payloads: List[ProjectRead] = []
@@ -736,7 +807,13 @@ async def favorite_projects(
         if not project:
             continue
         try:
-            await _require_project_membership(project, current_user, session, access="read")
+            await _require_project_membership(
+                project,
+                current_user,
+                session,
+                access="read",
+                guild_role=guild_context.role,
+            )
         except HTTPException:
             continue
         payloads.append(
@@ -755,9 +832,16 @@ async def record_project_view(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRecentViewRead:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="read")
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="read",
+        guild_role=guild_context.role,
+    )
     record = await _record_recent_project_view(session, user_id=current_user.id, project_id=project.id)
     return ProjectRecentViewRead(project_id=project.id, last_viewed_at=record.last_viewed_at)
 
@@ -767,9 +851,16 @@ async def clear_project_view(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> None:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="read")
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="read",
+        guild_role=guild_context.role,
+    )
     await _delete_recent_project_view(session, user_id=current_user.id, project_id=project.id)
 
 
@@ -778,9 +869,16 @@ async def favorite_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectFavoriteStatus:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="read")
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="read",
+        guild_role=guild_context.role,
+    )
     await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=True)
     return ProjectFavoriteStatus(project_id=project.id, is_favorited=True)
 
@@ -790,9 +888,16 @@ async def unfavorite_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectFavoriteStatus:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="read")
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="read",
+        guild_role=guild_context.role,
+    )
     await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=False)
     return ProjectFavoriteStatus(project_id=project.id, is_favorited=False)
 
@@ -802,9 +907,16 @@ async def read_project(
     project_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="read")
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="read",
+        guild_role=guild_context.role,
+    )
     return await _project_read_for_user(session, current_user, project)
 
 
@@ -814,9 +926,17 @@ async def update_project(
     project_in: ProjectUpdate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectRead:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="write", require_manager=True)
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
     _ensure_not_archived(project)
     previous_initiative_id = project.initiative_id
 
@@ -826,8 +946,8 @@ async def update_project(
         if new_initiative_id is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiatives are required")
         if new_initiative_id != project.initiative_id:
-            await _get_initiative_or_404(new_initiative_id, session)
-            if current_user.role != UserRole.admin:
+            await _get_initiative_or_404(new_initiative_id, session, guild_context.guild_id)
+            if guild_context.role != GuildRole.admin:
                 membership = await initiatives_service.get_initiative_membership(
                     session,
                     initiative_id=new_initiative_id,
@@ -848,7 +968,7 @@ async def update_project(
 
     session.add(project)
     await session.commit()
-    project = await _get_project_or_404(project.id, session)
+    project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if (
         project.initiative_id
         and project.initiative
@@ -876,9 +996,17 @@ async def add_project_member(
     member_in: ProjectPermissionCreate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> ProjectPermission:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="write", require_manager=True)
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
     _ensure_not_archived(project)
     if member_in.level == ProjectPermissionLevel.owner:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
@@ -912,9 +1040,17 @@ async def remove_project_member(
     user_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> None:
-    project = await _get_project_or_404(project_id, session)
-    await _require_project_membership(project, current_user, session, access="write", require_manager=True)
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
     _ensure_not_archived(project)
     if user_id == project.owner_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the project owner")
@@ -930,8 +1066,16 @@ async def reorder_projects(
     reorder_in: ProjectReorderRequest,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
-    visible_projects = await _visible_projects(session, current_user, archived=None, template=None)
+    visible_projects = await _visible_projects(
+        session,
+        current_user,
+        guild_id=guild_context.guild_id,
+        archived=None,
+        template=None,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
     if not visible_projects:
         return []
 
@@ -981,9 +1125,9 @@ async def reorder_projects(
 async def delete_project(
     project_id: int,
     session: SessionDep,
-    _: AdminUser,
+    guild_context: GuildAdminContext,
 ) -> None:
-    project = await _get_project_or_404(project_id, session)
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await session.delete(project)
     await session.commit()
     await broadcast_event("project", "deleted", {"id": project_id})

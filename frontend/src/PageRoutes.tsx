@@ -69,6 +69,11 @@ const SettingsEmailPage = lazy(() =>
     default: module.SettingsEmailPage,
   }))
 );
+const SettingsGuildPage = lazy(() =>
+  import("./pages/SettingsGuildPage").then((module) => ({
+    default: module.SettingsGuildPage,
+  }))
+);
 const UserSettingsLayout = lazy(() =>
   import("./pages/UserSettingsLayout").then((module) => ({
     default: module.UserSettingsLayout,
@@ -165,6 +170,7 @@ export const PageRoutes = () => {
           <Route path="api-keys" element={<SettingsApiKeysPage />} />
           <Route path="branding" element={<SettingsBrandingPage />} />
           <Route path="email" element={<SettingsEmailPage />} />
+          <Route path="guild" element={<SettingsGuildPage />} />
         </Route>
       </Routes>
     </div>

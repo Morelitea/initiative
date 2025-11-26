@@ -5,11 +5,18 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
-from app.api.deps import SessionDep, get_current_active_user, require_roles
+from app.api.deps import (
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+    GuildContext,
+    require_guild_roles,
+)
 from app.models.project import Project
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.initiative import (
     InitiativeCreate,
     InitiativeMemberAdd,
@@ -20,18 +27,19 @@ from app.schemas.initiative import (
 )
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
+GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 router = APIRouter()
 
-AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
 
-
-async def _get_initiative_or_404(initiative_id: int, session: SessionDep) -> Initiative:
+async def _get_initiative_or_404(initiative_id: int, session: SessionDep, guild_id: int | None = None) -> Initiative:
     statement = (
         select(Initiative)
         .where(Initiative.id == initiative_id)
         .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
     )
+    if guild_id is not None:
+        statement = statement.where(Initiative.guild_id == guild_id)
     result = await session.exec(statement)
     initiative = result.one_or_none()
     if not initiative:
@@ -39,11 +47,20 @@ async def _get_initiative_or_404(initiative_id: int, session: SessionDep) -> Ini
     return initiative
 
 
-async def _initiative_name_exists(session: SessionDep, name: str, exclude_initiative_id: int | None = None) -> bool:
+async def _initiative_name_exists(
+    session: SessionDep,
+    name: str,
+    *,
+    guild_id: int,
+    exclude_initiative_id: int | None = None,
+) -> bool:
     normalized = name.strip().lower()
     if not normalized:
         return False
-    statement = select(Initiative.id).where(func.lower(Initiative.name) == normalized)
+    statement = select(Initiative.id).where(
+        Initiative.guild_id == guild_id,
+        func.lower(Initiative.name) == normalized,
+    )
     if exclude_initiative_id is not None:
         statement = statement.where(Initiative.id != exclude_initiative_id)
     result = await session.exec(statement)
@@ -54,8 +71,10 @@ async def _require_manager_access(
     session: SessionDep,
     initiative: Initiative,
     current_user: User,
+    *,
+    guild_role: GuildRole | None = None,
 ) -> None:
-    if current_user.role == UserRole.admin:
+    if guild_role == GuildRole.admin:
         return
     membership = await initiatives_service.get_initiative_membership(
         session,
@@ -87,9 +106,14 @@ async def _ensure_remaining_manager(
 async def list_initiatives(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[InitiativeRead]:
-    statement = select(Initiative).options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
-    if current_user.role != UserRole.admin:
+    statement = (
+        select(Initiative)
+        .where(Initiative.guild_id == guild_context.guild_id)
+        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+    )
+    if guild_context.role != GuildRole.admin:
         statement = (
             statement.join(InitiativeMember, InitiativeMember.initiative_id == Initiative.id)
             .where(InitiativeMember.user_id == current_user.id)
@@ -104,11 +128,13 @@ async def list_initiatives(
 async def create_initiative(
     initiative_in: InitiativeCreate,
     session: SessionDep,
-    current_admin: AdminUser,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))],
 ) -> InitiativeRead:
-    if await _initiative_name_exists(session, initiative_in.name):
+    guild_id = guild_context.guild_id
+    if await _initiative_name_exists(session, initiative_in.name, guild_id=guild_id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initiative name already exists")
-    initiative = Initiative(name=initiative_in.name, description=initiative_in.description)
+    initiative = Initiative(name=initiative_in.name, description=initiative_in.description, guild_id=guild_id)
     if initiative_in.color:
         initiative.color = initiative_in.color
     session.add(initiative)
@@ -117,7 +143,7 @@ async def create_initiative(
     session.add(
         InitiativeMember(
             initiative_id=initiative.id,
-            user_id=current_admin.id,
+            user_id=current_user.id,
             role=InitiativeRole.project_manager,
         )
     )
@@ -132,13 +158,19 @@ async def update_initiative(
     initiative_in: InitiativeUpdate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
-    initiative = await _get_initiative_or_404(initiative_id, session)
-    await _require_manager_access(session, initiative, current_user)
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    await _require_manager_access(session, initiative, current_user, guild_role=guild_context.role)
 
     update_data = initiative_in.dict(exclude_unset=True)
     if "name" in update_data and update_data["name"] is not None:
-        if await _initiative_name_exists(session, update_data["name"], exclude_initiative_id=initiative_id):
+        if await _initiative_name_exists(
+            session,
+            update_data["name"],
+            guild_id=initiative.guild_id,
+            exclude_initiative_id=initiative_id,
+        ):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initiative name already exists")
     for field, value in update_data.items():
         setattr(initiative, field, value)
@@ -150,8 +182,12 @@ async def update_initiative(
 
 
 @router.delete("/{initiative_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_initiative(initiative_id: int, session: SessionDep, _: AdminUser) -> None:
-    initiative = await _get_initiative_or_404(initiative_id, session)
+async def delete_initiative(
+    initiative_id: int,
+    session: SessionDep,
+    guild_context: GuildAdminContext,
+) -> None:
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if initiative.is_default:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Default initiative cannot be deleted")
     project_stmt = await session.exec(select(Project).where(Project.initiative_id == initiative_id))
@@ -168,13 +204,21 @@ async def add_initiative_member(
     payload: InitiativeMemberAdd,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
-    initiative = await _get_initiative_or_404(initiative_id, session)
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     await _require_manager_access(session, initiative, current_user)
     user_stmt = await session.exec(select(User).where(User.id == payload.user_id))
     user = user_stmt.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    guild_membership = await guilds_service.get_membership(
+        session,
+        guild_id=initiative.guild_id,
+        user_id=user.id,
+    )
+    if not guild_membership:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not part of this guild")
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
         InitiativeMember.user_id == payload.user_id,
@@ -217,8 +261,9 @@ async def remove_initiative_member(
     user_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
-    initiative = await _get_initiative_or_404(initiative_id, session)
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     await _require_manager_access(session, initiative, current_user)
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
@@ -257,8 +302,9 @@ async def update_initiative_member(
     payload: InitiativeMemberUpdate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
-    initiative = await _get_initiative_or_404(initiative_id, session)
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     await _require_manager_access(session, initiative, current_user)
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,

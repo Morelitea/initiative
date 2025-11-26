@@ -19,6 +19,7 @@ from app.api.deps import SessionDep, get_current_active_user
 from app.core.config import settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
+from app.models.guild import GuildRole
 from app.schemas.token import Token
 from app.schemas.auth import (
     PasswordResetRequest,
@@ -32,6 +33,7 @@ from app.services import notifications as notifications_service
 from app.services import email as email_service
 from app.services import user_tokens
 from app.services import initiatives as initiatives_service
+from app.services import guilds as guilds_service
 from app.models.user_token import UserTokenPurpose
 
 router = APIRouter()
@@ -43,46 +45,76 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register_user(user_in: UserCreate, session: SessionDep) -> User:
-    statement = select(User).where(User.email == user_in.email)
-    existing = await session.exec(statement)
-    if existing.one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-
-    user_count_result = await session.exec(select(func.count(User.id)))
-    user_count = user_count_result.one()
-    is_first_user = user_count == 0
-
-    app_settings = await app_settings_service.get_or_create_app_settings(session)
-    is_auto_approved = (
-        True if is_first_user else app_settings_service.is_email_auto_approved(user_in.email, app_settings)
-    )
-
-    user = User(
-        email=user_in.email,
-        full_name=user_in.full_name,
-        hashed_password=get_password_hash(user_in.password),
-        role=UserRole.admin if is_first_user else UserRole.member,
-        is_active=is_auto_approved,
-        email_verified=is_first_user,
-    )
+async def register_user(
+    user_in: UserCreate,
+    session: SessionDep,
+    invite_code: str | None = Query(default=None),
+) -> User:
+    normalized_invite = (invite_code or "").strip() or None
 
     try:
-        session.add(user)
-        await session.flush()
-        if user.role == UserRole.admin:
-            await initiatives_service.ensure_default_initiative(session, user)
-        await session.commit()
+        async with session.begin():
+            statement = select(User).where(User.email == user_in.email)
+            existing = await session.exec(statement)
+            if existing.one_or_none():
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+            user_count_result = await session.exec(select(func.count(User.id)))
+            user_count = user_count_result.one()
+            is_first_user = user_count == 0
+
+            if settings.DISABLE_GUILD_CREATION and not normalized_invite and not is_first_user:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration requires an invite code")
+
+            user = User(
+                email=user_in.email,
+                full_name=user_in.full_name,
+                hashed_password=get_password_hash(user_in.password),
+                role=UserRole.admin if is_first_user else UserRole.member,
+                is_active=True,
+                email_verified=is_first_user,
+            )
+            session.add(user)
+            await session.flush()
+
+            if normalized_invite:
+                try:
+                    guild = await guilds_service.redeem_invite_for_user(
+                        session,
+                        code=normalized_invite,
+                        user=user,
+                        promote_to_active=True,
+                    )
+                except guilds_service.GuildInviteError as exc:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+                guild_role = GuildRole.member
+            else:
+                guild_name_source = (user.full_name or user.email.split("@", 1)[0]).strip() or user.email
+                guild_name = guild_name_source if guild_name_source.lower().endswith("guild") else f"{guild_name_source}'s Guild"
+                guild = await guilds_service.create_guild(
+                    session,
+                    name=guild_name,
+                    creator=user,
+                )
+                guild_role = GuildRole.admin
+                await initiatives_service.ensure_default_initiative(session, user, guild_id=guild.id)
+
+            user.active_guild_id = guild.id
+            session.add(user)
+            await guilds_service.ensure_membership(
+                session,
+                guild_id=guild.id,
+                user_id=user.id,
+                role=guild_role,
+            )
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
+        logger.exception("Failed to register %s due to integrity error", user_in.email)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create user") from exc
 
     await session.refresh(user)
 
     await initiatives_service.load_user_initiative_roles(session, [user])
-
-    if not user.is_active:
-        await notifications_service.notify_admins_pending_user(session, user)
 
     if not user.email_verified:
         try:
@@ -172,7 +204,7 @@ async def _fetch_oidc_metadata(discovery_url: str) -> dict[str, Any]:
 
 
 async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, Any]]:
-    app_settings = await app_settings_service.get_or_create_app_settings(session)
+    app_settings = await app_settings_service.get_or_create_guild_settings(session)
     if not (
         app_settings.oidc_enabled
         and app_settings.oidc_discovery_url
@@ -191,7 +223,7 @@ async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, 
 
 @router.get("/oidc/status")
 async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
-    app_settings = await app_settings_service.get_or_create_app_settings(session)
+    app_settings = await app_settings_service.get_or_create_guild_settings(session)
     enabled = bool(
         app_settings.oidc_enabled
         and app_settings.oidc_discovery_url

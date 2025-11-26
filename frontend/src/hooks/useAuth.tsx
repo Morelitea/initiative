@@ -1,7 +1,7 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { AxiosError } from "axios";
 
-import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "../api/client";
+import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "@/api/client";
 import { User } from "../types/api";
 
 interface LoginPayload {
@@ -11,6 +11,7 @@ interface LoginPayload {
 
 interface RegisterPayload extends LoginPayload {
   full_name?: string;
+  inviteCode?: string;
 }
 
 interface AuthContextValue {
@@ -90,8 +91,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async ({ email, password, full_name }: RegisterPayload) => {
-    const response = await apiClient.post<User>("/auth/register", { email, password, full_name });
+  const register = async ({ email, password, full_name, inviteCode }: RegisterPayload) => {
+    const response = await apiClient.post<User>(
+      "/auth/register",
+      { email, password, full_name },
+      inviteCode
+        ? {
+            params: { invite_code: inviteCode },
+          }
+        : undefined,
+    );
     return response.data;
   };
 

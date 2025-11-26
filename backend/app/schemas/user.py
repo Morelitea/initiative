@@ -36,6 +36,7 @@ class UserUpdate(BaseModel):
 
 class UserRead(UserBase):
     id: int
+    active_guild_id: Optional[int] = None
     is_active: bool
     email_verified: bool
     created_at: datetime

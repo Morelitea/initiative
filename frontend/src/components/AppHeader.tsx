@@ -13,6 +13,7 @@ import { ModeToggle } from "@/components/ModeToggle";
 import { LogoIcon } from "@/components/LogoIcon";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 
 const navItems: NavItem[] = [
@@ -22,6 +23,7 @@ const navItems: NavItem[] = [
 
 export const AppHeader = () => {
   const { user, logout } = useAuth();
+  const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -58,6 +60,11 @@ export const AppHeader = () => {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
+          {activeGuild ? (
+            <div className="hidden rounded-full border border-muted bg-muted/60 px-3 py-1 text-xs font-medium text-muted-foreground md:flex">
+              {activeGuild.name}
+            </div>
+          ) : null}
           {user ? <NotificationBell /> : null}
           <div className="hidden items-center gap-3 md:flex">
             <ModeToggle />

@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ProjectShortcutsSidebar } from "@/components/projects/ProjectShortcutsSidebar";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
+import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
@@ -39,6 +40,11 @@ const VerifyEmailPage = lazy(() =>
 const OidcCallbackPage = lazy(() =>
   import("./pages/OidcCallbackPage").then((module) => ({
     default: module.OidcCallbackPage,
+  }))
+);
+const GuildInvitePage = lazy(() =>
+  import("./pages/GuildInvitePage").then((module) => ({
+    default: module.GuildInvitePage,
   }))
 );
 
@@ -97,30 +103,33 @@ const AppLayout = () => {
   const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <AppHeader />
-      {showTabsPref ? (
-        <ProjectTabsBar
-          projects={recentQuery.data}
-          loading={recentQuery.isLoading}
-          activeProjectId={activeProjectId}
-          onClose={handleClearRecent}
-        />
-      ) : null}
-      <div className="flex flex-1">
-        {showSidebarPref ? (
-          <ProjectShortcutsSidebar
-            favorites={favoritesQuery.data}
-            recent={recentQuery.data}
-            loading={favoritesQuery.isLoading || recentQuery.isLoading}
-            onClearRecent={handleClearRecent}
+    <div className="flex min-h-screen bg-background">
+      <GuildSidebar />
+      <div className="flex flex-1 flex-col">
+        <AppHeader />
+        {showTabsPref ? (
+          <ProjectTabsBar
+            projects={recentQuery.data}
+            loading={recentQuery.isLoading}
+            activeProjectId={activeProjectId}
+            onClose={handleClearRecent}
           />
         ) : null}
-        <main className="flex-1 min-w-0 bg-muted/50 pb-20">
-          <div className="container min-w-0 p-4 md:p-8">
-            <PageRoutes />
-          </div>
-        </main>
+        <div className="flex flex-1">
+          {showSidebarPref ? (
+            <ProjectShortcutsSidebar
+              favorites={favoritesQuery.data}
+              recent={recentQuery.data}
+              loading={favoritesQuery.isLoading || recentQuery.isLoading}
+              onClearRecent={handleClearRecent}
+            />
+          ) : null}
+          <main className="flex-1 min-w-0 bg-muted/50 pb-20">
+            <div className="container min-w-0 p-4 md:p-8">
+              <PageRoutes />
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
@@ -136,6 +145,7 @@ export const App = () => (
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/oidc/callback" element={<OidcCallbackPage />} />
+        <Route path="/invite/:code" element={<GuildInvitePage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/*" element={<AppLayout />} />
         </Route>

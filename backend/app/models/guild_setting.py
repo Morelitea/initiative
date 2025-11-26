@@ -1,8 +1,12 @@
 import json
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import Boolean, Column, Integer, JSON, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, Relationship
+from pydantic import ConfigDict
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.models.guild import Guild
 
 DEFAULT_ROLE_LABELS = {
     "admin": "Admin",
@@ -11,10 +15,13 @@ DEFAULT_ROLE_LABELS = {
 }
 
 
-class AppSetting(SQLModel, table=True):
-    __tablename__ = "app_settings"
+class GuildSetting(SQLModel, table=True):
+    __tablename__ = "guild_settings"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    id: Optional[int] = Field(default=1, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: int = Field(foreign_key="guilds.id", unique=True, nullable=False)
     auto_approved_domains: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON, nullable=False, server_default="[]"),
@@ -54,3 +61,5 @@ class AppSetting(SQLModel, table=True):
     smtp_password: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
     smtp_from_address: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
     smtp_test_recipient: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
+
+    guild: Optional["Guild"] = Relationship(back_populates="settings", sa_relationship_kwargs={"uselist": False})

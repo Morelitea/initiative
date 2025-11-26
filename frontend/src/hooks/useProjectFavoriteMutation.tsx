@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 
-import { apiClient } from "../api/client";
+import { apiClient } from "@/api/client";
 import { queryClient } from "../lib/queryClient";
 import type { Project } from "../types/api";
 

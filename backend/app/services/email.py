@@ -12,7 +12,7 @@ from typing import Iterable, Sequence
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
-from app.models.app_setting import AppSetting
+from app.models.guild_setting import GuildSetting
 from app.models.user import User
 from app.services import app_settings as app_settings_service
 
@@ -34,7 +34,7 @@ class SMTPConfig:
     from_address: str
 
 
-def _accent_color(settings_obj: AppSetting | None) -> str:
+def _accent_color(settings_obj: GuildSetting | None) -> str:
     value = ""
     if settings_obj and settings_obj.light_accent_color:
         value = settings_obj.light_accent_color.strip()
@@ -43,8 +43,8 @@ def _accent_color(settings_obj: AppSetting | None) -> str:
     return value
 
 
-async def _email_context(session: AsyncSession) -> tuple[AppSetting, str]:
-    settings_obj = await app_settings_service.get_or_create_app_settings(session)
+async def _email_context(session: AsyncSession, *, guild_id: int | None = None) -> tuple[GuildSetting, str]:
+    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_id)
     return settings_obj, _accent_color(settings_obj)
 
 
@@ -110,7 +110,7 @@ def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", "", html)
 
 
-def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
+def _build_smtp_config(settings_obj: GuildSetting) -> SMTPConfig:
     host = settings_obj.smtp_host
     from_address = settings_obj.smtp_from_address
     if not host or not from_address:
@@ -165,12 +165,13 @@ async def send_email(
     subject: str,
     html_body: str,
     text_body: str | None = None,
-    settings_obj: AppSetting | None = None,
+    settings_obj: GuildSetting | None = None,
+    guild_id: int | None = None,
 ) -> None:
     if not recipients:
         raise ValueError("At least one recipient email is required")
     if settings_obj is None:
-        settings_obj = await app_settings_service.get_or_create_app_settings(session)
+        settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_id)
     config = _build_smtp_config(settings_obj)
     message = EmailMessage()
     message["Subject"] = subject
@@ -188,8 +189,8 @@ async def send_email(
         raise RuntimeError("Failed to send email") from exc
 
 
-async def send_test_email(session: AsyncSession, recipient: str) -> None:
-    settings_obj, accent = await _email_context(session)
+async def send_test_email(session: AsyncSession, recipient: str, *, guild_id: int | None = None) -> None:
+    settings_obj, accent = await _email_context(session, guild_id=guild_id)
     html_body = _build_html_layout(
         "SMTP test email",
         "<p>This is a test email confirming SMTP settings are configured correctly.</p>",
@@ -213,7 +214,7 @@ def _frontend_url(path: str) -> str:
 
 
 async def send_verification_email(session: AsyncSession, user: User, token: str) -> None:
-    settings_obj, accent = await _email_context(session)
+    settings_obj, accent = await _email_context(session, guild_id=getattr(user, "active_guild_id", None))
     link = _frontend_url(f"/verify-email?token={token}")
     body = f"""
     <p>Hi {user.full_name or user.email},</p>
@@ -236,7 +237,7 @@ async def send_verification_email(session: AsyncSession, user: User, token: str)
 
 
 async def send_password_reset_email(session: AsyncSession, user: User, token: str) -> None:
-    settings_obj, accent = await _email_context(session)
+    settings_obj, accent = await _email_context(session, guild_id=getattr(user, "active_guild_id", None))
     link = _frontend_url(f"/reset-password?token={token}")
     body = f"""
     <p>Hello {user.full_name or user.email},</p>

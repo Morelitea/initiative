@@ -1,0 +1,314 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+import secrets
+
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.guild import Guild, GuildInvite, GuildMembership, GuildRole
+from app.models.user import User
+
+DEFAULT_INVITE_EXPIRATION_DAYS = 7
+INVITE_CODE_BYTES = 16
+
+
+class GuildInviteError(Exception):
+    """Raised when an invite cannot be redeemed."""
+
+
+async def get_primary_guild(session: AsyncSession) -> Guild:
+    result = await session.exec(select(Guild).order_by(Guild.id.asc()))
+    guild = result.first()
+    if guild:
+        return guild
+    now = datetime.now(timezone.utc)
+    guild = Guild(
+        name="Primary Guild",
+        description="Default guild",
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(guild)
+    await session.flush()
+    return guild
+
+
+async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
+    stmt = select(Guild).where(Guild.id == guild_id)
+    result = await session.exec(stmt)
+    guild = result.one_or_none()
+    if not guild:
+        raise ValueError("Guild not found")
+    return guild
+
+
+async def resolve_user_guild_id(
+    session: AsyncSession,
+    *,
+    user,
+    guild_id: int | None = None,
+) -> int:
+    if guild_id is not None:
+        return guild_id
+    if user and getattr(user, "active_guild_id", None):
+        return user.active_guild_id
+    if user and getattr(user, "id", None):
+        result = await session.exec(
+            select(GuildMembership.guild_id).where(GuildMembership.user_id == user.id).limit(1)
+        )
+        membership_guild_id = result.first()
+        if membership_guild_id:
+            return membership_guild_id
+    guild = await get_primary_guild(session)
+    return guild.id
+
+
+async def ensure_membership(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    role: GuildRole = GuildRole.member,
+) -> GuildMembership:
+    stmt = select(GuildMembership).where(
+        GuildMembership.guild_id == guild_id,
+        GuildMembership.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    membership = result.one_or_none()
+    if membership:
+        if membership.role != role:
+            membership.role = role
+            session.add(membership)
+            await session.flush()
+        return membership
+    membership = GuildMembership(
+        guild_id=guild_id,
+        user_id=user_id,
+        role=role,
+    )
+    session.add(membership)
+    await session.flush()
+    return membership
+
+
+async def get_membership(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> GuildMembership | None:
+    stmt = select(GuildMembership).where(
+        GuildMembership.guild_id == guild_id,
+        GuildMembership.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    return result.one_or_none()
+
+
+async def list_memberships(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> list[tuple[Guild, GuildMembership]]:
+    stmt = (
+        select(Guild, GuildMembership)
+        .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+        .where(GuildMembership.user_id == user_id)
+        .order_by(Guild.created_at.asc())
+    )
+    result = await session.exec(stmt)
+    return result.all()
+
+
+async def set_active_guild(
+    session: AsyncSession,
+    *,
+    user: User,
+    guild_id: int,
+) -> User:
+    user.active_guild_id = guild_id
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def create_guild(
+    session: AsyncSession,
+    *,
+    name: str,
+    description: str | None = None,
+    icon_base64: str | None = None,
+    creator: User | None = None,
+) -> Guild:
+    now = datetime.now(timezone.utc)
+    guild = Guild(
+        name=name.strip(),
+        description=description.strip() if description and description.strip() else None,
+        icon_base64=icon_base64,
+        created_by_user_id=creator.id if creator else None,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(guild)
+    await session.flush()
+    if creator:
+        await ensure_membership(
+            session,
+            guild_id=guild.id,
+            user_id=creator.id,
+            role=GuildRole.admin,
+        )
+    return guild
+
+
+async def update_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    name: str | None = None,
+    description: str | None = None,
+    icon_base64: str | None = None,
+    icon_provided: bool = False,
+) -> Guild:
+    guild = await get_guild(session, guild_id=guild_id)
+    updated = False
+    if name is not None and name.strip() and guild.name != name.strip():
+        guild.name = name.strip()
+        updated = True
+    if description is not None:
+        normalized_description = description.strip() or None
+        if guild.description != normalized_description:
+            guild.description = normalized_description
+            updated = True
+    if icon_provided and icon_base64 != guild.icon_base64:
+        guild.icon_base64 = icon_base64
+        updated = True
+    if updated:
+        guild.updated_at = datetime.now(timezone.utc)
+        session.add(guild)
+        await session.flush()
+    return guild
+
+
+async def _invite_code_exists(session: AsyncSession, code: str) -> bool:
+    stmt = select(GuildInvite.id).where(GuildInvite.code == code)
+    result = await session.exec(stmt)
+    return result.first() is not None
+
+
+async def _generate_unique_invite_code(session: AsyncSession) -> str:
+    for _ in range(10):
+        candidate = secrets.token_urlsafe(INVITE_CODE_BYTES)
+        if not await _invite_code_exists(session, candidate):
+            return candidate
+    raise RuntimeError("Unable to generate unique invite code")
+
+
+async def list_guild_invites(session: AsyncSession, *, guild_id: int) -> list[GuildInvite]:
+    stmt = select(GuildInvite).where(GuildInvite.guild_id == guild_id).order_by(GuildInvite.created_at.desc())
+    result = await session.exec(stmt)
+    return result.all()
+
+
+async def create_guild_invite(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    created_by_user_id: int | None,
+    expires_at: datetime | None = None,
+    max_uses: int | None = 1,
+    invitee_email: str | None = None,
+) -> GuildInvite:
+    code = await _generate_unique_invite_code(session)
+    if expires_at is None:
+        expiry = datetime.now(timezone.utc) + timedelta(days=DEFAULT_INVITE_EXPIRATION_DAYS)
+    else:
+        expiry = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+    invite = GuildInvite(
+        code=code,
+        guild_id=guild_id,
+        created_by_user_id=created_by_user_id,
+        expires_at=expiry,
+        max_uses=max_uses,
+        invitee_email=invitee_email,
+    )
+    session.add(invite)
+    await session.flush()
+    return invite
+
+
+async def delete_guild_invite(session: AsyncSession, *, guild_id: int, invite_id: int) -> None:
+    stmt = select(GuildInvite).where(
+        GuildInvite.id == invite_id,
+        GuildInvite.guild_id == guild_id,
+    )
+    result = await session.exec(stmt)
+    invite = result.one_or_none()
+    if invite:
+        await session.delete(invite)
+
+
+async def get_invite_by_code(session: AsyncSession, *, code: str) -> GuildInvite | None:
+    stmt = select(GuildInvite).where(GuildInvite.code == code)
+    result = await session.exec(stmt)
+    return result.one_or_none()
+
+
+def invite_is_active(invite: GuildInvite) -> bool:
+    if invite.expires_at and invite.expires_at < datetime.now(timezone.utc):
+        return False
+    if invite.max_uses is not None and invite.uses >= invite.max_uses:
+        return False
+    return True
+
+
+async def redeem_invite_for_user(
+    session: AsyncSession,
+    *,
+    code: str,
+    user: User,
+    promote_to_active: bool = True,
+) -> Guild:
+    invite = await get_invite_by_code(session, code=code)
+    if not invite:
+        raise GuildInviteError("Invite code not found")
+    if not invite_is_active(invite):
+        raise GuildInviteError("Invite has expired or has already been used")
+
+    await ensure_membership(
+        session,
+        guild_id=invite.guild_id,
+        user_id=user.id,
+        role=GuildRole.member,
+    )
+    invite.uses += 1
+    session.add(invite)
+    if promote_to_active:
+        user.active_guild_id = invite.guild_id
+        session.add(user)
+    guild = await get_guild(session, guild_id=invite.guild_id)
+    return guild
+
+
+async def describe_invite_code(
+    session: AsyncSession,
+    *,
+    code: str,
+) -> tuple[GuildInvite | None, Guild | None, bool, str | None]:
+    invite = await get_invite_by_code(session, code=code)
+    if not invite:
+        return None, None, False, "Invite code not found"
+    guild = await get_guild(session, guild_id=invite.guild_id)
+    if invite_is_active(invite):
+        return invite, guild, True, None
+
+    reason = "Invite is no longer valid"
+    now = datetime.now(timezone.utc)
+    if invite.expires_at and invite.expires_at < now:
+        reason = "Invite has expired"
+    elif invite.max_uses is not None and invite.uses >= invite.max_uses:
+        reason = "Invite has already been used"
+    return invite, guild, False, reason

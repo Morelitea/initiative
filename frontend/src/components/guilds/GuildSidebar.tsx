@@ -1,0 +1,176 @@
+import { useMemo, useState, FormEvent } from "react";
+import { Plus, Loader2 } from "lucide-react";
+
+import { useGuilds } from "@/hooks/useGuilds";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+
+const CreateGuildButton = () => {
+  const { createGuild } = useGuilds();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createGuild({ name, description });
+      setOpen(false);
+      setName("");
+      setDescription("");
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : "Unable to create guild";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !submitting && setOpen(next)}>
+      <DialogTrigger asChild>
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-12 w-12 rounded-2xl border border-dashed border-muted-foreground/40 bg-transparent text-muted-foreground hover:bg-muted"
+          aria-label="Create guild"
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create a new guild</DialogTitle>
+          <DialogDescription>
+            Guilds group initiatives and projects. You can invite teammates after creation.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="guild-name">Guild name</Label>
+            <Input
+              id="guild-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Product Engineering"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="guild-description">Description</Label>
+            <Textarea
+              id="guild-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Optional summary"
+              rows={3}
+            />
+          </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <DialogFooter>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Creating…" : "Create guild"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const GuildAvatar = ({
+  name,
+  icon,
+  active,
+}: {
+  name: string;
+  icon?: string | null;
+  active: boolean;
+}) => {
+  const initials = useMemo(() => {
+    const parts = name.trim().split(/\s+/);
+    if (!parts.length) {
+      return "G";
+    }
+    return parts
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("");
+  }, [name]);
+  return (
+    <Avatar className="h-10 w-10">
+      {icon ? <AvatarImage src={icon} alt={name} /> : null}
+      <AvatarFallback className={active ? "bg-primary text-primary-foreground" : undefined}>
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+};
+
+export const GuildSidebar = () => {
+  const { guilds, activeGuildId, loading, switchGuild } = useGuilds();
+
+  return (
+    <aside className="hidden w-20 flex-col items-center gap-3 border-r bg-card/80 px-2 py-4 sm:flex">
+      <div className="flex flex-1 flex-col items-center gap-3">
+        {loading ? (
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
+        <TooltipProvider delayDuration={200}>
+          {guilds.map((guild) => {
+            const isActive = guild.id === activeGuildId;
+            return (
+              <Tooltip key={guild.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => switchGuild(guild.id)}
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                      isActive
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                    aria-label={`Switch to ${guild.name}`}
+                  >
+                    <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={12}>
+                  {guild.name}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </TooltipProvider>
+      </div>
+      <CreateGuildButton />
+    </aside>
+  );
+};

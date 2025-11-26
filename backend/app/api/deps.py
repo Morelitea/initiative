@@ -1,7 +1,8 @@
 from collections.abc import Callable
-from typing import Annotated
+from dataclasses import dataclass
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import select
@@ -9,9 +10,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_session
+from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.user import User, UserRole
 from app.schemas.token import TokenPayload
 from app.services import api_keys as api_keys_service
+from app.services import guilds as guilds_service
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -56,5 +59,49 @@ def require_roles(*roles: UserRole) -> Callable:
         if roles and current_user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient privileges")
         return current_user
+
+    return dependency
+
+
+@dataclass
+class GuildContext:
+    guild: Guild
+    membership: GuildMembership
+
+    @property
+    def guild_id(self) -> int:
+        return self.guild.id  # type: ignore[return-value]
+
+    @property
+    def role(self) -> GuildRole:
+        return self.membership.role
+
+
+async def get_guild_membership(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+) -> GuildContext:
+    guild_id = await guilds_service.resolve_user_guild_id(
+        session,
+        user=current_user,
+        guild_id=requested_guild_id,
+    )
+    membership = await guilds_service.get_membership(
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild access denied")
+    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    return GuildContext(guild=guild, membership=membership)
+
+
+def require_guild_roles(*roles: GuildRole) -> Callable:
+    async def dependency(context: Annotated[GuildContext, Depends(get_guild_membership)]) -> GuildContext:
+        if roles and context.membership.role not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild permission required")
+        return context
 
     return dependency

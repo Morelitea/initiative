@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 
 const settingsTabs = [
   { value: "users", label: "Users", path: "/settings" },
@@ -11,22 +12,27 @@ const settingsTabs = [
   { value: "api-keys", label: "API Keys", path: "/settings/api-keys" },
   { value: "branding", label: "Branding", path: "/settings/branding" },
   { value: "email", label: "Email", path: "/settings/email" },
+  { value: "guild", label: "Guild", path: "/settings/guild" },
 ];
 
 export const SettingsLayout = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const { activeGuild } = useGuilds();
+  const isGlobalAdmin = user?.role === "admin";
+  const isGuildAdmin = isGlobalAdmin || activeGuild?.role === "admin";
   const managesInitiatives =
     user?.initiative_roles?.some((assignment) => assignment.role === "project_manager") ?? false;
   const location = useLocation();
   const navigate = useNavigate();
-  const canViewInitiatives = isAdmin || managesInitiatives;
-  const availableTabs = isAdmin
+  const canViewInitiatives = isGuildAdmin || managesInitiatives;
+  const availableTabs = isGuildAdmin
     ? settingsTabs
-    : settingsTabs.filter((tab) => tab.value === "initiatives");
+    : managesInitiatives
+      ? settingsTabs.filter((tab) => tab.value === "initiatives")
+      : [];
 
   useEffect(() => {
-    if (!isAdmin && managesInitiatives) {
+    if (!isGuildAdmin && managesInitiatives) {
       const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
       const isInitiativesRoute =
         normalizedPath === "/settings/initiatives" ||
@@ -35,7 +41,7 @@ export const SettingsLayout = () => {
         navigate("/settings/initiatives", { replace: true });
       }
     }
-  }, [isAdmin, managesInitiatives, location.pathname, navigate]);
+  }, [isGuildAdmin, managesInitiatives, location.pathname, navigate]);
 
   if (!canViewInitiatives) {
     return (

@@ -1,6 +1,7 @@
 """Import all models for Alembic or metadata creation."""
 
-from app.models.app_setting import AppSetting
+from app.models.guild import Guild, GuildMembership, GuildInvite
+from app.models.guild_setting import GuildSetting
 from app.models.project import Project, ProjectPermission
 from app.models.task import Task, TaskAssignee
 from app.models.initiative import Initiative, InitiativeMember
@@ -14,7 +15,10 @@ __all__ = [
     "Task",
     "TaskAssignee",
     "ProjectPermission",
-    "AppSetting",
+    "Guild",
+    "GuildMembership",
+    "GuildInvite",
+    "GuildSetting",
     "Initiative",
     "InitiativeMember",
     "AdminApiKey",

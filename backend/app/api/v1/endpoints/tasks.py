@@ -6,11 +6,17 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import func
 from sqlmodel import select, delete
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import (
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+    GuildContext,
+)
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.task import Task, TaskAssignee, TaskStatus
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.guild import GuildRole
 from pydantic import ValidationError
 
 from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
@@ -19,6 +25,7 @@ from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 
 router = APIRouter()
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _next_sort_order(session: SessionDep, project_id: int) -> float:
@@ -31,8 +38,17 @@ def _task_payload(task: Task) -> dict:
     return TaskRead.model_validate(task).model_dump(mode="json")
 
 
-async def _fetch_task(session: SessionDep, task_id: int) -> Task | None:
-    stmt = select(Task).options(selectinload(Task.assignees)).where(Task.id == task_id)
+async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task | None:
+    stmt = (
+        select(Task)
+        .join(Task.project)
+        .join(Project.initiative)
+        .where(
+            Task.id == task_id,
+            Initiative.guild_id == guild_id,
+        )
+        .options(selectinload(Task.assignees))
+    )
     result = await session.exec(stmt)
     return result.one_or_none()
 
@@ -123,11 +139,17 @@ async def _get_project_with_access(
     project_id: int,
     user: User,
     *,
+    guild_id: int,
     access: str = "read",
+    guild_role: GuildRole | None = None,
 ) -> Project:
     project_stmt = (
         select(Project)
-        .where(Project.id == project_id)
+        .join(Project.initiative)
+        .where(
+            Project.id == project_id,
+            Initiative.guild_id == guild_id,
+        )
         .options(
             selectinload(Project.permissions),
             selectinload(Project.initiative)
@@ -142,7 +164,7 @@ async def _get_project_with_access(
     if project.is_archived and access == "write":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
 
-    if user.role == UserRole.admin:
+    if guild_role == GuildRole.admin:
         return project
 
     permission = _permission_from_project(project, user.id)
@@ -191,26 +213,57 @@ async def _ensure_can_manage(
     session: SessionDep,
     project_id: int,
     user: User,
+    *,
+    guild_id: int,
+    guild_role: GuildRole | None = None,
 ) -> Project:
-    project = await _get_project_with_access(session, project_id, user, access="write")
+    project = await _get_project_with_access(
+        session,
+        project_id,
+        user,
+        guild_id=guild_id,
+        access="write",
+        guild_role=guild_role,
+    )
     return project
 
 
-async def _allowed_project_ids(session: SessionDep, user: User) -> Optional[set[int]]:
-    if user.role == UserRole.admin:
+async def _allowed_project_ids(
+    session: SessionDep,
+    user: User,
+    guild_id: int,
+    *,
+    is_guild_admin: bool,
+) -> Optional[set[int]]:
+    if is_guild_admin:
         return None
 
     initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == user.id)
+        select(InitiativeMember.initiative_id)
+        .join(Initiative)
+        .where(
+            InitiativeMember.user_id == user.id,
+            Initiative.guild_id == guild_id,
+        )
     )
     initiative_ids = {row for row in initiative_ids_result.all() if row is not None}
 
     permission_ids_result = await session.exec(
-        select(ProjectPermission.project_id).where(ProjectPermission.user_id == user.id)
+        select(ProjectPermission.project_id)
+        .join(Project)
+        .join(Project.initiative)
+        .where(
+            ProjectPermission.user_id == user.id,
+            Initiative.guild_id == guild_id,
+        )
     )
     permission_ids = {row for row in permission_ids_result.all() if row is not None}
 
-    project_result = await session.exec(select(Project.id, Project.owner_id, Project.initiative_id, Project.is_archived))
+    project_result = await session.exec(
+        select(Project.id, Project.owner_id, Project.initiative_id, Project.is_archived)
+        .join(Project.initiative)
+        .where(Initiative.guild_id == guild_id)
+    )
     ids: set[int] = set()
     for project_id, owner_id, initiative_id, is_archived in project_result.all():
         if is_archived:
@@ -230,15 +283,24 @@ async def _allowed_project_ids(session: SessionDep, user: User) -> Optional[set[
 async def list_tasks(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
     project_id: Optional[int] = Query(default=None),
 ) -> List[Task]:
     statement = (
         select(Task)
+        .join(Task.project)
+        .join(Project.initiative)
+        .where(Initiative.guild_id == guild_context.guild_id)
         .options(selectinload(Task.project), selectinload(Task.assignees))
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
 
-    allowed_ids = await _allowed_project_ids(session, current_user)
+    allowed_ids = await _allowed_project_ids(
+        session,
+        current_user,
+        guild_context.guild_id,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
     if allowed_ids is not None:
         if not allowed_ids:
             return []
@@ -256,8 +318,16 @@ async def create_task(
     task_in: TaskCreate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> Task:
-    project = await _get_project_with_access(session, task_in.project_id, current_user, access="write")
+    project = await _get_project_with_access(
+        session,
+        task_in.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
 
     sort_order = await _next_sort_order(session, task_in.project_id)
     task_data = task_in.dict(exclude={"assignee_ids"})
@@ -275,7 +345,7 @@ async def create_task(
                 project_name=project.name,
             )
     await session.commit()
-    task = await _fetch_task(session, task.id)
+    task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task not found after creation")
     await broadcast_event("task", "created", _task_payload(task))
@@ -287,12 +357,20 @@ async def read_task(
     task_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> Task:
-    task = await _fetch_task(session, task_id)
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    await _get_project_with_access(session, task.project_id, current_user, access="read")
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="read",
+        guild_role=guild_context.role,
+    )
     return task
 
 
@@ -302,12 +380,20 @@ async def update_task(
     task_in: TaskUpdate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> Task:
-    task = await _fetch_task(session, task_id)
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    project = await _get_project_with_access(session, task.project_id, current_user, access="write")
+    project = await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
 
     update_data = task_in.dict(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
@@ -349,7 +435,7 @@ async def update_task(
             )
     session.add(task)
     await session.commit()
-    task = await _fetch_task(session, task.id)
+    task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
     await broadcast_event("task", "updated", _task_payload(task))
@@ -361,14 +447,29 @@ async def delete_task(
     task_id: int,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> None:
-    task_stmt = select(Task).where(Task.id == task_id)
+    task_stmt = (
+        select(Task)
+        .join(Task.project)
+        .join(Project.initiative)
+        .where(
+            Task.id == task_id,
+            Initiative.guild_id == guild_context.guild_id,
+        )
+    )
     task_result = await session.exec(task_stmt)
     task = task_result.one_or_none()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    await _ensure_can_manage(session, task.project_id, current_user)
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
 
     await session.delete(task)
     await session.commit()
@@ -380,14 +481,30 @@ async def reorder_tasks(
     reorder_in: TaskReorderRequest,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> List[Task]:
     if not reorder_in.items:
         return []
 
-    await _ensure_can_manage(session, reorder_in.project_id, current_user)
+    await _ensure_can_manage(
+        session,
+        reorder_in.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
 
     task_ids = [item.id for item in reorder_in.items]
-    tasks_stmt = select(Task).options(selectinload(Task.assignees)).where(Task.id.in_(tuple(task_ids)))
+    tasks_stmt = (
+        select(Task)
+        .join(Task.project)
+        .join(Project.initiative)
+        .where(
+            Task.id.in_(tuple(task_ids)),
+            Initiative.guild_id == guild_context.guild_id,
+        )
+        .options(selectinload(Task.assignees))
+    )
     tasks_result = await session.exec(tasks_stmt)
     tasks = tasks_result.all()
     task_map = {task.id: task for task in tasks}

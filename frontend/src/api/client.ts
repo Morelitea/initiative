@@ -42,10 +42,17 @@ export const API_BASE_URL = resolveApiBaseUrl();
 export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 
 let authToken: string | null = null;
+let activeGuildId: number | null = null;
 
 export const setAuthToken = (token: string | null) => {
   authToken = token;
 };
+
+export const setCurrentGuildId = (guildId: number | null) => {
+  activeGuildId = guildId;
+};
+
+export const getCurrentGuildId = () => activeGuildId;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -58,6 +65,10 @@ apiClient.interceptors.request.use((config) => {
   if (authToken) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${authToken}`;
+  }
+  if (activeGuildId !== null) {
+    config.headers = config.headers ?? {};
+    config.headers["X-Guild-ID"] = String(activeGuildId);
   }
   return config;
 });

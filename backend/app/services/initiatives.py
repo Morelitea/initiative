@@ -16,8 +16,11 @@ DEFAULT_INITIATIVE_NAME = "Default Initiative"
 DEFAULT_INITIATIVE_COLOR = "#2563eb"
 
 
-async def ensure_default_initiative(session: AsyncSession, admin_user: User) -> Initiative:
-    statement = select(Initiative).where(Initiative.is_default.is_(True))
+async def ensure_default_initiative(session: AsyncSession, admin_user: User, *, guild_id: int) -> Initiative:
+    statement = select(Initiative).where(
+        Initiative.guild_id == guild_id,
+        Initiative.is_default.is_(True),
+    )
     result = await session.exec(statement)
     default_initiative = result.one_or_none()
     if default_initiative:
@@ -32,6 +35,7 @@ async def ensure_default_initiative(session: AsyncSession, admin_user: User) -> 
 
     now = datetime.now(timezone.utc)
     default_initiative = Initiative(
+        guild_id=guild_id,
         name=DEFAULT_INITIATIVE_NAME,
         description="Automatically created default initiative",
         color=DEFAULT_INITIATIVE_COLOR,

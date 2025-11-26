@@ -73,7 +73,7 @@ app.openapi = custom_openapi
 async def on_startup() -> None:
     await run_migrations()
     async with AsyncSessionLocal() as session:
-        await app_settings_service.get_or_create_app_settings(session)
+        await app_settings_service.get_or_create_guild_settings(session)
     app.state.notification_tasks = notifications_service.start_background_tasks()
 
 
