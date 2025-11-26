@@ -48,16 +48,50 @@ async def _email_context(session: AsyncSession) -> tuple[AppSetting, str]:
     return settings_obj, _accent_color(settings_obj)
 
 
+BRAND_LOGO_SVG = """
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 438 471' width='32' height='34' fill='currentColor'>
+  <path
+      d="M218.82 470.128a20.242 20.242 0 0 1-8.27-1.639L14.387 384.823C5.724 381.128 0 371.834 0 361.464v-238.72c0-.652.023-1.3.067-1.943.298-4.21 1.546-8.282 3.62-11.81 1.54-2.615 3.524-4.918 5.884-6.758a21.969 21.969 0 0 1 2.994-1.966l196.161-97.74C211.98.753 215.431-.054 218.82.002c3.39-.057 6.84.751 10.094 2.523l196.161 97.741a21.969 21.969 0 0 1 2.994 1.966c2.36 1.84 4.345 4.143 5.885 6.757 2.073 3.53 3.321 7.601 3.62 11.811.043.643.066 1.291.066 1.942v238.721c0 10.37-5.724 19.664-14.388 23.36l-196.16 83.665a20.242 20.242 0 0 1-8.272 1.64ZM137.623 188.27a24.668 24.668 0 0 1-22.62 1.39l-70.298-31.046v185.628l120.247 51.288V243.097a53.369 53.369 0 0 1 27.81-46.853 53.367 53.367 0 0 1 52.116 0l.5.28a53.369 53.369 0 0 1 27.31 46.573V395.53l120.247-51.288V158.613l-70.648 31.25a24.67 24.67 0 0 1-22.634-1.383l-.186-.112a24.669 24.669 0 0 1 2.616-43.713l56.324-25.09L218.82 52.643 79.233 119.565l55.934 24.884a24.668 24.668 0 0 1 2.626 43.718l-.17.102Z"
+      fill="currentColor"
+    />
+    <ellipse
+      cx="257.233"
+      cy="209.745"
+      rx="52.118"
+      ry="36.171"
+      transform="matrix(.76806 0 0 1.13407 21.073 -109.942)"
+      fill="currentColor"
+    />
+    <path
+      d="m137.623 188.27.17-.103a24.669 24.669 0 0 0-2.626-43.718l-55.934-24.884L218.82 52.643l139.587 66.922-56.324 25.09a24.67 24.67 0 0 0-2.616 43.713l.186.112a24.67 24.67 0 0 0 22.634 1.383l70.648-31.25v185.628L272.688 395.53V243.097a53.369 53.369 0 0 0-27.31-46.574l-.5-.279a53.367 53.367 0 0 0-52.116 0l-.5.28a53.369 53.369 0 0 0-27.31 46.573V395.53L44.705 344.241V158.613l70.298 31.045a24.668 24.668 0 0 0 22.62-1.389Zm81.02-101.366c-22.093 0-40.03 18.381-40.03 41.021s17.937 41.021 40.03 41.021c22.092 0 40.028-18.38 40.028-41.02 0-22.64-17.936-41.022-40.029-41.022Z"
+      opacity=".25"
+      fill="currentColor"
+    />
+  </svg>
+</svg>
+""".strip()
+
+
 def _build_html_layout(title: str, body: str, accent_color: str) -> str:
     return f"""\
 <html>
-  <body style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; background-color:#f8fafc; padding:24px;">
-    <div style="max-width:520px;margin:0 auto;background-color:#ffffff;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
+  <body style="font-family:'Outfit','Inter','Segoe UI',Arial,sans-serif;color:#0f172a;background-color:#f3f4f6;padding:24px;">
+    <div style="max-width:520px;margin:0 auto;background-color:#ffffff;padding:28px;border-radius:16px;border:1px solid #e2e8f0;box-shadow:0 10px 40px rgba(15,23,42,0.08);">
       <style>
         a {{
           color: {accent_color};
+          text-decoration: none;
+          font-weight: 600;
         }}
       </style>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+        <div style="width:48px;height:48px;border-radius:14px;color:{accent_color};display:flex;align-items:center;justify-content:center;">
+          <a href="{app_config.APP_URL}">{BRAND_LOGO_SVG}</a>
+        </div>
+        <div>
+          <p style="margin:0;font-size:18px;font-weight:700;color:{accent_color};"><a href="{app_config.APP_URL}">initiative</a></p>
+        </div>
+      </div>
       <h2 style="margin-top:0;font-size:22px;color:#0f172a;">{title}</h2>
       <div style="font-size:15px;line-height:1.5;color:#334155;">{body}</div>
       <p style="font-size:12px;color:#94a3b8;margin-top:32px;">
