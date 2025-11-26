@@ -101,17 +101,19 @@ async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
 
 async def _load_user(session: AsyncSession, user_id: int) -> User | None:
     result = await session.exec(select(User).where(User.id == user_id))
-    return result.one_or_none()
+    return result.scalar_one_or_none()
 
 
 async def process_task_assignment_digests() -> None:
     async with AsyncSessionLocal() as session:
         user_ids = await _pending_assignment_user_ids(session)
         if not user_ids:
+            logger.debug("task-digest: no pending assignment events")
             return
+        logger.debug("task-digest: processing %d user(s)", len(user_ids))
         now = datetime.now(timezone.utc)
         for user_id in user_ids:
-            user = await _load_user(session, user_id)
+            user = await _load_user(session, int(user_id))
             if not user or user.notify_task_assignment is False:
                 await clear_task_assignment_queue_for_user(session, user_id)
                 await session.commit()
@@ -125,7 +127,7 @@ async def process_task_assignment_digests() -> None:
                 .order_by(TaskAssignmentDigestItem.created_at.asc())
             )
             events_result = await session.exec(events_stmt)
-            events = events_result.all()
+            events = events_result.scalars().all()
             if not events:
                 continue
             if user.last_task_assignment_digest_at and user.last_task_assignment_digest_at + timedelta(hours=1) > now:
@@ -140,6 +142,11 @@ async def process_task_assignment_digests() -> None:
             ]
             try:
                 await email_service.send_task_assignment_digest_email(session, user, assignments)
+                logger.info(
+                    "task-digest: sent %d assignment(s) to user %s",
+                    len(assignments),
+                    user.email,
+                )
             except email_service.EmailNotConfiguredError:
                 logger.warning("SMTP not configured; skipping task digest for %s", user.email)
                 continue
@@ -194,7 +201,10 @@ async def process_overdue_notifications() -> None:
     async with AsyncSessionLocal() as session:
         stmt = select(User).where(User.notify_overdue_tasks.is_(True))
         result = await session.exec(stmt)
-        users = result.all()
+        users = result.scalars().all()
+        if not users:
+            logger.debug("overdue-digest: no users opted in")
+            return
         now_utc = datetime.now(timezone.utc)
         for user in users:
             tz = _resolve_timezone(user.timezone)
@@ -215,6 +225,7 @@ async def process_overdue_notifications() -> None:
                 continue
             try:
                 await email_service.send_overdue_tasks_email(session, user, tasks)
+                logger.info("overdue-digest: sent %d overdue task(s) to user %s", len(tasks), user.email)
             except email_service.EmailNotConfiguredError:
                 logger.warning("SMTP not configured; skipping overdue digest for %s", user.email)
                 continue
@@ -226,18 +237,26 @@ async def process_overdue_notifications() -> None:
             await session.commit()
 
 
-async def _loop_worker(task_coro, interval: int) -> None:
+async def _loop_worker(task_coro, interval: int, name: str) -> None:
+    logger.info("%s worker started (interval=%ss)", name, interval)
     try:
         while True:
-            await task_coro()
+            try:
+                await task_coro()
+            except Exception:  # pragma: no cover
+                logger.exception("%s worker encountered an error", name)
             await asyncio.sleep(interval)
     except asyncio.CancelledError:  # pragma: no cover
-        logger.info("Notification worker cancelled")
+        logger.info("%s worker cancelled", name)
         raise
 
 
 def start_background_tasks() -> list[asyncio.Task]:
     return [
-        asyncio.create_task(_loop_worker(process_task_assignment_digests, DIGEST_POLL_SECONDS)),
-        asyncio.create_task(_loop_worker(process_overdue_notifications, OVERDUE_POLL_SECONDS)),
+        asyncio.create_task(
+            _loop_worker(process_task_assignment_digests, DIGEST_POLL_SECONDS, "task-digest")
+        ),
+        asyncio.create_task(
+            _loop_worker(process_overdue_notifications, OVERDUE_POLL_SECONDS, "overdue-digest")
+        ),
     ]
