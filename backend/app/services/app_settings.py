@@ -5,10 +5,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
 from app.models.app_setting import AppSetting, DEFAULT_ROLE_LABELS
-from app.models.project import ProjectRole
 
 DEFAULT_SETTING_ID = 1
-ROLE_KEYS = [role.value for role in ProjectRole]
+ROLE_KEYS = ["admin", "project_manager", "member"]
 
 
 def _normalize_optional_string(value: str | None) -> str | None:

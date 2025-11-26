@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 
 const REGISTRATION_SETTINGS_QUERY_KEY = ["registration-settings"];
 const USERS_QUERY_KEY = ["users"];
-const ROLE_OPTIONS: UserRole[] = ["admin", "project_manager", "member"];
+const ROLE_OPTIONS: UserRole[] = ["admin", "member"];
 const SUPER_USER_ID = 1;
 
 export const SettingsUsersPage = () => {
@@ -49,6 +49,7 @@ export const SettingsUsersPage = () => {
   }, [settingsQuery.data]);
 
   const { data: roleLabels } = useRoleLabels();
+  const adminLabel = getRoleLabel("admin", roleLabels);
 
   const usersQuery = useQuery<User[]>({
     queryKey: USERS_QUERY_KEY,
@@ -136,7 +137,9 @@ export const SettingsUsersPage = () => {
 
   if (!isAdmin) {
     return (
-      <p className="text-sm text-muted-foreground">You need admin permissions to view this page.</p>
+      <p className="text-sm text-muted-foreground">
+        You need {adminLabel} permissions to view this page.
+      </p>
     );
   }
 

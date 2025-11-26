@@ -58,10 +58,8 @@ import { queryClient } from "../lib/queryClient";
 import { InitiativeColorDot, resolveInitiativeColor } from "../lib/initiativeColors";
 import { Project, ProjectReorderPayload, Initiative } from "../types/api";
 
-const NO_INITIATIVE_VALUE = "none";
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
-const INITIATIVE_FILTER_UNASSIGNED = "unassigned";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
@@ -74,11 +72,16 @@ const getDefaultFiltersVisibility = () => {
 
 export const ProjectsPage = () => {
   const { user } = useAuth();
-  const canManageProjects = user?.role === "admin" || user?.role === "project_manager";
+  const managedInitiatives = useMemo(
+    () =>
+      user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
+    [user]
+  );
+  const canManageProjects = user?.role === "admin" || managedInitiatives.length > 0;
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
-  const [initiativeId, setInitiativeId] = useState<string>(NO_INITIATIVE_VALUE);
+  const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
@@ -153,7 +156,7 @@ export const ProjectsPage = () => {
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: ["initiatives"],
-    enabled: user?.role === "admin",
+    enabled: user?.role === "admin" || managedInitiatives.length > 0,
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
@@ -178,6 +181,20 @@ export const ProjectsPage = () => {
       return response.data;
     },
   });
+
+  useEffect(() => {
+    if (!canManageProjects) {
+      setInitiativeId(null);
+      return;
+    }
+    if (initiativeId) {
+      return;
+    }
+    const data = initiativesQuery.data;
+    if (data && data.length > 0) {
+      setInitiativeId(String(data[0].id));
+    }
+  }, [canManageProjects, initiativeId, initiativesQuery.data]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -220,9 +237,11 @@ export const ProjectsPage = () => {
       if (trimmedIcon) {
         payload.icon = trimmedIcon;
       }
-      if (user?.role === "admin" && initiativeId !== NO_INITIATIVE_VALUE) {
-        payload.initiative_id = Number(initiativeId);
+      const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
+      if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
+        throw new Error("Select an initiative before creating a project");
       }
+      payload.initiative_id = selectedInitiativeId;
       payload.is_template = isTemplateProject;
       if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
         payload.template_id = Number(selectedTemplateId);
@@ -234,7 +253,7 @@ export const ProjectsPage = () => {
       setName("");
       setDescription("");
       setIcon("");
-      setInitiativeId(NO_INITIATIVE_VALUE);
+      setInitiativeId(null);
       setSelectedTemplateId(NO_TEMPLATE_VALUE);
       setIsTemplateProject(false);
       setIsComposerOpen(false);
@@ -316,8 +335,6 @@ export const ProjectsPage = () => {
       const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
       const matchesInitiative =
         initiativeFilter === INITIATIVE_FILTER_ALL ||
-        (initiativeFilter === INITIATIVE_FILTER_UNASSIGNED &&
-          (projectInitiativeId === null || projectInitiativeId === undefined)) ||
         (projectInitiativeId !== null &&
           projectInitiativeId !== undefined &&
           initiativeFilter === projectInitiativeId.toString());
@@ -533,7 +550,6 @@ export const ProjectsPage = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                      <SelectItem value={INITIATIVE_FILTER_UNASSIGNED}>No initiative</SelectItem>
                       {availableInitiatives.map((initiative) => (
                         <SelectItem key={initiative.id} value={initiative.id.toString()}>
                           {initiative.name}
@@ -760,30 +776,29 @@ export const ProjectsPage = () => {
                         onChange={(event) => setDescription(event.target.value)}
                       />
                     </div>
-                    {user?.role === "admin" ? (
-                      <div className="space-y-2">
-                        <Label>Initiative (optional)</Label>
-                        {initiativesQuery.isLoading ? (
-                          <p className="text-sm text-muted-foreground">Loading initiatives…</p>
-                        ) : initiativesQuery.isError ? (
-                          <p className="text-sm text-destructive">Unable to load initiatives.</p>
-                        ) : (
-                          <Select value={initiativeId} onValueChange={setInitiativeId}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="No initiative" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={NO_INITIATIVE_VALUE}>No initiative</SelectItem>
-                              {initiativesQuery.data?.map((initiative) => (
-                                <SelectItem key={initiative.id} value={String(initiative.id)}>
-                                  {initiative.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    ) : null}
+                    <div className="space-y-2">
+                      <Label>Initiative</Label>
+                      {initiativesQuery.isLoading ? (
+                        <p className="text-sm text-muted-foreground">Loading initiatives…</p>
+                      ) : initiativesQuery.isError ? (
+                        <p className="text-sm text-destructive">Unable to load initiatives.</p>
+                      ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
+                        <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select initiative" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {initiativesQuery.data.map((initiative) => (
+                              <SelectItem key={initiative.id} value={String(initiative.id)}>
+                                {initiative.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No initiatives available.</p>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="project-template">Template (optional)</Label>
                       {templatesQuery.isLoading ? (

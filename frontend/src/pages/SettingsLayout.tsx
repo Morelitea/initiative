@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -15,26 +16,46 @@ const settingsTabs = [
 export const SettingsLayout = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const managesInitiatives =
+    user?.initiative_roles?.some((assignment) => assignment.role === "project_manager") ?? false;
   const location = useLocation();
   const navigate = useNavigate();
+  const canViewInitiatives = isAdmin || managesInitiatives;
+  const availableTabs = isAdmin
+    ? settingsTabs
+    : settingsTabs.filter((tab) => tab.value === "initiatives");
 
-  if (!isAdmin) {
+  useEffect(() => {
+    if (!isAdmin && managesInitiatives) {
+      const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
+      const isInitiativesRoute =
+        normalizedPath === "/settings/initiatives" ||
+        normalizedPath.startsWith("/settings/initiatives/");
+      if (!isInitiativesRoute) {
+        navigate("/settings/initiatives", { replace: true });
+      }
+    }
+  }, [isAdmin, managesInitiatives, location.pathname, navigate]);
+
+  if (!canViewInitiatives) {
     return (
       <div className="space-y-4">
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          You need admin permissions to view this page.
+          You need additional permissions to view this page.
         </p>
       </div>
     );
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
-  const tabsBySpecificity = [...settingsTabs].sort((a, b) => b.path.length - a.path.length);
+  const tabsBySpecificity = [...availableTabs].sort((a, b) => b.path.length - a.path.length);
   const activeTab =
     tabsBySpecificity.find(
       (tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`)
-    )?.value ?? "registration";
+    )?.value ??
+    availableTabs[0]?.value ??
+    "initiatives";
 
   return (
     <div className="space-y-6">
@@ -55,7 +76,7 @@ export const SettingsLayout = () => {
       >
         <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
           <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
-            {settingsTabs.map((tab) => (
+            {availableTabs.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
                 {tab.label}
               </TabsTrigger>

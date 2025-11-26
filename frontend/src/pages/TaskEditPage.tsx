@@ -19,15 +19,8 @@ import { Textarea } from "../components/ui/textarea";
 import { AssigneeSelector } from "../components/projects/AssigneeSelector";
 import { toast } from "sonner";
 import { useAuth } from "../hooks/useAuth";
-import type {
-  Project,
-  ProjectRole,
-  Task,
-  TaskPriority,
-  TaskRecurrence,
-  TaskStatus,
-  User,
-} from "../types/api";
+import { useRoleLabels, getRoleLabel } from "../hooks/useRoleLabels";
+import type { Project, Task, TaskPriority, TaskRecurrence, TaskStatus, User } from "../types/api";
 import { Input } from "../components/ui/input";
 import { DateTimePicker } from "../components/ui/date-time-picker";
 import { TaskRecurrenceSelector } from "../components/projects/TaskRecurrenceSelector";
@@ -52,6 +45,8 @@ export const TaskEditPage = () => {
   const parsedTaskId = Number(taskId);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { data: roleLabels } = useRoleLabels();
+  const memberLabel = getRoleLabel("member", roleLabels);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -165,8 +160,12 @@ export const TaskEditPage = () => {
     }
     const allowed = new Set<number>();
     allowed.add(project.owner_id);
-    project.members.forEach((member) => allowed.add(member.user_id));
-    project.initiative?.members?.forEach((member) => allowed.add(member.id));
+    project.permissions.forEach((permission) => allowed.add(permission.user_id));
+    project.initiative?.members?.forEach((member) => {
+      if (member.user) {
+        allowed.add(member.user.id);
+      }
+    });
 
     return users
       .filter((user) => allowed.has(user.id))
@@ -215,13 +214,16 @@ export const TaskEditPage = () => {
 
   const task = taskQuery.data;
   const projectLink = `/projects/${task.project_id}`;
-  const membershipRole = project?.members.find((member) => member.user_id === user?.id)?.role;
-  const userProjectRole = user?.role as ProjectRole | undefined;
-  const writeRoles = project?.write_roles ?? [];
+  const initiativeMembership = project?.initiative?.members?.find(
+    (member) => member.user.id === user?.id
+  );
+  const isOwner = project?.owner_id === user?.id;
+  const isInitiativePm = initiativeMembership?.role === "project_manager";
+  const hasExplicitWrite =
+    project?.permissions.some((permission) => permission.user_id === user?.id) ?? false;
+  const hasImplicitWrite = Boolean(project?.members_can_write && initiativeMembership);
   const canWriteProject =
-    user?.role === "admin" ||
-    (membershipRole ? writeRoles.includes(membershipRole) : false) ||
-    (userProjectRole ? writeRoles.includes(userProjectRole) : false);
+    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
@@ -330,7 +332,7 @@ export const TaskEditPage = () => {
                   options={userOptions}
                   onChange={setAssigneeIds}
                   disabled={isReadOnly}
-                  emptyMessage="No initiative members available yet."
+                  emptyMessage={`No initiative ${memberLabel} role holders available yet.`}
                 />
               </div>
               <div className="space-y-4">

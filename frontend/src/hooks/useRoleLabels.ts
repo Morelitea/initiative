@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "../api/client";
-import type { ProjectRole, RoleLabels } from "../types/api";
+import type { RoleLabels } from "../types/api";
 
 export const DEFAULT_ROLE_LABELS: RoleLabels = {
   admin: "Admin",
@@ -22,5 +22,7 @@ export const useRoleLabels = () =>
     staleTime: Infinity,
   });
 
-export const getRoleLabel = (role: ProjectRole, labels?: RoleLabels) =>
+type RoleKey = keyof RoleLabels;
+
+export const getRoleLabel = (role: RoleKey, labels?: RoleLabels) =>
   labels?.[role] ?? DEFAULT_ROLE_LABELS[role];

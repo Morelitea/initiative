@@ -82,15 +82,15 @@ Services:
 - Admin approval queue for new accounts, with optional email-domain allowlist for automatic activation
 - JWT-based `Authorization: Bearer ...` headers plus built-in Swagger UI at `/api/v1/docs` (supports JWTs or admin API keys)
 - Admin API keys that can be generated from Settings → API Keys and supplied via `Authorization: Bearer <key>` for headless integrations
-- Global roles (`admin`, `project_manager`, `member`) enforced through dependency guards
-- Project-level roles (`admin`, `project_manager`, `member`) for finer-grained control over task/project mutations
+- Global roles are limited to `admin` and `member`, while initiative-scoped roles (`project_manager`, `member`) determine who can manage initiatives, invite teammates, and create projects. Admins automatically have full read/write access everywhere.
+- Initiative membership grants implicit read access to every project in that initiative. Initiative project managers can grant extra write overrides on specific projects via the `project_permissions` table, so access flows Admin → Initiative PM → explicit project write override → initiative member read.
 - Initiative-owned projects restrict visibility/editing to members of the owning initiative (admins can override)
 
 ### Backend Domain
 
 - Users with hashed passwords, audit timestamps, and relationships to projects/tasks
-- Projects with membership tables and cascading deletes for tasks/memberships
-- Configurable project read/write role lists so owners can decide which project roles can view or edit each board
+- Projects belong to initiatives and cascade deletes into related tasks/permissions
+- Explicit project write overrides live in the `project_permissions` table (levels `owner`/`write`), while initiative membership handles read access
 - Initiatives with many-to-many membership, plus initiative-owned projects that scope access to initiative members
 - Project archiving with dedicated Archive view; only users with write access can archive/unarchive projects, keeping active boards focused
 - Tasks tied to projects with status + priority enums for Kanban-style workflows
@@ -108,6 +108,9 @@ Services:
 - Admins can create, edit, delete, and manage initiative membership from the Settings → Initiatives tab
 - Projects can be assigned to an initiative; only members of that initiative (plus admins/owners) can read or write the project, and role-based permissions still apply within the initiative
 - Initiative-owned projects automatically surface initiative membership details in the project view, and project assignment can be updated from the project detail page (admins only)
+- A non-deletable “Default Initiative” is created atomically when the first admin account is provisioned so that every project always belongs to an initiative.
+- Every initiative must retain at least one project manager—creators are promoted automatically, and the API blocks demotions/deletions that would remove the final PM until someone else is assigned.
+- Initiative members inherit read access to all initiative projects, while admins and initiative PMs control project creation plus per-project write overrides for specific members.
 
 ### OIDC
 

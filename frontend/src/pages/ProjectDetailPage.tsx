@@ -73,8 +73,12 @@ export const ProjectDetailPage = () => {
 
     const allowed = new Set<number>();
     allowed.add(project.owner_id);
-    project.members.forEach((member) => allowed.add(member.user_id));
-    project.initiative?.members?.forEach((member) => allowed.add(member.id));
+    project.permissions.forEach((permission) => allowed.add(permission.user_id));
+    project.initiative?.members?.forEach((member) => {
+      if (member.user) {
+        allowed.add(member.user.id);
+      }
+    });
 
     return allUsers
       .filter((item) => allowed.has(item.id))
@@ -123,17 +127,19 @@ export const ProjectDetailPage = () => {
     );
   }
 
-  const membershipRole = project.members.find((member) => member.user_id === user?.id)?.role;
-  const userProjectRole =
-    (user?.role as "admin" | "project_manager" | "member" | undefined) ?? undefined;
-  const projectWriteRoles = project.write_roles ?? [];
+  const initiativeMembership = project.initiative?.members?.find(
+    (member) => member.user.id === user?.id
+  );
+  const isOwner = project.owner_id === user?.id;
+  const isInitiativePm = initiativeMembership?.role === "project_manager";
+  const hasExplicitWrite = project.permissions.some(
+    (permission) => permission.user_id === user?.id
+  );
+  const hasImplicitWrite = Boolean(project.members_can_write && initiativeMembership);
 
-  const canManageSettings =
-    user?.role === "admin" || membershipRole === "admin" || membershipRole === "project_manager";
+  const canManageSettings = user?.role === "admin" || isOwner || isInitiativePm;
   const canWriteProject =
-    user?.role === "admin" ||
-    (membershipRole ? projectWriteRoles.includes(membershipRole) : false) ||
-    (userProjectRole ? projectWriteRoles.includes(userProjectRole) : false);
+    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
   const projectIsArchived = project.is_archived ?? false;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 

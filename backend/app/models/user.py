@@ -4,19 +4,20 @@ from typing import List, Optional
 
 from sqlalchemy import Column, DateTime, Text, Boolean, String
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from pydantic import ConfigDict
 
-from app.models.initiative import Initiative, InitiativeMember
+from app.models.initiative import InitiativeMember
 from app.models.task import TaskAssignee
 
 
 class UserRole(str, Enum):
     admin = "admin"
-    project_manager = "project_manager"
     member = "member"
 
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
+    model_config = ConfigDict(extra="allow")
 
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True, nullable=False)
@@ -86,8 +87,11 @@ class User(SQLModel, table=True):
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
-    memberships: List["ProjectMember"] = Relationship(back_populates="user")
-    initiatives: List["Initiative"] = Relationship(back_populates="members", link_model=InitiativeMember)
+    project_permissions: List["ProjectPermission"] = Relationship(back_populates="user")
+    initiative_memberships: List["InitiativeMember"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
     project_orders: List["ProjectOrder"] = Relationship(back_populates="user")
     api_keys: List["AdminApiKey"] = Relationship(back_populates="user")
     favorite_projects: List["ProjectFavorite"] = Relationship(back_populates="user")
@@ -95,7 +99,7 @@ class User(SQLModel, table=True):
 
 
 from app.models.project import Project  # noqa: E402  # isort:skip
-from app.models.project import ProjectMember  # noqa: E402  # isort:skip
+from app.models.project import ProjectPermission  # noqa: E402  # isort:skip
 from app.models.task import Task  # noqa: E402  # isort:skip
 from app.models.project_order import ProjectOrder  # noqa: E402  # isort:skip
 from app.models.api_key import AdminApiKey  # noqa: E402  # isort:skip

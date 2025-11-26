@@ -6,44 +6,47 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_user, require_roles
-from app.models.project import Project, ProjectMember, ProjectRole
+from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee
-from app.models.initiative import Initiative, InitiativeMember
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User, UserRole
-from app.services import project_access
 from app.services import notifications as notifications_service
+from app.services import initiatives as initiatives_service
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
     ProjectDuplicateRequest,
-    ProjectMemberCreate,
-    ProjectMemberRead,
+    ProjectPermissionCreate,
+    ProjectPermissionRead,
     ProjectRead,
     ProjectReorderRequest,
     ProjectUpdate,
     ProjectFavoriteStatus,
     ProjectRecentViewRead,
 )
+from app.schemas.initiative import serialize_initiative
 
 router = APIRouter()
 
-ManagerUser = Annotated[User, Depends(require_roles(UserRole.admin, UserRole.project_manager))]
 AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
 
 MAX_RECENT_PROJECTS = 20
 
 
 def _project_payload(project: Project) -> dict:
-    return ProjectRead.model_validate(project).model_dump(mode="json")
+    payload = ProjectRead.model_validate(project)
+    if project.initiative:
+        payload.initiative = serialize_initiative(project.initiative)
+    return payload.model_dump(mode="json")
 
 
 async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
     statement = select(Project).where(Project.id == project_id).options(
-        selectinload(Project.members),
+        selectinload(Project.permissions).selectinload(ProjectPermission.user),
         selectinload(Project.owner),
-        selectinload(Project.initiative).selectinload(Initiative.members),
+        selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
     )
     result = await session.exec(statement)
     project = result.one_or_none()
@@ -53,22 +56,70 @@ async def _get_project_or_404(project_id: int, session: SessionDep) -> Project:
 
 
 async def _get_initiative_or_404(initiative_id: int, session: SessionDep) -> Initiative:
-    result = await session.exec(select(Initiative).where(Initiative.id == initiative_id))
+    result = await session.exec(
+        select(Initiative)
+        .where(Initiative.id == initiative_id)
+        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+    )
     initiative = result.one_or_none()
     if not initiative:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
     return initiative
 
 
-async def _is_initiative_member(project: Project, user: User, session: SessionDep) -> bool:
+def _permission_from_project(project: Project, user_id: int) -> ProjectPermission | None:
+    permissions = getattr(project, "permissions", None)
+    if not permissions:
+        return None
+    for permission in permissions:
+        if permission.user_id == user_id:
+            return permission
+    return None
+
+
+def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
+    initiative = getattr(project, "initiative", None)
+    if not initiative:
+        return None
+    memberships = getattr(initiative, "memberships", None)
+    if not memberships:
+        return None
+    for membership in memberships:
+        if membership.user_id == user_id:
+            return membership
+    return None
+
+
+async def _get_initiative_membership(project: Project, user: User, session: SessionDep) -> InitiativeMember | None:
+    cached = _membership_from_project(project, user.id)
+    if cached:
+        return cached
     if not project.initiative_id:
-        return False
+        return None
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == project.initiative_id,
         InitiativeMember.user_id == user.id,
     )
     result = await session.exec(stmt)
-    return result.one_or_none() is not None
+    membership = result.one_or_none()
+    if membership and project.initiative:
+        project.initiative.memberships.append(membership)
+    return membership
+
+
+async def _get_project_permission(project: Project, user_id: int, session: SessionDep) -> ProjectPermission | None:
+    cached = _permission_from_project(project, user_id)
+    if cached:
+        return cached
+    stmt = select(ProjectPermission).where(
+        ProjectPermission.project_id == project.id,
+        ProjectPermission.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    permission = result.one_or_none()
+    if permission:
+        project.permissions.append(permission)
+    return permission
 
 
 async def _ensure_user_in_initiative(initiative_id: int, user_id: int, session: SessionDep) -> None:
@@ -78,8 +129,14 @@ async def _ensure_user_in_initiative(initiative_id: int, user_id: int, session: 
     )
     result = await session.exec(stmt)
     if not result.one_or_none():
-        session.add(InitiativeMember(initiative_id=initiative_id, user_id=user_id))
-        await session.commit()
+        session.add(
+            InitiativeMember(
+                initiative_id=initiative_id,
+                user_id=user_id,
+                role=InitiativeRole.member,
+            )
+        )
+        await session.flush()
 
 
 def _ensure_not_archived(project: Project) -> None:
@@ -140,9 +197,9 @@ async def _visible_projects(
     template: Optional[bool],
 ) -> List[Project]:
     base_statement = select(Project).options(
-        selectinload(Project.members),
+        selectinload(Project.permissions).selectinload(ProjectPermission.user),
         selectinload(Project.owner),
-        selectinload(Project.initiative).selectinload(Initiative.members),
+        selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
     )
     result = await session.exec(base_statement)
     all_projects = result.all()
@@ -150,14 +207,10 @@ async def _visible_projects(
     if current_user.role == UserRole.admin:
         return [project for project in all_projects if _matches_filters(project, archived=archived, template=template)]
 
-    membership_result = await session.exec(select(ProjectMember).where(ProjectMember.user_id == current_user.id))
-    memberships = membership_result.all()
-    membership_map = {membership.project_id: membership.role for membership in memberships}
-    user_project_role = project_access.user_role_to_project_role(current_user.role)
     initiative_ids_result = await session.exec(
         select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == current_user.id)
     )
-    initiative_ids = set(initiative_ids_result.all())
+    initiative_ids = {row for row in initiative_ids_result.all() if row is not None}
 
     visible_projects: List[Project] = []
     for project in all_projects:
@@ -166,17 +219,11 @@ async def _visible_projects(
         if project.owner_id == current_user.id:
             visible_projects.append(project)
             continue
-
-        if project.initiative_id and project.initiative_id not in initiative_ids and current_user.role != UserRole.admin:
-            continue
-
-        membership_role = membership_map.get(project.id)
-        allowed_read_roles = project_access.read_roles_set(project)
-        if membership_role and membership_role.value in allowed_read_roles:
+        if project.initiative_id in initiative_ids:
             visible_projects.append(project)
             continue
-
-        if user_project_role.value in allowed_read_roles:
+        permission = _permission_from_project(project, current_user.id)
+        if permission:
             visible_projects.append(project)
 
     return visible_projects
@@ -268,9 +315,9 @@ async def _projects_by_ids(
         select(Project)
         .where(Project.id.in_(tuple(project_ids)))
         .options(
-            selectinload(Project.members),
+            selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
-            selectinload(Project.initiative).selectinload(Initiative.members),
+            selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
         )
     )
     result = await session.exec(stmt)
@@ -286,6 +333,8 @@ def _build_project_payload(
     view_map: dict[int, datetime],
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
+    if project.initiative:
+        payload.initiative = serialize_initiative(project.initiative)
     project_id = project.id or 0
     return payload.model_copy(
         update={
@@ -399,55 +448,31 @@ async def _require_project_membership(
     *,
     access: str = "read",
     require_manager: bool = False,
-) -> ProjectMember | None:
-    if current_user.role == UserRole.admin or project.owner_id == current_user.id:
-        return None
+):
+    if current_user.role == UserRole.admin:
+        return
 
-    is_initiative_member = await _is_initiative_member(project, current_user, session)
-    if (
-        project.initiative_id
-        and not is_initiative_member
-        and current_user.role != UserRole.admin
-        and project.owner_id != current_user.id
-    ):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's initiative")
+    initiative_membership = await _get_initiative_membership(project, current_user, session)
+    permission = await _get_project_permission(project, current_user.id, session)
+    is_owner = project.owner_id == current_user.id
+    is_initiative_pm = initiative_membership and initiative_membership.role == InitiativeRole.project_manager
 
-    member_stmt = select(ProjectMember).where(
-        ProjectMember.project_id == project.id,
-        ProjectMember.user_id == current_user.id,
+    if access == "read":
+        if is_owner or initiative_membership or permission:
+            return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's initiative")
+
+    has_write = (
+        is_owner
+        or is_initiative_pm
+        or permission is not None
+        or bool(project.members_can_write and initiative_membership)
     )
-    result = await session.exec(member_stmt)
-    membership = result.one_or_none()
-    user_project_role = project_access.user_role_to_project_role(current_user.role)
+    if not has_write:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access denied for your role")
 
-    allowed_roles = (
-        project_access.write_roles_set(project) if access == "write" else project_access.read_roles_set(project)
-    )
-
-    has_global_access = user_project_role.value in allowed_roles
-    has_membership_access = membership and membership.role.value in allowed_roles
-
-    if not membership:
-        if has_global_access:
-            if project.initiative_id and not is_initiative_member:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this initiative")
-            if require_manager and user_project_role not in {ProjectRole.admin, ProjectRole.project_manager}:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Manager role required")
-            return None
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project")
-
-    if not has_membership_access and not has_global_access:
-        detail = "Write access denied for your role" if access == "write" else "This project is not visible to your role"
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
-
-    if require_manager:
-        if membership.role not in {ProjectRole.admin, ProjectRole.project_manager} and user_project_role not in {
-            ProjectRole.admin,
-            ProjectRole.project_manager,
-        }:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Manager role required")
-
-    return membership
+    if require_manager and not (is_owner or is_initiative_pm or current_user.role == UserRole.admin):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
 
 
 @router.get("/", response_model=List[ProjectRead])
@@ -470,16 +495,16 @@ async def list_projects(
 async def create_project(
     project_in: ProjectCreate,
     session: SessionDep,
-    manager_user: ManagerUser,
+    current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ProjectRead:
     template_project: Project | None = None
     if project_in.template_id is not None:
         template_project = await _get_project_or_404(project_in.template_id, session)
         if not template_project.is_template:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected template is invalid")
-        await _require_project_membership(template_project, manager_user, session, access="read")
+        await _require_project_membership(template_project, current_user, session, access="read")
 
-    owner_id = project_in.owner_id or manager_user.id
+    owner_id = project_in.owner_id or current_user.id
     icon_value = project_in.icon if project_in.icon is not None else (template_project.icon if template_project else None)
     description_value = (
         project_in.description
@@ -491,51 +516,51 @@ async def create_project(
         if getattr(project_in, "initiative_id", None) is not None
         else (template_project.initiative_id if template_project else None)
     )
-    if initiative_id is not None:
-        await _get_initiative_or_404(initiative_id, session)
-        await _ensure_user_in_initiative(initiative_id, owner_id, session)
-    read_roles_source = (
-        project_in.read_roles
-        if project_in.read_roles is not None
-        else (template_project.read_roles if template_project else None)
-    )
-    write_roles_source = (
-        project_in.write_roles
-        if project_in.write_roles is not None
-        else (template_project.write_roles if template_project else None)
-    )
-    read_roles = project_access.normalize_read_roles(read_roles_source)
-    write_roles = project_access.normalize_write_roles(write_roles_source)
+    members_can_write_value = project_in.members_can_write
+    if "members_can_write" not in project_in.model_fields_set and template_project:
+        members_can_write_value = template_project.members_can_write
+    if initiative_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiative is required")
+    initiative = await _get_initiative_or_404(initiative_id, session)
+    if current_user.role != UserRole.admin:
+        membership = await initiatives_service.get_initiative_membership(
+            session,
+            initiative_id=initiative_id,
+            user_id=current_user.id,
+        )
+        if not membership or membership.role != InitiativeRole.project_manager:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+    await _ensure_user_in_initiative(initiative_id, owner_id, session)
     project = Project(
         name=project_in.name,
         icon=icon_value,
         description=description_value,
         owner_id=owner_id,
         initiative_id=initiative_id,
-        read_roles=read_roles,
-        write_roles=write_roles,
+        members_can_write=members_can_write_value,
         is_template=project_in.is_template,
     )
 
     session.add(project)
-    await session.commit()
-    await session.refresh(project)
+    await session.flush()
 
-    # Ensure owner is reflected as project member with owner role
-    owner_membership = ProjectMember(project_id=project.id, user_id=owner_id, role=ProjectRole.admin)
-    session.add(owner_membership)
-    await session.commit()
+    owner_permission = ProjectPermission(
+        project_id=project.id,
+        user_id=owner_id,
+        level=ProjectPermissionLevel.owner,
+    )
+    session.add(owner_permission)
 
     if template_project:
         await _duplicate_template_tasks(session, template_project, project)
-        await session.commit()
 
-    await session.refresh(project)
+    await session.commit()
 
     project = await _get_project_or_404(project.id, session)
     if project.initiative_id and project.initiative:
-        for member in project.initiative.members:
-            if member.id == manager_user.id:
+        for membership in project.initiative.memberships:
+            member = membership.user
+            if not member or member.id == current_user.id:
                 continue
             await notifications_service.notify_project_added(
                 session,
@@ -546,7 +571,7 @@ async def create_project(
                 initiative_id=project.initiative.id,
             )
     await broadcast_event("project", "created", _project_payload(project))
-    return await _project_read_for_user(session, manager_user, project)
+    return await _project_read_for_user(session, current_user, project)
 
 
 @router.post("/{project_id}/archive", response_model=ProjectRead)
@@ -594,26 +619,29 @@ async def duplicate_project(
         description=source_project.description,
         owner_id=owner_id,
         initiative_id=initiative_id,
-        read_roles=list(source_project.read_roles),
-        write_roles=list(source_project.write_roles),
+        members_can_write=source_project.members_can_write,
         is_template=False,
     )
 
     session.add(new_project)
-    await session.commit()
-    await session.refresh(new_project)
+    await session.flush()
 
-    owner_membership = ProjectMember(project_id=new_project.id, user_id=owner_id, role=ProjectRole.admin)
-    session.add(owner_membership)
-    await session.commit()
+    session.add(
+        ProjectPermission(
+            project_id=new_project.id,
+            user_id=owner_id,
+            level=ProjectPermissionLevel.owner,
+        )
+    )
 
     await _duplicate_template_tasks(session, source_project, new_project)
     await session.commit()
 
     new_project = await _get_project_or_404(new_project.id, session)
     if new_project.initiative_id and new_project.initiative:
-        for member in new_project.initiative.members:
-            if member.id == current_user.id:
+        for membership in new_project.initiative.memberships:
+            member = membership.user
+            if not member or member.id == current_user.id:
                 continue
             await notifications_service.notify_project_added(
                 session,
@@ -795,14 +823,25 @@ async def update_project(
     update_data = project_in.dict(exclude_unset=True)
     if "initiative_id" in update_data:
         new_initiative_id = update_data.pop("initiative_id")
-        if new_initiative_id is not None:
+        if new_initiative_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiatives are required")
+        if new_initiative_id != project.initiative_id:
             await _get_initiative_or_404(new_initiative_id, session)
+            if current_user.role != UserRole.admin:
+                membership = await initiatives_service.get_initiative_membership(
+                    session,
+                    initiative_id=new_initiative_id,
+                    user_id=current_user.id,
+                )
+                if not membership or membership.role != InitiativeRole.project_manager:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
             await _ensure_user_in_initiative(new_initiative_id, project.owner_id, session)
-        project.initiative_id = new_initiative_id
-    if "read_roles" in update_data:
-        project.read_roles = project_access.normalize_read_roles(update_data.pop("read_roles"))
-    if "write_roles" in update_data:
-        project.write_roles = project_access.normalize_write_roles(update_data.pop("write_roles"))
+            project.initiative_id = new_initiative_id
+        if new_initiative_id != previous_initiative_id:
+            for permission in list(project.permissions):
+                if permission.user_id != project.owner_id:
+                    await session.delete(permission)
+            project.permissions = [perm for perm in project.permissions if perm.user_id == project.owner_id]
     for field, value in update_data.items():
         setattr(project, field, value)
     project.updated_at = datetime.now(timezone.utc)
@@ -815,8 +854,9 @@ async def update_project(
         and project.initiative
         and project.initiative_id != previous_initiative_id
     ):
-        for member in project.initiative.members:
-            if member.id == current_user.id:
+        for membership in project.initiative.memberships:
+            member = membership.user
+            if not member or member.id == current_user.id:
                 continue
             await notifications_service.notify_project_added(
                 session,
@@ -830,34 +870,59 @@ async def update_project(
     return await _project_read_for_user(session, current_user, project)
 
 
-@router.post("/{project_id}/members", response_model=ProjectMemberRead, status_code=status.HTTP_201_CREATED)
+@router.post("/{project_id}/members", response_model=ProjectPermissionRead, status_code=status.HTTP_201_CREATED)
 async def add_project_member(
     project_id: int,
-    member_in: ProjectMemberCreate,
+    member_in: ProjectPermissionCreate,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> ProjectMember:
+) -> ProjectPermission:
     project = await _get_project_or_404(project_id, session)
     await _require_project_membership(project, current_user, session, access="write", require_manager=True)
     _ensure_not_archived(project)
+    if member_in.level == ProjectPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+    if member_in.user_id == project.owner_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Owner already has full access")
     if project.initiative_id:
         await _ensure_user_in_initiative(project.initiative_id, member_in.user_id, session)
 
-    existing_stmt = select(ProjectMember).where(
-        ProjectMember.project_id == project_id,
-        ProjectMember.user_id == member_in.user_id,
-    )
-    result = await session.exec(existing_stmt)
-    membership = result.one_or_none()
-    if membership:
-        membership.role = member_in.role
-    else:
-        membership = ProjectMember(project_id=project_id, user_id=member_in.user_id, role=member_in.role)
+    existing = await _get_project_permission(project, member_in.user_id, session)
+    if existing:
+        existing.level = member_in.level
+        session.add(existing)
+        await session.commit()
+        await session.refresh(existing)
+        return existing
 
-    session.add(membership)
+    permission = ProjectPermission(
+        project_id=project_id,
+        user_id=member_in.user_id,
+        level=member_in.level,
+    )
+    session.add(permission)
     await session.commit()
-    await session.refresh(membership)
-    return membership
+    await session.refresh(permission)
+    return permission
+
+
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_member(
+    project_id: int,
+    user_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> None:
+    project = await _get_project_or_404(project_id, session)
+    await _require_project_membership(project, current_user, session, access="write", require_manager=True)
+    _ensure_not_archived(project)
+    if user_id == project.owner_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the project owner")
+    permission = await _get_project_permission(project, user_id, session)
+    if not permission:
+        return
+    await session.delete(permission)
+    await session.commit()
 
 
 @router.post("/reorder", response_model=List[ProjectRead])

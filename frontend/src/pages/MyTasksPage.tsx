@@ -20,7 +20,6 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { queryClient } from "../lib/queryClient";
 import { priorityVariant } from "../components/projects/projectTasksConfig";
-import { TasksTableCard } from "../components/tasks/TasksTableCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import { DataTable } from "../components/ui/data-table";
 import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
@@ -476,18 +475,7 @@ export const MyTasksPage = () => {
         </CollapsibleContent>
       </Collapsible>
 
-      <TasksTableCard
-        title="Assigned tasks"
-        description="Update status directly from this view."
-        isEmpty={sortedTasks.length === 0}
-        emptyMessage="No tasks match the current filters."
-      >
-        <div className="w-full overflow-x-auto">
-          <div className="min-w-[900px]">
-            <DataTable columns={columns} data={sortedTasks} />
-          </div>
-        </div>
-      </TasksTableCard>
+      <DataTable columns={columns} data={sortedTasks} />
     </div>
   );
 };

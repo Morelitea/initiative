@@ -5,40 +5,33 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
-from app.api.deps import SessionDep, require_roles
+from app.api.deps import SessionDep, get_current_active_user, require_roles
 from app.models.project import Project
-from app.models.initiative import Initiative, InitiativeMember
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.task import Task, TaskAssignee
 from app.models.user import User, UserRole
 from app.schemas.initiative import (
     InitiativeCreate,
     InitiativeMemberAdd,
+    InitiativeMemberUpdate,
     InitiativeRead,
     InitiativeUpdate,
+    serialize_initiative,
 )
-from app.schemas.user import UserRead
 from app.services import notifications as notifications_service
+from app.services import initiatives as initiatives_service
 
 router = APIRouter()
 
 AdminUser = Annotated[User, Depends(require_roles(UserRole.admin))]
 
 
-def _serialize_initiative(initiative: Initiative) -> InitiativeRead:
-    members = [UserRead.model_validate(member) for member in initiative.members]
-    return InitiativeRead(
-        id=initiative.id,
-        name=initiative.name,
-        description=initiative.description,
-        color=initiative.color,
-        created_at=initiative.created_at,
-        updated_at=initiative.updated_at,
-        members=members,
-    )
-
-
 async def _get_initiative_or_404(initiative_id: int, session: SessionDep) -> Initiative:
-    statement = select(Initiative).where(Initiative.id == initiative_id).options(selectinload(Initiative.members))
+    statement = (
+        select(Initiative)
+        .where(Initiative.id == initiative_id)
+        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+    )
     result = await session.exec(statement)
     initiative = result.one_or_none()
     if not initiative:
@@ -57,16 +50,62 @@ async def _initiative_name_exists(session: SessionDep, name: str, exclude_initia
     return result.first() is not None
 
 
+async def _require_manager_access(
+    session: SessionDep,
+    initiative: Initiative,
+    current_user: User,
+) -> None:
+    if current_user.role == UserRole.admin:
+        return
+    membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=initiative.id,
+        user_id=current_user.id,
+    )
+    if not membership or membership.role != InitiativeRole.project_manager:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+
+
+async def _ensure_remaining_manager(
+    session: SessionDep,
+    initiative: Initiative,
+    *,
+    exclude_user_ids: set[int] | None = None,
+) -> None:
+    exclude = exclude_user_ids or set()
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative.id,
+        InitiativeMember.role == InitiativeRole.project_manager,
+    )
+    result = await session.exec(stmt)
+    managers = [member for member in result.all() if member.user_id not in exclude]
+    if not managers:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one project manager is required")
+
+
 @router.get("/", response_model=List[InitiativeRead])
-async def list_initiatives(session: SessionDep, _: AdminUser) -> List[InitiativeRead]:
-    statement = select(Initiative).options(selectinload(Initiative.members))
+async def list_initiatives(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[InitiativeRead]:
+    statement = select(Initiative).options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+    if current_user.role != UserRole.admin:
+        statement = (
+            statement.join(InitiativeMember, InitiativeMember.initiative_id == Initiative.id)
+            .where(InitiativeMember.user_id == current_user.id)
+            .distinct()
+        )
     result = await session.exec(statement)
     initiatives = result.all()
-    return [_serialize_initiative(initiative) for initiative in initiatives]
+    return [serialize_initiative(initiative) for initiative in initiatives]
 
 
 @router.post("/", response_model=InitiativeRead, status_code=status.HTTP_201_CREATED)
-async def create_initiative(initiative_in: InitiativeCreate, session: SessionDep, _: AdminUser) -> InitiativeRead:
+async def create_initiative(
+    initiative_in: InitiativeCreate,
+    session: SessionDep,
+    current_admin: AdminUser,
+) -> InitiativeRead:
     if await _initiative_name_exists(session, initiative_in.name):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Initiative name already exists")
     initiative = Initiative(name=initiative_in.name, description=initiative_in.description)
@@ -75,13 +114,27 @@ async def create_initiative(initiative_in: InitiativeCreate, session: SessionDep
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-    await session.refresh(initiative, attribute_names=["members"])
-    return _serialize_initiative(initiative)
+    session.add(
+        InitiativeMember(
+            initiative_id=initiative.id,
+            user_id=current_admin.id,
+            role=InitiativeRole.project_manager,
+        )
+    )
+    await session.commit()
+    await session.refresh(initiative, attribute_names=["memberships"])
+    return serialize_initiative(initiative)
 
 
 @router.patch("/{initiative_id}", response_model=InitiativeRead)
-async def update_initiative(initiative_id: int, initiative_in: InitiativeUpdate, session: SessionDep, _: AdminUser) -> InitiativeRead:
+async def update_initiative(
+    initiative_id: int,
+    initiative_in: InitiativeUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> InitiativeRead:
     initiative = await _get_initiative_or_404(initiative_id, session)
+    await _require_manager_access(session, initiative, current_user)
 
     update_data = initiative_in.dict(exclude_unset=True)
     if "name" in update_data and update_data["name"] is not None:
@@ -92,13 +145,15 @@ async def update_initiative(initiative_id: int, initiative_in: InitiativeUpdate,
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-    await session.refresh(initiative, attribute_names=["members"])
-    return _serialize_initiative(initiative)
+    await session.refresh(initiative, attribute_names=["memberships"])
+    return serialize_initiative(initiative)
 
 
 @router.delete("/{initiative_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_initiative(initiative_id: int, session: SessionDep, _: AdminUser) -> None:
     initiative = await _get_initiative_or_404(initiative_id, session)
+    if initiative.is_default:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Default initiative cannot be deleted")
     project_stmt = await session.exec(select(Project).where(Project.initiative_id == initiative_id))
     projects = project_stmt.all()
     for project in projects:
@@ -108,8 +163,14 @@ async def delete_initiative(initiative_id: int, session: SessionDep, _: AdminUse
 
 
 @router.post("/{initiative_id}/members", response_model=InitiativeRead, status_code=status.HTTP_200_OK)
-async def add_initiative_member(initiative_id: int, payload: InitiativeMemberAdd, session: SessionDep, _: AdminUser) -> InitiativeRead:
+async def add_initiative_member(
+    initiative_id: int,
+    payload: InitiativeMemberAdd,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> InitiativeRead:
     initiative = await _get_initiative_or_404(initiative_id, session)
+    await _require_manager_access(session, initiative, current_user)
     user_stmt = await session.exec(select(User).where(User.id == payload.user_id))
     user = user_stmt.one_or_none()
     if not user:
@@ -121,12 +182,25 @@ async def add_initiative_member(initiative_id: int, payload: InitiativeMemberAdd
     result = await session.exec(stmt)
     membership = result.one_or_none()
     created = False
-    if not membership:
-        session.add(InitiativeMember(initiative_id=initiative_id, user_id=payload.user_id))
-        await session.commit()
+    if membership:
+        if membership.role != payload.role:
+            if (
+                membership.role == InitiativeRole.project_manager
+                and payload.role != InitiativeRole.project_manager
+            ):
+                await _ensure_remaining_manager(session, initiative, exclude_user_ids={membership.user_id})
+            membership.role = payload.role
+            session.add(membership)
+    else:
+        membership = InitiativeMember(
+            initiative_id=initiative_id,
+            user_id=payload.user_id,
+            role=payload.role,
+        )
+        session.add(membership)
         created = True
-    await session.refresh(initiative)
-    await session.refresh(initiative, attribute_names=["members"])
+    await session.commit()
+    await session.refresh(initiative, attribute_names=["memberships"])
     if created:
         await notifications_service.notify_initiative_membership(
             session,
@@ -134,12 +208,18 @@ async def add_initiative_member(initiative_id: int, payload: InitiativeMemberAdd
             initiative_id=initiative.id,
             initiative_name=initiative.name,
         )
-    return _serialize_initiative(initiative)
+    return serialize_initiative(initiative)
 
 
 @router.delete("/{initiative_id}/members/{user_id}", response_model=InitiativeRead)
-async def remove_initiative_member(initiative_id: int, user_id: int, session: SessionDep, _: AdminUser) -> InitiativeRead:
+async def remove_initiative_member(
+    initiative_id: int,
+    user_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> InitiativeRead:
     initiative = await _get_initiative_or_404(initiative_id, session)
+    await _require_manager_access(session, initiative, current_user)
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
         InitiativeMember.user_id == user_id,
@@ -147,6 +227,8 @@ async def remove_initiative_member(initiative_id: int, user_id: int, session: Se
     result = await session.exec(stmt)
     membership = result.one_or_none()
     if membership:
+        if membership.role == InitiativeRole.project_manager:
+            await _ensure_remaining_manager(session, initiative, exclude_user_ids={user_id})
         await session.delete(membership)
 
         project_ids_result = await session.exec(select(Project.id).where(Project.initiative_id == initiative_id))
@@ -166,6 +248,31 @@ async def remove_initiative_member(initiative_id: int, user_id: int, session: Se
                 await session.exec(delete_stmt)
 
         await session.commit()
-    await session.refresh(initiative)
-    await session.refresh(initiative, attribute_names=["members"])
-    return _serialize_initiative(initiative)
+    await session.refresh(initiative, attribute_names=["memberships"])
+    return serialize_initiative(initiative)
+@router.patch("/{initiative_id}/members/{user_id}", response_model=InitiativeRead)
+async def update_initiative_member(
+    initiative_id: int,
+    user_id: int,
+    payload: InitiativeMemberUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> InitiativeRead:
+    initiative = await _get_initiative_or_404(initiative_id, session)
+    await _require_manager_access(session, initiative, current_user)
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id,
+        InitiativeMember.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    membership = result.one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    if membership.role != payload.role:
+        if membership.role == InitiativeRole.project_manager and payload.role != InitiativeRole.project_manager:
+            await _ensure_remaining_manager(session, initiative, exclude_user_ids={user_id})
+        membership.role = payload.role
+        session.add(membership)
+        await session.commit()
+    await session.refresh(initiative, attribute_names=["memberships"])
+    return serialize_initiative(initiative)

@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.models.project import ProjectRole
+from app.models.project import ProjectPermissionLevel
 from app.schemas.initiative import InitiativeRead
 from app.schemas.user import UserRead
 
@@ -12,13 +12,12 @@ class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
     icon: Optional[str] = None
+    members_can_write: bool = False
 
 
 class ProjectCreate(ProjectBase):
     owner_id: Optional[int] = None
     initiative_id: Optional[int] = None
-    read_roles: Optional[List[ProjectRole]] = None
-    write_roles: Optional[List[ProjectRole]] = None
     is_template: bool = False
     template_id: Optional[int] = None
 
@@ -28,8 +27,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     icon: Optional[str] = None
     initiative_id: Optional[int] = None
-    read_roles: Optional[List[ProjectRole]] = None
-    write_roles: Optional[List[ProjectRole]] = None
+    members_can_write: Optional[bool] = None
     is_template: Optional[bool] = None
 
 
@@ -37,17 +35,17 @@ class ProjectDuplicateRequest(BaseModel):
     name: Optional[str] = None
 
 
-class ProjectMemberBase(BaseModel):
+class ProjectPermissionBase(BaseModel):
     user_id: int
-    role: ProjectRole = ProjectRole.member
+    level: ProjectPermissionLevel = ProjectPermissionLevel.write
 
 
-class ProjectMemberCreate(ProjectMemberBase):
+class ProjectPermissionCreate(ProjectPermissionBase):
     pass
 
 
-class ProjectMemberRead(ProjectMemberBase):
-    joined_at: datetime
+class ProjectPermissionRead(ProjectPermissionBase):
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -56,17 +54,15 @@ class ProjectMemberRead(ProjectMemberBase):
 class ProjectRead(ProjectBase):
     id: int
     owner_id: int
-    initiative_id: Optional[int] = None
+    initiative_id: int
     created_at: datetime
     updated_at: datetime
-    read_roles: List[ProjectRole] = Field(default_factory=list)
-    write_roles: List[ProjectRole] = Field(default_factory=list)
     is_archived: bool
     is_template: bool
     archived_at: Optional[datetime] = None
     owner: Optional[UserRead] = None
     initiative: Optional[InitiativeRead] = None
-    members: List[ProjectMemberRead] = Field(default_factory=list)
+    permissions: List[ProjectPermissionRead] = Field(default_factory=list)
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None

@@ -1,4 +1,6 @@
-export type UserRole = "admin" | "project_manager" | "member";
+export type UserRole = "admin" | "member";
+
+export type InitiativeRole = "project_manager" | "member";
 
 export interface User {
   id: number;
@@ -21,14 +23,22 @@ export interface User {
   notify_overdue_tasks?: boolean;
   last_overdue_notification_at?: string | null;
   last_task_assignment_digest_at?: string | null;
+  initiative_roles?: UserInitiativeRole[];
 }
 
-export type ProjectRole = "admin" | "project_manager" | "member";
+export interface UserInitiativeRole {
+  initiative_id: number;
+  initiative_name: string;
+  role: InitiativeRole;
+}
 
-export interface ProjectMember {
+export type ProjectPermissionLevel = "owner" | "write";
+
+export interface ProjectPermission {
   user_id: number;
-  role: ProjectRole;
-  joined_at: string;
+  level: ProjectPermissionLevel;
+  created_at: string;
+  project_id?: number;
 }
 
 export interface Initiative {
@@ -36,9 +46,16 @@ export interface Initiative {
   name: string;
   description?: string;
   color?: string | null;
+  is_default?: boolean;
   created_at: string;
   updated_at: string;
-  members: User[];
+  members: InitiativeMember[];
+}
+
+export interface InitiativeMember {
+  user: User;
+  role: InitiativeRole;
+  joined_at: string;
 }
 
 export interface Project {
@@ -46,18 +63,17 @@ export interface Project {
   name: string;
   icon?: string | null;
   description?: string;
+  members_can_write: boolean;
   owner_id: number;
-  initiative_id?: number | null;
+  initiative_id: number;
   created_at: string;
   updated_at: string;
-  read_roles: ProjectRole[];
-  write_roles: ProjectRole[];
   is_archived: boolean;
   is_template: boolean;
   archived_at?: string | null;
   owner?: User;
   initiative?: Initiative | null;
-  members: ProjectMember[];
+  permissions: ProjectPermission[];
   sort_order?: number | null;
   is_favorited?: boolean;
   last_viewed_at?: string | null;

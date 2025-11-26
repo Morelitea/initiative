@@ -31,6 +31,7 @@ from app.services import app_settings as app_settings_service
 from app.services import notifications as notifications_service
 from app.services import email as email_service
 from app.services import user_tokens
+from app.services import initiatives as initiatives_service
 from app.models.user_token import UserTokenPurpose
 
 router = APIRouter()
@@ -66,14 +67,19 @@ async def register_user(user_in: UserCreate, session: SessionDep) -> User:
         email_verified=is_first_user,
     )
 
-    session.add(user)
     try:
+        session.add(user)
+        await session.flush()
+        if user.role == UserRole.admin:
+            await initiatives_service.ensure_default_initiative(session, user)
         await session.commit()
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create user") from exc
 
     await session.refresh(user)
+
+    await initiatives_service.load_user_initiative_roles(session, [user])
 
     if not user.is_active:
         await notifications_service.notify_admins_pending_user(session, user)

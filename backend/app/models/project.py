@@ -1,15 +1,9 @@
 from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
-import json
 
-from sqlalchemy import Column, DateTime, JSON
+from sqlalchemy import Boolean, Column, DateTime
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
-
-class ProjectRole(str, Enum):
-    admin = "admin"
-    project_manager = "project_manager"
-    member = "member"
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
@@ -20,10 +14,6 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.project_activity import ProjectFavorite, RecentProjectView
 
 
-DEFAULT_PROJECT_READ_ROLES = [role.value for role in ProjectRole]
-DEFAULT_PROJECT_WRITE_ROLES = [ProjectRole.admin.value, ProjectRole.project_manager.value]
-
-
 class Project(SQLModel, table=True):
     __tablename__ = "projects"
 
@@ -32,7 +22,7 @@ class Project(SQLModel, table=True):
     icon: Optional[str] = Field(default=None, max_length=8)
     description: Optional[str] = Field(default=None)
     owner_id: int = Field(foreign_key="users.id", nullable=False)
-    initiative_id: Optional[int] = Field(default=None, foreign_key="initiatives.id")
+    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -41,13 +31,9 @@ class Project(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    read_roles: List[str] = Field(
-        default_factory=lambda: list(DEFAULT_PROJECT_READ_ROLES),
-        sa_column=Column(JSON, nullable=False, server_default=json.dumps(DEFAULT_PROJECT_READ_ROLES)),
-    )
-    write_roles: List[str] = Field(
-        default_factory=lambda: list(DEFAULT_PROJECT_WRITE_ROLES),
-        sa_column=Column(JSON, nullable=False, server_default=json.dumps(DEFAULT_PROJECT_WRITE_ROLES)),
+    members_can_write: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     is_archived: bool = Field(default=False, nullable=False)
     is_template: bool = Field(default=False, nullable=False)
@@ -62,7 +48,7 @@ class Project(SQLModel, table=True):
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    members: List["ProjectMember"] = Relationship(
+    permissions: List["ProjectPermission"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -80,19 +66,27 @@ class Project(SQLModel, table=True):
     )
 
 
-class ProjectMember(SQLModel, table=True):
-    __tablename__ = "project_members"
+class ProjectPermissionLevel(str, Enum):
+    owner = "owner"
+    write = "write"
+
+
+class ProjectPermission(SQLModel, table=True):
+    __tablename__ = "project_permissions"
 
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True)
-    role: ProjectRole = Field(
-        default=ProjectRole.member,
-        sa_column=Column(SQLEnum(ProjectRole, name="project_role"), nullable=False),
+    level: ProjectPermissionLevel = Field(
+        default=ProjectPermissionLevel.write,
+        sa_column=Column(
+            SQLEnum(ProjectPermissionLevel, name="project_permission_level"),
+            nullable=False,
+        ),
     )
-    joined_at: datetime = Field(
+    created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    project: Optional[Project] = Relationship(back_populates="members")
-    user: Optional["User"] = Relationship(back_populates="memberships")
+    project: Optional[Project] = Relationship(back_populates="permissions")
+    user: Optional["User"] = Relationship(back_populates="project_permissions")

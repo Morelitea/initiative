@@ -15,6 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 
 export interface NavItem {
   label: string;
@@ -31,8 +32,10 @@ interface MobileMenuProps {
 export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
-
-  const userDisplayName = user?.full_name ?? user?.email ?? "Initiative member";
+  const { data: roleLabels } = useRoleLabels();
+  const adminLabel = getRoleLabel("admin", roleLabels);
+  const memberLabel = getRoleLabel("member", roleLabels);
+  const userDisplayName = user?.full_name ?? user?.email ?? memberLabel;
   const userEmail = user?.email ?? "";
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || undefined;
   const userInitials =
@@ -127,7 +130,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
                 onClick={() => setIsOpen(false)}
                 className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
               >
-                Admin settings
+                {adminLabel} settings
               </Link>
             ) : null}
             <Button type="button" variant="secondary" className="w-full" onClick={handleLogout}>

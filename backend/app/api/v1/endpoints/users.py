@@ -12,6 +12,7 @@ from app.models.task import TaskAssignee
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserRead, UserSelfUpdate, UserUpdate
 from app.services import notifications as notifications_service
+from app.services import initiatives as initiatives_service
 
 router = APIRouter()
 
@@ -46,14 +47,17 @@ def _normalize_notification_time(value: str | None) -> str | None:
 
 
 @router.get("/me", response_model=UserRead)
-async def read_users_me(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+async def read_users_me(session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
 
 
 @router.get("/", response_model=List[UserRead])
 async def list_users(session: SessionDep, _: Annotated[User, Depends(get_current_active_user)]) -> List[User]:
     result = await session.exec(select(User))
-    return result.all()
+    users = result.all()
+    await initiatives_service.load_user_initiative_roles(session, users)
+    return users
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -73,6 +77,10 @@ async def create_user(user_in: UserCreate, session: SessionDep, _: AdminUser) ->
     session.add(user)
     await session.commit()
     await session.refresh(user)
+    if user.role == UserRole.admin:
+        async with session.begin():
+            await initiatives_service.ensure_default_initiative(session, user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 
 
@@ -137,6 +145,7 @@ async def update_users_me(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
+    await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
 
 
@@ -153,6 +162,11 @@ async def update_user(user_id: int, user_in: UserUpdate, session: SessionDep, _:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot change the super user's role",
         )
+    if update_data.get("role") == UserRole.member and user.role == UserRole.admin:
+        try:
+            await initiatives_service.ensure_user_not_sole_pm(session, user_id=user.id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
     if "avatar_base64" in update_data:
@@ -182,6 +196,9 @@ async def update_user(user_id: int, user_in: UserUpdate, session: SessionDep, _:
     session.add(user)
     await session.commit()
     await session.refresh(user)
+    if user.role == UserRole.admin:
+        await initiatives_service.ensure_default_initiative(session, user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 
 
@@ -198,6 +215,7 @@ async def approve_user(user_id: int, session: SessionDep, _: AdminUser) -> User:
         session.add(user)
         await session.commit()
         await session.refresh(user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 
 
@@ -212,6 +230,11 @@ async def delete_user(user_id: int, session: SessionDep, current_admin: AdminUse
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    try:
+        await initiatives_service.ensure_user_not_sole_pm(session, user_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     await session.exec(delete(TaskAssignee).where(TaskAssignee.user_id == user_id))
     await session.delete(user)

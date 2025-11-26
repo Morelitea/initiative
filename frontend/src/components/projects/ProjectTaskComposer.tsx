@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import type { TaskPriority, TaskRecurrence } from "@/types/api";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 
 interface ProjectTaskComposerProps {
@@ -72,6 +73,8 @@ export const ProjectTaskComposer = ({
   onCancel,
   autoFocusTitle = false,
 }: ProjectTaskComposerProps) => {
+  const { data: roleLabels } = useRoleLabels();
+  const memberLabel = getRoleLabel("member", roleLabels);
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit();
@@ -142,7 +145,7 @@ export const ProjectTaskComposer = ({
                         options={users}
                         onChange={onAssigneesChange}
                         disabled={isSubmitting}
-                        emptyMessage="Invite initiative members to assign work."
+                        emptyMessage={`Invite initiative ${memberLabel} role holders to assign work.`}
                       />
                     </div>
                   </div>

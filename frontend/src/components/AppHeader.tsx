@@ -13,6 +13,7 @@ import { ModeToggle } from "@/components/ModeToggle";
 import { LogoIcon } from "@/components/LogoIcon";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 
 const navItems: NavItem[] = [
   { label: "Projects", to: "/", end: true },
@@ -21,7 +22,10 @@ const navItems: NavItem[] = [
 
 export const AppHeader = () => {
   const { user, logout } = useAuth();
-  const userDisplayName = user?.full_name ?? user?.email ?? "Initiative member";
+  const { data: roleLabels } = useRoleLabels();
+  const adminLabel = getRoleLabel("admin", roleLabels);
+  const memberLabel = getRoleLabel("member", roleLabels);
+  const userDisplayName = user?.full_name ?? user?.email ?? memberLabel;
   const userEmail = user?.email ?? "";
   const userInitials =
     userDisplayName
@@ -83,7 +87,7 @@ export const AppHeader = () => {
                   </DropdownMenuItem>
                   {user?.role === "admin" ? (
                     <DropdownMenuItem asChild>
-                      <Link to="/settings">Admin Settings</Link>
+                      <Link to="/settings">{adminLabel} Settings</Link>
                     </DropdownMenuItem>
                   ) : null}
                   <DropdownMenuSeparator />

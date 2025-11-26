@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import type { AxiosError } from "axios";
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
@@ -12,9 +13,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
-import { Initiative, User } from "@/types/api";
+import { Initiative, InitiativeMember, InitiativeRole, User } from "@/types/api";
+import { toast } from "sonner";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 const NO_USER_VALUE = "none";
@@ -23,13 +33,25 @@ const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 export const SettingsInitiativesPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const managedInitiativeIds = useMemo(() => {
+    const assignments = user?.initiative_roles ?? [];
+    return new Set(
+      assignments
+        .filter((assignment) => assignment.role === "project_manager")
+        .map((assignment) => assignment.initiative_id)
+    );
+  }, [user]);
+  const canManageInitiatives = isAdmin || managedInitiativeIds.size > 0;
   const [initiativeName, setInitiativeName] = useState("");
   const [initiativeDescription, setInitiativeDescription] = useState("");
   const [initiativeColor, setInitiativeColor] = useState(DEFAULT_INITIATIVE_COLOR);
+  const { data: roleLabels } = useRoleLabels();
+  const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
+  const memberLabel = getRoleLabel("member", roleLabels);
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: INITIATIVES_QUERY_KEY,
-    enabled: isAdmin,
+    enabled: canManageInitiatives,
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
@@ -38,7 +60,7 @@ export const SettingsInitiativesPage = () => {
 
   const usersQuery = useQuery<User[]>({
     queryKey: ["users"],
-    enabled: isAdmin,
+    enabled: canManageInitiatives,
     queryFn: async () => {
       const response = await apiClient.get<User[]>("/users/");
       return response.data;
@@ -70,10 +92,10 @@ export const SettingsInitiativesPage = () => {
     createInitiative.mutate();
   };
 
-  if (!isAdmin) {
+  if (!canManageInitiatives) {
     return (
       <p className="text-sm text-muted-foreground">
-        You need admin permissions to manage initiatives.
+        You need {projectManagerLabel} permissions to manage initiatives.
       </p>
     );
   }
@@ -93,45 +115,47 @@ export const SettingsInitiativesPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Create initiative</CardTitle>
-          <CardDescription>
-            Organize projects and members under a shared initiative.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleCreateInitiative}>
-            <Input
-              placeholder="Initiative name"
-              value={initiativeName}
-              onChange={(event) => setInitiativeName(event.target.value)}
-              required
-            />
-            <Textarea
-              placeholder="Description (supports Markdown)"
-              value={initiativeDescription}
-              onChange={(event) => setInitiativeDescription(event.target.value)}
-              rows={3}
-            />
-            <div className="space-y-2">
-              <Label htmlFor="initiative-color">Color</Label>
-              <ColorPickerPopover
-                id="initiative-color"
-                value={initiativeColor}
-                onChange={setInitiativeColor}
-                triggerLabel="Adjust"
+      {isAdmin ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Create initiative</CardTitle>
+            <CardDescription>
+              Organize projects and members under a shared initiative.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleCreateInitiative}>
+              <Input
+                placeholder="Initiative name"
+                value={initiativeName}
+                onChange={(event) => setInitiativeName(event.target.value)}
+                required
               />
-              <p className="text-xs text-muted-foreground">
-                This color highlights projects tied to the initiative.
-              </p>
-            </div>
-            <Button type="submit" disabled={createInitiative.isPending}>
-              {createInitiative.isPending ? "Creating…" : "Create initiative"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Textarea
+                placeholder="Description (supports Markdown)"
+                value={initiativeDescription}
+                onChange={(event) => setInitiativeDescription(event.target.value)}
+                rows={3}
+              />
+              <div className="space-y-2">
+                <Label htmlFor="initiative-color">Color</Label>
+                <ColorPickerPopover
+                  id="initiative-color"
+                  value={initiativeColor}
+                  onChange={setInitiativeColor}
+                  triggerLabel="Adjust"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This color highlights projects tied to the initiative.
+                </p>
+              </div>
+              <Button type="submit" disabled={createInitiative.isPending}>
+                {createInitiative.isPending ? "Creating…" : "Create initiative"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {initiativesQuery.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">No initiatives yet.</p>
@@ -142,6 +166,10 @@ export const SettingsInitiativesPage = () => {
             initiative={initiative}
             usersQuery={usersQuery}
             initiativesQuery={initiativesQuery}
+            isAdmin={isAdmin}
+            managedInitiativeIds={managedInitiativeIds}
+            memberLabel={memberLabel}
+            projectManagerLabel={projectManagerLabel}
           />
         ))
       )}
@@ -153,11 +181,24 @@ interface InitiativeCardProps {
   initiative: Initiative;
   usersQuery: ReturnType<typeof useQuery<User[]>>;
   initiativesQuery: ReturnType<typeof useQuery<Initiative[]>>;
+  isAdmin: boolean;
+  managedInitiativeIds: Set<number>;
+  memberLabel: string;
+  projectManagerLabel: string;
 }
 
-const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: InitiativeCardProps) => {
+const InitiativeCard = ({
+  initiative,
+  usersQuery,
+  initiativesQuery,
+  isAdmin,
+  managedInitiativeIds,
+  memberLabel,
+  projectManagerLabel,
+}: InitiativeCardProps) => {
   const [selectedUsers, setSelectedUsers] = useState<Record<number, string>>({});
   const [initiativeColorDrafts, setInitiativeColorDrafts] = useState<Record<number, string>>({});
+  const canEditMembers = isAdmin || managedInitiativeIds.has(initiative.id);
 
   useEffect(() => {
     if (initiativesQuery.data) {
@@ -233,6 +274,32 @@ const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: Initiative
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
+    onError: (error) => {
+      const axiosError = error as AxiosError<{ detail?: string }>;
+      const detailMessage = axiosError.response?.data?.detail;
+      toast.error(detailMessage ?? `Unable to remove initiative ${memberLabel}.`);
+    },
+  });
+
+  const updateInitiativeMemberRole = useMutation({
+    mutationFn: async ({
+      initiativeId,
+      userId,
+      role,
+    }: {
+      initiativeId: number;
+      userId: number;
+      role: InitiativeRole;
+    }) => {
+      const response = await apiClient.patch<Initiative>(
+        `/initiatives/${initiativeId}/members/${userId}`,
+        { role }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+    },
   });
 
   const handleInitiativeFieldUpdate = (
@@ -284,16 +351,16 @@ const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: Initiative
 
   const availableUsers = (initiative: Initiative) =>
     usersQuery.data?.filter(
-      (candidate) => !initiative.members.some((member) => member.id === candidate.id)
+      (candidate) => !initiative.members.some((member) => member.user.id === candidate.id)
     ) ?? [];
 
-  const userColumns: ColumnDef<User>[] = [
+  const userColumns: ColumnDef<InitiativeMember>[] = [
     {
       id: "user",
-      header: "Member",
+      header: memberLabel,
       cell: ({ row }) => {
-        const initiativeUser = row.original;
-        const displayName = initiativeUser.full_name?.trim() || "—";
+        const initiativeMember = row.original;
+        const displayName = initiativeMember.user.full_name?.trim() || "—";
         return (
           <div>
             <p className="font-medium">{displayName}</p>
@@ -305,52 +372,56 @@ const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: Initiative
       accessorKey: "email",
       header: "Email",
       cell: ({ row }) => {
-        const initiativeUser = row.original;
-        return <p className="text-sm text-muted-foreground">{initiativeUser.email}</p>;
+        const initiativeMember = row.original;
+        return <p className="text-sm text-muted-foreground">{initiativeMember.user.email}</p>;
       },
     },
-    // {
-    //   accessorKey: "role",
-    //   header: "Role",
-    //   cell: ({ row }) => {
-    //     const workspaceUser = row.original;
-    //     const isSuperUser = workspaceUser.id === SUPER_USER_ID;
-    //     return (
-    //       <div className="flex flex-col gap-1">
-    //         <Select
-    //           value={workspaceUser.role}
-    //           onValueChange={(value) => handleRoleChange(workspaceUser.id, value as UserRole)}
-    //           disabled={isSuperUser}
-    //         >
-    //           <SelectTrigger disabled={isSuperUser} className="min-w-[160px]">
-    //             <SelectValue />
-    //           </SelectTrigger>
-    //           <SelectContent>
-    //             {ROLE_OPTIONS.map((roleOption) => (
-    //               <SelectItem key={roleOption} value={roleOption}>
-    //                 {getRoleLabel(roleOption, roleLabels)}
-    //               </SelectItem>
-    //             ))}
-    //           </SelectContent>
-    //         </Select>
-    //       </div>
-    //     );
-    //   },
-    // },
+    {
+      accessorKey: "role",
+      header: "Role",
+      cell: ({ row }) => {
+        const initiativeMember = row.original;
+        return (
+          <Select
+            value={initiativeMember.role}
+            onValueChange={(value) =>
+              updateInitiativeMemberRole.mutate({
+                initiativeId: initiative.id,
+                userId: initiativeMember.user.id,
+                role: value as InitiativeRole,
+              })
+            }
+            disabled={!canEditMembers || updateInitiativeMemberRole.isPending}
+          >
+            <SelectTrigger className="min-w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="project_manager">{projectManagerLabel}</SelectItem>
+              <SelectItem value="member">{memberLabel}</SelectItem>
+            </SelectContent>
+          </Select>
+        );
+      },
+    },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
-        const initiativeUser = row.original;
+        const initiativeMember = row.original;
         return (
           <div className="flex flex-wrap gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={() =>
-                handleRemoveMember(initiative.id, initiativeUser.id, initiativeUser.email)
+                handleRemoveMember(
+                  initiative.id,
+                  initiativeMember.user.id,
+                  initiativeMember.user.email ?? initiativeMember.user.full_name ?? memberLabel
+                )
               }
-              disabled={removeInitiativeMember.isPending}
+              disabled={!canEditMembers || removeInitiativeMember.isPending}
             >
               Remove
             </Button>
@@ -385,9 +456,12 @@ const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: Initiative
                 setInitiativeColorDrafts((prev) => ({ ...prev, [initiative.id]: nextColor }))
               }
               triggerLabel="Adjust"
-              disabled={updateInitiative.isPending}
+              disabled={!isAdmin || updateInitiative.isPending}
             />
             {(() => {
+              if (!isAdmin) {
+                return null;
+              }
               const currentColor = initiative.color ?? DEFAULT_INITIATIVE_COLOR;
               const draftColor = initiativeColorDrafts[initiative.id];
               const hasPendingDraft = typeof draftColor === "string" && draftColor !== currentColor;
@@ -407,67 +481,74 @@ const InitiativeCard = ({ initiative, usersQuery, initiativesQuery }: Initiative
               );
             })()}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleInitiativeFieldUpdate(initiative.id, "name", initiative.name)}
-            >
-              Rename
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                handleInitiativeFieldUpdate(
-                  initiative.id,
-                  "description",
-                  initiative.description ?? ""
-                )
-              }
-            >
-              Edit description
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => handleDeleteInitiative(initiative.id, initiative.name)}
-              disabled={deleteInitiative.isPending}
-            >
-              Delete
-            </Button>
-          </div>
+          {isAdmin ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleInitiativeFieldUpdate(initiative.id, "name", initiative.name)}
+              >
+                Rename
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  handleInitiativeFieldUpdate(
+                    initiative.id,
+                    "description",
+                    initiative.description ?? ""
+                  )
+                }
+              >
+                Edit description
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDeleteInitiative(initiative.id, initiative.name)}
+                disabled={initiative.is_default || deleteInitiative.isPending}
+                title={
+                  initiative.is_default ? "The default initiative cannot be deleted." : undefined
+                }
+              >
+                Delete
+              </Button>
+            </div>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
           {initiative.members.length === 0 ? (
-            <p className="text-s text-muted-foreground">No members yet.</p>
+            <p className="text-s text-muted-foreground">No {memberLabel} assigned yet.</p>
           ) : (
             <DataTable columns={userColumns} data={initiative.members} />
           )}
         </div>
-        <div className="flex items-end gap-2">
-          <SearchableCombobox
-            value={selectedUsers[initiative.id] ?? NO_USER_VALUE}
-            onValueChange={(value) =>
-              setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))
-            }
-            placeholder="Select member"
-            items={availableUsers(initiative).map((candidate) => ({
-              value: String(candidate.id),
-              label: candidate.full_name ?? candidate.email,
-            }))}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleAddMember(initiative.id)}
-            disabled={addInitiativeMember.isPending}
-          >
-            Add member
-          </Button>
-        </div>
+        {canEditMembers ? (
+          <div className="flex items-end gap-2">
+            <SearchableCombobox
+              value={selectedUsers[initiative.id] ?? NO_USER_VALUE}
+              onValueChange={(value) =>
+                setSelectedUsers((prev) => ({ ...prev, [initiative.id]: value }))
+              }
+              placeholder={`Select ${memberLabel}`}
+              items={availableUsers(initiative).map((candidate) => ({
+                value: String(candidate.id),
+                label: candidate.full_name ?? candidate.email,
+              }))}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleAddMember(initiative.id)}
+              disabled={addInitiativeMember.isPending}
+            >
+              Add {memberLabel}
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

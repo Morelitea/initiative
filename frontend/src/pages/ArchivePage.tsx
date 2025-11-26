@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
@@ -18,7 +19,12 @@ import { Project } from "../types/api";
 
 export const ArchivePage = () => {
   const { user } = useAuth();
-  const canManageProjects = user?.role === "admin" || user?.role === "project_manager";
+  const managedInitiatives = useMemo(
+    () =>
+      user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
+    [user]
+  );
+  const canManageProjects = user?.role === "admin" || managedInitiatives.length > 0;
 
   const archivedProjectsQuery = useQuery<Project[]>({
     queryKey: ["projects", "archived"],

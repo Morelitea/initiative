@@ -7,15 +7,14 @@ from sqlalchemy import func
 from sqlmodel import select, delete
 
 from app.api.deps import SessionDep, get_current_active_user
-from app.models.project import Project, ProjectMember, ProjectRole
-from app.models.initiative import InitiativeMember
+from app.models.project import Project, ProjectPermission
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.task import Task, TaskAssignee, TaskStatus
 from app.models.user import User, UserRole
 from pydantic import ValidationError
 
 from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.services.realtime import broadcast_event
-from app.services import project_access
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 
@@ -59,6 +58,29 @@ async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: lis
     await session.refresh(task, attribute_names=["assignees"])
 
 
+def _permission_from_project(project: Project, user_id: int) -> ProjectPermission | None:
+    permissions = getattr(project, "permissions", None)
+    if not permissions:
+        return None
+    for permission in permissions:
+        if permission.user_id == user_id:
+            return permission
+    return None
+
+
+def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
+    initiative = getattr(project, "initiative", None)
+    if not initiative:
+        return None
+    memberships = getattr(initiative, "memberships", None)
+    if not memberships:
+        return None
+    for membership in memberships:
+        if membership.user_id == user_id:
+            return membership
+    return None
+
+
 async def _advance_recurrence_if_needed(
     session: SessionDep,
     task: Task,
@@ -96,14 +118,23 @@ async def _advance_recurrence_if_needed(
     return True
 
 
-async def _get_project_and_membership(
+async def _get_project_with_access(
     session: SessionDep,
     project_id: int,
     user: User,
     *,
     access: str = "read",
-) -> tuple[Project, ProjectMember | None]:
-    project_stmt = select(Project).where(Project.id == project_id)
+) -> Project:
+    project_stmt = (
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.permissions),
+            selectinload(Project.initiative)
+            .selectinload(Initiative.memberships)
+            .selectinload(InitiativeMember.user),
+        )
+    )
     project_result = await session.exec(project_stmt)
     project = project_result.one_or_none()
     if not project:
@@ -111,45 +142,49 @@ async def _get_project_and_membership(
     if project.is_archived and access == "write":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
 
-    if user.role == UserRole.admin or project.owner_id == user.id:
-        membership = ProjectMember(project_id=project_id, user_id=user.id, role=ProjectRole.admin)
-        return project, membership
+    if user.role == UserRole.admin:
+        return project
 
-    membership_stmt = select(ProjectMember).where(
-        ProjectMember.project_id == project_id,
-        ProjectMember.user_id == user.id,
-    )
-    membership_result = await session.exec(membership_stmt)
-    membership = membership_result.one_or_none()
+    permission = _permission_from_project(project, user.id)
+    if not permission:
+        stmt = select(ProjectPermission).where(
+            ProjectPermission.project_id == project.id,
+            ProjectPermission.user_id == user.id,
+        )
+        result = await session.exec(stmt)
+        permission = result.one_or_none()
+        if permission:
+            project.permissions.append(permission)
 
-    allowed_roles = (
-        project_access.write_roles_set(project) if access == "write" else project_access.read_roles_set(project)
-    )
-    user_project_role = project_access.user_role_to_project_role(user.role)
-    initiative_member = False
-    if project.initiative_id:
+    membership = _membership_from_project(project, user.id)
+    if not membership and project.initiative_id:
         initiative_stmt = select(InitiativeMember).where(
             InitiativeMember.initiative_id == project.initiative_id,
             InitiativeMember.user_id == user.id,
         )
-        initiative_member = (await session.exec(initiative_stmt)).one_or_none() is not None
-        if not initiative_member and user.role != UserRole.admin and project.owner_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this initiative")
+        initiative_result = await session.exec(initiative_stmt)
+        membership = initiative_result.one_or_none()
+        if membership and project.initiative:
+            project.initiative.memberships.append(membership)
 
-    has_global_access = user_project_role.value in allowed_roles
-    has_membership_access = membership and membership.role.value in allowed_roles
+    is_owner = project.owner_id == user.id
+    is_pm = membership and membership.role == InitiativeRole.project_manager
 
-    if not membership:
-        if has_global_access:
-            if project.initiative_id and not initiative_member and user.role != UserRole.admin and project.owner_id != user.id:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this initiative")
-            return project, None
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project")
+    if access == "read":
+        if is_owner or membership or permission:
+            return project
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's initiative")
 
-    if not has_membership_access and not has_global_access:
+    has_write = (
+        is_owner
+        or is_pm
+        or permission is not None
+        or bool(project.members_can_write and membership)
+    )
+    if not has_write:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for this project")
 
-    return project, membership
+    return project
 
 
 async def _ensure_can_manage(
@@ -157,7 +192,7 @@ async def _ensure_can_manage(
     project_id: int,
     user: User,
 ) -> Project:
-    project, _ = await _get_project_and_membership(session, project_id, user, access="write")
+    project = await _get_project_with_access(session, project_id, user, access="write")
     return project
 
 
@@ -165,32 +200,29 @@ async def _allowed_project_ids(session: SessionDep, user: User) -> Optional[set[
     if user.role == UserRole.admin:
         return None
 
-    membership_result = await session.exec(select(ProjectMember).where(ProjectMember.user_id == user.id))
-    memberships = membership_result.all()
-    membership_map = {membership.project_id: membership.role for membership in memberships}
-    user_project_role = project_access.user_role_to_project_role(user.role)
     initiative_ids_result = await session.exec(
         select(InitiativeMember.initiative_id).where(InitiativeMember.user_id == user.id)
     )
-    initiative_ids = set(initiative_ids_result.all())
+    initiative_ids = {row for row in initiative_ids_result.all() if row is not None}
 
-    project_result = await session.exec(select(Project))
+    permission_ids_result = await session.exec(
+        select(ProjectPermission.project_id).where(ProjectPermission.user_id == user.id)
+    )
+    permission_ids = {row for row in permission_ids_result.all() if row is not None}
+
+    project_result = await session.exec(select(Project.id, Project.owner_id, Project.initiative_id, Project.is_archived))
     ids: set[int] = set()
-    for project in project_result.all():
-        if project.is_archived:
+    for project_id, owner_id, initiative_id, is_archived in project_result.all():
+        if is_archived:
             continue
-        if project.owner_id == user.id:
-            ids.add(project.id)
+        if owner_id == user.id:
+            ids.add(project_id)
             continue
-        if project.initiative_id and project.initiative_id not in initiative_ids and user.role != UserRole.admin:
+        if initiative_id in initiative_ids:
+            ids.add(project_id)
             continue
-        allowed_roles = project_access.read_roles_set(project)
-        membership_role = membership_map.get(project.id)
-        if membership_role and membership_role.value in allowed_roles:
-            ids.add(project.id)
-            continue
-        if user_project_role.value in allowed_roles:
-            ids.add(project.id)
+        if project_id in permission_ids:
+            ids.add(project_id)
     return ids
 
 
@@ -225,7 +257,7 @@ async def create_task(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Task:
-    project, _ = await _get_project_and_membership(session, task_in.project_id, current_user, access="write")
+    project = await _get_project_with_access(session, task_in.project_id, current_user, access="write")
 
     sort_order = await _next_sort_order(session, task_in.project_id)
     task_data = task_in.dict(exclude={"assignee_ids"})
@@ -260,7 +292,7 @@ async def read_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    await _get_project_and_membership(session, task.project_id, current_user, access="read")
+    await _get_project_with_access(session, task.project_id, current_user, access="read")
     return task
 
 
@@ -275,7 +307,7 @@ async def update_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    project, _ = await _get_project_and_membership(session, task.project_id, current_user, access="write")
+    project = await _get_project_with_access(session, task.project_id, current_user, access="write")
 
     update_data = task_in.dict(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)

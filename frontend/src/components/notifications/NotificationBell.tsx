@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -106,7 +106,7 @@ export const NotificationBell = () => {
     }
   };
 
-  const content = useMemo(() => {
+  const renderContent = () => {
     if (notificationsQuery.isLoading) {
       return (
         <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
@@ -117,7 +117,9 @@ export const NotificationBell = () => {
     }
     if (!hasNotifications) {
       return (
-        <div className="py-8 text-center text-sm text-muted-foreground">You're all caught up!</div>
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          You&apos;re all caught up!
+        </div>
       );
     }
     return (
@@ -145,7 +147,7 @@ export const NotificationBell = () => {
         </ul>
       </ScrollArea>
     );
-  }, [notifications, notificationsQuery.isLoading, hasNotifications]);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -173,7 +175,7 @@ export const NotificationBell = () => {
             Mark all read
           </Button>
         </div>
-        {content}
+        {renderContent()}
       </PopoverContent>
     </Popover>
   );

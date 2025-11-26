@@ -1,5 +1,6 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 
 interface AssigneeOption {
   id: number;
@@ -19,8 +20,12 @@ export const AssigneeSelector = ({
   options,
   onChange,
   disabled = false,
-  emptyMessage = "Invite initiative members to assign tasks.",
+  emptyMessage,
 }: AssigneeSelectorProps) => {
+  const { data: roleLabels } = useRoleLabels();
+  const memberLabel = getRoleLabel("member", roleLabels);
+  const resolvedEmptyMessage =
+    emptyMessage ?? `Invite initiative ${memberLabel} role holders to assign tasks.`;
   const toggleId = (id: number, checked: boolean) => {
     if (checked) {
       const next = Array.from(new Set([...selectedIds, id]));
@@ -34,7 +39,7 @@ export const AssigneeSelector = ({
     <div className="space-y-3">
       <div className="space-y-2 rounded-md border p-3">
         {options.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          <p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
         ) : (
           <ul className="space-y-2">
             {options.map((option) => (

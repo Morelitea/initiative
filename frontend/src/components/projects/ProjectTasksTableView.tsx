@@ -14,7 +14,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
 import type { Task, TaskPriority, TaskStatus } from "@/types/api";
-import { TasksTableCard } from "@/components/tasks/TasksTableCard";
 import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { TableRow } from "@/components/ui/table";
@@ -212,39 +211,32 @@ export const ProjectTasksTableView = ({
   );
 
   return (
-    <TasksTableCard
-      title="Task list"
-      description="View every task at once and update their status inline."
-      isEmpty={tasks.length === 0}
-      emptyMessage="No tasks yet."
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={onDragCancel}
+      <SortableContext
+        items={tasks.map((task) => task.id.toString())}
+        strategy={verticalListSortingStrategy}
       >
-        <SortableContext
-          items={tasks.map((task) => task.id.toString())}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="w-full overflow-x-auto">
-            <div className="min-w-[720px]">
-              <DataTable
-                columns={columns}
-                data={tasks}
-                rowWrapper={({ row, children }) => (
-                  <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
-                    {children}
-                  </SortableRowWrapper>
-                )}
-              />
-            </div>
+        <div className="w-full overflow-x-auto">
+          <div className="min-w-[720px]">
+            <DataTable
+              columns={columns}
+              data={tasks}
+              rowWrapper={({ row, children }) => (
+                <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
+                  {children}
+                </SortableRowWrapper>
+              )}
+            />
           </div>
-        </SortableContext>
-      </DndContext>
-    </TasksTableCard>
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 };
 

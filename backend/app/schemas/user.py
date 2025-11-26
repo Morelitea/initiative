@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
+from app.models.initiative import InitiativeRole
 from app.models.user import UserRole
 
 
@@ -51,6 +52,7 @@ class UserRead(UserBase):
     notify_overdue_tasks: bool = True
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
+    initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -58,6 +60,12 @@ class UserRead(UserBase):
 
 class UserInDB(UserRead):
     hashed_password: str
+
+
+class UserInitiativeRole(BaseModel):
+    initiative_id: int
+    initiative_name: str
+    role: InitiativeRole
 
 
 class UserSelfUpdate(BaseModel):

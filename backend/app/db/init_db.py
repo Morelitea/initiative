@@ -7,6 +7,7 @@ from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal, run_migrations
 from app.models.user import User, UserRole
 from app.services import app_settings as app_settings_service
+from app.services import initiatives as initiatives_service
 
 
 async def init_superuser() -> None:
@@ -17,6 +18,8 @@ async def init_superuser() -> None:
         result = await session.exec(select(User).where(User.email == settings.FIRST_SUPERUSER_EMAIL))
         user = result.one_or_none()
         if user:
+            async with session.begin():
+                await initiatives_service.ensure_default_initiative(session, user)
             return
 
         superuser = User(
@@ -26,8 +29,11 @@ async def init_superuser() -> None:
             role=UserRole.admin,
             email_verified=True,
         )
-        session.add(superuser)
-        await session.commit()
+        async with session.begin():
+            session.add(superuser)
+            await session.flush()
+            await initiatives_service.ensure_default_initiative(session, superuser)
+        await session.refresh(superuser)
 
 
 async def init() -> None:
