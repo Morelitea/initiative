@@ -2,15 +2,15 @@ import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "../api/client";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Label } from "../components/ui/label";
-import { Badge } from "../components/ui/badge";
-import { queryClient } from "../lib/queryClient";
-import type { ApiKeyCreateResponse, ApiKeyListResponse, ApiKeyMetadata } from "../types/api";
-import { Input } from "../components/ui/input";
-import { DateTimePicker } from "../components/ui/date-time-picker";
+import { apiClient } from "@/api/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { queryClient } from "@/lib/queryClient";
+import type { ApiKeyCreateResponse, ApiKeyListResponse, ApiKeyMetadata } from "@/types/api";
+import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 const API_KEYS_QUERY_KEY = ["settings", "api-keys"] as const;
 

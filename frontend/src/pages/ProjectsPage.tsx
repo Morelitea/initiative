@@ -27,11 +27,11 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-import { apiClient } from "../api/client";
-import { Markdown } from "../components/Markdown";
-import { FavoriteProjectButton } from "../components/projects/FavoriteProjectButton";
-import { Button } from "../components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
+import { apiClient } from "@/api/client";
+import { Markdown } from "@/components/Markdown";
+import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -39,24 +39,24 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "../components/ui/card";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Textarea } from "../components/ui/textarea";
-import { EmojiPicker } from "../components/EmojiPicker";
-import { Switch } from "../components/ui/switch";
-import { useAuth } from "../hooks/useAuth";
-import { queryClient } from "../lib/queryClient";
-import { InitiativeColorDot, resolveInitiativeColor } from "../lib/initiativeColors";
-import { Project, ProjectReorderPayload, Initiative } from "../types/api";
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { EmojiPicker } from "@/components/EmojiPicker";
+import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
+import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { Project, ProjectReorderPayload, Initiative } from "@/types/api";
 
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";

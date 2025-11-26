@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "../api/client";
-import { Button } from "../components/ui/button";
+import { apiClient } from "@/api/client";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,23 +11,23 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "../components/ui/card";
-import { Label } from "../components/ui/label";
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
-import { Textarea } from "../components/ui/textarea";
-import { Input } from "../components/ui/input";
-import { Switch } from "../components/ui/switch";
-import { EmojiPicker } from "../components/EmojiPicker";
-import { useAuth } from "../hooks/useAuth";
-import { useRoleLabels, getRoleLabel } from "../hooks/useRoleLabels";
-import { queryClient } from "../lib/queryClient";
-import { Project, Initiative } from "../types/api";
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { EmojiPicker } from "@/components/EmojiPicker";
+import { useAuth } from "@/hooks/useAuth";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
+import { queryClient } from "@/lib/queryClient";
+import { Project, Initiative } from "@/types/api";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 

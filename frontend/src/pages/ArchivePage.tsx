@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { apiClient } from "../api/client";
-import { Markdown } from "../components/Markdown";
-import { Button } from "../components/ui/button";
+import { apiClient } from "@/api/client";
+import { Markdown } from "@/components/Markdown";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,10 +12,10 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "../components/ui/card";
-import { useAuth } from "../hooks/useAuth";
-import { queryClient } from "../lib/queryClient";
-import { Project } from "../types/api";
+} from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
+import { Project } from "@/types/api";
 
 export const ArchivePage = () => {
   const { user } = useAuth();

@@ -4,25 +4,25 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter } from "lucide-react";
 
-import { apiClient } from "../api/client";
-import { summarizeRecurrence } from "../lib/recurrence";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { Checkbox } from "../components/ui/checkbox";
-import { Label } from "../components/ui/label";
+import { apiClient } from "@/api/client";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
-import { useAuth } from "../hooks/useAuth";
-import { queryClient } from "../lib/queryClient";
-import { priorityVariant } from "../components/projects/projectTasksConfig";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
-import { DataTable } from "../components/ui/data-table";
-import type { Project, Task, TaskPriority, TaskStatus } from "../types/api";
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
+import { priorityVariant } from "@/components/projects/projectTasksConfig";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DataTable } from "@/components/ui/data-table";
+import type { Project, Task, TaskPriority, TaskStatus } from "@/types/api";
 
 const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
