@@ -1,29 +1,30 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { apiClient } from "../api/client";
-import { queryClient } from "../lib/queryClient";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Label } from "../components/ui/label";
+import { apiClient } from "@/api/client";
+import { queryClient } from "@/lib/queryClient";
+import { Markdown } from "@/components/Markdown";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select";
-import { Textarea } from "../components/ui/textarea";
-import { AssigneeSelector } from "../components/projects/AssigneeSelector";
-import { toast } from "sonner";
-import { useAuth } from "../hooks/useAuth";
-import { useRoleLabels, getRoleLabel } from "../hooks/useRoleLabels";
-import type { Project, Task, TaskPriority, TaskRecurrence, TaskStatus, User } from "../types/api";
-import { Input } from "../components/ui/input";
-import { DateTimePicker } from "../components/ui/date-time-picker";
-import { TaskRecurrenceSelector } from "../components/projects/TaskRecurrenceSelector";
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
+import { useAuth } from "@/hooks/useAuth";
+import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
+import type { Project, Task, TaskPriority, TaskRecurrence, TaskStatus, User } from "@/types/api";
+import { Input } from "@/components/ui/input";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 
 const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -50,6 +51,7 @@ export const TaskEditPage = () => {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [status, setStatus] = useState<TaskStatus>("backlog");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
@@ -119,6 +121,7 @@ export const TaskEditPage = () => {
     onSuccess: (updatedTask) => {
       setTitle(updatedTask.title);
       setDescription(updatedTask.description ?? "");
+      setIsEditingDescription(false);
       setStatus(updatedTask.status);
       setPriority(updatedTask.priority);
       setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
@@ -175,6 +178,32 @@ export const TaskEditPage = () => {
       }));
   }, [users, project]);
 
+  const task = taskQuery.data;
+  const projectLink = `/projects/${task?.project_id}`;
+  const initiativeMembership = project?.initiative?.members?.find(
+    (member) => member.user.id === user?.id
+  );
+  const isOwner = project?.owner_id === user?.id;
+  const isInitiativePm = initiativeMembership?.role === "project_manager";
+  const hasExplicitWrite =
+    project?.permissions.some((permission) => permission.user_id === user?.id) ?? false;
+  const hasImplicitWrite = Boolean(project?.members_can_write && initiativeMembership);
+  const canWriteProject =
+    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
+  const projectIsArchived = project?.is_archived ?? false;
+  const isReadOnly = !canWriteProject || projectIsArchived;
+  const readOnlyMessage = !canWriteProject
+    ? "You only have read access to this project, so task fields are disabled."
+    : projectIsArchived
+      ? "This project is archived. Unarchive it from project settings to edit tasks."
+      : null;
+
+  useEffect(() => {
+    if (isReadOnly) {
+      setIsEditingDescription(false);
+    }
+  }, [isReadOnly]);
+
   if (!Number.isFinite(parsedTaskId)) {
     return (
       <div className="space-y-4">
@@ -212,26 +241,6 @@ export const TaskEditPage = () => {
     );
   }
 
-  const task = taskQuery.data;
-  const projectLink = `/projects/${task.project_id}`;
-  const initiativeMembership = project?.initiative?.members?.find(
-    (member) => member.user.id === user?.id
-  );
-  const isOwner = project?.owner_id === user?.id;
-  const isInitiativePm = initiativeMembership?.role === "project_manager";
-  const hasExplicitWrite =
-    project?.permissions.some((permission) => permission.user_id === user?.id) ?? false;
-  const hasImplicitWrite = Boolean(project?.members_can_write && initiativeMembership);
-  const canWriteProject =
-    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
-  const projectIsArchived = project?.is_archived ?? false;
-  const isReadOnly = !canWriteProject || projectIsArchived;
-  const readOnlyMessage = !canWriteProject
-    ? "You only have read access to this project, so task fields are disabled."
-    : projectIsArchived
-      ? "This project is archived. Unarchive it from project settings to edit tasks."
-      : null;
-
   return (
     <div className="space-y-6">
       <Button asChild variant="link" className="px-0">
@@ -239,7 +248,7 @@ export const TaskEditPage = () => {
       </Button>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{title || task.title}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{title || task?.title}</h1>
           <Badge variant="secondary" className="capitalize">
             {status.replace("_", " ")}
           </Badge>
@@ -272,15 +281,40 @@ export const TaskEditPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="task-description">Description</Label>
-              <Textarea
-                id="task-description"
-                rows={4}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Add extra context or acceptance criteria."
-                disabled={isReadOnly}
-              />
+              <div className="flex items-center  gap-2">
+                <Label htmlFor="task-description">Description</Label>
+                {!isReadOnly ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => setIsEditingDescription((prev) => !prev)}
+                  >
+                    {isEditingDescription ? "Preview" : "Edit"}
+                  </Button>
+                ) : null}
+              </div>
+              {isEditingDescription && !isReadOnly ? (
+                <Textarea
+                  id="task-description"
+                  rows={6}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Add extra context or acceptance criteria. Markdown supported."
+                  disabled={isReadOnly}
+                />
+              ) : description ? (
+                <div className="rounded-md border border-dashed border-border/70 bg-muted/40 px-3 py-2">
+                  <Markdown content={description} />
+                </div>
+              ) : (
+                <p className="text-sm italic text-muted-foreground">
+                  {isReadOnly
+                    ? "No description yet."
+                    : "No description yet. Click edit to add more context."}
+                </p>
+              )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -362,7 +396,7 @@ export const TaskEditPage = () => {
               recurrence={recurrence}
               onChange={setRecurrence}
               disabled={isReadOnly}
-              referenceDate={dueDate || startDate || task.due_date || task.start_date}
+              referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
             />
 
             <div className="flex flex-wrap gap-3">

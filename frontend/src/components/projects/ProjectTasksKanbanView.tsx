@@ -16,7 +16,7 @@ import type { Task, TaskPriority, TaskStatus } from "@/types/api";
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
 import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 import { Badge } from "@/components/ui/badge";
-import { Markdown } from "@/components/Markdown";
+import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
 type ProjectTasksKanbanViewProps = {
@@ -116,7 +116,7 @@ const TaskDragOverlay = ({
     <div className="space-y-1">
       <p className="font-medium">{task.title}</p>
       {task.description ? (
-        <Markdown content={task.description} className="text-xs [&>*]:my-1" />
+        <p className="text-xs text-muted-foreground">{truncateText(task.description, 80)}</p>
       ) : null}
     </div>
     <div className="space-y-1 text-xs text-muted-foreground">
