@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, computed_field
 
 from app.models.initiative import InitiativeRole
 from app.models.user import UserRole
+from app.core.config import settings
 
 
 class UserBase(BaseModel):
@@ -54,6 +55,11 @@ class UserRead(UserBase):
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
+
+    @computed_field(return_type=bool)  # type: ignore[misc]
+    @property
+    def can_create_guilds(self) -> bool:
+        return not settings.DISABLE_GUILD_CREATION
 
     class Config:
         from_attributes = True

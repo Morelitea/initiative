@@ -9,6 +9,7 @@ export interface User {
   email: string;
   full_name?: string;
   role: UserRole;
+  can_create_guilds?: boolean;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;

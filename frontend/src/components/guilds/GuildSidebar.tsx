@@ -20,12 +20,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 const CreateGuildButton = () => {
-  const { createGuild } = useGuilds();
+  const { createGuild, canCreateGuilds } = useGuilds();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!canCreateGuilds) {
+    return null;
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -128,11 +132,12 @@ export const GuildAvatar = ({
 };
 
 export const GuildSidebar = () => {
-  const { guilds, activeGuildId, loading, switchGuild } = useGuilds();
+  const { guilds, activeGuildId, loading, switchGuild, canCreateGuilds } = useGuilds();
 
   return (
     <aside className="hidden w-20 flex-col items-center gap-3 border-r bg-card/80 px-2 py-4 sm:flex">
       <div className="flex flex-1 flex-col items-center gap-3">
+        <span className="text-xs text-center text-muted-foreground">Guilds</span>
         {loading ? (
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -165,10 +170,12 @@ export const GuildSidebar = () => {
           })}
         </TooltipProvider>
       </div>
-      <div className="flex items-center flex-col gap-2 border-border border-t pt-2">
-        <span className="text-xs text-center text-muted-foreground">Create Guild</span>
-        <CreateGuildButton />
-      </div>
+      {canCreateGuilds ? (
+        <div className="flex items-center flex-col gap-2 border-border border-t pt-2">
+          <span className="text-xs text-center text-muted-foreground">Create Guild</span>
+          <CreateGuildButton />
+        </div>
+      ) : null}
     </aside>
   );
 };

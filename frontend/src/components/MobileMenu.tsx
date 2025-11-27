@@ -1,5 +1,5 @@
 import { Menu } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -65,6 +65,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
     activeGuildId,
     switchGuild: switchGuildFn,
     createGuild,
+    canCreateGuilds,
   } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);
@@ -91,6 +92,9 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
 
   const handleGuildChange = async (value: string) => {
     if (value === "create") {
+      if (!canCreateGuilds) {
+        return;
+      }
       setIsCreateGuildOpen(true);
       return;
     }
@@ -166,10 +170,14 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
                           {guild.name}
                         </SelectItem>
                       ))}
-                      <SelectSeparator />
-                      <SelectItem value="create" className="text-primary">
-                        + Create new guild
-                      </SelectItem>
+                      {canCreateGuilds ? (
+                        <Fragment>
+                          <SelectSeparator />
+                          <SelectItem value="create" className="text-primary">
+                            + Create new guild
+                          </SelectItem>
+                        </Fragment>
+                      ) : null}
                     </SelectContent>
                   </Select>
                 </div>
@@ -259,47 +267,49 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
           </div>
         </SheetContent>
       </Sheet>
-      <Dialog
-        open={isCreateGuildOpen}
-        onOpenChange={(next) => !creatingGuild && setIsCreateGuildOpen(next)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create a new guild</DialogTitle>
-            <DialogDescription>
-              Guilds group initiatives and projects. Invite teammates once it is created.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateGuildSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="mobile-guild-name">Guild name</Label>
-              <Input
-                id="mobile-guild-name"
-                value={newGuildName}
-                onChange={(event) => setNewGuildName(event.target.value)}
-                placeholder="Product Engineering"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mobile-guild-description">Description</Label>
-              <Textarea
-                id="mobile-guild-description"
-                value={newGuildDescription}
-                onChange={(event) => setNewGuildDescription(event.target.value)}
-                placeholder="Optional summary"
-                rows={3}
-              />
-            </div>
-            {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
-            <DialogFooter>
-              <Button type="submit" disabled={creatingGuild}>
-                {creatingGuild ? "Creating…" : "Create guild"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {canCreateGuilds ? (
+        <Dialog
+          open={isCreateGuildOpen}
+          onOpenChange={(next) => !creatingGuild && setIsCreateGuildOpen(next)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create a new guild</DialogTitle>
+              <DialogDescription>
+                Guilds group initiatives and projects. Invite teammates once it is created.
+              </DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={handleCreateGuildSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="mobile-guild-name">Guild name</Label>
+                <Input
+                  id="mobile-guild-name"
+                  value={newGuildName}
+                  onChange={(event) => setNewGuildName(event.target.value)}
+                  placeholder="Product Engineering"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mobile-guild-description">Description</Label>
+                <Textarea
+                  id="mobile-guild-description"
+                  value={newGuildDescription}
+                  onChange={(event) => setNewGuildDescription(event.target.value)}
+                  placeholder="Optional summary"
+                  rows={3}
+                />
+              </div>
+              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+              <DialogFooter>
+                <Button type="submit" disabled={creatingGuild}>
+                  {creatingGuild ? "Creating…" : "Create guild"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 };

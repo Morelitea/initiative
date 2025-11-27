@@ -15,6 +15,7 @@ interface GuildContextValue {
   switchGuild: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<Guild>;
   updateGuildInState: (guild: Guild) => void;
+  canCreateGuilds: boolean;
 }
 
 const GuildContext = createContext<GuildContextValue | undefined>(undefined);
@@ -50,6 +51,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canCreateGuilds = user?.can_create_guilds ?? true;
 
   useEffect(() => {
     setCurrentGuildId(activeGuildId);
@@ -126,6 +128,9 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       if (!user) {
         throw new Error("You must be signed in to create a guild.");
       }
+      if (!canCreateGuilds) {
+        throw new Error("Guild creation is disabled.");
+      }
       const trimmedName = name.trim();
       if (!trimmedName) {
         throw new Error("Guild name is required.");
@@ -135,9 +140,12 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         description: description?.trim() || undefined,
       });
       await Promise.all([refreshGuilds(), refreshUser()]);
+      if (typeof window !== "undefined") {
+        window.location.replace("/");
+      }
       return response.data;
     },
-    [user, refreshGuilds, refreshUser]
+    [user, canCreateGuilds, refreshGuilds, refreshUser]
   );
 
   const updateGuildInState = useCallback(
@@ -175,6 +183,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     switchGuild,
     createGuild,
     updateGuildInState,
+    canCreateGuilds,
   };
 
   return <GuildContext.Provider value={value}>{children}</GuildContext.Provider>;
