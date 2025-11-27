@@ -17,7 +17,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import type { GuildInviteStatus } from "@/types/api";
 import { LogoIcon } from "@/components/LogoIcon";
-import grid from "@/assets/grid.svg";
+import gridWhite from "@/assets/gridWhite.svg";
+import gridBlack from "@/assets/gridBlack.svg";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;
@@ -114,10 +115,12 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     }
   };
 
+  const isDark = document.documentElement.classList.contains("dark");
+
   return (
     <div
       style={{
-        backgroundImage: `url(${grid})`,
+        backgroundImage: `url(${isDark ? gridWhite : gridBlack})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
       }}

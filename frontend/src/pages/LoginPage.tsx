@@ -16,7 +16,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
-import grid from "@/assets/grid.svg";
+import gridWhite from "@/assets/gridWhite.svg";
+import gridBlack from "@/assets/gridBlack.svg";
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -102,10 +103,12 @@ export const LoginPage = () => {
     return <RegisterPage bootstrapMode />;
   }
 
+  const isDark = document.documentElement.classList.contains("dark");
+
   return (
     <div
       style={{
-        backgroundImage: `url(${grid})`,
+        backgroundImage: `url(${isDark ? gridWhite : gridBlack})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
       }}
