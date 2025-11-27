@@ -460,9 +460,7 @@ export const ProjectsPage = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
-        <p className="text-muted-foreground">
-          Track initiatives, collaborate with your organization, and move work forward.
-        </p>
+        <p className="text-muted-foreground">Track initiatives and collaborate with your guild.</p>
       </div>
 
       <Tabs
