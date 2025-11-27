@@ -156,6 +156,23 @@ async def update_guild(
     return _serialize_guild(guild, membership, current_user.active_guild_id)
 
 
+@router.delete("/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def delete_guild(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    membership = await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    await guilds_service.delete_guild(session, guild)
+    await session.commit()
+    if current_user.active_guild_id == guild_id:
+        current_user.active_guild_id = None
+        session.add(current_user)
+        await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{guild_id}/invites", response_model=GuildInviteRead, status_code=status.HTTP_201_CREATED)
 async def create_guild_invite(
     guild_id: int,

@@ -5,7 +5,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import type { Guild } from "@/types/api";
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,7 @@ export const SettingsGuildPage = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [iconBase64, setIconBase64] = useState<string | null>(null);
   const [iconError, setIconError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!activeGuild) {
@@ -89,6 +90,30 @@ export const SettingsGuildPage = () => {
     }
   };
 
+  const handleDeleteGuild = async () => {
+    if (!activeGuild) {
+      return;
+    }
+    const confirmation = window.prompt(
+      "Type DELETE to confirm removing this guild. This removes all initiatives, projects, and tasks."
+    );
+    if (!confirmation || confirmation.trim().toUpperCase() !== "DELETE") {
+      return;
+    }
+    setDeleting(true);
+    setSaveError(null);
+    try {
+      await apiClient.delete(`/guilds/${activeGuild.id}`);
+      await refreshGuilds();
+      window.location.replace("/");
+    } catch (error) {
+      console.error(error);
+      setSaveError("Unable to delete guild.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!activeGuild) {
     return (
       <div className="space-y-4">
@@ -145,7 +170,9 @@ export const SettingsGuildPage = () => {
                   </Button>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Upload a square PNG or JPG up to 512 KB.</p>
+                <p className="text-sm text-muted-foreground">
+                  Upload a square PNG or JPG up to 512 KB.
+                </p>
               )}
               <Input
                 id="guild-icon"
@@ -161,6 +188,19 @@ export const SettingsGuildPage = () => {
               {saving ? "Saving…" : "Save changes"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+      <Card className="border-destructive/40 bg-destructive/5">
+        <CardHeader>
+          <CardTitle>Danger zone</CardTitle>
+          <CardDescription>
+            Removing a guild permanently deletes all initiatives, projects, and tasks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Button variant="destructive" onClick={handleDeleteGuild} disabled={deleting}>
+            {deleting ? "Deleting…" : "Delete guild"}
+          </Button>
         </CardContent>
       </Card>
     </div>
