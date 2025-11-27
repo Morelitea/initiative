@@ -553,9 +553,6 @@ export const ProjectTasksSection = ({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Project tasks</h2>
-            <p className="text-sm text-muted-foreground">
-              Switch between Kanban and List views to track progress.
-            </p>
           </div>
           <div className="w-full sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-3">
             <div className="w-full sm:hidden">
