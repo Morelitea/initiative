@@ -51,7 +51,6 @@ const GuildInvitePage = lazy(() =>
 const AppLayout = () => {
   const { user } = useAuth();
   useRealtimeUpdates();
-  useInterfaceColors();
 
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -133,21 +132,26 @@ const AppLayout = () => {
   );
 };
 
-export const App = () => (
-  <BrowserRouter>
-    <Suspense fallback={<div className="py-10 text-center text-muted-foreground">Loading...</div>}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/oidc/callback" element={<OidcCallbackPage />} />
-        <Route path="/invite/:code" element={<GuildInvitePage />} />
-        <Route element={<ProtectedRoute />}>
-          <Route path="/*" element={<AppLayout />} />
-        </Route>
-      </Routes>
-    </Suspense>
-  </BrowserRouter>
-);
+export const App = () => {
+  useInterfaceColors();
+  return (
+    <BrowserRouter>
+      <Suspense
+        fallback={<div className="py-10 text-center text-muted-foreground">Loading...</div>}
+      >
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/oidc/callback" element={<OidcCallbackPage />} />
+          <Route path="/invite/:code" element={<GuildInvitePage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/*" element={<AppLayout />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
+  );
+};

@@ -101,7 +101,6 @@ async def update_oidc_settings(
 @router.get("/interface", response_model=InterfaceSettingsResponse)
 async def get_interface_settings(
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return InterfaceSettingsResponse(

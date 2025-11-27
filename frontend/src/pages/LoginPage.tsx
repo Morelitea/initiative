@@ -103,7 +103,13 @@ export const LoginPage = () => {
   }
 
   return (
-    <div style={{ backgroundImage: `url(${grid})` }} className="flex flex-col gap-6">
+    <div
+      style={{
+        backgroundImage: `url(${grid})`,
+        backgroundPosition: "center",
+        backgroundBlendMode: "screen",
+      }}
+    >
       <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
         <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
