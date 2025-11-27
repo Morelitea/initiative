@@ -1,10 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { syncFaviconWithTheme } from "@/lib/favicon";
 
-type Theme = "light" | "dark";
+type Theme = "light" | "dark" | "system";
+type ResolvedTheme = Exclude<Theme, "system">;
+
+interface ThemeState {
+  preference: Theme;
+  resolved: ResolvedTheme;
+}
 
 interface ThemeContextValue {
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 }
@@ -12,20 +19,39 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 const THEME_STORAGE_KEY = "initiative-theme";
+const THEME_CYCLE: Theme[] = ["system", "light", "dark"];
 
 const getPreferredTheme = (): Theme => {
   if (typeof window === "undefined") {
-    return "light";
+    return "system";
   }
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === "light" || stored === "dark") {
+  if (stored === "light" || stored === "dark" || stored === "system") {
     return stored;
   }
-  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-  return prefersDark ? "dark" : "light";
+  return "system";
 };
 
-const applyThemeClass = (theme: Theme) => {
+const resolveThemePreference = (theme: Theme): ResolvedTheme => {
+  if (theme === "system") {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      return prefersDark ? "dark" : "light";
+    }
+    return "light";
+  }
+  return theme;
+};
+
+const getInitialThemeState = (): ThemeState => {
+  const preference = getPreferredTheme();
+  return {
+    preference,
+    resolved: resolveThemePreference(preference),
+  };
+};
+
+const applyThemeClass = (theme: ResolvedTheme) => {
   if (typeof document === "undefined") {
     return;
   }
@@ -37,14 +63,19 @@ const applyThemeClass = (theme: Theme) => {
 };
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const [theme, setThemeState] = useState<Theme>(() => getPreferredTheme());
+  const [themeState, setThemeState] = useState<ThemeState>(() => getInitialThemeState());
+  const { preference: theme, resolved: resolvedTheme } = themeState;
 
   useEffect(() => {
-    applyThemeClass(theme);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyThemeClass(resolvedTheme);
+    syncFaviconWithTheme(resolvedTheme);
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
     }
-    syncFaviconWithTheme(theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   useEffect(() => {
@@ -54,11 +85,16 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
     const handler = (event: MediaQueryListEvent) => {
-      const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored === "light" || stored === "dark") {
-        return;
-      }
-      setThemeState(event.matches ? "dark" : "light");
+      setThemeState((current) => {
+        if (current.preference !== "system") {
+          return current;
+        }
+        const nextResolved = event.matches ? "dark" : "light";
+        if (current.resolved === nextResolved) {
+          return current;
+        }
+        return { ...current, resolved: nextResolved };
+      });
     };
 
     mediaQuery.addEventListener("change", handler);
@@ -66,15 +102,34 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const setTheme = useCallback((nextTheme: Theme) => {
-    setThemeState(nextTheme);
+    setThemeState((current) => {
+      if (current.preference === nextTheme) {
+        const nextResolved = resolveThemePreference(nextTheme);
+        if (current.resolved === nextResolved) {
+          return current;
+        }
+        return { ...current, resolved: nextResolved };
+      }
+      return {
+        preference: nextTheme,
+        resolved: resolveThemePreference(nextTheme),
+      };
+    });
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+    setThemeState((current) => {
+      const currentIndex = THEME_CYCLE.indexOf(current.preference);
+      const nextTheme = THEME_CYCLE[(currentIndex + 1) % THEME_CYCLE.length];
+      return {
+        preference: nextTheme,
+        resolved: resolveThemePreference(nextTheme),
+      };
+    });
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
