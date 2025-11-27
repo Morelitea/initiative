@@ -30,3 +30,11 @@ History favors short, lower-case subjects (e.g., `mvp wip 1`), so keep the first
 ## Security & Configuration Tips
 
 Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
+
+## Guild Architecture Notes
+
+- Guilds are the primary tenancy boundary. Every user can join multiple guilds, and most API endpoints infer the active guild from the `X-Guild-ID` header (set by the SPA) or fall back to `users.active_guild_id`. Always include the guild header in new client calls when the route depends on guild context.
+- Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project configuration, and can delete their guild; they cannot delete users from the entire app. Keep server-side checks scoped to guild roles, not legacy global roles.
+- The bootstrap super user (ID `1`) is the only account allowed to change app-wide configuration (OIDC, SMTP email, branding accents, role labels). Those routes live under `/settings/admin` in the SPA and corresponding `/api/v1/settings/*` endpoints check for that ID explicitly.
+- `.env` supports `DISABLE_GUILD_CREATION`. When set to `true`, POST `/guilds/` must return 403 and the frontend should hide “Create guild” affordances, forcing new users to redeem invites issued by guild admins.
+- Every new guild automatically seeds a “Default Initiative” and makes the creator a guild admin. Be mindful when writing migrations or services so this invariant remains intact, especially when cascading deletes (guild deletion must clean up initiatives, projects, tasks, memberships, and settings).

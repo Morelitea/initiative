@@ -39,6 +39,7 @@ Key environment variables (see `.env.example`):
 - `AUTO_APPROVED_EMAIL_DOMAINS` – comma-separated list of email domains that should be activated automatically on signup
 - `APP_URL` – public base URL for the app; used to derive OIDC callback URLs (e.g., `https://app.example.com`)
 - `FIRST_SUPERUSER_*` – optional bootstrap admin created via `python -m app.db.init_db`
+- `DISABLE_GUILD_CREATION` – when `true`, the API rejects new guilds and the SPA hides “Create guild” affordances so users must rely on invites from existing guild admins
 - `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_REJECT_UNAUTHORIZED` – SMTP server connection details used for transactional email
 - `SMTP_USERNAME` / `SMTP_PASSWORD` – credentials for the SMTP relay (leave blank for anonymous)
 - `SMTP_FROM_ADDRESS` – display + email address used as the `From` header, e.g. `Initiative <no-reply@example.com>`
@@ -103,6 +104,16 @@ Services:
 - Simple project board UI + task status transitions, plus gated project creation for managers/admins
 - Admin-only settings + user management screens for approval queues, allowlists, role changes, password resets, account deletion, initiative management, OIDC configuration, and API key management
 
+### Guilds
+
+- Every user belongs to one or more guilds (multi-tenant workspaces). Each request carries the active guild via the `X-Guild-ID` header (set automatically by the SPA) or falls back to the user's `active_guild_id`.
+- Guild membership has its own roles (`admin`, `member`). Guild admins can invite/kick members, manage initiative/project settings within that guild, and delete the guild (which cascades initiatives, projects, tasks, and memberships). Members can collaborate but cannot remove other users from the app.
+- Creating a guild promotes the creator to guild admin and automatically seeds a “Default Initiative” so projects always have a home. Switching guilds updates the user’s `active_guild_id` and the SPA re-navigates to the project list.
+- Use `/api/v1/guilds/{guild_id}/switch` (handled by the frontend) to change context. APIs that depend on guild context read the `X-Guild-ID` header or the user’s active guild, so the same token can operate across workspaces.
+- Invite links are guild-scoped, include optional expiry/max-uses, and must be redeemed before joining when `DISABLE_GUILD_CREATION=true`. Without an invite, the API blocks registration once at least one guild exists.
+- `DISABLE_GUILD_CREATION=true` (set in `.env`) is useful for hosted deployments where only the bootstrap super user should create guilds initially. When disabled, the SPA hides all “Create guild” UI and `/guilds/` POST calls return 403.
+- User payloads expose `can_create_guilds`, enabling the frontend to toggle UI affordances automatically.
+
 ### Initiatives
 
 - Admins can create, edit, delete, and manage initiative membership from the Settings → Initiatives tab
@@ -123,3 +134,4 @@ Services:
 
 - Extend project membership management UI
 - Harden Docker images with multi-stage builds / non-root users and add CI workflows
+- Super-admin only controls (user ID `1`) live under Settings → Admin and manage app-wide OpenID Connect, SMTP email, branding accents, and role labels. Guild admins only see the guild-specific Settings routes (Guild, Users, Initiatives, API Keys) for the currently active guild.
