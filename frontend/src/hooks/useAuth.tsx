@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ? {
             params: { invite_code: inviteCode },
           }
-        : undefined,
+        : undefined
     );
     return response.data;
   };

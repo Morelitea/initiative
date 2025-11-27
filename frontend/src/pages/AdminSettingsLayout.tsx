@@ -31,7 +31,9 @@ export const AdminSettingsLayout = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Platform settings</h1>
-        <p className="text-muted-foreground">Manage authentication, branding, and SMTP for the entire app.</p>
+        <p className="text-muted-foreground">
+          Manage authentication, branding, and SMTP for the entire app.
+        </p>
       </div>
       <Tabs
         value={activeTab}

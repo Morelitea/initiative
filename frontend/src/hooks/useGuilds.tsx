@@ -1,4 +1,12 @@
-import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { AxiosError } from "axios";
 
 import { apiClient, setCurrentGuildId } from "@/api/client";
@@ -148,25 +156,22 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     [user, canCreateGuilds, refreshGuilds, refreshUser]
   );
 
-  const updateGuildInState = useCallback(
-    (guild: Guild) => {
-      setGuilds((prev) => {
-        let replaced = false;
-        const next = prev.map((existing) => {
-          if (existing.id === guild.id) {
-            replaced = true;
-            return guild;
-          }
-          return existing;
-        });
-        return replaced ? next : prev.concat(guild);
+  const updateGuildInState = useCallback((guild: Guild) => {
+    setGuilds((prev) => {
+      let replaced = false;
+      const next = prev.map((existing) => {
+        if (existing.id === guild.id) {
+          replaced = true;
+          return guild;
+        }
+        return existing;
       });
-      if (guild.is_active) {
-        setActiveGuildId(guild.id);
-      }
-    },
-    []
-  );
+      return replaced ? next : prev.concat(guild);
+    });
+    if (guild.is_active) {
+      setActiveGuildId(guild.id);
+    }
+  }, []);
 
   const activeGuild = useMemo(
     () => guilds.find((guild) => guild.id === activeGuildId) ?? null,
