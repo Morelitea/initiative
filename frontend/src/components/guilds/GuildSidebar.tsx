@@ -165,7 +165,8 @@ export const GuildSidebar = () => {
           })}
         </TooltipProvider>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex items-center flex-col gap-2 border-border border-t pt-2">
+        <span className="text-xs text-center text-muted-foreground">Create Guild</span>
         <CreateGuildButton />
       </div>
     </aside>
