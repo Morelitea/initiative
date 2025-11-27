@@ -1,5 +1,5 @@
 import { useMemo, useState, FormEvent } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { useGuilds } from "@/hooks/useGuilds";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const CreateGuildButton = () => {
   const { createGuild, canCreateGuilds } = useGuilds();
@@ -106,10 +107,12 @@ export const GuildAvatar = ({
   name,
   icon,
   active,
+  size = "md",
 }: {
   name: string;
   icon?: string | null;
   active: boolean;
+  size?: "sm" | "md";
 }) => {
   const initials = useMemo(() => {
     const parts = name.trim().split(/\s+/);
@@ -122,9 +125,11 @@ export const GuildAvatar = ({
       .join("");
   }, [name]);
   return (
-    <Avatar className="h-10 w-10">
+    <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
       {icon ? <AvatarImage src={icon} alt={name} /> : null}
-      <AvatarFallback className={active ? "bg-primary text-primary-foreground" : undefined}>
+      <AvatarFallback
+        className={cn(active && "bg-primary text-primary-foreground", size === "sm" && "text-xs")}
+      >
         {initials}
       </AvatarFallback>
     </Avatar>
@@ -132,17 +137,12 @@ export const GuildAvatar = ({
 };
 
 export const GuildSidebar = () => {
-  const { guilds, activeGuildId, loading, switchGuild, canCreateGuilds } = useGuilds();
+  const { guilds, activeGuildId, switchGuild, canCreateGuilds } = useGuilds();
 
   return (
-    <aside className="hidden w-20 flex-col items-center gap-3 border-r bg-card/80 px-2 py-4 sm:flex">
-      <div className="flex flex-1 flex-col items-center gap-3">
-        <span className="text-xs text-center text-muted-foreground">Guilds</span>
-        {loading ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : null}
+    <aside className="hidden w-20 flex-col items-center gap-3 border-r bg-card/80 px-2 py-4 sm:flex max-h-screen sticky top-0">
+      <span className="text-xs text-center text-muted-foreground">Guilds</span>
+      <div className="flex flex-1 flex-col items-center gap-3 overflow-y-auto">
         <TooltipProvider delayDuration={200}>
           {guilds.map((guild) => {
             const isActive = guild.id === activeGuildId;

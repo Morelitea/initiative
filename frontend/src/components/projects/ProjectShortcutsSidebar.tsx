@@ -101,7 +101,7 @@ export const ProjectShortcutsSidebar = ({
   return (
     <aside
       className={cn(
-        "hidden w-72 flex-shrink-0 flex-col border-r bg-card/40 p-4 text-sm lg:flex",
+        "hidden w-72 flex-shrink-0 flex-col border-r bg-card/40 p-4 text-sm lg:flex max-h-screen sticky top-0 overflow-y-auto",
         className
       )}
     >

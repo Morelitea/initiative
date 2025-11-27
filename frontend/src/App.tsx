@@ -105,6 +105,15 @@ const AppLayout = () => {
   return (
     <div className="flex min-h-screen bg-background">
       <GuildSidebar />
+
+      {showSidebarPref ? (
+        <ProjectShortcutsSidebar
+          favorites={favoritesQuery.data}
+          recent={recentQuery.data}
+          loading={favoritesQuery.isLoading || recentQuery.isLoading}
+          onClearRecent={handleClearRecent}
+        />
+      ) : null}
       <div className="flex flex-1 flex-col">
         <AppHeader />
         {showTabsPref ? (
@@ -116,14 +125,6 @@ const AppLayout = () => {
           />
         ) : null}
         <div className="flex flex-1">
-          {showSidebarPref ? (
-            <ProjectShortcutsSidebar
-              favorites={favoritesQuery.data}
-              recent={recentQuery.data}
-              loading={favoritesQuery.isLoading || recentQuery.isLoading}
-              onClearRecent={handleClearRecent}
-            />
-          ) : null}
           <main className="flex-1 min-w-0 bg-muted/50 pb-20">
             <div className="container min-w-0 p-4 md:p-8">
               <PageRoutes />

@@ -61,7 +61,6 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
   const location = useLocation();
   const {
     guilds,
-    activeGuild,
     activeGuildId,
     switchGuild: switchGuildFn,
     createGuild,
@@ -149,56 +148,46 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
           <SheetHeader className="items-start text-left">
             <SheetTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <div className="mt-2 flex items-center justify-between gap-4">
-                {activeGuild && (
-                  <GuildAvatar
-                    name={activeGuild.name}
-                    icon={activeGuild.icon_base64}
-                    active={activeGuild.is_active}
-                  />
-                )}
                 <div className="mt-2">
-                  <Select
-                    value={activeGuildId ? String(activeGuildId) : undefined}
-                    onValueChange={handleGuildChange}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Select guild" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {guilds.map((guild) => (
-                        <SelectItem key={guild.id} value={String(guild.id)}>
-                          {guild.name}
-                        </SelectItem>
-                      ))}
-                      {canCreateGuilds ? (
-                        <Fragment>
-                          <SelectSeparator />
-                          <SelectItem value="create" className="text-primary">
-                            + Create new guild
+                  <Label>
+                    Select Guild
+                    <Select
+                      value={activeGuildId ? String(activeGuildId) : undefined}
+                      onValueChange={handleGuildChange}
+                    >
+                      <SelectTrigger className="w-68">
+                        <SelectValue placeholder="Select guild" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {guilds.map((guild) => (
+                          <SelectItem key={guild.id} value={String(guild.id)}>
+                            <div className="flex gap-2 items-center max-w-54 truncate">
+                              <GuildAvatar
+                                name={guild.name}
+                                icon={guild.icon_base64}
+                                active={guild.is_active}
+                                size="sm"
+                              />
+                              {guild.name}
+                            </div>
                           </SelectItem>
-                        </Fragment>
-                      ) : null}
-                    </SelectContent>
-                  </Select>
+                        ))}
+                        {canCreateGuilds ? (
+                          <Fragment>
+                            <SelectSeparator />
+                            <SelectItem value="create" className="text-primary">
+                              + Create new guild
+                            </SelectItem>
+                          </Fragment>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  </Label>
                 </div>
               </div>
             </SheetTitle>
             <SheetDescription className="sr-only">Mobile navigation drawer</SheetDescription>
           </SheetHeader>
-          {/* <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12">
-                {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
-                <AvatarFallback>{userInitials}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-base font-semibold leading-tight text-foreground">
-                  {userDisplayName}
-                </p>
-                {userEmail ? <p className="text-sm text-muted-foreground">{userEmail}</p> : null}
-              </div>
-            </div>
-          </div> */}
           <nav className="flex flex-col gap-1">
             {navItems.map((item) => (
               <NavLink
