@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import type { GuildInviteStatus } from "@/types/api";
+import { LogoIcon } from "@/components/LogoIcon";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;
@@ -59,7 +60,9 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
           return;
         }
         setInviteStatus(response.data);
-        setInviteStatusError(response.data.is_valid ? null : response.data.reason ?? "Invite is no longer valid.");
+        setInviteStatusError(
+          response.data.is_valid ? null : (response.data.reason ?? "Invite is no longer valid.")
+        );
       })
       .catch((error) => {
         if (ignore) {
@@ -111,7 +114,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+    <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+        <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+        initiative
+      </div>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{bootstrapMode ? "Create the first account" : "Create account"}</CardTitle>
@@ -166,7 +173,10 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
               className="w-full"
               type="submit"
               disabled={
-                submitting || (inviteCode ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false) : false)
+                submitting ||
+                (inviteCode
+                  ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false)
+                  : false)
               }
             >
               {submitting ? "Creating account…" : "Sign up"}

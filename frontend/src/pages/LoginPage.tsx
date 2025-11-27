@@ -14,7 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
+import grid from "@/assets/grid.svg";
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -101,76 +103,86 @@ export const LoginPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to keep work flowing.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                autoComplete="username"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-                required
-              />
-              <div className="text-right">
-                <Link
-                  className="text-sm text-primary underline-offset-4 hover:underline"
-                  to="/forgot-password"
-                >
-                  Forgot password?
-                </Link>
+    <div style={{ backgroundImage: `url(${grid})` }} className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+        <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+          <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+          initiative
+        </div>
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader>
+            <CardTitle>Welcome back</CardTitle>
+            <CardDescription>Sign in to keep work flowing.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="username"
+                  required
+                />
               </div>
-            </div>
-            <Button className="w-full" type="submit" disabled={submitting}>
-              {submitting ? "Signing in…" : "Sign in"}
-            </Button>
-            {oidcLoginUrl ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => (window.location.href = oidcLoginUrl)}
-              >
-                Continue with {oidcProviderName ?? "Single Sign-On"}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <div className="text-right">
+                  <Link
+                    className="text-sm text-primary underline-offset-4 hover:underline"
+                    to="/forgot-password"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              </div>
+              <Button className="w-full" type="submit" disabled={submitting}>
+                {submitting ? "Signing in…" : "Sign in"}
               </Button>
-            ) : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
-          <p>
-            Need an account?{" "}
-            <Link
-              className="text-primary underline-offset-4 hover:underline"
-              to={inviteCodeParam ? `/register?invite_code=${encodeURIComponent(inviteCodeParam)}` : "/register"}
-            >
-              Register
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+              {oidcLoginUrl ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => (window.location.href = oidcLoginUrl)}
+                >
+                  Continue with {oidcProviderName ?? "Single Sign-On"}
+                </Button>
+              ) : null}
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+            <p>
+              Need an account?{" "}
+              <Link
+                className="text-primary underline-offset-4 hover:underline"
+                to={
+                  inviteCodeParam
+                    ? `/register?invite_code=${encodeURIComponent(inviteCodeParam)}`
+                    : "/register"
+                }
+              >
+                Register
+              </Link>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 };

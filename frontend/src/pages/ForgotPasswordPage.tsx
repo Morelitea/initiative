@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LogoIcon } from "@/components/LogoIcon";
 
 export const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
@@ -34,7 +35,11 @@ export const ForgotPasswordPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+    <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+        <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+        initiative
+      </div>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>Reset password</CardTitle>
