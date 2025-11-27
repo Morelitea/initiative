@@ -98,7 +98,7 @@ const CreateGuildButton = () => {
   );
 };
 
-const GuildAvatar = ({
+export const GuildAvatar = ({
   name,
   icon,
   active,
