@@ -2,18 +2,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
-from app.schemas.user import UserRead
-
-
-class RegistrationSettingsUpdate(BaseModel):
-    auto_approved_domains: List[str] = Field(default_factory=list)
-
-
-class RegistrationSettingsResponse(BaseModel):
-    auto_approved_domains: List[str] = Field(default_factory=list)
-    pending_users: List[UserRead] = Field(default_factory=list)
-
-
 class OIDCSettingsResponse(BaseModel):
     enabled: bool
     discovery_url: Optional[str] = None

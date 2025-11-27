@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/hooks/useAuth";
 
 interface OidcSettings {
   enabled: boolean;
@@ -26,6 +27,8 @@ interface OidcSettings {
 }
 
 export const SettingsAuthPage = () => {
+  const { user } = useAuth();
+  const isSuperUser = user?.id === 1;
   const [clientSecret, setClientSecret] = useState("");
   const [formState, setFormState] = useState({
     enabled: false,
@@ -37,6 +40,7 @@ export const SettingsAuthPage = () => {
 
   const oidcQuery = useQuery<OidcSettings>({
     queryKey: ["settings", "oidc"],
+    enabled: isSuperUser,
     queryFn: async () => {
       const response = await apiClient.get<OidcSettings>("/settings/auth");
       return response.data;
@@ -68,7 +72,22 @@ export const SettingsAuthPage = () => {
   }, [oidcQuery.data]);
 
   if (oidcQuery.isLoading) {
+    if (!isSuperUser) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Only the initial super user can manage authentication settings.
+        </p>
+      );
+    }
     return <p className="text-sm text-muted-foreground">Loading auth settings…</p>;
+  }
+
+  if (!isSuperUser) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Only the initial super user can manage authentication settings.
+      </p>
+    );
   }
 
   if (oidcQuery.isError || !oidcQuery.data) {

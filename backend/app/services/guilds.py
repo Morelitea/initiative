@@ -34,6 +34,11 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
     return guild
 
 
+async def get_primary_guild_id(session: AsyncSession) -> int:
+    guild = await get_primary_guild(session)
+    return guild.id  # type: ignore[return-value]
+
+
 async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     stmt = select(Guild).where(Guild.id == guild_id)
     result = await session.exec(stmt)

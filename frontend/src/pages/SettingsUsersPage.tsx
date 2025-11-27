@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,59 +17,73 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
-import type { RegistrationSettings, User, UserRole } from "@/types/api";
+import type { GuildInviteRead, User, UserRole } from "@/types/api";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
+import { useGuilds } from "@/hooks/useGuilds";
+import { formatDistanceToNow } from "date-fns";
+import { Copy, RefreshCcw, Trash2 } from "lucide-react";
 
-const REGISTRATION_SETTINGS_QUERY_KEY = ["registration-settings"];
 const USERS_QUERY_KEY = ["users"];
 const ROLE_OPTIONS: UserRole[] = ["admin", "member"];
 const SUPER_USER_ID = 1;
+const inviteLinkForCode = (code: string) => {
+  const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
+  const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
+  return `${normalizedBase}/invite/${encodeURIComponent(code)}`;
+};
 
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
-  const [domainsInput, setDomainsInput] = useState("");
   const [emailFilter, setEmailFilter] = useState("");
 
   const isAdmin = user?.role === "admin";
-
-  const settingsQuery = useQuery<RegistrationSettings>({
-    queryKey: REGISTRATION_SETTINGS_QUERY_KEY,
-    enabled: isAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<RegistrationSettings>("/settings/registration");
-      return response.data;
-    },
-  });
-
-  useEffect(() => {
-    if (settingsQuery.data) {
-      setDomainsInput(settingsQuery.data.auto_approved_domains.join(", "));
-    }
-  }, [settingsQuery.data]);
+  const { activeGuild } = useGuilds();
+  const isGuildAdmin = isAdmin || activeGuild?.role === "admin";
 
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);
+  const activeGuildId = activeGuild?.id ?? null;
+
+  const [invites, setInvites] = useState<GuildInviteRead[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [invitesError, setInvitesError] = useState<string | null>(null);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteMaxUses, setInviteMaxUses] = useState<number>(1);
+  const [inviteExpiresDays, setInviteExpiresDays] = useState<number>(7);
+
+  const loadInvites = useCallback(async () => {
+    if (!activeGuildId) {
+      setInvites([]);
+      return;
+    }
+    setInvitesLoading(true);
+    setInvitesError(null);
+    try {
+      const response = await apiClient.get<GuildInviteRead[]>(`/guilds/${activeGuildId}/invites`);
+      setInvites(response.data);
+    } catch (error) {
+      console.error("Failed to load invites", error);
+      setInvitesError("Unable to load invites.");
+    } finally {
+      setInvitesLoading(false);
+    }
+  }, [activeGuildId]);
+
+  useEffect(() => {
+    if (isGuildAdmin) {
+      void loadInvites();
+    }
+  }, [isGuildAdmin, loadInvites]);
+
+  const inviteRows = useMemo(() => invites, [invites]);
 
   const usersQuery = useQuery<User[]>({
     queryKey: USERS_QUERY_KEY,
-    enabled: isAdmin,
+    enabled: isGuildAdmin,
     queryFn: async () => {
       const response = await apiClient.get<User[]>("/users/");
       return response.data;
-    },
-  });
-
-  const updateAllowList = useMutation({
-    mutationFn: async (domains: string[]) => {
-      const response = await apiClient.put<RegistrationSettings>("/settings/registration", {
-        auto_approved_domains: domains,
-      });
-      return response.data;
-    },
-    onSuccess: (data) => {
-      setDomainsInput(data.auto_approved_domains.join(", "));
-      queryClient.setQueryData(REGISTRATION_SETTINGS_QUERY_KEY, data);
     },
   });
 
@@ -78,7 +92,6 @@ export const SettingsUsersPage = () => {
       await apiClient.post(`/users/${userId}/approve`, {});
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: REGISTRATION_SETTINGS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     },
   });
@@ -129,13 +142,13 @@ export const SettingsUsersPage = () => {
       toast.error("You can't delete the super user");
       return;
     }
-    if (!window.confirm(`Delete user ${email}? This cannot be undone.`)) {
+    if (!window.confirm(`Remove user ${email} from guild? This cannot be undone.`)) {
       return;
     }
     deleteUser.mutate(userId);
   };
 
-  if (!isAdmin) {
+  if (!isGuildAdmin) {
     return (
       <p className="text-sm text-muted-foreground">
         You need {adminLabel} permissions to view this page.
@@ -143,22 +156,13 @@ export const SettingsUsersPage = () => {
     );
   }
 
-  if (settingsQuery.isLoading || usersQuery.isLoading) {
+  if (usersQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading settings…</p>;
   }
 
-  if (settingsQuery.isError || !settingsQuery.data || usersQuery.isError || !usersQuery.data) {
+  if (usersQuery.isError || !usersQuery.data) {
     return <p className="text-sm text-destructive">Unable to load settings.</p>;
   }
-
-  const handleDomainsSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const domains = domainsInput
-      .split(",")
-      .map((domain) => domain.trim().toLowerCase())
-      .filter(Boolean);
-    updateAllowList.mutate(domains);
-  };
 
   const normalizedEmailFilter = emailFilter.trim().toLowerCase();
   const filteredUsers = usersQuery.data.filter((workspaceUser) => {
@@ -230,6 +234,16 @@ export const SettingsUsersPage = () => {
         const isSelf = workspaceUser.id === user?.id;
         return (
           <div className="flex flex-wrap gap-2">
+            {!workspaceUser.is_active ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => approveUser.mutate(workspaceUser.id)}
+                disabled={approveUser.isPending}
+              >
+                Approve
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -244,7 +258,7 @@ export const SettingsUsersPage = () => {
               onClick={() => handleDeleteUser(workspaceUser.id, workspaceUser.email)}
               disabled={isSuperUser || deleteUser.isPending || isSelf}
             >
-              Delete user
+              Remove from guild
             </Button>
           </div>
         );
@@ -252,69 +266,145 @@ export const SettingsUsersPage = () => {
     },
   ];
 
+  const createInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeGuildId) {
+      return;
+    }
+    setInviteSubmitting(true);
+    setInvitesError(null);
+    try {
+      const expiresAt =
+        inviteExpiresDays > 0
+          ? new Date(Date.now() + inviteExpiresDays * 24 * 60 * 60 * 1000).toISOString()
+          : null;
+      const payload: Record<string, unknown> = {
+        max_uses: inviteMaxUses > 0 ? inviteMaxUses : null,
+        expires_at: expiresAt,
+      };
+      await apiClient.post(`/guilds/${activeGuildId}/invites`, payload);
+      await loadInvites();
+    } catch (error) {
+      console.error(error);
+      setInvitesError("Unable to create invite.");
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
+
+  const deleteInvite = async (inviteId: number) => {
+    if (!activeGuildId) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/guilds/${activeGuildId}/invites/${inviteId}`);
+      await loadInvites();
+    } catch (error) {
+      console.error(error);
+      setInvitesError("Unable to delete invite.");
+    }
+  };
+
+  const copyInviteLink = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(inviteLinkForCode(code));
+      toast.success("Invite link copied to clipboard.");
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Auto-approved email domains</CardTitle>
-          <CardDescription>
-            Enter a comma-separated list of domains that should be auto-approved.
-          </CardDescription>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Guild invites</CardTitle>
+            <p className="text-sm text-muted-foreground">Generate links to invite new members.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => loadInvites()}>
+            <RefreshCcw className="h-4 w-4" />
+            <span className="sr-only">Refresh invites</span>
+          </Button>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleDomainsSubmit}>
-            <Input
-              type="text"
-              value={domainsInput}
-              onChange={(event) => setDomainsInput(event.target.value)}
-              placeholder="example.com, company.org"
-            />
-            <Button type="submit" disabled={updateAllowList.isPending}>
-              {updateAllowList.isPending ? "Saving…" : "Save allow list"}
-            </Button>
+        <CardContent className="space-y-4">
+          <form className="grid gap-4 md:grid-cols-3" onSubmit={createInvite}>
+            <div className="space-y-2">
+              <Label htmlFor="invite-uses">Max uses</Label>
+              <Input
+                id="invite-uses"
+                type="number"
+                min={1}
+                value={inviteMaxUses}
+                onChange={(event) => setInviteMaxUses(Number(event.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-days">Expires in (days)</Label>
+              <Input
+                id="invite-days"
+                type="number"
+                min={0}
+                value={inviteExpiresDays}
+                onChange={(event) => setInviteExpiresDays(Number(event.target.value))}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" disabled={inviteSubmitting}>
+                {inviteSubmitting ? "Creating…" : "Generate invite"}
+              </Button>
+            </div>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Pending users</CardTitle>
-          <CardDescription>
-            Approve people who registered with non-allow-listed emails.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {settingsQuery.data.pending_users.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending accounts.</p>
-          ) : (
-            <div className="space-y-3">
-              {settingsQuery.data.pending_users.map((pendingUser) => (
+          <div className="h-px bg-border" />
+          {invitesLoading ? (
+            <p className="text-sm text-muted-foreground">Loading invites…</p>
+          ) : null}
+          {invitesError ? <p className="text-sm text-destructive">{invitesError}</p> : null}
+          {!invitesLoading && !inviteRows.length ? (
+            <p className="text-sm text-muted-foreground">No active invites.</p>
+          ) : null}
+          <div className="space-y-3">
+            {inviteRows.map((invite) => {
+              const link = inviteLinkForCode(invite.code);
+              const expires =
+                invite.expires_at != null
+                  ? formatDistanceToNow(new Date(invite.expires_at), { addSuffix: true })
+                  : "Never";
+              return (
                 <div
-                  key={pendingUser.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"
+                  key={invite.id}
+                  className="flex flex-col gap-3 rounded border bg-muted/30 p-4 text-sm md:flex-row md:items-center md:justify-between"
                 >
                   <div>
-                    <p className="font-medium">{pendingUser.full_name ?? pendingUser.email}</p>
-                    <p className="text-sm text-muted-foreground">{pendingUser.email}</p>
+                    <p className="font-medium">{link}</p>
+                    <p className="text-muted-foreground">
+                      Uses: {invite.uses}/{invite.max_uses ?? "∞"} · Expires: {expires}
+                    </p>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={() => approveUser.mutate(pendingUser.id)}
-                    disabled={approveUser.isPending}
-                  >
-                    Approve
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyInviteLink(invite.code)}
+                    >
+                      <Copy className="h-4 w-4" />
+                      <span className="sr-only">Copy invite link</span>
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => deleteInvite(invite.id)}>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete invite</span>
+                    </Button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
-
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Workspace users</CardTitle>
-          <CardDescription>Update roles, reset passwords, or remove accounts.</CardDescription>
+          <CardTitle>Guild users</CardTitle>
+          <CardDescription>Update roles or remove accounts.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-1">

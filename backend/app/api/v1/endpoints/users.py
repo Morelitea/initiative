@@ -241,15 +241,6 @@ async def update_user(
     user.updated_at = datetime.now(timezone.utc)
 
     session.add(user)
-    await session.flush()
-    await guilds_service.ensure_membership(
-        session,
-        guild_id=guild_context.guild_id,
-        user_id=user.id,
-        role=GuildRole.admin if user.role == UserRole.admin else GuildRole.member,
-    )
-    if user.role == UserRole.admin:
-        await initiatives_service.ensure_default_initiative(session, user, guild_id=guild_context.guild_id)
     await session.commit()
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
@@ -299,23 +290,21 @@ async def delete_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
 
     stmt = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(GuildMembership)
         .where(
-            User.id == user_id,
+            GuildMembership.user_id == user_id,
             GuildMembership.guild_id == guild_context.guild_id,
         )
     )
     result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    membership = result.one_or_none()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not part of this guild")
 
     try:
-        await initiatives_service.ensure_user_not_sole_pm(session, user_id=user.id)
+        await initiatives_service.ensure_user_not_sole_pm(session, user_id=user_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    await session.exec(delete(TaskAssignee).where(TaskAssignee.user_id == user_id))
-    await session.delete(user)
+    await session.delete(membership)
     await session.commit()

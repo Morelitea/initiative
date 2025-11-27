@@ -16,6 +16,7 @@ import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_ROLE_LABELS, ROLE_LABELS_QUERY_KEY, useRoleLabels } from "@/hooks/useRoleLabels";
+import { useAuth } from "@/hooks/useAuth";
 import type { RoleLabels } from "@/types/api";
 
 interface InterfaceSettings {
@@ -36,6 +37,8 @@ const ROLE_FIELDS: { key: keyof RoleLabels; label: string; helper: string }[] = 
 const INTERFACE_SETTINGS_QUERY_KEY = ["interface-settings"];
 
 export const SettingsBrandingPage = () => {
+  const { user } = useAuth();
+  const isSuperUser = user?.id === 1;
   const queryClient = useQueryClient();
 
   const [lightColor, setLightColor] = useState("#2563eb");
@@ -45,6 +48,7 @@ export const SettingsBrandingPage = () => {
 
   const interfaceQuery = useQuery<InterfaceSettings>({
     queryKey: INTERFACE_SETTINGS_QUERY_KEY,
+    enabled: isSuperUser,
     queryFn: async () => {
       const response = await apiClient.get<InterfaceSettings>("/settings/interface");
       return response.data;
@@ -105,6 +109,14 @@ export const SettingsBrandingPage = () => {
     setRoleMessage(null);
     updateRoleLabels.mutate(roleFormState);
   };
+
+  if (!isSuperUser) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Only the initial super user can manage branding settings.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-6">

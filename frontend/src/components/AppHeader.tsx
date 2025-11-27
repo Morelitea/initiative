@@ -25,7 +25,6 @@ export const AppHeader = () => {
   const { user, logout } = useAuth();
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
-  const adminLabel = getRoleLabel("admin", roleLabels);
   const memberLabel = getRoleLabel("member", roleLabels);
   const userDisplayName = user?.full_name ?? user?.email ?? memberLabel;
   const userEmail = user?.email ?? "";
@@ -36,6 +35,9 @@ export const AppHeader = () => {
       .join("")
       .slice(0, 2) || "PP";
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || null;
+  const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
+  const isSuperUser = user?.id === 1;
+
   return (
     <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="flex h-16 items-center gap-3 px-4 md:px-8">
@@ -92,9 +94,14 @@ export const AppHeader = () => {
                   <DropdownMenuItem asChild>
                     <Link to="/profile">User Settings</Link>
                   </DropdownMenuItem>
-                  {user?.role === "admin" ? (
+                  {isGuildAdmin ? (
                     <DropdownMenuItem asChild>
-                      <Link to="/settings">{adminLabel} Settings</Link>
+                      <Link to="/settings/guild">Guild Settings</Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {isSuperUser ? (
+                    <DropdownMenuItem asChild>
+                      <Link to="/settings/admin">Platform Settings</Link>
                     </DropdownMenuItem>
                   ) : null}
                   <DropdownMenuSeparator />

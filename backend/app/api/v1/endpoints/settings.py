@@ -1,19 +1,11 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
-
-from app.api.deps import (
-    SessionDep,
-    get_current_active_user,
-    get_guild_membership,
-    GuildContext,
-    require_guild_roles,
-)
+from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
 from app.core.config import settings as app_config
 from app.models.user import User
-from app.models.guild_setting import GuildSetting
-from app.models.guild import GuildRole, GuildMembership
+from app.models.app_setting import AppSetting
+from app.models.guild import GuildRole
 from app.schemas.api_key import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyListResponse
 from app.schemas.settings import (
     EmailSettingsResponse,
@@ -23,8 +15,6 @@ from app.schemas.settings import (
     InterfaceSettingsUpdate,
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
-    RegistrationSettingsResponse,
-    RegistrationSettingsUpdate,
     RoleLabelsResponse,
     RoleLabelsUpdate,
 )
@@ -34,8 +24,8 @@ from app.services import email as email_service
 
 router = APIRouter()
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
+SUPER_USER_ID = 1
 
 
 def _backend_redirect_uri() -> str:
@@ -46,7 +36,7 @@ def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
-def _email_settings_payload(settings_obj: GuildSetting) -> EmailSettingsResponse:
+def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     return EmailSettingsResponse(
         host=settings_obj.smtp_host,
         port=settings_obj.smtp_port,
@@ -59,36 +49,18 @@ def _email_settings_payload(settings_obj: GuildSetting) -> EmailSettingsResponse
     )
 
 
-@router.get("/registration", response_model=RegistrationSettingsResponse)
-async def get_registration_settings(
-    session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
-) -> RegistrationSettingsResponse:
-    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_context.guild_id)
-    pending_stmt = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(
-            User.is_active.is_(False),
-            GuildMembership.guild_id == guild_context.guild_id,
-        )
-    )
-    pending_result = await session.exec(pending_stmt)
-    pending_users = pending_result.all()
-    return RegistrationSettingsResponse(
-        auto_approved_domains=settings_obj.auto_approved_domains,
-        pending_users=pending_users,
-    )
+def _require_super_user(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    if current_user.id != SUPER_USER_ID:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super user access required")
+    return current_user
 
 
 @router.get("/auth", response_model=OIDCSettingsResponse)
 async def get_oidc_settings(
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> OIDCSettingsResponse:
-    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_context.guild_id)
+    settings_obj = await app_settings_service.get_app_settings(session)
     return OIDCSettingsResponse(
         enabled=settings_obj.oidc_enabled,
         discovery_url=settings_obj.oidc_discovery_url,
@@ -104,8 +76,7 @@ async def get_oidc_settings(
 async def update_oidc_settings(
     payload: OIDCSettingsUpdate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> OIDCSettingsResponse:
     updated = await app_settings_service.update_oidc_settings(
         session,
@@ -115,7 +86,6 @@ async def update_oidc_settings(
         client_secret=payload.client_secret,
         provider_name=payload.provider_name,
         scopes=payload.scopes,
-        guild_id=guild_context.guild_id,
     )
     return OIDCSettingsResponse(
         enabled=updated.oidc_enabled,
@@ -128,37 +98,12 @@ async def update_oidc_settings(
     )
 
 
-@router.put("/registration", response_model=RegistrationSettingsResponse)
-async def update_registration_settings(
-    payload: RegistrationSettingsUpdate,
+@router.get("/interface", response_model=InterfaceSettingsResponse)
+async def get_interface_settings(
     session: SessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
-) -> RegistrationSettingsResponse:
-    settings_obj = await app_settings_service.update_auto_approved_domains(
-        session,
-        payload.auto_approved_domains,
-        guild_id=guild_context.guild_id,
-    )
-    pending_stmt = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(
-            User.is_active.is_(False),
-            GuildMembership.guild_id == guild_context.guild_id,
-        )
-    )
-    pending_result = await session.exec(pending_stmt)
-    pending_users = pending_result.all()
-    return RegistrationSettingsResponse(
-        auto_approved_domains=settings_obj.auto_approved_domains,
-        pending_users=pending_users,
-    )
-
-
-@router.get("/interface", response_model=InterfaceSettingsResponse)
-async def get_interface_settings(session: SessionDep, guild_context: GuildContextDep) -> InterfaceSettingsResponse:
-    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_context.guild_id)
+) -> InterfaceSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
@@ -166,8 +111,11 @@ async def get_interface_settings(session: SessionDep, guild_context: GuildContex
 
 
 @router.get("/roles", response_model=RoleLabelsResponse)
-async def get_role_labels(session: SessionDep, guild_context: GuildContextDep) -> RoleLabelsResponse:
-    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_context.guild_id)
+async def get_role_labels(
+    session: SessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+) -> RoleLabelsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
     return RoleLabelsResponse(**settings_obj.role_labels)
 
 
@@ -213,14 +161,12 @@ async def delete_api_key(
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.update_interface_colors(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
-        guild_id=guild_context.guild_id,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
@@ -232,13 +178,11 @@ async def update_interface_settings(
 async def update_role_labels(
     payload: RoleLabelsUpdate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> RoleLabelsResponse:
     updated = await app_settings_service.update_role_labels(
         session,
         labels={k: v for k, v in payload.dict(exclude_unset=True).items()},
-        guild_id=guild_context.guild_id,
     )
     return RoleLabelsResponse(**updated.role_labels)
 
@@ -246,10 +190,9 @@ async def update_role_labels(
 @router.get("/email", response_model=EmailSettingsResponse)
 async def get_email_settings(
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> EmailSettingsResponse:
-    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_context.guild_id)
+    settings_obj = await app_settings_service.get_app_settings(session)
     return _email_settings_payload(settings_obj)
 
 
@@ -257,8 +200,7 @@ async def get_email_settings(
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> EmailSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     password_provided = "password" in data
@@ -273,7 +215,6 @@ async def update_email_settings(
         password_provided=password_provided,
         from_address=payload.from_address,
         test_recipient=payload.test_recipient,
-        guild_id=guild_context.guild_id,
     )
     return _email_settings_payload(updated)
 
@@ -282,15 +223,14 @@ async def update_email_settings(
 async def send_test_email(
     payload: EmailTestRequest,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
+    _super_user: Annotated[User, Depends(_require_super_user)],
 ) -> dict:
-    settings_obj = await app_settings_service.get_or_create_guild_settings(session, guild_id=guild_context.guild_id)
+    settings_obj = await app_settings_service.get_app_settings(session)
     recipient = payload.recipient or settings_obj.smtp_test_recipient
     if not recipient:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide a test email address.")
     try:
-        await email_service.send_test_email(session, recipient, guild_id=guild_context.guild_id)
+        await email_service.send_test_email(session, recipient)
     except email_service.EmailNotConfiguredError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP settings are incomplete.") from None
     except RuntimeError as exc:

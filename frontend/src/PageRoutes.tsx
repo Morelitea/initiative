@@ -1,5 +1,5 @@
 import { lazy, useEffect, useState } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -34,9 +34,14 @@ const MyTasksPage = lazy(() =>
     default: module.MyTasksPage,
   }))
 );
-const SettingsLayout = lazy(() =>
-  import("./pages/SettingsLayout").then((module) => ({
-    default: module.SettingsLayout,
+const GuildSettingsLayout = lazy(() =>
+  import("./pages/GuildSettingsLayout").then((module) => ({
+    default: module.GuildSettingsLayout,
+  }))
+);
+const AdminSettingsLayout = lazy(() =>
+  import("./pages/AdminSettingsLayout").then((module) => ({
+    default: module.AdminSettingsLayout,
   }))
 );
 const SettingsUsersPage = lazy(() =>
@@ -163,14 +168,18 @@ export const PageRoutes = () => {
             </>
           )}
         </Route>
-        <Route path="/settings/*" element={<SettingsLayout />}>
-          <Route index element={<SettingsUsersPage />} />
+        <Route path="/settings" element={<Navigate to="/settings/guild" replace />} />
+        <Route path="/settings/guild/*" element={<GuildSettingsLayout />}>
+          <Route index element={<SettingsGuildPage />} />
+          <Route path="users" element={<SettingsUsersPage />} />
           <Route path="initiatives" element={<SettingsInitiativesPage />} />
-          <Route path="auth" element={<SettingsAuthPage />} />
           <Route path="api-keys" element={<SettingsApiKeysPage />} />
+        </Route>
+        <Route path="/settings/admin/*" element={<AdminSettingsLayout />}>
+          <Route index element={<SettingsAuthPage />} />
+          <Route path="auth" element={<SettingsAuthPage />} />
           <Route path="branding" element={<SettingsBrandingPage />} />
           <Route path="email" element={<SettingsEmailPage />} />
-          <Route path="guild" element={<SettingsGuildPage />} />
         </Route>
       </Routes>
     </div>

@@ -4,12 +4,7 @@ import { Plus, Loader2 } from "lucide-react";
 import { useGuilds } from "@/hooks/useGuilds";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogTrigger,
@@ -170,7 +165,9 @@ export const GuildSidebar = () => {
           })}
         </TooltipProvider>
       </div>
-      <CreateGuildButton />
+      <div className="flex flex-col gap-2">
+        <CreateGuildButton />
+      </div>
     </aside>
   );
 };

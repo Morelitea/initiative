@@ -1,4 +1,4 @@
-import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from "react";
+import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { AxiosError } from "axios";
 
 import { apiClient, setCurrentGuildId } from "@/api/client";
@@ -112,6 +112,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         await apiClient.post(`/guilds/${guildId}/switch`);
         setActiveGuildId(guildId);
         await Promise.all([refreshGuilds(), refreshUser()]);
+        window.location.replace("/");
       } catch (err) {
         console.error("Failed to switch guild", err);
         throw err;
@@ -159,10 +160,15 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
+  const activeGuild = useMemo(
+    () => guilds.find((guild) => guild.id === activeGuildId) ?? null,
+    [guilds, activeGuildId]
+  );
+
   const value: GuildContextValue = {
     guilds,
     activeGuildId,
-    activeGuild: guilds.find((guild) => guild.id === activeGuildId) ?? null,
+    activeGuild,
     loading,
     error,
     refreshGuilds,

@@ -52,8 +52,12 @@ async def register_user(
 ) -> User:
     normalized_invite = (invite_code or "").strip() or None
 
+    smtp_configured = False
     try:
         async with session.begin():
+            app_settings = await app_settings_service.get_app_settings(session)
+            smtp_configured = bool(app_settings.smtp_host and app_settings.smtp_from_address)
+
             statement = select(User).where(User.email == user_in.email)
             existing = await session.exec(statement)
             if existing.one_or_none():
@@ -72,7 +76,7 @@ async def register_user(
                 hashed_password=get_password_hash(user_in.password),
                 role=UserRole.admin if is_first_user else UserRole.member,
                 is_active=True,
-                email_verified=is_first_user,
+                email_verified=is_first_user or not smtp_configured,
             )
             session.add(user)
             await session.flush()
@@ -116,7 +120,7 @@ async def register_user(
 
     await initiatives_service.load_user_initiative_roles(session, [user])
 
-    if not user.email_verified:
+    if smtp_configured and not user.email_verified:
         try:
             token = await user_tokens.create_token(
                 session,
@@ -204,7 +208,7 @@ async def _fetch_oidc_metadata(discovery_url: str) -> dict[str, Any]:
 
 
 async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, Any]]:
-    app_settings = await app_settings_service.get_or_create_guild_settings(session)
+    app_settings = await app_settings_service.get_app_settings(session)
     if not (
         app_settings.oidc_enabled
         and app_settings.oidc_discovery_url
@@ -223,7 +227,7 @@ async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, 
 
 @router.get("/oidc/status")
 async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
-    app_settings = await app_settings_service.get_or_create_guild_settings(session)
+    app_settings = await app_settings_service.get_app_settings(session)
     enabled = bool(
         app_settings.oidc_enabled
         and app_settings.oidc_discovery_url

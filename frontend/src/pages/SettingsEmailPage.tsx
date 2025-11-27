@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/hooks/useAuth";
 import type { EmailSettings } from "@/types/api";
 
 interface EmailPayload {
@@ -31,11 +32,14 @@ const DEFAULT_STATE = {
 };
 
 export const SettingsEmailPage = () => {
+  const { user } = useAuth();
+  const isSuperUser = user?.id === 1;
   const [formState, setFormState] = useState(DEFAULT_STATE);
   const [password, setPassword] = useState("");
   const [testRecipient, setTestRecipient] = useState("");
   const emailQuery = useQuery<EmailSettings>({
     queryKey: ["settings", "email"],
+    enabled: isSuperUser,
     queryFn: async () => {
       const response = await apiClient.get<EmailSettings>("/settings/email");
       return response.data;
@@ -80,6 +84,14 @@ export const SettingsEmailPage = () => {
     onSuccess: () => toast.success("Test email sent"),
     onError: () => toast.error("Unable to send test email"),
   });
+
+  if (!isSuperUser) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Only the initial super user can manage email settings.
+      </p>
+    );
+  }
 
   if (emailQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading email settings…</p>;

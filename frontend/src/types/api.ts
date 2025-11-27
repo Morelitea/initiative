@@ -174,11 +174,6 @@ export interface ProjectReorderPayload {
   project_ids: number[];
 }
 
-export interface RegistrationSettings {
-  auto_approved_domains: string[];
-  pending_users: User[];
-}
-
 export interface ApiKeyMetadata {
   id: number;
   name: string;

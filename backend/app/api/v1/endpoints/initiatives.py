@@ -27,6 +27,7 @@ from app.schemas.initiative import (
 )
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
+from app.services import guilds as guilds_service
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 router = APIRouter()
