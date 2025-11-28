@@ -19,6 +19,7 @@ import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 const navItems: NavItem[] = [
   { label: "Projects", to: "/", end: true },
   { label: "My Tasks", to: "/tasks" },
+  { label: "Documents", to: "/documents" },
 ];
 
 export const AppHeader = () => {

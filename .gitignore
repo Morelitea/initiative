@@ -6,6 +6,7 @@
 .idea/
 *.log
 db/
+uploads/
 
 # Python
 __pycache__/

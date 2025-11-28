@@ -1,0 +1,711 @@
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  $createParagraphNode,
+  $getSelection,
+  $isElementNode,
+  $isRangeSelection,
+  $isTextNode,
+  CAN_REDO_COMMAND,
+  CAN_UNDO_COMMAND,
+  COMMAND_PRIORITY_LOW,
+  FORMAT_ELEMENT_COMMAND,
+  FORMAT_TEXT_COMMAND,
+  REDO_COMMAND,
+  SELECTION_CHANGE_COMMAND,
+  UNDO_COMMAND,
+} from "lexical";
+import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
+import { $createHeadingNode, $isHeadingNode } from "@lexical/rich-text";
+import { $setBlocksType, $patchStyleText } from "@lexical/selection";
+import { TOGGLE_LINK_COMMAND } from "@lexical/link";
+import { $createCodeNode } from "@lexical/code";
+import {
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $insertTableColumnAtSelection,
+  $insertTableRowAtSelection,
+  $isTableCellNode,
+  INSERT_TABLE_COMMAND,
+} from "@lexical/table";
+import {
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+  REMOVE_LIST_COMMAND,
+  $isListNode,
+} from "@lexical/list";
+import { $findMatchingParent } from "@lexical/utils";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Code2,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { uploadAttachment } from "@/api/attachments";
+import { insertImageNode } from "@/components/editor/nodes/ImageNode";
+import { $generateNodesFromDOM } from "@lexical/html";
+
+type BlockType = "paragraph" | "h1" | "h2" | "h3" | "code";
+type Alignment = "left" | "right" | "center" | "justify";
+type ListType = "bullet" | "number" | "none";
+
+const BLOCK_OPTIONS: { label: string; value: BlockType }[] = [
+  { label: "Normal", value: "paragraph" },
+  { label: "Heading 1", value: "h1" },
+  { label: "Heading 2", value: "h2" },
+  { label: "Heading 3", value: "h3" },
+  { label: "Code block", value: "code" },
+];
+
+const FONT_SIZE_OPTIONS = ["14px", "16px", "18px", "20px", "24px", "32px"];
+const DEFAULT_FONT_SIZE = "16px";
+
+const extractFontSize = (style?: string | null) => {
+  if (!style) {
+    return null;
+  }
+  const match = style.match(/font-size:\s*([^;]+)/i);
+  return match ? match[1].trim() : null;
+};
+
+const replaceFontSizeInStyle = (style: string, size: string) => {
+  const declarations = style
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean)
+    .filter((declaration) => !declaration.toLowerCase().startsWith("font-size"));
+  declarations.push(`font-size: ${size}`);
+  return declarations.join("; ");
+};
+
+const mergeRegisters = (...fns: Array<() => void>) => {
+  return () => {
+    for (const unregister of fns) {
+      if (typeof unregister === "function") {
+        unregister();
+      }
+    }
+  };
+};
+
+export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
+  const [editor] = useLexicalComposerContext();
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [blockType, setBlockType] = useState<BlockType>("paragraph");
+  const [fontSize, setFontSize] = useState<string>("16px");
+  const [isUnderline, setIsUnderline] = useState(false);
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [isCodeBlock, setIsCodeBlock] = useState(false);
+  const [alignment, setAlignment] = useState<Alignment>("left");
+  const [listType, setListType] = useState<ListType>("none");
+  const [isInTable, setIsInTable] = useState(false);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const updateToolbar = useCallback(() => {
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) {
+        setIsUnderline(false);
+        setIsBold(false);
+        setIsItalic(false);
+        setIsCodeBlock(false);
+        setListType("none");
+        setBlockType("paragraph");
+        setAlignment("left");
+        setIsInTable(false);
+        setFontSize(DEFAULT_FONT_SIZE);
+        return;
+      }
+      const anchorNode = selection.anchor.getNode();
+      const element =
+        anchorNode.getKey() === "root"
+          ? anchorNode
+          : anchorNode.getTopLevelElementOrThrow();
+      const elementType = element.getType();
+      const elementFormat = $isElementNode(element) ? (element.getFormatType() as Alignment) : "left";
+      const tableCellParent = $findMatchingParent(anchorNode, (node) => $isTableCellNode(node));
+      setIsInTable(Boolean(tableCellParent));
+
+      if (elementType === "paragraph") {
+        setBlockType("paragraph");
+      } else if ($isHeadingNode(element)) {
+        const tag = element.getTag();
+        if (tag === "h1" || tag === "h2" || tag === "h3") {
+          setBlockType(tag);
+        }
+      } else if (elementType === "code") {
+        setBlockType("code");
+      }
+
+      setAlignment(elementFormat || "left");
+      setIsUnderline(selection.hasFormat("underline"));
+      setIsBold(selection.hasFormat("bold"));
+      setIsItalic(selection.hasFormat("italic"));
+      setIsCodeBlock(elementType === "code");
+      if ($isListNode(element)) {
+        const type = element.getListType();
+        if (type === "number") {
+          setListType("number");
+        } else if (type === "bullet") {
+          setListType("bullet");
+        } else {
+          setListType("none");
+        }
+      } else {
+        setListType("none");
+      }
+
+      let derivedFontSize: string | null = null;
+      if (!selection.isCollapsed()) {
+        const firstTextNode = selection.getNodes().find($isTextNode);
+        if (firstTextNode) {
+          derivedFontSize = extractFontSize(firstTextNode.getStyle());
+        }
+      }
+      if (!derivedFontSize) {
+        derivedFontSize = extractFontSize(selection.style);
+      }
+      setFontSize(derivedFontSize ?? DEFAULT_FONT_SIZE);
+    });
+  }, [editor]);
+
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+    return mergeRegisters(
+      editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        () => {
+          updateToolbar();
+          return false;
+        },
+        COMMAND_PRIORITY_LOW
+      ),
+      editor.registerCommand(
+        CAN_UNDO_COMMAND,
+        (payload: boolean) => {
+          setCanUndo(payload);
+          return false;
+        },
+        COMMAND_PRIORITY_LOW
+      ),
+      editor.registerCommand(
+        CAN_REDO_COMMAND,
+        (payload: boolean) => {
+          setCanRedo(payload);
+          return false;
+        },
+        COMMAND_PRIORITY_LOW
+      ),
+      editor.registerUpdateListener(() => {
+        updateToolbar();
+      })
+    );
+  }, [editor, readOnly, updateToolbar]);
+
+  const applyBlockType = (value: BlockType) => {
+    setBlockType(value);
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) {
+        return;
+      }
+      if (value === "paragraph") {
+        $setBlocksType(selection, () => $createParagraphNode());
+      } else if (value === "code") {
+        $setBlocksType(selection, () => $createCodeNode());
+      } else {
+        $setBlocksType(selection, () => $createHeadingNode(value));
+      }
+    });
+  };
+
+  const applyFontSize = (size: string) => {
+    setFontSize(size);
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) {
+        return;
+      }
+      $patchStyleText(selection, { "font-size": size });
+      selection.setStyle(replaceFontSizeInStyle(selection.style, size));
+    });
+  };
+
+  const toggleUnderline = () => {
+    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline");
+  };
+
+  const toggleBold = () => {
+    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
+  };
+
+  const toggleItalic = () => {
+    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
+  };
+
+  const toggleCodeBlock = () => {
+    applyBlockType(isCodeBlock ? "paragraph" : "code");
+  };
+
+  const toggleList = (type: Extract<ListType, "bullet" | "number">) => {
+    if (listType === type) {
+      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      return;
+    }
+    editor.dispatchCommand(
+      type === "bullet" ? INSERT_UNORDERED_LIST_COMMAND : INSERT_ORDERED_LIST_COMMAND,
+      undefined
+    );
+  };
+
+  const insertLink = () => {
+    const previousUrl = window.prompt("Enter a URL", "https://");
+    if (previousUrl === null) {
+      return;
+    }
+    if (previousUrl === "") {
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+    } else {
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, previousUrl);
+    }
+  };
+
+  const applyAlignment = (value: Alignment) => {
+    setAlignment(value);
+    editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, value);
+  };
+
+  const insertHorizontalRule = useCallback(() => {
+    editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined);
+  }, [editor]);
+
+  const insertHtml = useCallback(
+    (html: string) => {
+      editor.update(() => {
+        const parser = new DOMParser();
+        const dom = parser.parseFromString(html, "text/html");
+        const nodes = $generateNodesFromDOM(editor, dom);
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          selection.insertNodes(nodes);
+        }
+      });
+    },
+    [editor]
+  );
+
+  const uploadImageFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
+      if (!images.length) {
+        toast.error("Only image files are supported.");
+        return;
+      }
+      setIsImageUploading(true);
+      try {
+        for (const file of images) {
+          try {
+            const response = await uploadAttachment(file);
+            insertImageNode(editor, { src: response.url, altText: file.name });
+          } catch (error) {
+            console.error(error);
+            toast.error(`Failed to upload ${file.name}.`);
+          }
+        }
+      } finally {
+        setIsImageUploading(false);
+      }
+    },
+    [editor]
+  );
+
+  const handleImageInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const { files } = event.target;
+      event.target.value = "";
+      if (!files || files.length === 0) {
+        return;
+      }
+      void uploadImageFiles(files);
+    },
+    [uploadImageFiles]
+  );
+
+  const triggerImagePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, [fileInputRef]);
+
+  const insertTable = useCallback(() => {
+    const rows = Math.max(1, Number(window.prompt("Number of rows", "2")) || 2);
+    const columns = Math.max(1, Number(window.prompt("Number of columns", "2")) || 2);
+    editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+      rows: String(rows),
+      columns: String(columns),
+      includeHeaders: true,
+    });
+  }, [editor]);
+
+  const insertYoutube = useCallback(() => {
+    const url = window.prompt("YouTube URL");
+    if (!url) {
+      return;
+    }
+    const videoId = extractYouTubeId(url);
+    if (!videoId) {
+      window.alert("Unable to parse YouTube URL.");
+      return;
+    }
+    const html = `<iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+    insertHtml(html);
+  }, [insertHtml]);
+
+  const requireTableSelection = useCallback(
+    (operation: () => void) => {
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) {
+          toast.error("Place your cursor inside a table first.");
+          return;
+        }
+        const anchorNode = selection.anchor.getNode();
+        const cellNode = $findMatchingParent(anchorNode, (node) => $isTableCellNode(node));
+        if (!cellNode) {
+          toast.error("Place your cursor inside a table first.");
+          return;
+        }
+        operation();
+      });
+    },
+    [editor]
+  );
+
+  const insertTableRow = (position: "above" | "below") => {
+    requireTableSelection(() => {
+      const inserted = $insertTableRowAtSelection(position === "below");
+      if (!inserted) {
+        toast.error("Unable to insert table row.");
+      }
+    });
+  };
+
+  const insertTableColumn = (position: "left" | "right") => {
+    requireTableSelection(() => {
+      const inserted = $insertTableColumnAtSelection(position === "right");
+      if (!inserted) {
+        toast.error("Unable to insert table column.");
+      }
+    });
+  };
+
+  const deleteTableRow = () => {
+    requireTableSelection(() => {
+      $deleteTableRowAtSelection();
+    });
+  };
+
+  const deleteTableColumn = () => {
+    requireTableSelection(() => {
+      $deleteTableColumnAtSelection();
+    });
+  };
+
+  const insertOptions = useMemo(
+    () => [
+      { label: "Horizontal rule", action: insertHorizontalRule },
+      { label: "Image", action: triggerImagePicker, disabled: isImageUploading },
+      { label: "Table", action: insertTable },
+      { label: "YouTube embed", action: insertYoutube },
+    ],
+    [insertHorizontalRule, insertTable, insertYoutube, triggerImagePicker, isImageUploading]
+  );
+
+  if (readOnly) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleImageInputChange}
+      />
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label="Undo"
+          disabled={!canUndo}
+          onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+        >
+          ↺
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label="Redo"
+          disabled={!canRedo}
+          onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
+        >
+          ↻
+        </Button>
+      </div>
+      <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
+        <SelectTrigger className="w-36">
+          <SelectValue placeholder="Text style" />
+        </SelectTrigger>
+        <SelectContent>
+          {BLOCK_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
+        <SelectTrigger className="w-28">
+          <SelectValue placeholder="Font size" />
+        </SelectTrigger>
+        <SelectContent>
+          {FONT_SIZE_OPTIONS.map((size) => (
+            <SelectItem key={size} value={size}>
+              {size}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        size="icon"
+        variant={isBold ? "secondary" : "ghost"}
+        aria-label="Bold"
+        onClick={toggleBold}
+      >
+        <Bold className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={isItalic ? "secondary" : "ghost"}
+        aria-label="Italic"
+        onClick={toggleItalic}
+      >
+        <Italic className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={isUnderline ? "secondary" : "ghost"}
+        aria-label="Underline"
+        onClick={toggleUnderline}
+      >
+        <span className="font-semibold underline">U</span>
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={isCodeBlock ? "secondary" : "ghost"}
+        aria-label="Code block"
+        onClick={toggleCodeBlock}
+      >
+        <Code2 className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={listType === "bullet" ? "secondary" : "ghost"}
+        aria-label="Bulleted list"
+        onClick={() => toggleList("bullet")}
+      >
+        <List className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={listType === "number" ? "secondary" : "ghost"}
+        aria-label="Numbered list"
+        onClick={() => toggleList("number")}
+      >
+        <ListOrdered className="h-4 w-4" />
+      </Button>
+      <Button type="button" size="icon" variant="ghost" aria-label="Insert link" onClick={insertLink}>
+        <LinkIcon className="h-4 w-4" />
+      </Button>
+      <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
+        <SelectTrigger className="w-32">
+          <SelectValue placeholder="Align" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="left">
+            <div className="flex items-center gap-2">
+              <AlignLeft className="h-4 w-4" />
+              Left
+            </div>
+          </SelectItem>
+          <SelectItem value="center">
+            <div className="flex items-center gap-2">
+              <AlignCenter className="h-4 w-4" />
+              Center
+            </div>
+          </SelectItem>
+          <SelectItem value="right">
+            <div className="flex items-center gap-2">
+              <AlignRight className="h-4 w-4" />
+              Right
+            </div>
+          </SelectItem>
+          <SelectItem value="justify">
+            <div className="flex items-center gap-2">
+              <AlignJustify className="h-4 w-4" />
+              Justify
+            </div>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost">
+            Insert
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-48">
+          <DropdownMenuLabel>Insert</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {insertOptions.map((item) => (
+            <DropdownMenuItem
+              key={item.label}
+              disabled={item.disabled}
+              onSelect={(event) => {
+                event.preventDefault();
+                item.action();
+              }}
+            >
+              {item.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" disabled={!isInTable}>
+            Table
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56">
+          <DropdownMenuLabel>Table actions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={!isInTable}
+            onSelect={(event) => {
+              event.preventDefault();
+              insertTableRow("above");
+            }}
+          >
+            Insert row above
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!isInTable}
+            onSelect={(event) => {
+              event.preventDefault();
+              insertTableRow("below");
+            }}
+          >
+            Insert row below
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!isInTable}
+            onSelect={(event) => {
+              event.preventDefault();
+              insertTableColumn("left");
+            }}
+          >
+            Insert column left
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!isInTable}
+            onSelect={(event) => {
+              event.preventDefault();
+              insertTableColumn("right");
+            }}
+          >
+            Insert column right
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            disabled={!isInTable}
+            onSelect={(event) => {
+              event.preventDefault();
+              deleteTableRow();
+            }}
+          >
+            Delete row
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!isInTable}
+            onSelect={(event) => {
+              event.preventDefault();
+              deleteTableColumn();
+            }}
+          >
+            Delete column
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
+const extractYouTubeId = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "youtu.be") {
+      return parsed.pathname.slice(1);
+    }
+    if (parsed.hostname.includes("youtube.com")) {
+      if (parsed.searchParams.get("v")) {
+        return parsed.searchParams.get("v");
+      }
+      const match = parsed.pathname.match(/\/embed\/([\w-]+)/);
+      if (match) {
+        return match[1];
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};

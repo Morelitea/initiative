@@ -1,3 +1,5 @@
+import type { SerializedEditorState } from "lexical";
+
 export type UserRole = "admin" | "member";
 export type GuildRole = "admin" | "member";
 
@@ -61,6 +63,37 @@ export interface InitiativeMember {
   joined_at: string;
 }
 
+export interface DocumentProjectLink {
+  project_id: number;
+  project_name?: string | null;
+  project_icon?: string | null;
+  attached_at: string;
+}
+
+export interface DocumentSummary {
+  id: number;
+  initiative_id: number;
+  title: string;
+  featured_image_url?: string | null;
+  created_by_id: number;
+  updated_by_id: number;
+  created_at: string;
+  updated_at: string;
+  initiative?: Initiative | null;
+  projects: DocumentProjectLink[];
+}
+
+export interface DocumentRead extends DocumentSummary {
+  content: SerializedEditorState;
+}
+
+export interface ProjectDocumentLink {
+  document_id: number;
+  title: string;
+  updated_at: string;
+  attached_at: string;
+}
+
 export interface Guild {
   id: number;
   name: string;
@@ -114,6 +147,14 @@ export interface Project {
   sort_order?: number | null;
   is_favorited?: boolean;
   last_viewed_at?: string | null;
+  documents?: ProjectDocumentLink[];
+}
+
+export interface AttachmentUploadResponse {
+  filename: string;
+  url: string;
+  content_type: string;
+  size: number;
 }
 
 export type TaskStatus = "backlog" | "in_progress" | "blocked" | "done";

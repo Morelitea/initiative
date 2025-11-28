@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     SMTP_FROM_ADDRESS: str | None = None
     SMTP_TEST_RECIPIENT: str | None = None
 
+    UPLOADS_DIR: str = "uploads"
+
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None
     FIRST_SUPERUSER_PASSWORD: str | None = None
     FIRST_SUPERUSER_FULL_NAME: str | None = None

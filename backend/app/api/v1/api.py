@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, events, guilds, initiatives, notifications, projects, settings, tasks, users
+from app.api.v1.endpoints import attachments, auth, documents, events, guilds, initiatives, notifications, projects, settings, tasks, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -12,3 +12,5 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(initiatives.router, prefix="/initiatives", tags=["initiatives"])
 api_router.include_router(events.router, prefix="/events", tags=["events"])
+api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
+api_router.include_router(attachments.router, prefix="/attachments", tags=["attachments"])

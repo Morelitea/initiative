@@ -3,6 +3,14 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET ?? "http://localhost:8000";
+
+const createProxyConfig = (supportsWebSocket = false) => ({
+  target: devProxyTarget,
+  changeOrigin: true,
+  ws: supportsWebSocket,
+});
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -14,11 +22,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-        ws: true,
-      },
+      "/api": createProxyConfig(true),
+      "/uploads": createProxyConfig(),
     },
   },
 });

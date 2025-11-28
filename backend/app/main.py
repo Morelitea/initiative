@@ -1,15 +1,20 @@
 import asyncio
 from contextlib import suppress
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal, run_migrations
 from app.services import app_settings as app_settings_service
 from app.services import notifications as notifications_service
+
+uploads_path = Path(settings.UPLOADS_DIR)
+uploads_path.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -26,6 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/uploads", StaticFiles(directory=str(uploads_path), check_dir=False), name="uploads")
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 

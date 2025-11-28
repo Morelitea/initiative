@@ -19,6 +19,8 @@ services:
     build:
       context: ./backend
     container_name: initiative-api
+    volumes:
+      - ./uploads:/app/uploads
     environment:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@db:5432/initiative
       SECRET_KEY: super-secret-key
@@ -27,10 +29,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Expose port 8000 to view API docs at http://localhost:8000/api/v1/docs
+    # Expose port 8173 to view API docs at http://localhost:8173/api/v1/docs
     # ports:
-    #   - "8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    #   - "8173:8173"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8173
 
   frontend:
     build:

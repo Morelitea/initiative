@@ -6,6 +6,7 @@ import { Settings } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
+import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
@@ -171,6 +172,12 @@ export const ProjectDetailPage = () => {
         ) : null}
       </div>
       <ProjectOverviewCard project={project} projectIsArchived={projectIsArchived} />
+      <ProjectDocumentsSection
+        projectId={project.id}
+        initiativeId={project.initiative_id}
+        documents={project.documents ?? []}
+        canEdit={Boolean(canWriteProject && !projectIsArchived)}
+      />
       <ProjectTasksSection
         projectId={project.id}
         tasks={tasksQuery.data ?? []}

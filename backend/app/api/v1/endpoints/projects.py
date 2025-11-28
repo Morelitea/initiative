@@ -19,8 +19,10 @@ from app.models.task import Task, TaskAssignee
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
 from app.models.guild import GuildRole
+from app.models.document import ProjectDocument
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
+from app.services import documents as documents_service
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
@@ -34,6 +36,7 @@ from app.schemas.project import (
     ProjectRecentViewRead,
 )
 from app.schemas.initiative import serialize_initiative
+from app.schemas.document import ProjectDocumentSummary, serialize_project_document_link
 
 router = APIRouter()
 
@@ -43,10 +46,21 @@ GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRol
 MAX_RECENT_PROJECTS = 20
 
 
+def _project_documents(project: Project) -> List[ProjectDocumentSummary]:
+    documents: List[ProjectDocumentSummary] = []
+    for link in getattr(project, "document_links", []) or []:
+        summary = serialize_project_document_link(link)
+        if summary:
+            documents.append(summary)
+    documents.sort(key=lambda item: (item.title.lower(), item.document_id))
+    return documents
+
+
 def _project_payload(project: Project) -> dict:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
         payload.initiative = serialize_initiative(project.initiative)
+    payload = payload.model_copy(update={"documents": _project_documents(project)})
     return payload.model_dump(mode="json")
 
 
@@ -55,6 +69,7 @@ async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: in
         selectinload(Project.permissions).selectinload(ProjectPermission.user),
         selectinload(Project.owner),
         selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+        selectinload(Project.document_links).selectinload(ProjectDocument.document),
     )
     if guild_id is not None:
         statement = statement.join(Project.initiative).where(Initiative.guild_id == guild_id)
@@ -216,6 +231,7 @@ async def _visible_projects(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
             selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Project.document_links).selectinload(ProjectDocument.document),
         )
     )
     result = await session.exec(base_statement)
@@ -346,6 +362,7 @@ async def _projects_by_ids(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
             selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Project.document_links).selectinload(ProjectDocument.document),
         )
     )
     result = await session.exec(stmt)
@@ -369,6 +386,7 @@ def _build_project_payload(
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
+            "documents": _project_documents(project),
         }
     )
 
@@ -988,6 +1006,79 @@ async def update_project(
             )
     await broadcast_event("project", "updated", _project_payload(project))
     return await _project_read_for_user(session, current_user, project)
+
+
+@router.post("/{project_id}/documents/{document_id}", response_model=ProjectRead)
+async def attach_project_document(
+    project_id: int,
+    document_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectRead:
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        guild_role=guild_context.role,
+    )
+    _ensure_not_archived(project)
+    document = await documents_service.get_document(
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+    )
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if document.initiative_id != project.initiative_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document belongs to a different initiative")
+    await documents_service.attach_document_to_project(
+        session,
+        document=document,
+        project=project,
+        user_id=current_user.id,
+    )
+    updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await broadcast_event("project", "updated", _project_payload(updated_project))
+    return await _project_read_for_user(session, current_user, updated_project)
+
+
+@router.delete("/{project_id}/documents/{document_id}", response_model=ProjectRead)
+async def detach_project_document(
+    project_id: int,
+    document_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectRead:
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        guild_role=guild_context.role,
+    )
+    _ensure_not_archived(project)
+    document = await documents_service.get_document(
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+    )
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if document.initiative_id != project.initiative_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document belongs to a different initiative")
+    await documents_service.detach_document_from_project(
+        session,
+        document_id=document.id,
+        project_id=project.id,
+    )
+    updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await broadcast_event("project", "updated", _project_payload(updated_project))
+    return await _project_read_for_user(session, current_user, updated_project)
 
 
 @router.post("/{project_id}/members", response_model=ProjectPermissionRead, status_code=status.HTTP_201_CREATED)

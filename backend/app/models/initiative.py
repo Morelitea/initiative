@@ -9,6 +9,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
     from app.models.user import User
     from app.models.guild import Guild
+    from app.models.document import Document
 
 
 class InitiativeRole(str, Enum):
@@ -68,3 +69,7 @@ class Initiative(SQLModel, table=True):
     )
     projects: List["Project"] = Relationship(back_populates="initiative")
     guild: Optional["Guild"] = Relationship(back_populates="initiatives")
+    documents: List["Document"] = Relationship(
+        back_populates="initiative",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )

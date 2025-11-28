@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.models.project import ProjectPermissionLevel
 from app.schemas.initiative import InitiativeRead
+from app.schemas.document import ProjectDocumentSummary
 from app.schemas.user import UserRead
 
 
@@ -66,6 +67,7 @@ class ProjectRead(ProjectBase):
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
+    documents: List[ProjectDocumentSummary] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

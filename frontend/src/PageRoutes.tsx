@@ -19,6 +19,16 @@ const ProjectDetailPage = lazy(() =>
     default: module.ProjectDetailPage,
   }))
 );
+const DocumentsPage = lazy(() =>
+  import("./pages/DocumentsPage").then((module) => ({
+    default: module.DocumentsPage,
+  }))
+);
+const DocumentDetailPage = lazy(() =>
+  import("./pages/DocumentDetailPage").then((module) => ({
+    default: module.DocumentDetailPage,
+  }))
+);
 const ProjectSettingsPage = lazy(() =>
   import("./pages/ProjectSettingsPage").then((module) => ({
     default: module.ProjectSettingsPage,
@@ -150,6 +160,8 @@ export const PageRoutes = () => {
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
         <Route path="/tasks/:taskId/edit" element={<TaskEditPage />} />
         <Route path="/tasks" element={<MyTasksPage />} />
+        <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
         <Route path="/profile/*" element={<UserSettingsLayout />}>
           {user && (
             <>
