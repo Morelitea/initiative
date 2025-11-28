@@ -69,6 +69,7 @@ import {
   Link as LinkIcon,
   List,
   ListOrdered,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -474,20 +475,177 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     [insertHorizontalRule, insertTable, insertYoutube, triggerImagePicker, isImageUploading]
   );
 
-  if (readOnly) {
-    return null;
-  }
+  const mobileOverflowMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="icon" variant="ghost" aria-label="More formatting">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-64 space-y-4">
+        <DropdownMenuLabel>Formatting</DropdownMenuLabel>
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Font size</span>
+          <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Font size" />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size}>
+                  {size}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="icon"
+            variant={isUnderline ? "secondary" : "ghost"}
+            aria-label="Underline"
+            onClick={toggleUnderline}
+          >
+            <span className="font-semibold underline">U</span>
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={isCodeBlock ? "secondary" : "ghost"}
+            aria-label="Code block"
+            onClick={toggleCodeBlock}
+          >
+            <Code2 className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={listType === "bullet" ? "secondary" : "ghost"}
+            aria-label="Bulleted list"
+            onClick={() => toggleList("bullet")}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={listType === "number" ? "secondary" : "ghost"}
+            aria-label="Numbered list"
+            onClick={() => toggleList("number")}
+          >
+            <ListOrdered className="h-4 w-4" />
+          </Button>
+          <Button type="button" size="icon" variant="ghost" aria-label="Insert link" onClick={insertLink}>
+            <LinkIcon className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Alignment</span>
+          <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Align" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left">
+                <div className="flex items-center gap-2">
+                  <AlignLeft className="h-4 w-4" />
+                  Left
+                </div>
+              </SelectItem>
+              <SelectItem value="center">
+                <div className="flex items-center gap-2">
+                  <AlignCenter className="h-4 w-4" />
+                  Center
+                </div>
+              </SelectItem>
+              <SelectItem value="right">
+                <div className="flex items-center gap-2">
+                  <AlignRight className="h-4 w-4" />
+                  Right
+                </div>
+              </SelectItem>
+              <SelectItem value="justify">
+                <div className="flex items-center gap-2">
+                  <AlignJustify className="h-4 w-4" />
+                  Justify
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <span className="text-xs font-medium text-muted-foreground">Insert</span>
+          <div className="grid grid-cols-2 gap-2">
+            {insertOptions.map((item) => (
+              <Button
+                key={item.label}
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={item.disabled}
+                onClick={item.action}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <span>Table actions</span>
+            {!isInTable ? <span className="text-[10px]">Select a table</span> : null}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableRow("above")}>
+              Row above
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableRow("below")}>
+              Row below
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableColumn("left")}>
+              Column left
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableColumn("right")}>
+              Column right
+            </Button>
+            <Button type="button" size="sm" variant="destructive" disabled={!isInTable} onClick={deleteTableRow}>
+              Delete row
+            </Button>
+            <Button type="button" size="sm" variant="destructive" disabled={!isInTable} onClick={deleteTableColumn}>
+              Delete column
+            </Button>
+          </div>
+        </div>
+        <DropdownMenuSeparator />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Undo"
+            disabled={!canUndo}
+            onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+          >
+            ↺
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Redo"
+            disabled={!canRedo}
+            onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
+          >
+            ↻
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={handleImageInputChange}
-      />
+  const desktopToolbar = (
+    <>
       <div className="flex items-center gap-1">
         <Button
           type="button"
@@ -588,13 +746,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       >
         <ListOrdered className="h-4 w-4" />
       </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label="Insert link"
-        onClick={insertLink}
-      >
+      <Button type="button" size="icon" variant="ghost" aria-label="Insert link" onClick={insertLink}>
         <LinkIcon className="h-4 w-4" />
       </Button>
       <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
@@ -717,6 +869,59 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+    </>
+  );
+
+  if (readOnly) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-2 px-3 py-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleImageInputChange}
+      />
+      <div className="flex flex-wrap items-center gap-2 lg:hidden">
+        <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Text style" />
+          </SelectTrigger>
+          <SelectContent>
+            {BLOCK_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="icon"
+            variant={isBold ? "secondary" : "ghost"}
+            aria-label="Bold"
+            onClick={toggleBold}
+          >
+            <Bold className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={isItalic ? "secondary" : "ghost"}
+            aria-label="Italic"
+            onClick={toggleItalic}
+          >
+            <Italic className="h-4 w-4" />
+          </Button>
+        </div>
+        {mobileOverflowMenu}
+      </div>
+      <div className="hidden flex-wrap items-center gap-2 lg:flex">{desktopToolbar}</div>
     </div>
   );
 };
