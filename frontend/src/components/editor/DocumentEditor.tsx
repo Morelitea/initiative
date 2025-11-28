@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
@@ -13,13 +13,44 @@ import { LinkNode } from "@lexical/link";
 import { CodeNode } from "@lexical/code";
 import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
+import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import type { EditorThemeClasses, SerializedEditorState, SerializedLexicalNode } from "lexical";
+import { CLICK_COMMAND, COMMAND_PRIORITY_LOW } from "lexical";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 import { cn } from "@/lib/utils";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { ImageUploadPlugin } from "@/components/editor/ImageUploadPlugin";
 import { ImageNode } from "@/components/editor/nodes/ImageNode";
+
+const AltClickLinkPlugin = () => {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    return editor.registerCommand<MouseEvent>(
+      CLICK_COMMAND,
+      (event) => {
+        if (!event.altKey) {
+          return false;
+        }
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return false;
+        }
+        const anchor = target.closest("a");
+        if (anchor && anchor.href) {
+          window.open(anchor.href, "_blank", "noopener,noreferrer");
+          return true;
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_LOW
+    );
+  }, [editor]);
+
+  return null;
+};
 
 const createEmptyParagraphNode = (): SerializedLexicalNode =>
   ({
@@ -65,6 +96,7 @@ const editorTheme: EditorThemeClasses = {
     italic: "italic",
     underline: "underline",
   },
+  link: "text-primary underline underline-offset-2 hover:text-primary/80 transition-colors",
   heading: {
     h1: "text-3xl font-semibold leading-tight tracking-tight mb-4 mt-2",
     h2: "text-2xl font-semibold leading-snug tracking-tight mt-6 mb-3",
@@ -80,6 +112,7 @@ const editorTheme: EditorThemeClasses = {
     ul: "list-disc pl-6",
     ol: "list-decimal pl-6",
   },
+  quote: "border-l-4 border-border pl-4 italic text-muted-foreground",
   code: "bg-muted/70 font-mono px-1 py-0.5 rounded text-sm p-1",
   table: "w-full border-collapse border border-border text-sm",
   tableRow: "",
@@ -138,9 +171,14 @@ export const DocumentEditor = ({
     <LexicalComposer initialConfig={initialConfig}>
       <div
         data-document-editor="true"
-        className={cn("rounded-xl border bg-card text-card-foreground shadow-sm", className)}
+        className={cn(
+          "rounded-xl border bg-card text-card-foreground shadow-sm max-h-160 sm:max-h-250 overflow-y-auto relative",
+          className
+        )}
       >
-        <EditorToolbar readOnly={readOnly} />
+        <div className="sticky top-0 z-10 rounded-t-xl border-b bg-card px-3 py-2">
+          <EditorToolbar readOnly={readOnly} />
+        </div>
         <div className="px-4 py-3">
           <RichTextPlugin
             contentEditable={
@@ -161,6 +199,8 @@ export const DocumentEditor = ({
           <HistoryPlugin />
           <ListPlugin />
           <LinkPlugin />
+          <HorizontalRulePlugin />
+          <AltClickLinkPlugin />
           <TablePlugin hasCellMerge hasCellBackgroundColor />
           <ImageUploadPlugin disabled={readOnly} />
           {!readOnly ? (

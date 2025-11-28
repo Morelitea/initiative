@@ -11,7 +11,7 @@ import {
   DocumentEditor,
   createEmptyEditorState,
   normalizeEditorState,
-} from "@/components/Editor";
+} from "@/components/editor/DocumentEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -184,11 +184,7 @@ export const DocumentDetailPage = () => {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setDeleteDialogOpen(false)}
-              >
+              <Button type="button" variant="secondary" onClick={() => setDeleteDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
@@ -237,11 +233,7 @@ export const DocumentDetailPage = () => {
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
             <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-muted md:w-80">
               {featuredImageUrl ? (
-                <img
-                  src={featuredImageUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
+                <img src={featuredImageUrl} alt="" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   <ScrollText className="h-10 w-10" />
@@ -288,8 +280,8 @@ export const DocumentDetailPage = () => {
                 ) : null}
               </div>
               <p className="text-xs text-muted-foreground">
-                Uploads are stored locally under <code>/uploads</code>. Remember to save changes to keep
-                your new image.
+                Uploads are stored locally under <code>/uploads</code>. Remember to save changes to
+                keep your new image.
               </p>
             </div>
           </div>
@@ -327,7 +319,8 @@ export const DocumentDetailPage = () => {
         <CardContent>
           {attachedProjects.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              This document is not attached to any projects yet. Attach it from a project detail page.
+              This document is not attached to any projects yet. Attach it from a project detail
+              page.
             </p>
           ) : (
             <div className="space-y-2">
@@ -337,11 +330,15 @@ export const DocumentDetailPage = () => {
                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
                 >
                   <div className="space-y-0.5">
-                    <Link to={`/projects/${link.project_id}`} className="font-medium hover:underline">
+                    <Link
+                      to={`/projects/${link.project_id}`}
+                      className="font-medium hover:underline"
+                    >
                       {link.project_name ?? `Project #${link.project_id}`}
                     </Link>
                     <p className="text-xs text-muted-foreground">
-                      Attached {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
+                      Attached{" "}
+                      {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
                     </p>
                   </div>
                   <Badge variant="outline">Project #{link.project_id}</Badge>

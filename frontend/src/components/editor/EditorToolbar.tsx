@@ -5,6 +5,8 @@ import {
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
+  $setSelection,
+  type RangeSelection,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_LOW,
@@ -15,7 +17,12 @@ import {
   UNDO_COMMAND,
 } from "lexical";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
-import { $createHeadingNode, $isHeadingNode } from "@lexical/rich-text";
+import {
+  $createHeadingNode,
+  $createQuoteNode,
+  $isHeadingNode,
+  $isQuoteNode,
+} from "@lexical/rich-text";
 import { $setBlocksType, $patchStyleText } from "@lexical/selection";
 import { TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $createCodeNode } from "@lexical/code";
@@ -69,7 +76,7 @@ import { uploadAttachment } from "@/api/attachments";
 import { insertImageNode } from "@/components/editor/nodes/ImageNode";
 import { $generateNodesFromDOM } from "@lexical/html";
 
-type BlockType = "paragraph" | "h1" | "h2" | "h3" | "code";
+type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote" | "code";
 type Alignment = "left" | "right" | "center" | "justify";
 type ListType = "bullet" | "number" | "none";
 
@@ -78,6 +85,7 @@ const BLOCK_OPTIONS: { label: string; value: BlockType }[] = [
   { label: "Heading 1", value: "h1" },
   { label: "Heading 2", value: "h2" },
   { label: "Heading 3", value: "h3" },
+  { label: "Blockquote", value: "quote" },
   { label: "Code block", value: "code" },
 ];
 
@@ -128,6 +136,13 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   const [isImageUploading, setIsImageUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const cloneCurrentSelection = useCallback((): RangeSelection | null => {
+    return editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      return $isRangeSelection(selection) ? selection.clone() : null;
+    });
+  }, [editor]);
+
   const updateToolbar = useCallback(() => {
     editor.getEditorState().read(() => {
       const selection = $getSelection();
@@ -145,11 +160,11 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       }
       const anchorNode = selection.anchor.getNode();
       const element =
-        anchorNode.getKey() === "root"
-          ? anchorNode
-          : anchorNode.getTopLevelElementOrThrow();
+        anchorNode.getKey() === "root" ? anchorNode : anchorNode.getTopLevelElementOrThrow();
       const elementType = element.getType();
-      const elementFormat = $isElementNode(element) ? (element.getFormatType() as Alignment) : "left";
+      const elementFormat = $isElementNode(element)
+        ? (element.getFormatType() as Alignment)
+        : "left";
       const tableCellParent = $findMatchingParent(anchorNode, (node) => $isTableCellNode(node));
       setIsInTable(Boolean(tableCellParent));
 
@@ -160,6 +175,8 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         if (tag === "h1" || tag === "h2" || tag === "h3") {
           setBlockType(tag);
         }
+      } else if ($isQuoteNode(element)) {
+        setBlockType("quote");
       } else if (elementType === "code") {
         setBlockType("code");
       }
@@ -238,12 +255,19 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       if (!$isRangeSelection(selection)) {
         return;
       }
-      if (value === "paragraph") {
-        $setBlocksType(selection, () => $createParagraphNode());
-      } else if (value === "code") {
-        $setBlocksType(selection, () => $createCodeNode());
-      } else {
-        $setBlocksType(selection, () => $createHeadingNode(value));
+      switch (value) {
+        case "paragraph":
+          $setBlocksType(selection, () => $createParagraphNode());
+          break;
+        case "code":
+          $setBlocksType(selection, () => $createCodeNode());
+          break;
+        case "quote":
+          $setBlocksType(selection, () => $createQuoteNode());
+          break;
+        default:
+          $setBlocksType(selection, () => $createHeadingNode(value));
+          break;
       }
     });
   };
@@ -288,15 +312,18 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   };
 
   const insertLink = () => {
+    const savedSelection = cloneCurrentSelection();
     const previousUrl = window.prompt("Enter a URL", "https://");
     if (previousUrl === null) {
       return;
     }
-    if (previousUrl === "") {
-      editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
-    } else {
-      editor.dispatchCommand(TOGGLE_LINK_COMMAND, previousUrl);
-    }
+    const trimmed = previousUrl.trim();
+    editor.update(() => {
+      if (savedSelection) {
+        $setSelection(savedSelection);
+      }
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, trimmed || null);
+    });
   };
 
   const applyAlignment = (value: Alignment) => {
@@ -305,12 +332,22 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   };
 
   const insertHorizontalRule = useCallback(() => {
+    const savedSelection = cloneCurrentSelection();
     editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined);
-  }, [editor]);
+    if (savedSelection) {
+      editor.update(() => {
+        $setSelection(savedSelection);
+      });
+    }
+  }, [editor, cloneCurrentSelection]);
 
   const insertHtml = useCallback(
     (html: string) => {
+      const savedSelection = cloneCurrentSelection();
       editor.update(() => {
+        if (savedSelection) {
+          $setSelection(savedSelection);
+        }
         const parser = new DOMParser();
         const dom = parser.parseFromString(html, "text/html");
         const nodes = $generateNodesFromDOM(editor, dom);
@@ -320,7 +357,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         }
       });
     },
-    [editor]
+    [editor, cloneCurrentSelection]
   );
 
   const uploadImageFiles = useCallback(
@@ -453,7 +490,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+    <div className="flex flex-wrap items-center gap-2 px-3 py-2">
       <input
         ref={fileInputRef}
         type="file"
@@ -562,7 +599,13 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       >
         <ListOrdered className="h-4 w-4" />
       </Button>
-      <Button type="button" size="icon" variant="ghost" aria-label="Insert link" onClick={insertLink}>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Insert link"
+        onClick={insertLink}
+      >
         <LinkIcon className="h-4 w-4" />
       </Button>
       <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
