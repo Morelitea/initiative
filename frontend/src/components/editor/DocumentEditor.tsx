@@ -15,7 +15,7 @@ import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import type { EditorThemeClasses, SerializedEditorState, SerializedLexicalNode } from "lexical";
-import { CLICK_COMMAND, COMMAND_PRIORITY_LOW } from "lexical";
+import { CLICK_COMMAND, COMMAND_PRIORITY_LOW, KEY_DOWN_COMMAND, SELECT_ALL_COMMAND } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { ImageUploadPlugin } from "@/components/editor/ImageUploadPlugin";
 import { ImageNode } from "@/components/editor/nodes/ImageNode";
+import { EmbedNode } from "@/components/editor/nodes/EmbedNode";
 
 const AltClickLinkPlugin = () => {
   const [editor] = useLexicalComposerContext();
@@ -41,6 +42,27 @@ const AltClickLinkPlugin = () => {
         const anchor = target.closest("a");
         if (anchor && anchor.href) {
           window.open(anchor.href, "_blank", "noopener,noreferrer");
+          return true;
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_LOW
+    );
+  }, [editor]);
+
+  return null;
+};
+
+const DocumentShortcutsPlugin = () => {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key.toLowerCase() === "a" && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          editor.dispatchCommand(SELECT_ALL_COMMAND, undefined as never);
           return true;
         }
         return false;
@@ -118,6 +140,7 @@ const editorTheme: EditorThemeClasses = {
   tableRow: "",
   tableCell: "border border-border px-2 py-1 align-top text-left bg-transparent",
   tableCellHeader: "border border-border px-2 py-1 text-left font-normal bg-transparent",
+  tableSelection: "bg-primary/10",
 };
 
 type DocumentEditorProps = {
@@ -158,6 +181,7 @@ export const DocumentEditor = ({
         TableRowNode,
         HorizontalRuleNode,
         ImageNode,
+        EmbedNode,
       ],
       onError(error) {
         // Surface lexical errors during development.
@@ -202,6 +226,7 @@ export const DocumentEditor = ({
           <HorizontalRulePlugin />
           <AltClickLinkPlugin />
           <TablePlugin hasCellMerge hasCellBackgroundColor />
+          <DocumentShortcutsPlugin />
           <ImageUploadPlugin disabled={readOnly} />
           {!readOnly ? (
             <OnChangePlugin

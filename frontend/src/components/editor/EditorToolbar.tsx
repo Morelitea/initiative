@@ -74,7 +74,7 @@ import { toast } from "sonner";
 
 import { uploadAttachment } from "@/api/attachments";
 import { insertImageNode } from "@/components/editor/nodes/ImageNode";
-import { $generateNodesFromDOM } from "@lexical/html";
+import { insertEmbedNode } from "@/components/editor/nodes/EmbedNode";
 
 type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote" | "code";
 type Alignment = "left" | "right" | "center" | "justify";
@@ -341,25 +341,6 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     }
   }, [editor, cloneCurrentSelection]);
 
-  const insertHtml = useCallback(
-    (html: string) => {
-      const savedSelection = cloneCurrentSelection();
-      editor.update(() => {
-        if (savedSelection) {
-          $setSelection(savedSelection);
-        }
-        const parser = new DOMParser();
-        const dom = parser.parseFromString(html, "text/html");
-        const nodes = $generateNodesFromDOM(editor, dom);
-        const selection = $getSelection();
-        if ($isRangeSelection(selection)) {
-          selection.insertNodes(nodes);
-        }
-      });
-    },
-    [editor, cloneCurrentSelection]
-  );
-
   const uploadImageFiles = useCallback(
     async (files: FileList | File[]) => {
       const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
@@ -421,9 +402,17 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       window.alert("Unable to parse YouTube URL.");
       return;
     }
-    const html = `<iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
-    insertHtml(html);
-  }, [insertHtml]);
+    const html = `
+      <div class="my-4 overflow-hidden rounded-xl border bg-black aspect-video">
+        <iframe
+          src="https://www.youtube.com/embed/${videoId}"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          class="h-full w-full border-0"
+        ></iframe>
+      </div>`;
+    insertEmbedNode(editor, { html });
+  }, [editor]);
 
   const requireTableSelection = useCallback(
     (operation: () => void) => {
