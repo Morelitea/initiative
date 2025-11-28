@@ -111,6 +111,7 @@ export const LoginPage = () => {
         backgroundImage: `url(${isDark ? gridWhite : gridBlack})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
+        backgroundSize: "72px 72px",
       }}
     >
       <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
