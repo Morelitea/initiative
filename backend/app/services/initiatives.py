@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy import func
-from sqlmodel import select
+from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
@@ -165,7 +165,12 @@ async def ensure_managers_remain(
         raise ValueError("Initiative must have at least one project manager")
 
 
-async def initiatives_requiring_new_pm(session: AsyncSession, user_id: int) -> list[Initiative]:
+async def initiatives_requiring_new_pm(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    guild_id: int | None = None,
+) -> list[Initiative]:
     subquery = (
         select(
             InitiativeMember.initiative_id,
@@ -186,12 +191,34 @@ async def initiatives_requiring_new_pm(session: AsyncSession, user_id: int) -> l
             subquery.c.pm_count == 1,
         )
     )
+    if guild_id is not None:
+        stmt = stmt.where(Initiative.guild_id == guild_id)
     result = await session.exec(stmt)
-    return result.all()
+    initiatives = result.unique().all()
+    return initiatives
 
 
-async def ensure_user_not_sole_pm(session: AsyncSession, user_id: int) -> None:
-    initiatives = await initiatives_requiring_new_pm(session, user_id)
+async def ensure_user_not_sole_pm(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    guild_id: int | None = None,
+) -> None:
+    initiatives = await initiatives_requiring_new_pm(session, user_id, guild_id=guild_id)
     if initiatives:
         names = ", ".join(initiative.name for initiative in initiatives)
         raise ValueError(f"User is the sole project manager for: {names}")
+
+
+async def remove_user_from_guild_initiatives(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> None:
+    initiative_ids_subquery = select(Initiative.id).where(Initiative.guild_id == guild_id)
+    stmt = delete(InitiativeMember).where(
+        InitiativeMember.user_id == user_id,
+        InitiativeMember.initiative_id.in_(initiative_ids_subquery),
+    )
+    await session.exec(stmt)

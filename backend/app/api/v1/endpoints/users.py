@@ -209,11 +209,6 @@ async def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot change the super user's role",
         )
-    if update_data.get("role") == UserRole.member and user.role == UserRole.admin:
-        try:
-            await initiatives_service.ensure_user_not_sole_pm(session, user_id=user.id)
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
     if "avatar_base64" in update_data:
@@ -302,9 +297,19 @@ async def delete_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not part of this guild")
 
     try:
-        await initiatives_service.ensure_user_not_sole_pm(session, user_id=user_id)
+        await initiatives_service.ensure_user_not_sole_pm(
+            session,
+            user_id=user_id,
+            guild_id=guild_context.guild_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    await initiatives_service.remove_user_from_guild_initiatives(
+        session,
+        guild_id=guild_context.guild_id,
+        user_id=user_id,
+    )
 
     await session.delete(membership)
     await session.commit()

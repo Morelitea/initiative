@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -12,12 +12,15 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.models.document import Document, ProjectDocument
+from app.models.document import Document, DocumentPermissionLevel, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.schemas.document import (
     DocumentCreate,
+    DocumentCopyRequest,
+    DocumentDuplicateRequest,
+    DocumentPermissionsUpdate,
     DocumentRead,
     DocumentSummary,
     DocumentUpdate,
@@ -85,6 +88,30 @@ async def _require_initiative_access(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative membership required")
     if require_manager and membership.role != InitiativeRole.project_manager:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+
+
+async def _require_document_write_access(
+    session: SessionDep,
+    *,
+    document: Document,
+    user: User,
+    guild_role: GuildRole,
+) -> None:
+    if guild_role == GuildRole.admin:
+        return
+    membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=document.initiative_id,
+        user_id=user.id,
+    )
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative membership required")
+    if membership.role == InitiativeRole.project_manager:
+        return
+    permissions = getattr(document, "permissions", None) or []
+    if any(permission.user_id == user.id and permission.level == DocumentPermissionLevel.write for permission in permissions):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Document write access required")
 
 
 @router.get("/", response_model=List[DocumentSummary])
@@ -159,6 +186,7 @@ async def create_document(
         created_by_id=current_user.id,
         updated_by_id=current_user.id,
         featured_image_url=document_in.featured_image_url,
+        is_template=document_in.is_template,
     )
     session.add(document)
     await session.commit()
@@ -194,12 +222,11 @@ async def update_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_initiative_access(
+    await _require_document_write_access(
         session,
-        initiative_id=document.initiative_id,
+        document=document,
         user=current_user,
         guild_role=guild_context.role,
-        require_manager=True,
     )
     updated = False
     update_data = document_in.model_dump(exclude_unset=True)
@@ -226,6 +253,10 @@ async def update_document(
             removed_upload_urls.add(previous_featured_url)
         updated = True
 
+    if "is_template" in update_data:
+        document.is_template = bool(update_data["is_template"])
+        updated = True
+
     if updated:
         document.updated_at = datetime.now(timezone.utc)
         document.updated_by_id = current_user.id
@@ -233,6 +264,121 @@ async def update_document(
         await session.commit()
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
+    return serialize_document(hydrated)
+
+
+@router.put("/{document_id}/permissions", response_model=DocumentRead)
+async def update_document_permissions(
+    document_id: int,
+    payload: DocumentPermissionsUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentRead:
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_write_access(
+        session,
+        document=document,
+        user=current_user,
+        guild_role=guild_context.role,
+    )
+    initiative = document.initiative
+    if not initiative:
+        initiative = await _get_initiative_or_404(session, initiative_id=document.initiative_id, guild_id=guild_context.guild_id)
+    memberships = getattr(initiative, "memberships", []) or []
+    allowed_member_ids = {membership.user_id for membership in memberships}
+    desired = set(payload.write_member_ids or [])
+    invalid = desired - allowed_member_ids
+    if invalid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Write permissions must reference initiative members")
+    manager_member_ids = {
+        membership.user_id for membership in memberships if membership.role == InitiativeRole.project_manager
+    }
+    sanitized = desired - manager_member_ids
+    await documents_service.set_document_write_permissions(
+        session,
+        document=document,
+        write_member_ids=sanitized,
+    )
+    document.updated_at = datetime.now(timezone.utc)
+    document.updated_by_id = current_user.id
+    session.add(document)
+    await session.commit()
+    hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
+    return serialize_document(hydrated)
+
+
+@router.post("/{document_id}/duplicate", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+async def duplicate_document(
+    document_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    payload: DocumentDuplicateRequest | None = Body(default=None),
+) -> DocumentRead:
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_write_access(
+        session,
+        document=document,
+        user=current_user,
+        guild_role=guild_context.role,
+    )
+    payload = payload or DocumentDuplicateRequest()
+    title = (payload.title or f"{document.title} (Copy)").strip()
+    if not title:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+
+    duplicated = await documents_service.duplicate_document(
+        session,
+        source=document,
+        target_initiative_id=document.initiative_id,
+        title=title,
+        user_id=current_user.id,
+    )
+    hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
+    return serialize_document(hydrated)
+
+
+@router.post("/{document_id}/copy", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+async def copy_document(
+    document_id: int,
+    payload: DocumentCopyRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentRead:
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_initiative_access(
+        session,
+        initiative_id=document.initiative_id,
+        user=current_user,
+        guild_role=guild_context.role,
+        require_manager=True,
+    )
+    target_initiative = await _get_initiative_or_404(
+        session,
+        initiative_id=payload.target_initiative_id,
+        guild_id=guild_context.guild_id,
+    )
+    await _require_initiative_access(
+        session,
+        initiative_id=target_initiative.id,
+        user=current_user,
+        guild_role=guild_context.role,
+        require_manager=True,
+    )
+    title = (payload.title or document.title).strip()
+    if not title:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+
+    duplicated = await documents_service.duplicate_document(
+        session,
+        source=document,
+        target_initiative_id=target_initiative.id,
+        title=title,
+        user_id=current_user.id,
+    )
+    hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
     return serialize_document(hydrated)
 
 

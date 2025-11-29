@@ -25,6 +25,7 @@ import {
   List,
   Filter,
   ChevronDown,
+  Plus,
 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
@@ -72,12 +73,12 @@ const getDefaultFiltersVisibility = () => {
 
 export const ProjectsPage = () => {
   const { user } = useAuth();
-  const managedInitiatives = useMemo(
+  const claimedManagedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
     [user]
   );
-  const canManageProjects = user?.role === "admin" || managedInitiatives.length > 0;
+  const hasClaimedManagerRole = claimedManagedInitiatives.length > 0;
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
@@ -156,12 +157,24 @@ export const ProjectsPage = () => {
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: ["initiatives"],
-    enabled: user?.role === "admin" || managedInitiatives.length > 0,
+    enabled: user?.role === "admin" || hasClaimedManagerRole,
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
     },
   });
+  const guildManagedInitiatives = useMemo(() => {
+    if (!initiativesQuery.data || !user) {
+      return [];
+    }
+    return initiativesQuery.data.filter((initiative) =>
+      initiative.members?.some(
+        (member) => member.user.id === user.id && member.role === "project_manager"
+      )
+    );
+  }, [initiativesQuery.data, user]);
+  const isProjectManager = guildManagedInitiatives.length > 0;
+  const canManageProjects = user?.role === "admin" || isProjectManager;
 
   const templatesQuery = useQuery<Project[]>({
     queryKey: ["projects", "templates"],
@@ -184,6 +197,7 @@ export const ProjectsPage = () => {
 
   useEffect(() => {
     if (!canManageProjects) {
+      setIsComposerOpen(false);
       setInitiativeId(null);
       return;
     }
@@ -722,12 +736,13 @@ export const ProjectsPage = () => {
         </TabsContent>
       </Tabs>
 
-      {canManageProjects ? (
+      {isProjectManager ? (
         <>
           <Button
             className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
             onClick={() => setIsComposerOpen(true)}
           >
+            <Plus className="mr-2 h-4 w-4" />
             Add Project
           </Button>
           {isComposerOpen ? (

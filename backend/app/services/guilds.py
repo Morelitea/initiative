@@ -79,6 +79,7 @@ async def ensure_membership(
     guild_id: int,
     user_id: int,
     role: GuildRole = GuildRole.member,
+    force_role: bool = False,
 ) -> GuildMembership:
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
@@ -87,7 +88,7 @@ async def ensure_membership(
     result = await session.exec(stmt)
     membership = result.one_or_none()
     if membership:
-        if membership.role != role:
+        if force_role and membership.role != role:
             membership.role = role
             session.add(membership)
             await session.flush()

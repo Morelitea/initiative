@@ -75,6 +75,7 @@ export interface DocumentSummary {
   initiative_id: number;
   title: string;
   featured_image_url?: string | null;
+  is_template: boolean;
   created_by_id: number;
   updated_by_id: number;
   created_at: string;
@@ -85,6 +86,16 @@ export interface DocumentSummary {
 
 export interface DocumentRead extends DocumentSummary {
   content: SerializedEditorState;
+  write_member_ids: number[];
+}
+
+export interface DocumentDuplicateRequest {
+  title?: string;
+}
+
+export interface DocumentCopyRequest {
+  target_initiative_id: number;
+  title?: string;
 }
 
 export interface ProjectDocumentLink {

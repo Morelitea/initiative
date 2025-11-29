@@ -536,7 +536,13 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           >
             <ListOrdered className="h-4 w-4" />
           </Button>
-          <Button type="button" size="icon" variant="ghost" aria-label="Insert link" onClick={insertLink}>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Insert link"
+            onClick={insertLink}
+          >
             <LinkIcon className="h-4 w-4" />
           </Button>
         </div>
@@ -597,22 +603,58 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             {!isInTable ? <span className="text-[10px]">Select a table</span> : null}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableRow("above")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!isInTable}
+              onClick={() => insertTableRow("above")}
+            >
               Row above
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableRow("below")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!isInTable}
+              onClick={() => insertTableRow("below")}
+            >
               Row below
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableColumn("left")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!isInTable}
+              onClick={() => insertTableColumn("left")}
+            >
               Column left
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={!isInTable} onClick={() => insertTableColumn("right")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!isInTable}
+              onClick={() => insertTableColumn("right")}
+            >
               Column right
             </Button>
-            <Button type="button" size="sm" variant="destructive" disabled={!isInTable} onClick={deleteTableRow}>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={!isInTable}
+              onClick={deleteTableRow}
+            >
               Delete row
             </Button>
-            <Button type="button" size="sm" variant="destructive" disabled={!isInTable} onClick={deleteTableColumn}>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={!isInTable}
+              onClick={deleteTableColumn}
+            >
               Delete column
             </Button>
           </div>
@@ -746,7 +788,13 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       >
         <ListOrdered className="h-4 w-4" />
       </Button>
-      <Button type="button" size="icon" variant="ghost" aria-label="Insert link" onClick={insertLink}>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Insert link"
+        onClick={insertLink}
+      >
         <LinkIcon className="h-4 w-4" />
       </Button>
       <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>

@@ -1,5 +1,7 @@
 import {
   DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
   type DOMExportOutput,
   type EditorConfig,
   type LexicalEditor,
@@ -50,8 +52,26 @@ export class EmbedNode extends DecoratorNode<JSX.Element> {
     };
   }
 
+  static importDOM(): DOMConversionMap | null {
+    return {
+      div: (domNode: Node) => {
+        if (!(domNode instanceof HTMLElement)) {
+          return null;
+        }
+        if (domNode.getAttribute("data-lexical-embed") !== "true") {
+          return null;
+        }
+        return {
+          conversion: convertEmbedElement,
+          priority: 1,
+        };
+      },
+    };
+  }
+
   exportDOM(): DOMExportOutput {
     const wrapper = document.createElement("div");
+    wrapper.setAttribute("data-lexical-embed", "true");
     wrapper.innerHTML = this.__html;
     return { element: wrapper };
   }
@@ -90,4 +110,20 @@ export const insertEmbedNode = (editor: LexicalEditor, payload: InsertEmbedPaylo
       $insertNodes([node]);
     }
   });
+};
+
+const convertEmbedElement = (domNode: Node): DOMConversionOutput | null => {
+  if (!(domNode instanceof HTMLElement)) {
+    return null;
+  }
+  if (domNode.getAttribute("data-lexical-embed") !== "true") {
+    return null;
+  }
+  const html = domNode.innerHTML;
+  if (!html.trim()) {
+    return null;
+  }
+  return {
+    node: $createEmbedNode({ html }),
+  };
 };

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from pathlib import Path
-from typing import Any, Iterable, Set
+from typing import Any, Dict, Iterable, Mapping, Set
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from app.core.config import settings
 
@@ -74,3 +76,60 @@ def extract_upload_urls(payload: Any) -> Set[str]:
 
     _walk(payload)
     return urls
+
+
+def duplicate_upload(url: str | None) -> str | None:
+    normalized = normalize_upload_url(url)
+    if not normalized:
+        return None
+
+    source_path = _uploads_dir() / Path(normalized).name
+    if not source_path.exists():
+        logger.warning("Attempted to duplicate missing upload %s", source_path)
+        return normalized
+
+    extension = source_path.suffix
+    for _ in range(10):
+        new_name = f"{uuid4().hex}{extension}"
+        destination = _uploads_dir() / new_name
+        if destination.exists():
+            continue
+        try:
+            shutil.copy2(source_path, destination)
+            return f"{UPLOADS_URL_PREFIX}{destination.name}"
+        except OSError as exc:
+            logger.error("Failed to duplicate upload %s -> %s: %s", source_path, destination, exc)
+            return normalized
+    logger.error("Unable to allocate new filename for duplicated upload %s", source_path)
+    return normalized
+
+
+def duplicate_uploads(urls: Iterable[str]) -> Dict[str, str]:
+    mapping: Dict[str, str] = {}
+    for url in urls:
+        normalized = normalize_upload_url(url)
+        if not normalized or normalized in mapping:
+            continue
+        duplicated = duplicate_upload(normalized)
+        if duplicated and duplicated != normalized:
+            mapping[normalized] = duplicated
+    return mapping
+
+
+def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
+    if not replacements:
+        return payload
+
+    def _walk(value: Any) -> Any:
+        if isinstance(value, str):
+            normalized = normalize_upload_url(value)
+            if normalized and normalized in replacements:
+                return replacements[normalized]
+            return value
+        if isinstance(value, dict):
+            return {key: _walk(child) for key, child in value.items()}
+        if isinstance(value, list):
+            return [_walk(item) for item in value]
+        return value
+
+    return _walk(payload)

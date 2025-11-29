@@ -10,7 +10,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Calendar, Kanban, Table, GanttChart, Filter, ChevronDown } from "lucide-react";
+import { Calendar, Kanban, Table, GanttChart, Filter, ChevronDown, Plus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -673,6 +673,7 @@ export const ProjectTasksSection = ({
                   className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
                   onClick={() => setIsComposerOpen(true)}
                 >
+                  <Plus className="mr-2 h-4 w-4" />
                   Add Task
                 </Button>
               </TooltipTrigger>

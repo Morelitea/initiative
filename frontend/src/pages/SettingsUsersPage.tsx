@@ -129,14 +129,6 @@ export const SettingsUsersPage = () => {
     updateUser.mutate({ userId, data: { role } });
   };
 
-  const handleResetPassword = (userId: number, email: string) => {
-    const nextPassword = window.prompt(`Enter a new password for ${email}`);
-    if (!nextPassword) {
-      return;
-    }
-    updateUser.mutate({ userId, data: { password: nextPassword } });
-  };
-
   const handleDeleteUser = (userId: number, email: string) => {
     if (userId === SUPER_USER_ID) {
       toast.error("You can't delete the super user");
@@ -210,7 +202,7 @@ export const SettingsUsersPage = () => {
               onValueChange={(value) => handleRoleChange(workspaceUser.id, value as UserRole)}
               disabled={isSuperUser}
             >
-              <SelectTrigger disabled={isSuperUser} className="min-w-[160px]">
+              <SelectTrigger disabled={isSuperUser} className="min-w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -244,14 +236,6 @@ export const SettingsUsersPage = () => {
                 Approve
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleResetPassword(workspaceUser.id, workspaceUser.email)}
-              disabled={updateUser.isPending}
-            >
-              Reset password
-            </Button>
             <Button
               type="button"
               variant="destructive"

@@ -149,6 +149,7 @@ type DocumentEditorProps = {
   readOnly?: boolean;
   placeholder?: string;
   className?: string;
+  showToolbar?: boolean;
 };
 
 export const DocumentEditor = ({
@@ -157,6 +158,7 @@ export const DocumentEditor = ({
   readOnly = false,
   placeholder = "Start writing…",
   className,
+  showToolbar = !readOnly,
 }: DocumentEditorProps) => {
   const sanitizedInitialState = useMemo(() => normalizeEditorState(initialState), [initialState]);
   const initialConfig = useMemo<InitialConfigType>(
@@ -200,9 +202,11 @@ export const DocumentEditor = ({
           className
         )}
       >
-        <div className="sticky top-0 z-10 rounded-t-xl border-b bg-card px-3 py-2">
-          <EditorToolbar readOnly={readOnly} />
-        </div>
+        {showToolbar ? (
+          <div className="sticky top-0 z-10 rounded-t-xl border-b bg-card px-3 py-2">
+            <EditorToolbar readOnly={readOnly} />
+          </div>
+        ) : null}
         <div className="px-4 py-3">
           <RichTextPlugin
             contentEditable={

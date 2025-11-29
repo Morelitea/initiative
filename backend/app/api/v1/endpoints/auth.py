@@ -70,11 +70,16 @@ async def register_user(
             if settings.DISABLE_GUILD_CREATION and not normalized_invite and not is_first_user:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration requires an invite code")
 
+            if normalized_invite:
+                user_role = UserRole.member
+            else:
+                user_role = UserRole.admin if is_first_user else UserRole.member
+
             user = User(
                 email=user_in.email,
                 full_name=user_in.full_name,
                 hashed_password=get_password_hash(user_in.password),
-                role=UserRole.admin if is_first_user else UserRole.member,
+                role=user_role,
                 is_active=True,
                 email_verified=is_first_user or not smtp_configured,
             )

@@ -1,19 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Plus, ScrollText } from "lucide-react";
+import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,12 +26,90 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { DocumentCard } from "@/components/documents/DocumentCard";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { useAuth } from "@/hooks/useAuth";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
 
 const INITIATIVE_FILTER_ALL = "all";
+const DOCUMENT_VIEW_KEY = "documents:view-mode";
+const getDefaultDocumentFiltersVisibility = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  return window.matchMedia("(min-width: 640px)").matches;
+};
+
+const documentColumns: ColumnDef<DocumentSummary>[] = [
+  {
+    accessorKey: "title",
+    header: "Title",
+    cell: ({ row }) => {
+      const document = row.original;
+      return (
+        <div className="space-y-1">
+          <Link
+            to={`/documents/${document.id}`}
+            className="font-medium text-primary hover:underline"
+          >
+            {document.title}
+          </Link>
+          <p className="text-xs text-muted-foreground">
+            Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
+          </p>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "initiative",
+    header: "Initiative",
+    cell: ({ row }) => {
+      const initiative = row.original.initiative;
+      if (!initiative) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return (
+        <span className="inline-flex items-center gap-2">
+          <InitiativeColorDot color={initiative.color} />
+          {initiative.name}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "projects",
+    header: "Projects",
+    cell: ({ row }) => {
+      const count = row.original.projects.length;
+      return <span>{count}</span>;
+    },
+  },
+  {
+    accessorKey: "is_template",
+    header: "Type",
+    cell: ({ row }) =>
+      row.original.is_template ? (
+        <Badge variant="outline">Template</Badge>
+      ) : (
+        <span className="text-muted-foreground">Document</span>
+      ),
+  },
+  {
+    id: "actions",
+    header: "",
+    cell: ({ row }) => (
+      <Button asChild variant="ghost" size="sm" className="-mr-2">
+        <Link to={`/documents/${row.original.id}`}>Open</Link>
+      </Button>
+    ),
+  },
+];
 
 export const DocumentsPage = () => {
   const navigate = useNavigate();
@@ -44,6 +117,14 @@ export const DocumentsPage = () => {
   const { user } = useAuth();
   const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
+  const [viewMode, setViewMode] = useState<"grid" | "table">(() => {
+    if (typeof window === "undefined") {
+      return "grid";
+    }
+    const stored = localStorage.getItem(DOCUMENT_VIEW_KEY);
+    return stored === "table" || stored === "grid" ? stored : "grid";
+  });
 
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", { initiative: initiativeFilter, search: searchQuery }],
@@ -86,16 +167,86 @@ export const DocumentsPage = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newInitiativeId, setNewInitiativeId] = useState<string>("");
+  const [isTemplateDocument, setIsTemplateDocument] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const canCreateDocuments = manageableInitiatives.length > 0;
+
+  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
+    queryKey: ["documents", "templates"],
+    queryFn: async () => {
+      const response = await apiClient.get<DocumentSummary[]>("/documents/");
+      return response.data;
+    },
+    enabled: canCreateDocuments,
+  });
+
+  const manageableTemplates = useMemo(() => {
+    if (!templateDocumentsQuery.data || !user) {
+      return [];
+    }
+    if (user.role === "admin") {
+      return templateDocumentsQuery.data.filter((document) => document.is_template);
+    }
+    return templateDocumentsQuery.data.filter((document) => {
+      if (!document.is_template) {
+        return false;
+      }
+      const initiativeMembers = document.initiative?.members ?? [];
+      return initiativeMembers.some(
+        (member) => member.user.id === user.id && member.role === "project_manager"
+      );
+    });
+  }, [templateDocumentsQuery.data, user]);
+
+  useEffect(() => {
+    localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mediaQuery = window.matchMedia("(min-width: 640px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setFiltersOpen(event.matches);
+    };
+    setFiltersOpen(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
 
   useEffect(() => {
     if (!createDialogOpen) {
+      setIsTemplateDocument(false);
+      setSelectedTemplateId("");
       return;
     }
     if (!newInitiativeId && manageableInitiatives.length > 0) {
       setNewInitiativeId(String(manageableInitiatives[0].id));
     }
   }, [createDialogOpen, manageableInitiatives, newInitiativeId]);
+
+  useEffect(() => {
+    if (isTemplateDocument && selectedTemplateId) {
+      setSelectedTemplateId("");
+    }
+  }, [isTemplateDocument, selectedTemplateId]);
+
+  useEffect(() => {
+    if (!selectedTemplateId) {
+      return;
+    }
+    const isValid = manageableTemplates.some(
+      (document) => String(document.id) === selectedTemplateId
+    );
+    if (!isValid) {
+      setSelectedTemplateId("");
+    }
+  }, [manageableTemplates, selectedTemplateId]);
 
   const createDocument = useMutation({
     mutationFn: async () => {
@@ -106,9 +257,21 @@ export const DocumentsPage = () => {
       if (!newInitiativeId) {
         throw new Error("Select an initiative");
       }
+      if (selectedTemplateId) {
+        const payload = {
+          target_initiative_id: Number(newInitiativeId),
+          title: trimmedTitle,
+        };
+        const response = await apiClient.post<DocumentRead>(
+          `/documents/${selectedTemplateId}/copy`,
+          payload
+        );
+        return response.data;
+      }
       const payload = {
         title: trimmedTitle,
         initiative_id: Number(newInitiativeId),
+        is_template: isTemplateDocument,
       };
       const response = await apiClient.post<DocumentRead>("/documents/", payload);
       return response.data;
@@ -117,6 +280,8 @@ export const DocumentsPage = () => {
       toast.success("Document created");
       setCreateDialogOpen(false);
       setNewTitle("");
+      setIsTemplateDocument(false);
+      setSelectedTemplateId("");
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       navigate(`/documents/${document.id}`);
     },
@@ -128,6 +293,7 @@ export const DocumentsPage = () => {
   });
 
   const initiatives = initiativesQuery.data ?? [];
+  const documents = documentsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -138,49 +304,83 @@ export const DocumentsPage = () => {
             Keep initiative knowledge organized and attach docs to projects.
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => setCreateDialogOpen(true)}
-          disabled={!canCreateDocuments}
+        <Tabs
+          value={viewMode}
+          onValueChange={(value) => setViewMode(value as "grid" | "table")}
+          className="w-auto"
         >
-          <Plus className="mr-2 h-4 w-4" />
-          New document
-        </Button>
+          <TabsList className="grid grid-cols-2">
+            <TabsTrigger value="grid" className="inline-flex items-center gap-2">
+              <LayoutGrid className="h-4 w-4" />
+              Grid
+            </TabsTrigger>
+            <TabsTrigger value="list" className="inline-flex items-center gap-2">
+              <Table className="h-4 w-4" />
+              Table
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
-      <div className="grid gap-3 sm:grid-cols-[240px_1fr]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
-          <div className="w-full space-y-2">
-            <Label htmlFor="document-initiative-filter">Initiative</Label>
-            <Select
-              value={initiativeFilter}
-              onValueChange={(value) => setInitiativeFilter(value)}
-              disabled={initiativesQuery.isLoading}
-            >
-              <SelectTrigger id="document-initiative-filter">
-                <SelectValue placeholder="All initiatives" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                {initiatives.map((initiative) => (
-                  <SelectItem key={initiative.id} value={String(initiative.id)}>
-                    {initiative.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+        <div className="flex items-center justify-between sm:hidden">
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Filter className="h-4 w-4" />
+            Filters
           </div>
-          <div className="w-full space-y-2">
-            <Label htmlFor="document-search">Search</Label>
-            <Input
-              id="document-search"
-              type="search"
-              placeholder="Search documents"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-3">
+              {filtersOpen ? "Hide" : "Show"} filters
+              <ChevronDown
+                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+          </CollapsibleTrigger>
         </div>
-      </div>
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+          <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+            <div className="w-full sm:flex-1 space-y-2">
+              <Label
+                htmlFor="document-search"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Search
+              </Label>
+              <Input
+                id="document-search"
+                type="search"
+                placeholder="Search documents"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </div>
+            <div className="w-full sm:w-60 space-y-2">
+              <Label
+                htmlFor="document-initiative-filter"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Initiative
+              </Label>
+              <Select
+                value={initiativeFilter}
+                onValueChange={(value) => setInitiativeFilter(value)}
+                disabled={initiativesQuery.isLoading}
+              >
+                <SelectTrigger id="document-initiative-filter">
+                  <SelectValue placeholder="All initiatives" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                  {initiatives.map((initiative) => (
+                    <SelectItem key={initiative.id} value={String(initiative.id)}>
+                      {initiative.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {documentsQuery.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -194,84 +394,20 @@ export const DocumentsPage = () => {
       ) : null}
 
       {!documentsQuery.isLoading && !documentsQuery.isError ? (
-        documentsQuery.data && documentsQuery.data.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {documentsQuery.data.map((document) => (
-              <Card key={document.id} className="flex h-full flex-col overflow-hidden">
-                <div className="relative aspect-[4/3] w-full border-b border-border bg-muted">
-                  {document.featured_image_url ? (
-                    <img
-                      src={document.featured_image_url}
-                      alt=""
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <ScrollText className="h-10 w-10" />
-                    </div>
-                  )}
-                </div>
-                <CardHeader className="flex flex-col gap-2">
-                  <CardTitle className="flex items-center justify-between gap-3 text-xl">
-                    <Link
-                      to={`/documents/${document.id}`}
-                      className="line-clamp-1 font-semibold hover:text-primary"
-                    >
-                      {document.title}
-                    </Link>
-                    <Badge variant="secondary">
-                      {document.projects.length} project
-                      {document.projects.length === 1 ? "" : "s"}
-                    </Badge>
-                  </CardTitle>
-                  {document.initiative ? (
-                    <CardDescription className="flex items-center gap-2">
-                      <InitiativeColorDot color={document.initiative.color} />
-                      <span>{document.initiative.name}</span>
-                    </CardDescription>
-                  ) : null}
-                </CardHeader>
-                <CardContent className="flex flex-1 flex-col justify-between gap-4">
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Updated{" "}
-                      {formatDistanceToNow(new Date(document.updated_at), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                    {document.projects.length > 0 ? (
-                      <div className="space-y-1">
-                        {document.projects.slice(0, 3).map((link) => (
-                          <Link
-                            key={`${document.id}-${link.project_id}`}
-                            to={`/projects/${link.project_id}`}
-                            className="block text-sm text-primary hover:underline"
-                          >
-                            {link.project_name ?? `Project #${link.project_id}`}
-                          </Link>
-                        ))}
-                        {document.projects.length > 3 ? (
-                          <p className="text-xs text-muted-foreground">
-                            +{document.projects.length - 3} more
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Not attached to any projects yet.
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to={`/documents/${document.id}`}>Open document</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        documents.length > 0 ? (
+          viewMode === "grid" ? (
+            <div className="flex flex-wrap gap-4">
+              {documents.map((document) => (
+                <DocumentCard
+                  key={document.id}
+                  document={document}
+                  className="w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.75rem)] xl:w-[calc(25%-0.75rem)] 2xl:w-[calc(20%-0.8rem)]"
+                />
+              ))}
+            </div>
+          ) : (
+            <DataTable columns={documentColumns} data={documents} />
+          )
         ) : (
           <Card>
             <CardHeader>
@@ -290,61 +426,126 @@ export const DocumentsPage = () => {
       ) : null}
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New document</DialogTitle>
-            <DialogDescription>
-              Documents live inside an initiative and can be attached to projects later.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-document-title">Title</Label>
-              <Input
-                id="new-document-title"
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-                placeholder="Product launch brief"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-document-initiative">Initiative</Label>
-              <Select
-                value={newInitiativeId}
-                onValueChange={(value) => setNewInitiativeId(value)}
-                disabled={!canCreateDocuments}
-              >
-                <SelectTrigger id="new-document-initiative">
-                  <SelectValue placeholder="Select initiative" />
-                </SelectTrigger>
-                <SelectContent>
-                  {manageableInitiatives.map((initiative) => (
-                    <SelectItem key={initiative.id} value={String(initiative.id)}>
-                      {initiative.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {createDialogOpen ? (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+            <div
+              className="absolute inset-0 -z-10"
+              role="presentation"
+              onClick={() => setCreateDialogOpen(false)}
+            />
+            <DialogContent className="w-full max-w-lg rounded-2xl border bg-card shadow-2xl">
+              <DialogHeader>
+                <DialogTitle>New document</DialogTitle>
+                <DialogDescription>
+                  Documents live inside an initiative and can be attached to projects later.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="new-document-title">Title</Label>
+                  <Input
+                    id="new-document-title"
+                    value={newTitle}
+                    onChange={(event) => setNewTitle(event.target.value)}
+                    placeholder="Product launch brief"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-document-initiative">Initiative</Label>
+                  <Select
+                    value={newInitiativeId}
+                    onValueChange={(value) => setNewInitiativeId(value)}
+                    disabled={!canCreateDocuments}
+                  >
+                    <SelectTrigger id="new-document-initiative">
+                      <SelectValue placeholder="Select initiative" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {manageableInitiatives.map((initiative) => (
+                        <SelectItem key={initiative.id} value={String(initiative.id)}>
+                          {initiative.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-document-template-selector">Start from template</Label>
+                  <Select
+                    value={selectedTemplateId || undefined}
+                    onValueChange={(value) => setSelectedTemplateId(value)}
+                    disabled={
+                      templateDocumentsQuery.isLoading ||
+                      manageableTemplates.length === 0 ||
+                      isTemplateDocument
+                    }
+                  >
+                    <SelectTrigger id="new-document-template-selector">
+                      <SelectValue
+                        placeholder={
+                          templateDocumentsQuery.isLoading
+                            ? "Loading templates…"
+                            : manageableTemplates.length > 0
+                              ? "Select template (optional)"
+                              : "No templates available"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {manageableTemplates.map((template) => (
+                        <SelectItem key={template.id} value={String(template.id)}>
+                          {template.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Save as template</p>
+                    <p className="text-xs text-muted-foreground">
+                      Template documents are best duplicated or copied into other initiatives.
+                    </p>
+                  </div>
+                  <Switch
+                    id="new-document-template"
+                    checked={isTemplateDocument}
+                    onCheckedChange={setIsTemplateDocument}
+                    aria-label="Toggle template status for the new document"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={() => createDocument.mutate()}
+                  disabled={createDocument.isPending || !newTitle.trim() || !newInitiativeId}
+                >
+                  {createDocument.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating…
+                    </>
+                  ) : (
+                    "Create document"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
           </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={() => createDocument.mutate()}
-              disabled={createDocument.isPending || !newTitle.trim() || !newInitiativeId}
-            >
-              {createDocument.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating…
-                </>
-              ) : (
-                "Create document"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        ) : null}
       </Dialog>
+
+      {canCreateDocuments ? (
+        <Button
+          type="button"
+          className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New document
+        </Button>
+      ) : null}
     </div>
   );
 };

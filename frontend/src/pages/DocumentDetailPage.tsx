@@ -1,9 +1,9 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
-import { ImagePlus, Loader2, ScrollText, Trash2, X } from "lucide-react";
+import { ImagePlus, Loader2, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -15,28 +15,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
+import { useAuth } from "@/hooks/useAuth";
 
 export const DocumentDetailPage = () => {
   const { documentId } = useParams();
   const parsedId = Number(documentId);
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { user } = useAuth();
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
+  const [title, setTitle] = useState("");
+  const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
 
   const documentQuery = useQuery<DocumentRead>({
@@ -53,8 +46,6 @@ export const DocumentDetailPage = () => {
     () => normalizeEditorState(document?.content),
     [document]
   );
-  const [title, setTitle] = useState("");
-  const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
 
   useEffect(() => {
     if (!document) {
@@ -64,16 +55,34 @@ export const DocumentDetailPage = () => {
     setContentState(normalizedDocumentContent);
     setFeaturedImageUrl(document.featured_image_url ?? null);
   }, [document, normalizedDocumentContent]);
+
   const documentContentJson = useMemo(
     () => JSON.stringify(normalizedDocumentContent),
     [normalizedDocumentContent]
   );
   const currentContentJson = useMemo(() => JSON.stringify(contentState), [contentState]);
   const normalizedDocumentFeatured = document?.featured_image_url ?? null;
+  const canEditDocument = useMemo(() => {
+    if (!document || !user) {
+      return false;
+    }
+    if (user.role === "admin") {
+      return true;
+    }
+    const initiativeMembers = document.initiative?.members ?? [];
+    const isManager = initiativeMembers.some(
+      (member) => member.user.id === user.id && member.role === "project_manager"
+    );
+    if (isManager) {
+      return true;
+    }
+    return (document.write_member_ids ?? []).includes(user.id);
+  }, [document, user]);
   const isDirty =
-    (document && title.trim() !== document.title.trim()) ||
-    documentContentJson !== currentContentJson ||
-    normalizedDocumentFeatured !== featuredImageUrl;
+    canEditDocument &&
+    ((document && title.trim() !== document.title.trim()) ||
+      documentContentJson !== currentContentJson ||
+      normalizedDocumentFeatured !== featuredImageUrl);
 
   const saveDocument = useMutation({
     mutationFn: async () => {
@@ -105,6 +114,9 @@ export const DocumentDetailPage = () => {
   });
 
   const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!canEditDocument) {
+      return;
+    }
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
@@ -127,22 +139,12 @@ export const DocumentDetailPage = () => {
     }
   };
 
-  const openFeaturedImagePicker = () => featuredImageInputRef.current?.click();
-
-  const deleteDocument = useMutation({
-    mutationFn: async () => {
-      await apiClient.delete(`/documents/${parsedId}`);
-    },
-    onSuccess: () => {
-      toast.success("Document deleted");
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      setDeleteDialogOpen(false);
-      navigate("/documents");
-    },
-    onError: () => {
-      toast.error("Unable to delete document right now.");
-    },
-  });
+  const openFeaturedImagePicker = () => {
+    if (!canEditDocument) {
+      return;
+    }
+    featuredImageInputRef.current?.click();
+  };
 
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">Invalid document id.</p>;
@@ -165,46 +167,21 @@ export const DocumentDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="link" className="px-0">
           <Link to="/documents">← Back to documents</Link>
         </Button>
-        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete this document?</DialogTitle>
-              <DialogDescription>
-                This removes the document for everyone and detaches it from any projects.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button type="button" variant="secondary" onClick={() => setDeleteDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => deleteDocument.mutate()}
-                disabled={deleteDocument.isPending}
-              >
-                {deleteDocument.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting…
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {canEditDocument ? (
+          <Button asChild variant="outline" size="sm">
+            <Link
+              to={`/documents/${document.id}/settings`}
+              className="inline-flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Document settings
+            </Link>
+          </Button>
+        ) : null}
       </div>
       <div className="space-y-2">
         <Input
@@ -212,6 +189,7 @@ export const DocumentDetailPage = () => {
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Document title"
           className="text-2xl font-semibold"
+          disabled={!canEditDocument}
         />
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {document.initiative ? (
@@ -223,6 +201,7 @@ export const DocumentDetailPage = () => {
           <span>
             Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
           </span>
+          {document.is_template ? <Badge variant="outline">Template</Badge> : null}
         </div>
       </div>
       <Card>
@@ -231,7 +210,7 @@ export const DocumentDetailPage = () => {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-muted md:w-80">
+            <div className="relative aspect-square w-full overflow-hidden rounded-xl border bg-muted md:w-50">
               {featuredImageUrl ? (
                 <img src={featuredImageUrl} alt="" className="h-full w-full object-cover" />
               ) : (
@@ -248,37 +227,39 @@ export const DocumentDetailPage = () => {
                 className="hidden"
                 onChange={handleFeaturedImageChange}
               />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={openFeaturedImagePicker}
-                  disabled={isUploadingFeaturedImage}
-                >
-                  {isUploadingFeaturedImage ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading…
-                    </>
-                  ) : (
-                    <>
-                      <ImagePlus className="mr-2 h-4 w-4" />
-                      Upload featured image
-                    </>
-                  )}
-                </Button>
-                {featuredImageUrl ? (
+              {canEditDocument ? (
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    variant="ghost"
-                    onClick={() => setFeaturedImageUrl(null)}
+                    variant="outline"
+                    onClick={openFeaturedImagePicker}
                     disabled={isUploadingFeaturedImage}
                   >
-                    <X className="mr-2 h-4 w-4" />
-                    Remove image
+                    {isUploadingFeaturedImage ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <ImagePlus className="mr-2 h-4 w-4" />
+                        Upload featured image
+                      </>
+                    )}
                   </Button>
-                ) : null}
-              </div>
+                  {featuredImageUrl ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setFeaturedImageUrl(null)}
+                      disabled={isUploadingFeaturedImage}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Remove image
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Uploads are stored locally under <code>/uploads</code>. Remember to save changes to
                 keep your new image.
@@ -292,25 +273,35 @@ export const DocumentDetailPage = () => {
         initialState={normalizedDocumentContent}
         onChange={setContentState}
         placeholder="Capture requirements, share decisions, or outline processes…"
+        readOnly={!canEditDocument}
+        showToolbar={canEditDocument}
       />
       <div className="flex flex-wrap gap-3">
-        <Button
-          type="button"
-          onClick={() => saveDocument.mutate()}
-          disabled={!isDirty || saveDocument.isPending}
-        >
-          {saveDocument.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving…
-            </>
-          ) : (
-            "Save changes"
-          )}
-        </Button>
-        {!isDirty ? (
-          <span className="self-center text-sm text-muted-foreground">All changes saved</span>
-        ) : null}
+        {canEditDocument ? (
+          <>
+            <Button
+              type="button"
+              onClick={() => saveDocument.mutate()}
+              disabled={!isDirty || saveDocument.isPending}
+            >
+              {saveDocument.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save changes"
+              )}
+            </Button>
+            {!isDirty ? (
+              <span className="self-center text-sm text-muted-foreground">All changes saved</span>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            You only have read access to this document.
+          </p>
+        )}
       </div>
       <Card>
         <CardHeader>
@@ -341,7 +332,6 @@ export const DocumentDetailPage = () => {
                       {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
                     </p>
                   </div>
-                  <Badge variant="outline">Project #{link.project_id}</Badge>
                 </div>
               ))}
             </div>

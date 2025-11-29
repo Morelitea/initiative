@@ -24,7 +24,7 @@ export const ProjectTabsBar = ({
   }
 
   return (
-    <div className="sticky top-16 border-b bg-card/70 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+    <div className="sticky top-16 z-40 border-b bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60">
       <div className="flex h-12 items-end gap-2 overflow-x-auto px-4">
         {loading ? (
           <p className="py-3 text-xs text-muted-foreground">Loading recent projects…</p>

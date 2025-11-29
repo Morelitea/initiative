@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from app.models.document import DocumentPermissionLevel
 from app.schemas.initiative import InitiativeRead, serialize_initiative
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -24,6 +25,7 @@ class DocumentBase(BaseModel):
     title: str
     initiative_id: int
     featured_image_url: Optional[str] = None
+    is_template: bool = False
 
 
 class DocumentCreate(DocumentBase):
@@ -34,6 +36,20 @@ class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[LexicalState] = None
     featured_image_url: Optional[str] = None
+    is_template: Optional[bool] = None
+
+
+class DocumentDuplicateRequest(BaseModel):
+    title: Optional[str] = None
+
+
+class DocumentCopyRequest(BaseModel):
+    target_initiative_id: int
+    title: Optional[str] = None
+
+
+class DocumentPermissionsUpdate(BaseModel):
+    write_member_ids: List[int] = Field(default_factory=list)
 
 
 class DocumentSummary(DocumentBase):
@@ -51,6 +67,7 @@ class DocumentSummary(DocumentBase):
 
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
+    write_member_ids: List[int] = Field(default_factory=list)
 
 
 class ProjectDocumentSummary(BaseModel):
@@ -82,6 +99,7 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
         initiative_id=document.initiative_id,
         title=document.title,
         featured_image_url=document.featured_image_url,
+        is_template=document.is_template,
         created_by_id=document.created_by_id,
         updated_by_id=document.updated_by_id,
         created_at=document.created_at,
@@ -91,11 +109,21 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
     )
 
 
+def _serialize_write_member_ids(document: "Document") -> List[int]:
+    permissions = getattr(document, "permissions", None) or []
+    return [
+        permission.user_id
+        for permission in permissions
+        if permission.level == DocumentPermissionLevel.write
+    ]
+
+
 def serialize_document(document: "Document") -> DocumentRead:
     summary = serialize_document_summary(document)
     return DocumentRead(
         **summary.model_dump(),
         content=document.content or {},
+        write_member_ids=_serialize_write_member_ids(document),
     )
 
 

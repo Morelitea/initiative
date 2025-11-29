@@ -7,6 +7,8 @@ import {
   DecoratorNode,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
+  type DOMConversionMap,
+  type DOMConversionOutput,
   type DOMExportOutput,
   type EditorConfig,
   type LexicalEditor,
@@ -45,7 +47,13 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   __width: number | null;
   __height: number | null;
 
-  constructor(src: string, altText = "", width: number | null = null, height: number | null = null, key?: NodeKey) {
+  constructor(
+    src: string,
+    altText = "",
+    width: number | null = null,
+    height: number | null = null,
+    key?: NodeKey
+  ) {
     super(key);
     this.__src = src;
     this.__altText = altText;
@@ -78,6 +86,15 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
       height: this.__height,
       type: "image",
       version: 1,
+    };
+  }
+
+  static importDOM(): DOMConversionMap | null {
+    return {
+      img: () => ({
+        conversion: convertImageElement,
+        priority: 1,
+      }),
     };
   }
 
@@ -138,7 +155,12 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   }
 }
 
-export const $createImageNode = ({ src, altText = "", width = null, height = null }: InsertImagePayload): ImageNode => {
+export const $createImageNode = ({
+  src,
+  altText = "",
+  width = null,
+  height = null,
+}: InsertImagePayload): ImageNode => {
   const imageNode = new ImageNode(src, altText, width, height);
   return $applyNodeReplacement(imageNode);
 };
@@ -157,6 +179,29 @@ export const insertImageNode = (editor: LexicalEditor, payload: InsertImagePaylo
       $insertNodes([node]);
     }
   });
+};
+
+const convertImageElement = (domNode: Node): DOMConversionOutput | null => {
+  if (!(domNode instanceof HTMLImageElement)) {
+    return null;
+  }
+  const src = domNode.getAttribute("src");
+  if (!src) {
+    return null;
+  }
+  const widthAttr = domNode.getAttribute("width");
+  const heightAttr = domNode.getAttribute("height");
+  const width = widthAttr ? Number(widthAttr) || null : null;
+  const height = heightAttr ? Number(heightAttr) || null : null;
+  const altText = domNode.getAttribute("alt") ?? "";
+  return {
+    node: $createImageNode({
+      src,
+      altText,
+      width,
+      height,
+    }),
+  };
 };
 
 type ImageComponentProps = {
@@ -213,8 +258,16 @@ const ImageComponent = ({ src, altText, nodeKey, width, height, editor }: ImageC
         },
         COMMAND_PRIORITY_LOW
       ),
-      editor.registerCommand(KEY_DELETE_COMMAND, (event) => removeNode(event ?? null), COMMAND_PRIORITY_LOW),
-      editor.registerCommand(KEY_BACKSPACE_COMMAND, (event) => removeNode(event ?? null), COMMAND_PRIORITY_LOW)
+      editor.registerCommand(
+        KEY_DELETE_COMMAND,
+        (event) => removeNode(event ?? null),
+        COMMAND_PRIORITY_LOW
+      ),
+      editor.registerCommand(
+        KEY_BACKSPACE_COMMAND,
+        (event) => removeNode(event ?? null),
+        COMMAND_PRIORITY_LOW
+      )
     );
   }, [editor, setSelected, clearSelection, removeNode]);
 
@@ -312,7 +365,9 @@ const ImageResizer = ({ imageRef, onResize, onResizeEnd, onResizeStart }: ImageR
         const deltaX = moveEvent.clientX - startX;
         const nextWidth = Math.max(DEFAULT_MIN_WIDTH, startingWidth + deltaX);
         const nextHeight =
-          aspectRatio && isFinite(aspectRatio) ? Math.round(nextWidth * aspectRatio) : image.getBoundingClientRect().height;
+          aspectRatio && isFinite(aspectRatio)
+            ? Math.round(nextWidth * aspectRatio)
+            : image.getBoundingClientRect().height;
         onResize(Math.round(nextWidth), nextHeight ?? null);
       };
 

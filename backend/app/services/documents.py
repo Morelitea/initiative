@@ -8,9 +8,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.document import Document, ProjectDocument
+from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
+from app.services import attachments as attachments_service
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -69,6 +70,7 @@ async def get_document(
         .options(
             selectinload(Document.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
+            selectinload(Document.permissions),
         )
     )
     result = await session.exec(statement)
@@ -118,3 +120,69 @@ async def detach_document_from_project(
     if link:
         await session.delete(link)
         await session.commit()
+
+
+async def duplicate_document(
+    session: AsyncSession,
+    *,
+    source: Document,
+    target_initiative_id: int,
+    title: str,
+    user_id: int,
+) -> Document:
+    content_copy = normalize_document_content(deepcopy(source.content))
+    content_uploads = attachments_service.extract_upload_urls(content_copy)
+    replacements = attachments_service.duplicate_uploads(content_uploads)
+    if replacements:
+        content_copy = attachments_service.replace_upload_urls(content_copy, replacements)
+
+    featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
+
+    duplicated = Document(
+        title=title,
+        initiative_id=target_initiative_id,
+        content=content_copy,
+        created_by_id=user_id,
+        updated_by_id=user_id,
+        featured_image_url=featured_image_url,
+        is_template=False,
+    )
+    session.add(duplicated)
+    await session.commit()
+    await session.refresh(duplicated)
+    return duplicated
+
+
+async def set_document_write_permissions(
+    session: AsyncSession,
+    *,
+    document: Document,
+    write_member_ids: set[int],
+) -> None:
+    existing_permissions = {
+        permission.user_id: permission for permission in (document.permissions or [])
+    }
+    desired = set(write_member_ids)
+
+    # Remove permissions not desired
+    for user_id, permission in list(existing_permissions.items()):
+        if user_id not in desired:
+            await session.delete(permission)
+
+    # Add new permissions
+    for user_id in desired - set(existing_permissions):
+        new_permission = DocumentPermission(
+            document_id=document.id,
+            user_id=user_id,
+            level=DocumentPermissionLevel.write,
+        )
+        session.add(new_permission)
+        document.permissions = (document.permissions or []) + [new_permission]
+
+    # Trim relationship cache to match desired set
+    if document.permissions:
+        document.permissions = [
+            permission for permission in document.permissions if permission.user_id in desired
+        ]
+
+    await session.flush()
