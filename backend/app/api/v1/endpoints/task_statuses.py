@@ -30,7 +30,7 @@ def _sorted(statuses: List[TaskStatus]) -> List[TaskStatus]:
 
 
 def _resequence(statuses: List[TaskStatus]) -> None:
-    for index, item in enumerate(_sorted(statuses)):
+    for index, item in enumerate(statuses):
         item.position = index
 
 
@@ -262,7 +262,7 @@ async def delete_task_status(
 
     stmt = select(func.count(Task.id)).where(Task.task_status_id == target.id)
     result = await session.exec(stmt)
-    task_count = result.scalar_one()
+    task_count = result.first() or 0
 
     fallback_obj: TaskStatus | None = None
     if task_count:

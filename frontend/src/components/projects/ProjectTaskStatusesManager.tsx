@@ -60,6 +60,15 @@ const CATEGORY_OPTIONS: { value: TaskStatusCategory; label: string }[] = [
 
 const STATUS_QUERY_KEY = (projectId: number) => ["projects", projectId, "task-statuses"];
 
+const sortStatuses = (items: ProjectTaskStatus[]): ProjectTaskStatus[] => {
+  return [...items].sort((a, b) => {
+    if (a.position === b.position) {
+      return a.id - b.id;
+    }
+    return a.position - b.position;
+  });
+};
+
 interface ProjectTaskStatusesManagerProps {
   projectId: number;
   canManage: boolean;
@@ -105,19 +114,37 @@ export const ProjectTaskStatusesManager = ({
     },
   });
 
+  const reorderStatuses = useMutation({
+    mutationFn: async (items: { id: number; position: number }[]) => {
+      const response = await apiClient.post<ProjectTaskStatus[]>(`${basePath}/reorder`, { items });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const sorted = sortStatuses(data);
+      setOrderedStatuses(sorted);
+      queryClient.setQueryData(STATUS_QUERY_KEY(projectId), sorted);
+      toast.success("Status order saved");
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Unable to reorder statuses"));
+    },
+  });
+
   useEffect(() => {
-    if (statusesQuery.data) {
-      setOrderedStatuses(statusesQuery.data);
-      const nextDrafts: Record<number, { name: string; category: TaskStatusCategory }> = {};
-      statusesQuery.data.forEach((status) => {
-        nextDrafts[status.id] = {
-          name: status.name,
-          category: status.category,
-        };
-      });
-      setDrafts(nextDrafts);
+    if (!statusesQuery.data || reorderStatuses.isPending) {
+      return;
     }
-  }, [statusesQuery.data]);
+    const sorted = sortStatuses(statusesQuery.data);
+    setOrderedStatuses(sorted);
+    const nextDrafts: Record<number, { name: string; category: TaskStatusCategory }> = {};
+    sorted.forEach((status) => {
+      nextDrafts[status.id] = {
+        name: status.name,
+        category: status.category,
+      };
+    });
+    setDrafts(nextDrafts);
+  }, [statusesQuery.data, reorderStatuses.isPending]);
 
   const invalidateStatuses = () => {
     void queryClient.invalidateQueries({ queryKey: STATUS_QUERY_KEY(projectId) });
@@ -158,21 +185,6 @@ export const ProjectTaskStatusesManager = ({
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Unable to update status"));
-    },
-  });
-
-  const reorderStatuses = useMutation({
-    mutationFn: async (items: { id: number; position: number }[]) => {
-      const response = await apiClient.post<ProjectTaskStatus[]>(`${basePath}/reorder`, { items });
-      return response.data;
-    },
-    onSuccess: (data) => {
-      setOrderedStatuses(data);
-      toast.success("Status order saved");
-      invalidateStatuses();
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "Unable to reorder statuses"));
     },
   });
 
@@ -220,7 +232,7 @@ export const ProjectTaskStatusesManager = ({
       const next = arrayMove(prev, oldIndex, newIndex);
       const payload = next.map((status, index) => ({ id: status.id, position: index }));
       reorderStatuses.mutate(payload);
-      return next;
+      return next.map((status, index) => ({ ...status, position: index }));
     });
   };
 
@@ -283,7 +295,10 @@ export const ProjectTaskStatusesManager = ({
     : [];
 
   const isLoading = statusesQuery.isLoading || statusesQuery.isRefetching;
-  const statuses = orderedStatuses.length ? orderedStatuses : (statusesQuery.data ?? []);
+  const statuses = useMemo(() => {
+    const source = orderedStatuses.length ? orderedStatuses : (statusesQuery.data ?? []);
+    return sortStatuses(source);
+  }, [orderedStatuses, statusesQuery.data]);
 
   return (
     <Card>
