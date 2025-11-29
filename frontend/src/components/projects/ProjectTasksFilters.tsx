@@ -7,22 +7,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
-import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
-import type { TaskStatus } from "@/types/api";
+import type { ProjectTaskStatus } from "@/types/api";
+
+export type ListStatusFilter = "all" | "incomplete" | number;
 
 type ProjectTasksFiltersProps = {
   viewMode: "kanban" | "table" | "calendar" | "gantt";
   userOptions: UserOption[];
+  taskStatuses: ProjectTaskStatus[];
   assigneeFilter: "all" | string;
   dueFilter: DueFilterOption;
-  listStatusFilter: "all" | "incomplete" | TaskStatus;
+  listStatusFilter: ListStatusFilter;
   onAssigneeFilterChange: (value: string) => void;
   onDueFilterChange: (value: DueFilterOption) => void;
-  onListStatusFilterChange: (value: "all" | "incomplete" | TaskStatus) => void;
+  onListStatusFilterChange: (value: ListStatusFilter) => void;
 };
 
 export const ProjectTasksFilters = ({
   viewMode,
+  taskStatuses,
   userOptions,
   assigneeFilter,
   dueFilter,
@@ -76,10 +79,21 @@ export const ProjectTasksFilters = ({
           Filter by status
         </Label>
         <Select
-          value={listStatusFilter}
-          onValueChange={(value) =>
-            onListStatusFilterChange(value as "all" | "incomplete" | TaskStatus)
+          value={
+            listStatusFilter === "all" || listStatusFilter === "incomplete"
+              ? listStatusFilter
+              : String(listStatusFilter)
           }
+          onValueChange={(value) => {
+            if (value === "all" || value === "incomplete") {
+              onListStatusFilterChange(value);
+              return;
+            }
+            const parsed = Number(value);
+            if (Number.isFinite(parsed)) {
+              onListStatusFilterChange(parsed);
+            }
+          }}
         >
           <SelectTrigger id="status-filter">
             <SelectValue placeholder="All statuses" />
@@ -87,9 +101,9 @@ export const ProjectTasksFilters = ({
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="incomplete">Incomplete</SelectItem>
-            {taskStatusOrder.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status.replace("_", " ")}
+            {taskStatuses.map((status) => (
+              <SelectItem key={status.id} value={String(status.id)}>
+                {status.name}
               </SelectItem>
             ))}
           </SelectContent>

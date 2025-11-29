@@ -8,7 +8,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.project_order import ProjectOrder
-    from app.models.task import Task
+    from app.models.task import Task, TaskStatus
     from app.models.user import User
     from app.models.initiative import Initiative
     from app.models.project_activity import ProjectFavorite, RecentProjectView
@@ -46,6 +46,10 @@ class Project(SQLModel, table=True):
     owner: Optional["User"] = Relationship(back_populates="projects_owned")
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")
     tasks: List["Task"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    task_statuses: List["TaskStatus"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

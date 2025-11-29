@@ -5,13 +5,13 @@ import { MessageSquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import type { Task, TaskPriority, TaskStatus } from "@/types/api";
+import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 
 interface KanbanColumnProps {
-  status: TaskStatus;
+  status: ProjectTaskStatus;
   tasks: Task[];
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
@@ -28,14 +28,14 @@ export const KanbanColumn = ({
   canOpenTask,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({
-    id: `column-${status}`,
-    data: { type: "column", status },
+    id: `column-${status.id}`,
+    data: { type: "column", statusId: status.id },
   });
 
   return (
     <Card className="flex h-full flex-col shadow-sm">
       <CardHeader>
-        <CardTitle className="text-lg capitalize">{status.replace("_", " ")}</CardTitle>
+        <CardTitle className="text-lg">{status.name}</CardTitle>
       </CardHeader>
       <CardContent
         ref={setNodeRef}
@@ -82,7 +82,7 @@ const KanbanTaskCard = ({
 }: KanbanTaskCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
-    data: { type: "task", status: task.status },
+    data: { type: "task", statusId: task.task_status_id },
     disabled: !canWrite,
   });
 

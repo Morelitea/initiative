@@ -169,7 +169,7 @@ export interface AttachmentUploadResponse {
   size: number;
 }
 
-export type TaskStatus = "backlog" | "in_progress" | "blocked" | "done";
+export type TaskStatusCategory = "backlog" | "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskRecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";
 export type TaskRecurrenceEnds = "never" | "on_date" | "after_occurrences";
@@ -183,6 +183,15 @@ export type TaskWeekday =
   | "saturday"
   | "sunday";
 export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
+
+export interface ProjectTaskStatus {
+  id: number;
+  project_id: number;
+  name: string;
+  category: TaskStatusCategory;
+  position: number;
+  is_default: boolean;
+}
 
 export interface TaskRecurrence {
   frequency: TaskRecurrenceFrequency;
@@ -202,7 +211,8 @@ export interface Task {
   id: number;
   title: string;
   description?: string;
-  status: TaskStatus;
+  task_status_id: number;
+  task_status: ProjectTaskStatus;
   priority: TaskPriority;
   project_id: number;
   assignees: User[];
@@ -254,7 +264,7 @@ export interface TaskReorderPayload {
   project_id: number;
   items: {
     id: number;
-    status: TaskStatus;
+    task_status_id: number;
     sort_order: number;
   }[];
 }

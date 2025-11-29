@@ -1,6 +1,4 @@
-import type { TaskPriority, TaskStatus } from "@/types/api";
-
-export const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
+import type { TaskPriority } from "@/types/api";
 
 export type DueFilterOption = "all" | "today" | "7_days" | "30_days" | "overdue";
 

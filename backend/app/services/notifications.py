@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import AsyncSessionLocal
 from app.models.project import Project
-from app.models.task import Task, TaskAssignee, TaskStatus
+from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.user import User, UserRole
 from app.models.notification import NotificationType
@@ -229,11 +229,12 @@ async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dic
         select(Task, Project.name)
         .join(Project, Task.project_id == Project.id)
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+        .join(TaskStatus, Task.task_status_id == TaskStatus.id)
         .where(
             TaskAssignee.user_id == user.id,
             Task.due_date.is_not(None),
             Task.due_date < datetime.now(timezone.utc),
-            Task.status != TaskStatus.done,
+            TaskStatus.category != TaskStatusCategory.done,
         )
         .order_by(Task.due_date.asc())
     )

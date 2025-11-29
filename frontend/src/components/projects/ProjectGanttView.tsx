@@ -159,8 +159,9 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                 const clampedEnd = Math.min(daysVisible, endOffset);
                 const isOutOfRange = clampedEnd <= 0 || clampedStart >= daysVisible;
                 const barWidth = Math.max(clampedEnd - clampedStart, 0);
-                const isDone = task.status === "done";
-                const isInProgress = task.status === "in_progress";
+                const category = task.task_status.category;
+                const isDone = category === "done";
+                const isInProgress = category === "in_progress";
                 return (
                   <div
                     key={task.id}

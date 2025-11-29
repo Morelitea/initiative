@@ -11,16 +11,16 @@ import {
   type DroppableContainer,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
-import type { Task, TaskPriority, TaskStatus } from "@/types/api";
+import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
-import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
 import { Badge } from "@/components/ui/badge";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
 type ProjectTasksKanbanViewProps = {
-  groupedTasks: Record<TaskStatus, Task[]>;
+  taskStatuses: ProjectTaskStatus[];
+  groupedTasks: Record<number, Task[]>;
   canReorderTasks: boolean;
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
@@ -34,6 +34,7 @@ type ProjectTasksKanbanViewProps = {
 };
 
 export const ProjectTasksKanbanView = ({
+  taskStatuses,
   groupedTasks,
   canReorderTasks,
   canOpenTask,
@@ -54,13 +55,13 @@ export const ProjectTasksKanbanView = ({
     onDragEnd={onDragEnd}
     onDragCancel={onDragCancel}
   >
-    <div className="overflow-x-auto pb-4">
+  <div className="overflow-x-auto pb-4">
       <div className="flex gap-4">
-        {taskStatusOrder.map((status) => (
-          <div key={status} className="w-70 sm:w-89 shrink-0">
+        {taskStatuses.map((status) => (
+          <div key={status.id} className="w-70 sm:w-89 shrink-0">
             <KanbanColumn
               status={status}
-              tasks={groupedTasks[status]}
+              tasks={groupedTasks[status.id] ?? []}
               canWrite={canReorderTasks}
               canOpenTask={canOpenTask}
               priorityVariant={priorityVariant}

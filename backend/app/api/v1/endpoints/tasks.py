@@ -14,7 +14,7 @@ from app.api.deps import (
 )
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
-from app.models.task import Task, TaskAssignee, TaskStatus
+from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.models.comment import Comment
@@ -24,6 +24,7 @@ from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecur
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
+from app.services import task_statuses as task_statuses_service
 
 router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -63,7 +64,7 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
             Task.id == task_id,
             Initiative.guild_id == guild_id,
         )
-        .options(selectinload(Task.assignees))
+        .options(selectinload(Task.assignees), selectinload(Task.task_status))
     )
     result = await session.exec(stmt)
     task = result.one_or_none()
@@ -120,12 +121,13 @@ async def _advance_recurrence_if_needed(
     session: SessionDep,
     task: Task,
     *,
-    previous_status: TaskStatus,
+    previous_status_category: TaskStatusCategory | None,
     now: datetime,
 ) -> bool:
+    current_category = task.task_status.category if task.task_status else None
     if (
-        previous_status == TaskStatus.done
-        or task.status != TaskStatus.done
+        previous_status_category == TaskStatusCategory.done
+        or current_category != TaskStatusCategory.done
         or not task.recurrence
         or task.due_date is None
     ):
@@ -144,7 +146,9 @@ async def _advance_recurrence_if_needed(
     if next_due is None:
         return False
 
-    task.status = TaskStatus.backlog
+    default_status = await task_statuses_service.get_default_status(session, task.project_id)
+    task.task_status_id = default_status.id
+    task.task_status = default_status
     task.due_date = next_due
     task.sort_order = await _next_sort_order(session, task.project_id)
     task.recurrence_occurrence_count = task.recurrence_occurrence_count + 1
@@ -310,7 +314,7 @@ async def list_tasks(
         .join(Task.project)
         .join(Project.initiative)
         .where(Initiative.guild_id == guild_context.guild_id)
-        .options(selectinload(Task.project), selectinload(Task.assignees))
+        .options(selectinload(Task.project), selectinload(Task.assignees), selectinload(Task.task_status))
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
 
@@ -351,8 +355,21 @@ async def create_task(
     )
 
     sort_order = await _next_sort_order(session, task_in.project_id)
-    task_data = task_in.dict(exclude={"assignee_ids"})
-    task = Task(**task_data, sort_order=sort_order)
+    await task_statuses_service.ensure_default_statuses(session, project.id)
+    selected_status = None
+    if task_in.task_status_id is not None:
+        selected_status = await task_statuses_service.get_project_status(
+            session,
+            status_id=task_in.task_status_id,
+            project_id=project.id,
+        )
+        if selected_status is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task status not found for project")
+    else:
+        selected_status = await task_statuses_service.get_default_status(session, project.id)
+
+    task_data = task_in.dict(exclude={"assignee_ids", "task_status_id"})
+    task = Task(**task_data, sort_order=sort_order, task_status_id=selected_status.id)
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
@@ -418,11 +435,23 @@ async def update_task(
 
     update_data = task_in.dict(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
-    previous_status = task.status
+    previous_status_category = task.task_status.category if task.task_status else None
+    new_status_id = update_data.pop("task_status_id", None)
     status_changed = False
+
+    if new_status_id is not None and new_status_id != task.task_status_id:
+        selected_status = await task_statuses_service.get_project_status(
+            session,
+            status_id=new_status_id,
+            project_id=task.project_id,
+        )
+        if selected_status is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task status not found for project")
+        task.task_status_id = selected_status.id
+        task.task_status = selected_status
+        status_changed = True
+
     for field, value in update_data.items():
-        if field == "status" and value is not None and value != task.status:
-            status_changed = True
         if field == "recurrence":
             if value is None:
                 task.recurrence_occurrence_count = 0
@@ -443,7 +472,12 @@ async def update_task(
         await _set_task_assignees(session, task, assignee_ids)
         new_assignees = [assignee for assignee in task.assignees if assignee.id not in existing_assignee_ids]
 
-    await _advance_recurrence_if_needed(session, task, previous_status=previous_status, now=now)
+    await _advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=previous_status_category,
+        now=now,
+    )
 
     if new_assignees and project:
         for assignee in new_assignees:
@@ -524,7 +558,7 @@ async def reorder_tasks(
             Task.id.in_(tuple(task_ids)),
             Initiative.guild_id == guild_context.guild_id,
         )
-        .options(selectinload(Task.assignees))
+        .options(selectinload(Task.assignees), selectinload(Task.task_status))
     )
     tasks_result = await session.exec(tasks_stmt)
     tasks = tasks_result.all()
@@ -535,22 +569,45 @@ async def reorder_tasks(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
     now = datetime.now(timezone.utc)
+    status_cache: dict[int, TaskStatus] = {}
     for item in reorder_in.items:
         task = task_map[item.id]
-        previous_status = task.status
+        previous_status_category = task.task_status.category if task.task_status else None
         if task.project_id != reorder_in.project_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task project mismatch")
-        task.status = item.status
+
+        if item.task_status_id != task.task_status_id:
+            status_obj = status_cache.get(item.task_status_id)
+            if status_obj is None:
+                status_obj = await task_statuses_service.get_project_status(
+                    session,
+                    status_id=item.task_status_id,
+                    project_id=reorder_in.project_id,
+                )
+                if status_obj is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Task status not found for project",
+                    )
+                status_cache[item.task_status_id] = status_obj
+            task.task_status_id = status_obj.id
+            task.task_status = status_obj
+
         task.sort_order = item.sort_order
         task.updated_at = now
         session.add(task)
-        await _advance_recurrence_if_needed(session, task, previous_status=previous_status, now=now)
+        await _advance_recurrence_if_needed(
+            session,
+            task,
+            previous_status_category=previous_status_category,
+            now=now,
+        )
 
     await session.commit()
 
     refreshed_stmt = (
         select(Task)
-        .options(selectinload(Task.assignees))
+        .options(selectinload(Task.assignees), selectinload(Task.task_status))
         .where(Task.project_id == reorder_in.project_id)
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )

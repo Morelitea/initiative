@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Task, TaskPriority, TaskStatus } from "@/types/api";
+import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,9 +20,9 @@ interface SortableTaskRowProps {
   task: Task;
   dragDisabled: boolean;
   statusDisabled: boolean;
-  statusOrder: TaskStatus[];
+  taskStatuses: ProjectTaskStatus[];
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
-  onStatusChange: (taskId: number, status: TaskStatus) => void;
+  onStatusChange: (taskId: number, taskStatusId: number) => void;
   onTaskClick: (taskId: number) => void;
   canOpenTask: boolean;
 }
@@ -31,7 +31,7 @@ export const SortableTaskRow = ({
   task,
   dragDisabled,
   statusDisabled,
-  statusOrder,
+  taskStatuses,
   priorityVariant,
   onStatusChange,
   onTaskClick,
@@ -47,7 +47,23 @@ export const SortableTaskRow = ({
     transform: CSS.Transform.toString(transform),
     transition,
   };
-  const isDone = task.status === "done";
+  const fallbackCategoryOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
+    backlog: ["backlog"],
+    todo: ["todo", "backlog"],
+    in_progress: ["in_progress", "todo", "backlog"],
+    done: ["done", "in_progress", "todo", "backlog"],
+  };
+  const resolveStatusId = (category: TaskStatusCategory): number | null => {
+    const fallback = fallbackCategoryOrder[category] ?? [category];
+    for (const candidate of fallback) {
+      const match = taskStatuses.find((status) => status.category === candidate);
+      if (match) {
+        return match.id;
+      }
+    }
+    return null;
+  };
+  const isDone = task.task_status.category === "done";
   const recurrenceSummary = task.recurrence
     ? summarizeRecurrence(task.recurrence, { referenceDate: task.start_date || task.due_date })
     : null;
@@ -60,9 +76,10 @@ export const SortableTaskRow = ({
     if (statusDisabled) {
       return;
     }
-    const nextStatus: TaskStatus = checked ? "done" : "in_progress";
-    if (nextStatus !== task.status) {
-      onStatusChange(task.id, nextStatus);
+    const targetCategory: TaskStatusCategory = checked ? "done" : "in_progress";
+    const nextStatusId = resolveStatusId(targetCategory);
+    if (nextStatusId && nextStatusId !== task.task_status_id) {
+      onStatusChange(task.id, nextStatusId);
     }
   };
 
@@ -129,12 +146,15 @@ export const SortableTaskRow = ({
       </td>
       <td className="py-2 px-2 align-top">
         <Select
-          value={task.status}
+          value={String(task.task_status_id)}
           onValueChange={(value) => {
             if (statusDisabled) {
               return;
             }
-            onStatusChange(task.id, value as TaskStatus);
+            const parsed = Number(value);
+            if (Number.isFinite(parsed) && parsed !== task.task_status_id) {
+              onStatusChange(task.id, parsed);
+            }
           }}
           disabled={statusDisabled}
         >
@@ -142,9 +162,9 @@ export const SortableTaskRow = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {statusOrder.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status.replace("_", " ")}
+            {taskStatuses.map((status) => (
+              <SelectItem key={status.id} value={String(status.id)}>
+                {status.name}
               </SelectItem>
             ))}
           </SelectContent>

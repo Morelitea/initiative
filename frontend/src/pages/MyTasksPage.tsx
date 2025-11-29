@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter } from "lucide-react";
+import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { summarizeRecurrence } from "@/lib/recurrence";
@@ -22,9 +23,27 @@ import { queryClient } from "@/lib/queryClient";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
-import type { Project, Task, TaskPriority, TaskStatus } from "@/types/api";
+import type {
+  Project,
+  ProjectTaskStatus,
+  Task,
+  TaskPriority,
+  TaskStatusCategory,
+} from "@/types/api";
 
-const statusOptions: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
+const statusOptions: { value: TaskStatusCategory; label: string }[] = [
+  { value: "backlog", label: "Backlog" },
+  { value: "todo", label: "To Do" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+];
+
+const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
+  backlog: ["backlog"],
+  todo: ["todo", "backlog"],
+  in_progress: ["in_progress", "todo", "backlog"],
+  done: ["done", "in_progress", "todo", "backlog"],
+};
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 const INITIATIVE_FILTER_ALL = "all";
 const getDefaultFiltersVisibility = () => {
@@ -36,6 +55,7 @@ const getDefaultFiltersVisibility = () => {
 
 export const MyTasksPage = () => {
   const { user } = useAuth();
+  const projectStatusCache = useRef<Map<number, ProjectTaskStatus[]>>(new Map());
 
   const tasksQuery = useQuery<Task[]>({
     queryKey: ["tasks", "all"],
@@ -69,9 +89,11 @@ export const MyTasksPage = () => {
     },
   });
 
-  const updateTaskStatus = useMutation({
-    mutationFn: async ({ taskId, status }: { taskId: number; status: TaskStatus }) => {
-      const response = await apiClient.patch<Task>(`/tasks/${taskId}`, { status });
+  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
+    mutationFn: async ({ taskId, taskStatusId }: { taskId: number; taskStatusId: number }) => {
+      const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
+        task_status_id: taskStatusId,
+      });
       return response.data;
     },
     onSuccess: (updatedTask) => {
@@ -81,10 +103,16 @@ export const MyTasksPage = () => {
         }
         return prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
       });
+      const cached = projectStatusCache.current.get(updatedTask.project_id);
+      if (cached && !cached.some((status) => status.id === updatedTask.task_status.id)) {
+        cached.push(updatedTask.task_status);
+      }
     },
   });
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatus>("incomplete");
+  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
+    "incomplete"
+  );
   const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
   const [sortMode, setSortMode] = useState<"due" | "priority" | "alphabetical">("due");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
@@ -111,6 +139,57 @@ export const MyTasksPage = () => {
   }, [projectsQuery.data]);
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  useEffect(() => {
+    tasks.forEach((task) => {
+      const cached = projectStatusCache.current.get(task.project_id);
+      if (cached) {
+        if (!cached.some((status) => status.id === task.task_status.id)) {
+          cached.push(task.task_status);
+        }
+      } else {
+        projectStatusCache.current.set(task.project_id, [task.task_status]);
+      }
+    });
+  }, [tasks]);
+
+  const fetchProjectStatuses = useCallback(async (projectId: number) => {
+    const cached = projectStatusCache.current.get(projectId);
+    if (cached) {
+      return cached;
+    }
+    const response = await apiClient.get<ProjectTaskStatus[]>(
+      `/projects/${projectId}/task-statuses/`
+    );
+    projectStatusCache.current.set(projectId, response.data);
+    return response.data;
+  }, []);
+
+  const resolveStatusIdForCategory = useCallback(
+    async (projectId: number, category: TaskStatusCategory) => {
+      const statuses = await fetchProjectStatuses(projectId);
+      const fallback = statusFallbackOrder[category] ?? [category];
+      for (const candidate of fallback) {
+        const match = statuses.find((status) => status.category === candidate);
+        if (match) {
+          return match.id;
+        }
+      }
+      return null;
+    },
+    [fetchProjectStatuses]
+  );
+
+  const changeTaskStatus = useCallback(
+    async (task: Task, targetCategory: TaskStatusCategory) => {
+      const targetStatusId = await resolveStatusIdForCategory(task.project_id, targetCategory);
+      if (!targetStatusId) {
+        toast.error("Unable to update task status. No matching status found.");
+        return;
+      }
+      await updateTaskStatusMutate({ taskId: task.id, taskStatusId: targetStatusId });
+    },
+    [resolveStatusIdForCategory, updateTaskStatusMutate]
+  );
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
     projectsQuery.data?.forEach((project) => {
@@ -139,10 +218,10 @@ export const MyTasksPage = () => {
       initiativeFilter === INITIATIVE_FILTER_ALL ? null : Number(initiativeFilter);
     return myTasks.filter((task) => {
       if (statusFilter === "incomplete") {
-        if (task.status === "done") {
+        if (task.task_status.category === "done") {
           return false;
         }
-      } else if (statusFilter !== "all" && task.status !== statusFilter) {
+      } else if (statusFilter !== "all" && task.task_status.category !== statusFilter) {
         return false;
       }
 
@@ -189,15 +268,20 @@ export const MyTasksPage = () => {
         const task = row.original;
         return (
           <Checkbox
-            checked={task.status === "done"}
-            onCheckedChange={(value) =>
-              updateTaskStatus.mutate({
-                taskId: task.id,
-                status: value ? "done" : "in_progress",
-              })
+            checked={task.task_status.category === "done"}
+            onCheckedChange={(value) => {
+              if (isUpdatingTaskStatus) {
+                return;
+              }
+              const targetCategory: TaskStatusCategory = value ? "done" : "in_progress";
+              void changeTaskStatus(task, targetCategory);
+            }}
+            disabled={isUpdatingTaskStatus}
+            aria-label={
+              task.task_status.category === "done"
+                ? "Mark task as in progress"
+                : "Mark task as done"
             }
-            disabled={updateTaskStatus.isPending}
-            aria-label={task.status === "done" ? "Mark task as in progress" : "Mark task as done"}
           />
         );
       },
@@ -297,27 +381,25 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         return (
-          <Select
-            value={task.status}
-            onValueChange={(value) =>
-              updateTaskStatus.mutate({
-                taskId: task.id,
-                status: value as TaskStatus,
-              })
-            }
-            disabled={updateTaskStatus.isPending}
-          >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status.replace("_", " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">{task.task_status.name}</p>
+            <Select
+              value={task.task_status.category}
+              onValueChange={(value) => void changeTaskStatus(task, value as TaskStatusCategory)}
+              disabled={isUpdatingTaskStatus}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         );
       },
     },
@@ -392,7 +474,9 @@ export const MyTasksPage = () => {
               </Label>
               <Select
                 value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
+                onValueChange={(value) =>
+                  setStatusFilter(value as "all" | "incomplete" | TaskStatusCategory)
+                }
               >
                 <SelectTrigger id="task-status-filter">
                   <SelectValue placeholder="All statuses" />
@@ -400,9 +484,9 @@ export const MyTasksPage = () => {
                 <SelectContent>
                   <SelectItem value="incomplete">Incomplete</SelectItem>
                   <SelectItem value="all">All statuses</SelectItem>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status.replace("_", " ")}
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

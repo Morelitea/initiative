@@ -17,16 +17,19 @@ import { toast } from "sonner";
 import { apiClient } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
 import {
+  type ProjectTaskStatus,
   type Task,
   type TaskPriority,
   type TaskRecurrence,
   type TaskReorderPayload,
-  type TaskStatus,
 } from "@/types/api";
 import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
-import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
+import {
+  ProjectTasksFilters,
+  type ListStatusFilter,
+} from "@/components/projects/ProjectTasksFilters";
 import {
   priorityVariant,
   type DueFilterOption,
@@ -52,7 +55,7 @@ type StoredFilters = {
   viewMode: ViewMode;
   assigneeFilter: string;
   dueFilter: DueFilterOption;
-  listStatusFilter: "all" | "incomplete" | TaskStatus;
+  listStatusFilter: ListStatusFilter;
 };
 
 const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] = [
@@ -72,6 +75,7 @@ const getDefaultFiltersVisibility = () => {
 type ProjectTasksSectionProps = {
   projectId: number;
   tasks: Task[];
+  taskStatuses: ProjectTaskStatus[];
   userOptions: UserOption[];
   canEditTaskDetails: boolean;
   canWriteProject: boolean;
@@ -83,6 +87,7 @@ type ProjectTasksSectionProps = {
 export const ProjectTasksSection = ({
   projectId,
   tasks: projectTasks,
+  taskStatuses,
   userOptions,
   canEditTaskDetails,
   canWriteProject,
@@ -100,15 +105,29 @@ export const ProjectTasksSection = ({
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
-  const [listStatusFilter, setListStatusFilter] = useState<"all" | "incomplete" | TaskStatus>(
-    "all"
-  );
+  const [listStatusFilter, setListStatusFilter] = useState<ListStatusFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
+
+  const statusLookup = useMemo(() => {
+    const map = new Map<number, ProjectTaskStatus>();
+    taskStatuses.forEach((status) => {
+      map.set(status.id, status);
+    });
+    return map;
+  }, [taskStatuses]);
+
+  const defaultStatusId = useMemo(() => {
+    if (taskStatuses.length === 0) {
+      return null;
+    }
+    const explicit = taskStatuses.find((status) => status.is_default);
+    return explicit?.id ?? taskStatuses[0]?.id ?? null;
+  }, [taskStatuses]);
 
   const filterStorageKey = useMemo(
     () => (Number.isFinite(projectId) ? `project:${projectId}:view-filters` : null),
@@ -164,8 +183,13 @@ export const ProjectTasksSection = ({
         if (parsed.dueFilter) {
           setDueFilter(parsed.dueFilter);
         }
-        if (parsed.listStatusFilter) {
-          setListStatusFilter(parsed.listStatusFilter);
+        const parsedListFilter = parsed.listStatusFilter;
+        if (parsedListFilter === "all" || parsedListFilter === "incomplete") {
+          setListStatusFilter(parsedListFilter);
+        } else if (
+          typeof parsedListFilter === "number" && Number.isFinite(parsedListFilter)
+        ) {
+          setListStatusFilter(parsedListFilter);
         }
       }
     } catch {
@@ -190,6 +214,9 @@ export const ProjectTasksSection = ({
 
   const createTask = useMutation({
     mutationFn: async () => {
+      if (!defaultStatusId) {
+        throw new Error("No default task status configured");
+      }
       const payload: Record<string, unknown> = {
         project_id: projectId,
         title,
@@ -199,6 +226,7 @@ export const ProjectTasksSection = ({
         start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         recurrence,
+        task_status_id: defaultStatusId,
       };
       const response = await apiClient.post<Task>("/tasks/", payload);
       return response.data;
@@ -218,12 +246,21 @@ export const ProjectTasksSection = ({
       });
       toast.success("Task created");
     },
+    onError: () => {
+      toast.error("Unable to create task. Please try again once statuses load.");
+    },
   });
 
   const updateTaskStatus = useMutation({
-    mutationFn: async ({ taskId, status }: { taskId: number; status: TaskStatus }) => {
+    mutationFn: async ({
+      taskId,
+      taskStatusId,
+    }: {
+      taskId: number;
+      taskStatusId: number;
+    }) => {
       const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
-        status,
+        task_status_id: taskStatusId,
       });
       return response.data;
     },
@@ -312,26 +349,27 @@ export const ProjectTasksSection = ({
   }, [tasks, assigneeFilter, dueFilter]);
 
   const groupedTasks = useMemo(() => {
-    const groups: Record<TaskStatus, Task[]> = {
-      backlog: [],
-      in_progress: [],
-      blocked: [],
-      done: [],
-    };
+    const groups: Record<number, Task[]> = {};
+    taskStatuses.forEach((status) => {
+      groups[status.id] = [];
+    });
     filteredTasks.forEach((task) => {
-      groups[task.status].push(task);
+      if (!groups[task.task_status_id]) {
+        groups[task.task_status_id] = [];
+      }
+      groups[task.task_status_id].push(task);
     });
     return groups;
-  }, [filteredTasks]);
+  }, [filteredTasks, taskStatuses]);
 
   const tableTasks = useMemo(() => {
     if (listStatusFilter === "all") {
       return filteredTasks;
     }
     if (listStatusFilter === "incomplete") {
-      return filteredTasks.filter((task) => task.status !== "done");
+      return filteredTasks.filter((task) => task.task_status.category !== "done");
     }
-    return filteredTasks.filter((task) => task.status === listStatusFilter);
+    return filteredTasks.filter((task) => task.task_status_id === listStatusFilter);
   }, [filteredTasks, listStatusFilter]);
 
   const persistOrder = useCallback(
@@ -343,7 +381,7 @@ export const ProjectTasksSection = ({
         project_id: projectId,
         items: nextTasks.map((task, index) => ({
           id: task.id,
-          status: task.status,
+          task_status_id: task.task_status_id,
           sort_order: index + 1,
         })),
       };
@@ -384,14 +422,22 @@ export const ProjectTasksSection = ({
   }, [canEditTaskDetails, isComposerOpen]);
 
   const moveTaskInOrder = useCallback(
-    (taskId: number, targetStatus: TaskStatus, overTaskId: number | null) => {
+    (taskId: number, targetStatusId: number, overTaskId: number | null) => {
+      const targetStatus = statusLookup.get(targetStatusId);
+      if (!targetStatus) {
+        return;
+      }
       let nextState: Task[] | null = null;
       setOrderedTasks((prev) => {
         const currentTask = prev.find((task) => task.id === taskId);
         if (!currentTask) {
           return prev;
         }
-        const updatedTask: Task = { ...currentTask, status: targetStatus };
+        const updatedTask: Task = {
+          ...currentTask,
+          task_status_id: targetStatus.id,
+          task_status: targetStatus,
+        };
         const withoutActive = prev.filter((task) => task.id !== taskId);
         const next = [...withoutActive];
 
@@ -406,7 +452,7 @@ export const ProjectTasksSection = ({
 
         let lastIndex = -1;
         next.forEach((task, index) => {
-          if (task.status === targetStatus) {
+          if (task.task_status_id === targetStatusId) {
             lastIndex = index;
           }
         });
@@ -418,7 +464,7 @@ export const ProjectTasksSection = ({
         persistOrder(nextState);
       }
     },
-    [persistOrder]
+    [persistOrder, statusLookup]
   );
 
   const reorderListTasks = useCallback(
@@ -494,23 +540,23 @@ export const ProjectTasksSection = ({
       return;
     }
 
-    const overData = finalOver.data.current as { type?: string; status?: TaskStatus } | undefined;
-    let targetStatus = currentTask.status;
+    const overData = finalOver.data.current as { type?: string; statusId?: number } | undefined;
+    let targetStatusId = currentTask.task_status_id;
     let overTaskId: number | null = null;
 
     if (overData?.type === "task") {
-      targetStatus = overData.status ?? targetStatus;
+      targetStatusId = overData.statusId ?? targetStatusId;
       const parsed = Number(finalOver.id);
       overTaskId = Number.isFinite(parsed) ? parsed : null;
     } else if (overData?.type === "column") {
-      targetStatus = overData.status ?? targetStatus;
+      targetStatusId = overData.statusId ?? targetStatusId;
     }
 
-    if (targetStatus === currentTask.status && overTaskId === currentTask.id) {
+    if (targetStatusId === currentTask.task_status_id && overTaskId === currentTask.id) {
       return;
     }
 
-    moveTaskInOrder(activeId, targetStatus, overTaskId);
+    moveTaskInOrder(activeId, targetStatusId, overTaskId);
     setActiveTaskId(null);
     lastKanbanOverRef.current = null;
   };
@@ -600,13 +646,14 @@ export const ProjectTasksSection = ({
               </Button>
             </CollapsibleTrigger>
           </div>
-          <CollapsibleContent forceMount className="mt-2 sm:mt-0 data-[state=closed]:hidden">
-            <ProjectTasksFilters
-              viewMode={viewMode}
-              userOptions={userOptions}
-              assigneeFilter={assigneeFilter}
-              dueFilter={dueFilter}
-              listStatusFilter={listStatusFilter}
+        <CollapsibleContent forceMount className="mt-2 sm:mt-0 data-[state=closed]:hidden">
+          <ProjectTasksFilters
+            viewMode={viewMode}
+            taskStatuses={taskStatuses}
+            userOptions={userOptions}
+            assigneeFilter={assigneeFilter}
+            dueFilter={dueFilter}
+            listStatusFilter={listStatusFilter}
               onAssigneeFilterChange={setAssigneeFilter}
               onDueFilterChange={setDueFilter}
               onListStatusFilterChange={setListStatusFilter}
@@ -616,6 +663,7 @@ export const ProjectTasksSection = ({
 
         <TabsContent value="kanban">
           <ProjectTasksKanbanView
+            taskStatuses={taskStatuses}
             groupedTasks={groupedTasks}
             canReorderTasks={canReorderTasks}
             canOpenTask={canViewTaskDetails}
@@ -633,6 +681,7 @@ export const ProjectTasksSection = ({
         <TabsContent value="table">
           <ProjectTasksTableView
             tasks={tableTasks}
+            taskStatuses={taskStatuses}
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
             canEditTaskDetails={canEditTaskDetails}
@@ -642,10 +691,10 @@ export const ProjectTasksSection = ({
             onDragStart={handleTaskDragStart}
             onDragEnd={handleListDragEnd}
             onDragCancel={handleListDragCancel}
-            onStatusChange={(taskId, status) =>
+            onStatusChange={(taskId, taskStatusId) =>
               updateTaskStatus.mutate({
                 taskId,
-                status,
+                taskStatusId,
               })
             }
             onTaskClick={onTaskClick}

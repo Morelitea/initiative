@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Float, Integer, JSON
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, JSON, String
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -10,10 +10,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.user import User
 
 
-class TaskStatus(str, Enum):
+class TaskStatusCategory(str, Enum):
     backlog = "backlog"
+    todo = "todo"
     in_progress = "in_progress"
-    blocked = "blocked"
     done = "done"
 
 
@@ -22,6 +22,30 @@ class TaskPriority(str, Enum):
     medium = "medium"
     high = "high"
     urgent = "urgent"
+
+
+class TaskStatus(SQLModel, table=True):
+    __tablename__ = "task_statuses"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="projects.id", nullable=False)
+    name: str = Field(
+        sa_column=Column(String(length=100), nullable=False),
+    )
+    position: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    category: TaskStatusCategory = Field(
+        sa_column=Column(SQLEnum(TaskStatusCategory, name="task_status_category"), nullable=False),
+    )
+    is_default: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    project: Optional["Project"] = Relationship(back_populates="task_statuses")
+    tasks: List["Task"] = Relationship(back_populates="task_status")
 
 
 class TaskAssignee(SQLModel, table=True):
@@ -36,12 +60,9 @@ class Task(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="projects.id", nullable=False)
+    task_status_id: int = Field(foreign_key="task_statuses.id", nullable=False)
     title: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
-    status: TaskStatus = Field(
-        default=TaskStatus.backlog,
-        sa_column=Column(SQLEnum(TaskStatus, name="task_status"), nullable=False),
-    )
     priority: TaskPriority = Field(
         default=TaskPriority.medium,
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),
@@ -67,4 +88,5 @@ class Task(SQLModel, table=True):
     )
 
     project: Optional["Project"] = Relationship(back_populates="tasks")
+    task_status: Optional[TaskStatus] = Relationship(back_populates="tasks")
     assignees: List["User"] = Relationship(back_populates="tasks_assigned", link_model=TaskAssignee)

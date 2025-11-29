@@ -4,8 +4,9 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.user import UserRead
+from app.schemas.task_status import TaskStatusRead
 
-from app.models.task import TaskPriority, TaskStatus
+from app.models.task import TaskPriority, TaskStatusCategory
 
 
 WeekdayLiteral = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -86,7 +87,6 @@ class TaskRecurrence(BaseModel):
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
-    status: TaskStatus = TaskStatus.backlog
     priority: TaskPriority = TaskPriority.medium
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
@@ -96,12 +96,13 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     project_id: int
     assignee_ids: List[int] = Field(default_factory=list)
+    task_status_id: Optional[int] = None
 
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[TaskStatus] = None
+    task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[int]] = None
     start_date: Optional[datetime] = None
@@ -112,6 +113,8 @@ class TaskUpdate(BaseModel):
 class TaskRead(TaskBase):
     id: int
     project_id: int
+    task_status_id: int
+    task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
     sort_order: float
@@ -125,7 +128,7 @@ class TaskRead(TaskBase):
 
 class TaskReorderItem(BaseModel):
     id: int
-    status: TaskStatus
+    task_status_id: int
     sort_order: float
 
 

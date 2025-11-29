@@ -13,8 +13,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
 
-import type { Task, TaskPriority, TaskStatus } from "@/types/api";
-import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
+import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,6 +32,7 @@ import { cn } from "@/lib/utils";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
+  taskStatuses: ProjectTaskStatus[];
   sensors: DndContextProps["sensors"];
   canReorderTasks: boolean;
   canEditTaskDetails: boolean;
@@ -42,7 +42,7 @@ type ProjectTasksListViewProps = {
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
-  onStatusChange: (taskId: number, status: TaskStatus) => void;
+  onStatusChange: (taskId: number, taskStatusId: number) => void;
   onTaskClick: (taskId: number) => void;
 };
 
@@ -107,6 +107,7 @@ const SortableRowWrapper = ({
 
 export const ProjectTasksTableView = ({
   tasks,
+  taskStatuses,
   sensors,
   canReorderTasks,
   canEditTaskDetails,
@@ -134,7 +135,12 @@ export const ProjectTasksTableView = ({
         header: () => <span className="font-medium">Done</span>,
         cell: ({ row }) => {
           const task = row.original;
-          const isDone = task.status === "done";
+          const isDone = task.task_status.category === "done";
+          const doneStatus = taskStatuses.find((status) => status.category === "done");
+          const inProgressStatus =
+            taskStatuses.find((status) => status.category === "in_progress") ??
+            taskStatuses.find((status) => status.category === "todo") ??
+            taskStatuses.find((status) => status.category === "backlog");
           return (
             <Checkbox
               checked={isDone}
@@ -142,9 +148,11 @@ export const ProjectTasksTableView = ({
                 if (statusDisabled) {
                   return;
                 }
-                const nextStatus: TaskStatus = value ? "done" : "in_progress";
-                if (nextStatus !== task.status) {
-                  onStatusChange(task.id, nextStatus);
+                const targetStatusId = value
+                  ? doneStatus?.id ?? task.task_status_id
+                  : inProgressStatus?.id ?? task.task_status_id;
+                if (targetStatusId && targetStatusId !== task.task_status_id) {
+                  onStatusChange(task.id, targetStatusId);
                 }
               }}
               disabled={statusDisabled}
@@ -201,12 +209,15 @@ export const ProjectTasksTableView = ({
           const task = row.original;
           return (
             <Select
-              value={task.status}
+              value={String(task.task_status_id)}
               onValueChange={(value) => {
                 if (statusDisabled) {
                   return;
                 }
-                onStatusChange(task.id, value as TaskStatus);
+                const nextId = Number(value);
+                if (Number.isFinite(nextId) && nextId !== task.task_status_id) {
+                  onStatusChange(task.id, nextId);
+                }
               }}
               disabled={statusDisabled}
             >
@@ -214,9 +225,9 @@ export const ProjectTasksTableView = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {taskStatusOrder.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.replace("_", " ")}
+                {taskStatuses.map((status) => (
+                  <SelectItem key={status.id} value={String(status.id)}>
+                    {status.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -225,7 +236,14 @@ export const ProjectTasksTableView = ({
         },
       },
     ],
-    [canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled]
+    [
+      canOpenTask,
+      onStatusChange,
+      onTaskClick,
+      priorityVariant,
+      statusDisabled,
+      taskStatuses,
+    ]
   );
 
   return (

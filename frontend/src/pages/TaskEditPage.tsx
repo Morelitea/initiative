@@ -24,10 +24,10 @@ import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   Comment,
   Project,
+  ProjectTaskStatus,
   Task,
   TaskPriority,
   TaskRecurrence,
-  TaskStatus,
   User,
 } from "@/types/api";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,6 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { CommentSection } from "@/components/comments/CommentSection";
 
-const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 const toLocalInputValue = (value?: string | null) => {
@@ -61,7 +60,7 @@ export const TaskEditPage = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [status, setStatus] = useState<TaskStatus>("backlog");
+  const [statusId, setStatusId] = useState<number | null>(null);
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<string>("");
@@ -95,6 +94,17 @@ export const TaskEditPage = () => {
     },
   });
 
+  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
+    queryKey: ["projects", projectId, "task-statuses"],
+    enabled: Number.isFinite(projectId),
+    queryFn: async () => {
+      const response = await apiClient.get<ProjectTaskStatus[]>(
+        `/projects/${projectId}/task-statuses/`
+      );
+      return response.data;
+    },
+  });
+
   const commentsQueryKey = ["comments", "task", parsedTaskId];
   const commentsQuery = useQuery({
     queryKey: commentsQueryKey,
@@ -112,7 +122,7 @@ export const TaskEditPage = () => {
       const task = taskQuery.data;
       setTitle(task.title);
       setDescription(task.description ?? "");
-      setStatus(task.status);
+      setStatusId(task.task_status_id);
       setPriority(task.priority);
       setAssigneeIds(task.assignees?.map((assignee) => assignee.id) ?? []);
       setStartDate(toLocalInputValue(task.start_date));
@@ -126,10 +136,13 @@ export const TaskEditPage = () => {
 
   const updateTask = useMutation({
     mutationFn: async () => {
+      if (!Number.isFinite(statusId)) {
+        throw new Error("Task status is required");
+      }
       const payload: Record<string, unknown> = {
         title,
         description: description || null,
-        status,
+        task_status_id: statusId,
         priority,
         assignee_ids: assigneeIds,
         start_date: startDate ? new Date(startDate).toISOString() : null,
@@ -143,7 +156,7 @@ export const TaskEditPage = () => {
       setTitle(updatedTask.title);
       setDescription(updatedTask.description ?? "");
       setIsEditingDescription(false);
-      setStatus(updatedTask.status);
+      setStatusId(updatedTask.task_status_id);
       setPriority(updatedTask.priority);
       setAssigneeIds(updatedTask.assignees?.map((assignee) => assignee.id) ?? []);
       setStartDate(toLocalInputValue(updatedTask.start_date));
@@ -255,11 +268,11 @@ export const TaskEditPage = () => {
     );
   }
 
-  if (taskQuery.isLoading || isProjectContextLoading) {
+  if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading task…</p>;
   }
 
-  if (taskQuery.isError || !taskQuery.data) {
+  if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Unable to load task.</p>
@@ -281,6 +294,10 @@ export const TaskEditPage = () => {
     );
   }
 
+  const taskStatuses = taskStatusesQuery.data ?? [];
+  const currentStatus = taskStatuses.find((item) => item.id === statusId) ?? null;
+  const statusSelectDisabled = isReadOnly || taskStatuses.length === 0;
+
   return (
     <div className="space-y-6">
       <Button asChild variant="link" className="px-0">
@@ -289,9 +306,7 @@ export const TaskEditPage = () => {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">{title || task?.title}</h1>
-          <Badge variant="secondary" className="capitalize">
-            {status.replace("_", " ")}
-          </Badge>
+          <Badge variant="secondary">{currentStatus?.name ?? "Status"}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">Edit every detail of this task.</p>
       </div>
@@ -362,17 +377,22 @@ export const TaskEditPage = () => {
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select
-                    value={status}
-                    onValueChange={(value) => setStatus(value as TaskStatus)}
-                    disabled={isReadOnly}
+                    value={statusId ? String(statusId) : undefined}
+                    onValueChange={(value) => {
+                      const parsed = Number(value);
+                      if (Number.isFinite(parsed)) {
+                        setStatusId(parsed);
+                      }
+                    }}
+                    disabled={statusSelectDisabled}
                   >
-                    <SelectTrigger disabled={isReadOnly}>
-                      <SelectValue />
+                    <SelectTrigger disabled={statusSelectDisabled}>
+                      <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      {taskStatusOrder.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value.replace("_", " ")}
+                      {taskStatuses.map((value) => (
+                        <SelectItem key={value.id} value={String(value.id)}>
+                          {value.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -15,7 +15,7 @@ from app.api.deps import (
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
-from app.models.task import Task, TaskAssignee
+from app.models.task import Task, TaskAssignee, TaskStatusCategory
 from app.models.comment import Comment
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
@@ -24,6 +24,7 @@ from app.models.document import ProjectDocument
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import documents as documents_service
+from app.services import task_statuses as task_statuses_service
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
@@ -173,10 +174,17 @@ def _ensure_not_archived(project: Project) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
 
 
-async def _duplicate_template_tasks(session: SessionDep, template: Project, new_project: Project) -> None:
+async def _duplicate_template_tasks(
+    session: SessionDep,
+    template: Project,
+    new_project: Project,
+    *,
+    status_mapping: dict[int, int],
+    fallback_status_ids: dict[TaskStatusCategory, int],
+) -> None:
     task_stmt = (
         select(Task)
-        .options(selectinload(Task.assignees))
+        .options(selectinload(Task.assignees), selectinload(Task.task_status))
         .where(Task.project_id == template.id)
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
@@ -186,11 +194,21 @@ async def _duplicate_template_tasks(session: SessionDep, template: Project, new_
         return
 
     for template_task in template_tasks:
+        template_status_id = getattr(template_task, "task_status_id", None)
+        mapped_status_id = None
+        if template_status_id is not None:
+            mapped_status_id = status_mapping.get(template_status_id)
+        if mapped_status_id is None:
+            category = getattr(getattr(template_task, "task_status", None), "category", None)
+            if category is not None:
+                mapped_status_id = fallback_status_ids.get(category)
+        if mapped_status_id is None and fallback_status_ids:
+            mapped_status_id = next(iter(fallback_status_ids.values()))
         new_task = Task(
             project_id=new_project.id,
             title=template_task.title,
             description=template_task.description,
-            status=template_task.status,
+            task_status_id=mapped_status_id,
             priority=template_task.priority,
             due_date=template_task.due_date,
             sort_order=template_task.sort_order,
@@ -605,6 +623,17 @@ async def create_project(
     session.add(project)
     await session.flush()
 
+    status_mapping: dict[int, int] = {}
+    if template_project:
+        status_mapping = await task_statuses_service.clone_statuses(
+            session,
+            source_project_id=template_project.id,
+            target_project_id=project.id,
+        )
+
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    fallback_status_ids = {status.category: status.id for status in statuses}
+
     owner_permission = ProjectPermission(
         project_id=project.id,
         user_id=owner_id,
@@ -613,7 +642,13 @@ async def create_project(
     session.add(owner_permission)
 
     if template_project:
-        await _duplicate_template_tasks(session, template_project, project)
+        await _duplicate_template_tasks(
+            session,
+            template_project,
+            project,
+            status_mapping=status_mapping,
+            fallback_status_ids=fallback_status_ids,
+        )
 
     await session.commit()
 
