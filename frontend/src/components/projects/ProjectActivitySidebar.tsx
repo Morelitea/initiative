@@ -11,9 +11,13 @@ import { cn } from "@/lib/utils";
 
 interface ProjectActivitySidebarProps {
   projectId: number | null;
+  showTabsPref?: boolean;
 }
 
-export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
+export const ProjectActivitySidebar = ({
+  projectId,
+  showTabsPref,
+}: ProjectActivitySidebarProps) => {
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
@@ -56,12 +60,13 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
   return (
     <aside
       className={cn(
-        "hidden lg:flex transition-all duration-200",
+        "hidden lg:flex transition-all duration-200 sticky",
         collapsed ? "w-15" : "w-80",
+        showTabsPref ? "top-28 h-[calc(100vh-7rem)]" : "top-16 h-[calc(100vh-4rem)]",
         "shrink-0"
       )}
     >
-      <div className="sticky top-0 flex h-screen w-full flex-col border-l bg-card shadow-sm">
+      <div className="flex h-full w-full flex-col border-l bg-card shadow-sm">
         <div className="flex items-center justify-between border-b px-3 py-3">
           {!collapsed && (
             <div className="flex items-center gap-2">

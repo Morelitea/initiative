@@ -114,7 +114,7 @@ const AppLayout = () => {
             onClearRecent={handleClearRecent}
           />
         ) : null}
-        <div className="flex-1 min-w-0 bg-muted/50 pb-20">
+        <div className="flex-1 min-w-0 bg-muted/50">
           <AppHeader />
           {showTabsPref ? (
             <ProjectTabsBar
@@ -124,11 +124,11 @@ const AppLayout = () => {
               onClose={handleClearRecent}
             />
           ) : null}
-          <div className="flex gap-4 h-full justify-between">
-            <main className="container h-full min-w-0 p-4 md:p-8">
+          <div className="flex gap-4 justify-between">
+            <main className="container min-w-0 p-4 md:p-8 pb-20 md:pb-20">
               <PageRoutes />
             </main>
-            <ProjectActivitySidebar projectId={activeProjectId} />
+            <ProjectActivitySidebar projectId={activeProjectId} showTabsPref={showTabsPref} />
           </div>
         </div>
       </div>
