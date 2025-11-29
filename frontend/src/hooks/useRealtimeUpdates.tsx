@@ -18,6 +18,13 @@ const invalidateProjectById = (projectId: unknown) => {
   void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
 };
 
+const invalidateDocumentById = (documentId: unknown) => {
+  if (typeof documentId !== "number") {
+    return;
+  }
+  void queryClient.invalidateQueries({ queryKey: ["documents", documentId] });
+};
+
 const invalidateCommentsByPayload = (payload?: Record<string, unknown>) => {
   if (!payload) {
     return;
@@ -120,6 +127,8 @@ export const useRealtimeUpdates = () => {
               break;
             case "comment":
               invalidateCommentsByPayload(payload.data);
+              invalidateDocumentById(payload.data?.document_id);
+              invalidateByKey("documents");
               break;
             default:
               break;

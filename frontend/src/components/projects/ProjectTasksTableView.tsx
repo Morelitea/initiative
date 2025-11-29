@@ -161,7 +161,6 @@ export const ProjectTasksTableView = ({
         cell: ({ row }) => (
           <TaskCell
             task={row.original}
-            canEditTaskDetails={canEditTaskDetails}
             canOpenTask={canOpenTask}
             onTaskClick={onTaskClick}
           />
@@ -210,7 +209,7 @@ export const ProjectTasksTableView = ({
         },
       },
     ],
-    [canEditTaskDetails, canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled]
+    [canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled]
   );
 
   return (
@@ -266,12 +265,11 @@ const DragHandleCell = () => {
 
 type TaskCellProps = {
   task: Task;
-  canEditTaskDetails: boolean;
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
 };
 
-const TaskCell = ({ task, canEditTaskDetails, canOpenTask, onTaskClick }: TaskCellProps) => {
+const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
   const recurrenceSummary = task.recurrence
     ? summarizeRecurrence(task.recurrence, {
         referenceDate: task.start_date || task.due_date,

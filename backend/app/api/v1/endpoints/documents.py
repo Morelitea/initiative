@@ -152,7 +152,8 @@ async def list_documents(
         )
 
     result = await session.exec(stmt)
-    documents = result.all()
+    documents = result.unique().all()
+    await documents_service.annotate_comment_counts(session, documents)
     return [serialize_document_summary(document) for document in documents]
 
 

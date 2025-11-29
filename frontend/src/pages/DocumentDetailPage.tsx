@@ -17,9 +17,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import type { DocumentProjectLink, DocumentRead } from "@/types/api";
+import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
 import { useAuth } from "@/hooks/useAuth";
+import { CommentSection } from "@/components/comments/CommentSection";
 
 export const DocumentDetailPage = () => {
   const { documentId } = useParams();
@@ -39,6 +40,18 @@ export const DocumentDetailPage = () => {
       return response.data;
     },
     enabled: Number.isFinite(parsedId),
+  });
+
+  const commentsQueryKey = ["comments", "document", parsedId];
+  const commentsQuery = useQuery<Comment[]>({
+    queryKey: commentsQueryKey,
+    enabled: Number.isFinite(parsedId),
+    queryFn: async () => {
+      const response = await apiClient.get<Comment[]>("/comments/", {
+        params: { document_id: parsedId },
+      });
+      return response.data;
+    },
   });
 
   const document = documentQuery.data;
@@ -83,6 +96,49 @@ export const DocumentDetailPage = () => {
     ((document && title.trim() !== document.title.trim()) ||
       documentContentJson !== currentContentJson ||
       normalizedDocumentFeatured !== featuredImageUrl);
+
+  const commentsCanModerate = useMemo(() => {
+    if (!document || !user) {
+      return false;
+    }
+    if (user.role === "admin") {
+      return true;
+    }
+    const initiativeMembers = document.initiative?.members ?? [];
+    return initiativeMembers.some(
+      (member) => member.user.id === user.id && member.role === "project_manager"
+    );
+  }, [document, user]);
+
+  const updateDocumentCommentCount = (delta: number) => {
+    queryClient.setQueryData<DocumentRead>(["documents", parsedId], (previous) => {
+      if (!previous) {
+        return previous;
+      }
+      const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
+      return { ...previous, comment_count: nextCount };
+    });
+  };
+
+  const handleCommentCreated = (comment: Comment) => {
+    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+      if (!previous) {
+        return [comment];
+      }
+      return [...previous, comment];
+    });
+    updateDocumentCommentCount(1);
+  };
+
+  const handleCommentDeleted = (commentId: number) => {
+    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+      if (!previous) {
+        return previous;
+      }
+      return previous.filter((comment) => comment.id !== commentId);
+    });
+    updateDocumentCommentCount(-1);
+  };
 
   const saveDocument = useMutation({
     mutationFn: async () => {
@@ -204,7 +260,9 @@ export const DocumentDetailPage = () => {
           {document.is_template ? <Badge variant="outline">Template</Badge> : null}
         </div>
       </div>
-      <Card>
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="flex-1 space-y-6">
+          <Card>
         <CardHeader>
           <CardTitle>Featured image</CardTitle>
         </CardHeader>
@@ -267,8 +325,8 @@ export const DocumentDetailPage = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
-      <DocumentEditor
+          </Card>
+          <DocumentEditor
         key={document.id}
         initialState={normalizedDocumentContent}
         onChange={setContentState}
@@ -276,7 +334,7 @@ export const DocumentDetailPage = () => {
         readOnly={!canEditDocument}
         showToolbar={canEditDocument}
       />
-      <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3">
         {canEditDocument ? (
           <>
             <Button
@@ -302,42 +360,58 @@ export const DocumentDetailPage = () => {
             You only have read access to this document.
           </p>
         )}
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Attached projects</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {attachedProjects.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              This document is not attached to any projects yet. Attach it from a project detail
-              page.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {attachedProjects.map((link) => (
-                <div
-                  key={`${document.id}-${link.project_id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
-                >
-                  <div className="space-y-0.5">
-                    <Link
-                      to={`/projects/${link.project_id}`}
-                      className="font-medium hover:underline"
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Attached projects</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {attachedProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  This document is not attached to any projects yet. Attach it from a project detail
+                  page.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {attachedProjects.map((link) => (
+                    <div
+                      key={`${document.id}-${link.project_id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
                     >
-                      {link.project_name ?? `Project #${link.project_id}`}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      Attached{" "}
-                      {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
-                    </p>
-                  </div>
+                      <div className="space-y-0.5">
+                        <Link
+                          to={`/projects/${link.project_id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {link.project_name ?? `Project #${link.project_id}`}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          Attached{" "}
+                          {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        <div className="space-y-2 lg:w-96">
+          {commentsQuery.isError ? (
+            <p className="text-sm text-destructive">Unable to load comments right now.</p>
+          ) : null}
+          <CommentSection
+            entityType="document"
+            entityId={parsedId}
+            comments={commentsQuery.data ?? []}
+            isLoading={commentsQuery.isLoading}
+            onCommentCreated={handleCommentCreated}
+            onCommentDeleted={handleCommentDeleted}
+            canModerate={commentsCanModerate}
+          />
+        </div>
+      </div>
     </div>
   );
 };

@@ -14,6 +14,9 @@ interface DocumentCardProps {
 }
 
 export const DocumentCard = ({ document, className, hideInitiative }: DocumentCardProps) => {
+  const projectCount = document.projects.length;
+  const commentCount = document.comment_count ?? 0;
+
   return (
     <Link
       to={`/documents/${document.id}`}
@@ -37,11 +40,14 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           </div>
         )}
         <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground absolute bottom-2 right-2">
-          {document.is_template ? <Badge variant="outline">Template</Badge> : null}
-          <Badge variant="secondary">
-            {document.projects.length} project{document.projects.length === 1 ? "" : "s"}
-          </Badge>
-        </div>
+        {document.is_template ? <Badge variant="outline">Template</Badge> : null}
+        <Badge variant="secondary">
+          {projectCount} project{projectCount === 1 ? "" : "s"}
+        </Badge>
+        <Badge variant="secondary">
+          {commentCount} comment{commentCount === 1 ? "" : "s"}
+        </Badge>
+      </div>
       </div>
       <div className="flex h-full flex-col gap-3 p-4">
         <div className="space-y-1">

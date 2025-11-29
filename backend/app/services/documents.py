@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Sequence
 
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.comment import Comment
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
@@ -74,7 +76,10 @@ async def get_document(
         )
     )
     result = await session.exec(statement)
-    return result.one_or_none()
+    document = result.one_or_none()
+    if document:
+        await annotate_comment_counts(session, [document])
+    return document
 
 
 async def attach_document_to_project(
@@ -186,3 +191,18 @@ async def set_document_write_permissions(
         ]
 
     await session.flush()
+
+
+async def annotate_comment_counts(session: AsyncSession, documents: Sequence[Document]) -> None:
+    document_ids = [document.id for document in documents if document.id is not None]
+    if not document_ids:
+        return
+    stmt = (
+        select(Comment.document_id, func.count(Comment.id))
+        .where(Comment.document_id.in_(tuple(document_ids)))
+        .group_by(Comment.document_id)
+    )
+    result = await session.exec(stmt)
+    counts = dict(result.all())
+    for document in documents:
+        object.__setattr__(document, "comment_count", counts.get(document.id, 0))

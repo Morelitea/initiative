@@ -60,6 +60,7 @@ class DocumentSummary(DocumentBase):
     updated_at: datetime
     initiative: Optional[InitiativeRead] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
+    comment_count: int = 0
 
     class Config:
         from_attributes = True
@@ -106,6 +107,7 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
         updated_at=document.updated_at,
         initiative=initiative,
         projects=_serialize_project_links(document),
+        comment_count=getattr(document, "comment_count", 0),
     )
 
 

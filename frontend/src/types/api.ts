@@ -82,6 +82,7 @@ export interface DocumentSummary {
   updated_at: string;
   initiative?: Initiative | null;
   projects: DocumentProjectLink[];
+  comment_count?: number;
 }
 
 export interface DocumentRead extends DocumentSummary {
