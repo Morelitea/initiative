@@ -1,6 +1,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { MessageSquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -97,6 +98,7 @@ const KanbanTaskCard = ({
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
   const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+  const commentCount = task.comment_count ?? 0;
 
   return (
     <div
@@ -133,9 +135,17 @@ const KanbanTaskCard = ({
           {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
       </button>
-      <Badge variant={priorityVariant[task.priority]}>
-        Priority: {task.priority.replace("_", " ")}
-      </Badge>
+      <div className="flex flex-wrap gap-2">
+        <Badge variant={priorityVariant[task.priority]}>
+          Priority: {task.priority.replace("_", " ")}
+        </Badge>
+        {commentCount > 0 ? (
+          <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+            {commentCount}
+          </Badge>
+        ) : null}
+      </div>
     </div>
   );
 };

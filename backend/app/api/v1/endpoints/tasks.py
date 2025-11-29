@@ -17,6 +17,7 @@ from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.task import Task, TaskAssignee, TaskStatus
 from app.models.user import User
 from app.models.guild import GuildRole
+from app.models.comment import Comment
 from pydantic import ValidationError
 
 from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
@@ -32,6 +33,21 @@ async def _next_sort_order(session: SessionDep, project_id: int) -> float:
     result = await session.exec(select(func.max(Task.sort_order)).where(Task.project_id == project_id))
     max_value = result.one_or_none()
     return (max_value or 0) + 1
+
+
+async def _annotate_task_comment_counts(session: SessionDep, tasks: list[Task]) -> None:
+    task_ids = [task.id for task in tasks if task.id is not None]
+    if not task_ids:
+        return
+    stmt = (
+        select(Comment.task_id, func.count(Comment.id))
+        .where(Comment.task_id.in_(tuple(task_ids)))
+        .group_by(Comment.task_id)
+    )
+    result = await session.exec(stmt)
+    counts = dict(result.all())
+    for task in tasks:
+        object.__setattr__(task, "comment_count", counts.get(task.id, 0))
 
 
 def _task_payload(task: Task) -> dict:
@@ -50,7 +66,10 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
         .options(selectinload(Task.assignees))
     )
     result = await session.exec(stmt)
-    return result.one_or_none()
+    task = result.one_or_none()
+    if task:
+        await _annotate_task_comment_counts(session, [task])
+    return task
 
 
 async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: list[int] | None) -> None:
@@ -310,7 +329,9 @@ async def list_tasks(
         statement = statement.where(Task.project_id == project_id)
 
     result = await session.exec(statement)
-    return result.all()
+    tasks = result.all()
+    await _annotate_task_comment_counts(session, tasks)
+    return tasks
 
 
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -535,5 +556,6 @@ async def reorder_tasks(
     )
     refreshed_result = await session.exec(refreshed_stmt)
     tasks = refreshed_result.all()
+    await _annotate_task_comment_counts(session, tasks)
     await broadcast_event("task", "reordered", {"project_id": reorder_in.project_id})
     return tasks

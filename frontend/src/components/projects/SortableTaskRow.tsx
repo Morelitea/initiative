@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, MessageSquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -54,6 +54,7 @@ export const SortableTaskRow = ({
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
   const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+  const commentCount = task.comment_count ?? 0;
 
   const handleCompletionToggle = (checked: boolean) => {
     if (statusDisabled) {
@@ -113,6 +114,12 @@ export const SortableTaskRow = ({
                 </p>
               ) : null}
               {recurrenceText ? <p>{recurrenceText}</p> : null}
+              {commentCount > 0 ? (
+                <p className="inline-flex items-center gap-1">
+                  <MessageSquare className="h-3 w-3" aria-hidden="true" />
+                  {commentCount} comment{commentCount === 1 ? "" : "s"}
+                </p>
+              ) : null}
             </div>
           </button>
         </div>

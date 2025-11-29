@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, MessageSquare } from "lucide-react";
 
 import type { Task, TaskPriority, TaskStatus } from "@/types/api";
 import { taskStatusOrder } from "@/components/projects/projectTasksConfig";
@@ -179,6 +179,22 @@ export const ProjectTasksTableView = ({
         },
       },
       {
+        id: "comments",
+        header: () => <span className="font-medium">Comments</span>,
+        cell: ({ row }) => {
+          const count = row.original.comment_count ?? 0;
+          return count > 0 ? (
+            <span className="inline-flex items-center gap-1 text-sm">
+              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              {count}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">0</span>
+          );
+        },
+        size: 90,
+      },
+      {
         id: "status",
         header: () => <span className="font-medium">Status</span>,
         cell: ({ row }) => {
@@ -278,6 +294,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
   const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+  const commentCount = task.comment_count ?? 0;
 
   return (
     <button
@@ -307,6 +324,12 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
           </p>
         ) : null}
         {recurrenceText ? <p>{recurrenceText}</p> : null}
+        {commentCount > 0 ? (
+          <p className="inline-flex items-center gap-1">
+            <MessageSquare className="h-3 w-3" aria-hidden="true" />
+            {commentCount} comment{commentCount === 1 ? "" : "s"}
+          </p>
+        ) : null}
       </div>
     </button>
   );

@@ -117,6 +117,7 @@ class TaskRead(TaskBase):
     sort_order: float
     assignees: List[UserRead] = []
     recurrence_occurrence_count: int = 0
+    comment_count: int = 0
 
     class Config:
         from_attributes = True

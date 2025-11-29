@@ -213,6 +213,7 @@ export interface Task {
   created_at: string;
   updated_at: string;
   sort_order: number;
+  comment_count?: number;
 }
 
 export interface CommentAuthor {
