@@ -14,8 +14,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoIcon } from "@/components/LogoIcon";
-import gridWhite from "@/assets/gridWhite.svg";
-import gridBlack from "@/assets/gridBlack.svg";
 
 export const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
@@ -41,7 +39,7 @@ export const ForgotPasswordPage = () => {
   return (
     <div
       style={{
-        backgroundImage: `url(${isDark ? gridWhite : gridBlack})`,
+        backgroundImage: `url(${isDark ? "/images/gridWhite.svg" : "/images/gridBlack.svg"})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
         backgroundSize: "72px 72px",

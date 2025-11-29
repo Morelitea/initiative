@@ -16,8 +16,6 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
-import gridWhite from "@/assets/gridWhite.svg";
-import gridBlack from "@/assets/gridBlack.svg";
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -108,7 +106,7 @@ export const LoginPage = () => {
   return (
     <div
       style={{
-        backgroundImage: `url(${isDark ? gridWhite : gridBlack})`,
+        backgroundImage: `url(${isDark ? "/images/gridWhite.svg" : "/images/gridBlack.svg"})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
         backgroundSize: "72px 72px",

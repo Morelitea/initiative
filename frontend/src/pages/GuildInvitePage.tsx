@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { LogoIcon } from "@/components/LogoIcon";
-import gridWhite from "@/assets/gridWhite.svg";
-import gridBlack from "@/assets/gridBlack.svg";
 
 export const GuildInvitePage = () => {
   const { code = "" } = useParams<{ code: string }>();
@@ -92,7 +90,7 @@ export const GuildInvitePage = () => {
   return (
     <div
       style={{
-        backgroundImage: `url(${isDark ? gridWhite : gridBlack})`,
+        backgroundImage: `url(${isDark ? "/images/gridWhite.svg" : "/images/gridBlack.svg"})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
         backgroundSize: "72px 72px",
