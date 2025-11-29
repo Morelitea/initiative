@@ -101,5 +101,6 @@ async def delete_comment(
             "id": deleted_comment.id,
             "task_id": deleted_comment.task_id,
             "document_id": deleted_comment.document_id,
+            "project_id": getattr(deleted_comment, "project_id", None),
         },
     )

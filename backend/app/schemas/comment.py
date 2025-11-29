@@ -51,6 +51,7 @@ class CommentRead(CommentBase):
     parent_comment_id: Optional[int] = None
     created_at: datetime
     author: Optional[CommentAuthor] = None
+    project_id: Optional[int] = None
 
     class Config:
         from_attributes = True

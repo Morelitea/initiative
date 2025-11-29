@@ -235,6 +235,21 @@ export interface Comment {
   author?: CommentAuthor | null;
 }
 
+export interface ProjectActivityEntry {
+  comment_id: number;
+  content: string;
+  created_at: string;
+  author?: CommentAuthor | null;
+  task_id: number;
+  task_title: string;
+}
+
+export interface ProjectActivityResponse {
+  items: ProjectActivityEntry[];
+  next_page?: number | null;
+  project_id?: number;
+}
+
 export interface TaskReorderPayload {
   project_id: number;
   items: {

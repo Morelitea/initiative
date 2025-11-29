@@ -969,7 +969,7 @@ async def project_activity_feed(
             )
         )
     next_page = page + 1 if has_next else None
-    return ProjectActivityResponse(items=entries, next_page=next_page)
+    return ProjectActivityResponse(items=entries, next_page=next_page, project_id=project.id)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)

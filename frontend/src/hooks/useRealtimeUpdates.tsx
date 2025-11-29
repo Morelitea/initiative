@@ -25,6 +25,17 @@ const invalidateDocumentById = (documentId: unknown) => {
   void queryClient.invalidateQueries({ queryKey: ["documents", documentId] });
 };
 
+const invalidateProjectActivityByTask = (payload?: Record<string, unknown>) => {
+  if (!payload) {
+    return;
+  }
+  const projectId =
+    typeof payload.project_id === "number" ? payload.project_id : Number(payload.project_id);
+  if (Number.isFinite(projectId)) {
+    void queryClient.invalidateQueries({ queryKey: ["projects", Number(projectId), "activity"] });
+  }
+};
+
 const invalidateCommentsByPayload = (payload?: Record<string, unknown>) => {
   if (!payload) {
     return;
@@ -129,6 +140,7 @@ export const useRealtimeUpdates = () => {
               invalidateCommentsByPayload(payload.data);
               invalidateDocumentById(payload.data?.document_id);
               invalidateByKey("documents");
+              invalidateProjectActivityByTask(payload.data);
               break;
             default:
               break;

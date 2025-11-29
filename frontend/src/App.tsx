@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ProjectShortcutsSidebar } from "@/components/projects/ProjectShortcutsSidebar";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
+import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
@@ -123,9 +124,12 @@ const AppLayout = () => {
               onClose={handleClearRecent}
             />
           ) : null}
-          <main className="container min-w-0 p-4 md:p-8">
-            <PageRoutes />
-          </main>
+          <div className="flex gap-4 h-full justify-between">
+            <main className="container h-full min-w-0 p-4 md:p-8">
+              <PageRoutes />
+            </main>
+            <ProjectActivitySidebar projectId={activeProjectId} />
+          </div>
         </div>
       </div>
     </div>

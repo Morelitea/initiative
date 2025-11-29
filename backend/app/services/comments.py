@@ -182,6 +182,7 @@ async def create_comment(
             task_id=context.task.id,
             parent_comment_id=parent_comment_id,
         )
+        object.__setattr__(comment, "project_id", context.project.id)
     else:
         if document_id is None:
             raise CommentValidationError("Document id is required")
@@ -227,6 +228,7 @@ async def list_comments(
     if has_task == has_document:
         raise CommentValidationError("Provide exactly one of task_id or document_id")
 
+    context: _TaskContext | None = None
     if has_task:
         context = await _get_task_context(session, task_id=task_id, guild_id=guild_id)
         if not context:
@@ -266,7 +268,11 @@ async def list_comments(
         )
 
     result = await session.exec(stmt)
-    return result.all()
+    comments = result.all()
+    if has_task and context:
+        for comment in comments:
+            object.__setattr__(comment, "project_id", context.project.id)
+    return comments
 
 
 async def delete_comment(
@@ -287,6 +293,7 @@ async def delete_comment(
         context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
         if not context:
             raise CommentNotFoundError("Comment not found")
+        object.__setattr__(comment, "project_id", context.project.id)
         initiative_id = context.initiative.id
         await _ensure_task_access(
             session,

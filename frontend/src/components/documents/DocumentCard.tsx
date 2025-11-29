@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import type { DocumentSummary } from "@/types/api";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DocumentCardProps {
   document: DocumentSummary;
@@ -40,21 +41,30 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           </div>
         )}
         <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground absolute bottom-2 right-2">
-        {document.is_template ? <Badge variant="outline">Template</Badge> : null}
-        <Badge variant="secondary">
-          {projectCount} project{projectCount === 1 ? "" : "s"}
-        </Badge>
-        <Badge variant="secondary">
-          {commentCount} comment{commentCount === 1 ? "" : "s"}
-        </Badge>
-      </div>
+          {document.is_template ? <Badge variant="outline">Template</Badge> : null}
+          <Badge variant="secondary">
+            {projectCount} project{projectCount === 1 ? "" : "s"}
+          </Badge>
+          <Badge variant="secondary">
+            {commentCount} comment{commentCount === 1 ? "" : "s"}
+          </Badge>
+        </div>
       </div>
       <div className="flex h-full flex-col gap-3 p-4">
         <div className="space-y-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="line-clamp-2 text-lg font-semibold leading-tight text-card-foreground">
-              {document.title}
-            </h3>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h3 className="line-clamp-1 text-lg font-semibold leading-tight text-card-foreground">
+                    {document.title}
+                  </h3>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start">
+                  <p>{document.title}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <p className="text-xs text-muted-foreground">
             Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
