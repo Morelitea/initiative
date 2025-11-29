@@ -214,6 +214,25 @@ export interface Task {
   sort_order: number;
 }
 
+export interface CommentAuthor {
+  id: number;
+  email: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  avatar_base64?: string | null;
+}
+
+export interface Comment {
+  id: number;
+  content: string;
+  author_id: number;
+  task_id?: number | null;
+  document_id?: number | null;
+  parent_comment_id?: number | null;
+  created_at: string;
+  author?: CommentAuthor | null;
+}
+
 export interface TaskReorderPayload {
   project_id: number;
   items: {

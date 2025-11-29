@@ -21,10 +21,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
-import type { Project, Task, TaskPriority, TaskRecurrence, TaskStatus, User } from "@/types/api";
+import type {
+  Comment,
+  Project,
+  Task,
+  TaskPriority,
+  TaskRecurrence,
+  TaskStatus,
+  User,
+} from "@/types/api";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import { CommentSection } from "@/components/comments/CommentSection";
 
 const taskStatusOrder: TaskStatus[] = ["backlog", "in_progress", "blocked", "done"];
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -82,6 +91,18 @@ export const TaskEditPage = () => {
     enabled: Number.isFinite(projectId),
     queryFn: async () => {
       const response = await apiClient.get<Project>(`/projects/${projectId}`);
+      return response.data;
+    },
+  });
+
+  const commentsQueryKey = ["comments", "task", parsedTaskId];
+  const commentsQuery = useQuery({
+    queryKey: commentsQueryKey,
+    enabled: Number.isFinite(parsedTaskId),
+    queryFn: async () => {
+      const response = await apiClient.get<Comment[]>("/comments/", {
+        params: { task_id: parsedTaskId },
+      });
       return response.data;
     },
   });
@@ -198,6 +219,24 @@ export const TaskEditPage = () => {
       ? "This project is archived. Unarchive it from project settings to edit tasks."
       : null;
 
+  const handleCommentCreated = (comment: Comment) => {
+    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+      if (!previous) {
+        return [comment];
+      }
+      return [...previous, comment];
+    });
+  };
+
+  const handleCommentDeleted = (commentId: number) => {
+    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+      if (!previous) {
+        return previous;
+      }
+      return previous.filter((comment) => comment.id !== commentId);
+    });
+  };
+
   useEffect(() => {
     if (isReadOnly) {
       setIsEditingDescription(false);
@@ -256,174 +295,190 @@ export const TaskEditPage = () => {
         <p className="text-sm text-muted-foreground">Edit every detail of this task.</p>
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Task details</CardTitle>
-          <CardDescription>Update the fields below and save your changes.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isReadOnly && readOnlyMessage ? (
-            <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              {readOnlyMessage}
-            </p>
-          ) : null}
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="task-title">Title</Label>
-              <Input
-                id="task-title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Task title"
-                required
-                disabled={isReadOnly}
-              />
-            </div>
+      <div className="flex gap-6 flex-wrap">
+        <Card className="shadow-sm flex-1 md:min-w-100">
+          <CardHeader>
+            <CardTitle>Task details</CardTitle>
+            <CardDescription>Update the fields below and save your changes.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isReadOnly && readOnlyMessage ? (
+              <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                {readOnlyMessage}
+              </p>
+            ) : null}
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="task-title">Title</Label>
+                <Input
+                  id="task-title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Task title"
+                  required
+                  disabled={isReadOnly}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center  gap-2">
-                <Label htmlFor="task-description">Description</Label>
+              <div className="space-y-2">
+                <div className="flex items-center  gap-2">
+                  <Label htmlFor="task-description">Description</Label>
+                  {!isReadOnly ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => setIsEditingDescription((prev) => !prev)}
+                    >
+                      {isEditingDescription ? "Preview" : "Edit"}
+                    </Button>
+                  ) : null}
+                </div>
+                {isEditingDescription && !isReadOnly ? (
+                  <Textarea
+                    id="task-description"
+                    rows={6}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Add extra context or acceptance criteria. Markdown supported."
+                    disabled={isReadOnly}
+                  />
+                ) : description ? (
+                  <div className="rounded-md border border-dashed border-border/70 bg-muted/40 px-3 py-2">
+                    <Markdown content={description} />
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">
+                    {isReadOnly
+                      ? "No description yet."
+                      : "No description yet. Click edit to add more context."}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={status}
+                    onValueChange={(value) => setStatus(value as TaskStatus)}
+                    disabled={isReadOnly}
+                  >
+                    <SelectTrigger disabled={isReadOnly}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {taskStatusOrder.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value.replace("_", " ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={priority}
+                    onValueChange={(value) => setPriority(value as TaskPriority)}
+                    disabled={isReadOnly}
+                  >
+                    <SelectTrigger disabled={isReadOnly}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {priorityOrder.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value.replace("_", " ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Assignees</Label>
+                  <AssigneeSelector
+                    selectedIds={assigneeIds}
+                    options={userOptions}
+                    onChange={setAssigneeIds}
+                    disabled={isReadOnly}
+                    emptyMessage={`No initiative ${memberLabel} role holders available yet.`}
+                  />
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="task-start-date">Start date</Label>
+                    <DateTimePicker
+                      id="task-start-date"
+                      value={startDate}
+                      onChange={setStartDate}
+                      disabled={isReadOnly}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-due-date">Due date</Label>
+                    <DateTimePicker
+                      id="task-due-date"
+                      value={dueDate}
+                      onChange={setDueDate}
+                      disabled={isReadOnly}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+              </div>
+              <TaskRecurrenceSelector
+                recurrence={recurrence}
+                onChange={setRecurrence}
+                disabled={isReadOnly}
+                referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
+              />
+
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" disabled={updateTask.isPending || isReadOnly}>
+                  {updateTask.isPending ? "Saving…" : "Save task"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => navigate(projectLink)}>
+                  Cancel
+                </Button>
                 {!isReadOnly ? (
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs"
-                    onClick={() => setIsEditingDescription((prev) => !prev)}
+                    variant="destructive"
+                    onClick={() => {
+                      if (window.confirm("Delete this task? This cannot be undone.")) {
+                        deleteTask.mutate();
+                      }
+                    }}
+                    disabled={deleteTask.isPending}
                   >
-                    {isEditingDescription ? "Preview" : "Edit"}
+                    {deleteTask.isPending ? "Deleting…" : "Delete task"}
                   </Button>
                 ) : null}
               </div>
-              {isEditingDescription && !isReadOnly ? (
-                <Textarea
-                  id="task-description"
-                  rows={6}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="Add extra context or acceptance criteria. Markdown supported."
-                  disabled={isReadOnly}
-                />
-              ) : description ? (
-                <div className="rounded-md border border-dashed border-border/70 bg-muted/40 px-3 py-2">
-                  <Markdown content={description} />
-                </div>
-              ) : (
-                <p className="text-sm italic text-muted-foreground">
-                  {isReadOnly
-                    ? "No description yet."
-                    : "No description yet. Click edit to add more context."}
-                </p>
-              )}
-            </div>
+            </form>
+          </CardContent>
+        </Card>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={status}
-                  onValueChange={(value) => setStatus(value as TaskStatus)}
-                  disabled={isReadOnly}
-                >
-                  <SelectTrigger disabled={isReadOnly}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {taskStatusOrder.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value.replace("_", " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select
-                  value={priority}
-                  onValueChange={(value) => setPriority(value as TaskPriority)}
-                  disabled={isReadOnly}
-                >
-                  <SelectTrigger disabled={isReadOnly}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {priorityOrder.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value.replace("_", " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Assignees</Label>
-                <AssigneeSelector
-                  selectedIds={assigneeIds}
-                  options={userOptions}
-                  onChange={setAssigneeIds}
-                  disabled={isReadOnly}
-                  emptyMessage={`No initiative ${memberLabel} role holders available yet.`}
-                />
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="task-start-date">Start date</Label>
-                  <DateTimePicker
-                    id="task-start-date"
-                    value={startDate}
-                    onChange={setStartDate}
-                    disabled={isReadOnly}
-                    placeholder="Optional"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-due-date">Due date</Label>
-                  <DateTimePicker
-                    id="task-due-date"
-                    value={dueDate}
-                    onChange={setDueDate}
-                    disabled={isReadOnly}
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
-            </div>
-            <TaskRecurrenceSelector
-              recurrence={recurrence}
-              onChange={setRecurrence}
-              disabled={isReadOnly}
-              referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
-            />
-
-            <div className="flex flex-wrap gap-3">
-              <Button type="submit" disabled={updateTask.isPending || isReadOnly}>
-                {updateTask.isPending ? "Saving…" : "Save task"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => navigate(projectLink)}>
-                Cancel
-              </Button>
-              {!isReadOnly ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    if (window.confirm("Delete this task? This cannot be undone.")) {
-                      deleteTask.mutate();
-                    }
-                  }}
-                  disabled={deleteTask.isPending}
-                >
-                  {deleteTask.isPending ? "Deleting…" : "Delete task"}
-                </Button>
-              ) : null}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        <div className="w-full max-w-md space-y-2">
+          {commentsQuery.isError ? (
+            <p className="text-sm text-destructive">Unable to load comments right now.</p>
+          ) : null}
+          <CommentSection
+            entityType="task"
+            entityId={parsedTaskId}
+            comments={commentsQuery.data ?? []}
+            isLoading={commentsQuery.isLoading}
+            onCommentCreated={handleCommentCreated}
+            onCommentDeleted={handleCommentDeleted}
+          />
+        </div>
+      </div>
     </div>
   );
 };

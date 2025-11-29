@@ -9,6 +9,7 @@ from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.models.api_key import AdminApiKey
 from app.models.project_activity import ProjectFavorite, RecentProjectView
+from app.models.comment import Comment
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "AdminApiKey",
     "ProjectFavorite",
     "RecentProjectView",
+    "Comment",
 ]
