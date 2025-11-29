@@ -276,7 +276,7 @@ async def delete_comment(
     user: User,
     guild_id: int,
     guild_role: GuildRole,
-) -> None:
+) -> Comment:
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
         raise CommentNotFoundError("Comment not found")
@@ -327,3 +327,4 @@ async def delete_comment(
         raise CommentPermissionError("You can only delete your own comments")
 
     await session.delete(comment)
+    return comment

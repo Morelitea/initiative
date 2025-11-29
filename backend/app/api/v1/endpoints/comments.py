@@ -6,6 +6,7 @@ from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentRead
 from app.services import comments as comments_service
+from app.services.realtime import broadcast_event
 
 router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -38,7 +39,9 @@ async def create_comment(
 
     await session.commit()
     await session.refresh(comment)
-    return CommentRead.model_validate(comment)
+    response = CommentRead.model_validate(comment)
+    await broadcast_event("comment", "created", response.model_dump(mode="json"))
+    return response
 
 
 @router.get("/", response_model=List[CommentRead])
@@ -76,7 +79,7 @@ async def delete_comment(
     guild_context: GuildContextDep,
 ) -> None:
     try:
-        await comments_service.delete_comment(
+        deleted_comment = await comments_service.delete_comment(
             session,
             comment_id=comment_id,
             user=current_user,
@@ -91,3 +94,12 @@ async def delete_comment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     await session.commit()
+    await broadcast_event(
+        "comment",
+        "deleted",
+        {
+            "id": deleted_comment.id,
+            "task_id": deleted_comment.task_id,
+            "document_id": deleted_comment.document_id,
+        },
+    )

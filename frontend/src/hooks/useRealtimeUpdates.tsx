@@ -18,6 +18,23 @@ const invalidateProjectById = (projectId: unknown) => {
   void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
 };
 
+const invalidateCommentsByPayload = (payload?: Record<string, unknown>) => {
+  if (!payload) {
+    return;
+  }
+  const taskId = typeof payload.task_id === "number" ? payload.task_id : Number(payload.task_id);
+  if (Number.isFinite(taskId)) {
+    void queryClient.invalidateQueries({ queryKey: ["comments", "task", Number(taskId)] });
+  }
+  const documentId =
+    typeof payload.document_id === "number" ? payload.document_id : Number(payload.document_id);
+  if (Number.isFinite(documentId)) {
+    void queryClient.invalidateQueries({
+      queryKey: ["comments", "document", Number(documentId)],
+    });
+  }
+};
+
 const buildWebsocketUrl = (token: string) => {
   if (typeof window === "undefined") {
     return null;
@@ -100,6 +117,9 @@ export const useRealtimeUpdates = () => {
             }
             case "project":
               invalidateByKey("projects");
+              break;
+            case "comment":
+              invalidateCommentsByPayload(payload.data);
               break;
             default:
               break;
