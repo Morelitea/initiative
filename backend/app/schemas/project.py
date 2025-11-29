@@ -7,6 +7,7 @@ from app.models.project import ProjectPermissionLevel
 from app.schemas.initiative import InitiativeRead
 from app.schemas.document import ProjectDocumentSummary
 from app.schemas.user import UserRead
+from app.schemas.comment import CommentAuthor
 
 
 class ProjectBase(BaseModel):
@@ -85,3 +86,17 @@ class ProjectFavoriteStatus(BaseModel):
 class ProjectRecentViewRead(BaseModel):
     project_id: int
     last_viewed_at: datetime
+
+
+class ProjectActivityEntry(BaseModel):
+    comment_id: int
+    content: str
+    created_at: datetime
+    author: Optional[CommentAuthor] = None
+    task_id: int
+    task_title: str
+
+
+class ProjectActivityResponse(BaseModel):
+    items: List[ProjectActivityEntry]
+    next_page: Optional[int] = None

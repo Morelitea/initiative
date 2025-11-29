@@ -16,6 +16,7 @@ from app.models.project import Project, ProjectPermission, ProjectPermissionLeve
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee
+from app.models.comment import Comment
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
 from app.models.guild import GuildRole
@@ -34,7 +35,10 @@ from app.schemas.project import (
     ProjectUpdate,
     ProjectFavoriteStatus,
     ProjectRecentViewRead,
+    ProjectActivityEntry,
+    ProjectActivityResponse,
 )
+from app.schemas.comment import CommentAuthor
 from app.schemas.initiative import serialize_initiative
 from app.schemas.document import ProjectDocumentSummary, serialize_project_document_link
 
@@ -918,6 +922,54 @@ async def unfavorite_project(
     )
     await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=False)
     return ProjectFavoriteStatus(project_id=project.id, is_favorited=False)
+
+
+@router.get("/{project_id}/activity", response_model=ProjectActivityResponse)
+async def project_activity_feed(
+    project_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=20),
+) -> ProjectActivityResponse:
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="read",
+        guild_role=guild_context.role,
+    )
+    offset = (page - 1) * page_size
+    stmt = (
+        select(Comment, Task)
+        .join(Task, Comment.task_id == Task.id)
+        .where(Task.project_id == project.id)
+        .options(selectinload(Comment.author))
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
+        .limit(page_size + 1)
+        .offset(offset)
+    )
+    result = await session.exec(stmt)
+    rows = result.all()
+    has_next = len(rows) > page_size
+    entries: list[ProjectActivityEntry] = []
+    for comment, task in rows[:page_size]:
+        author = comment.author
+        author_payload = CommentAuthor.model_validate(author) if author else None
+        entries.append(
+            ProjectActivityEntry(
+                comment_id=comment.id,
+                content=comment.content,
+                created_at=comment.created_at,
+                author=author_payload,
+                task_id=task.id,
+                task_title=task.title,
+            )
+        )
+    next_page = page + 1 if has_next else None
+    return ProjectActivityResponse(items=entries, next_page=next_page)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
