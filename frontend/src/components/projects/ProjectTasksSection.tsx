@@ -95,6 +95,14 @@ export const ProjectTasksSection = ({
   canViewTaskDetails,
   onTaskClick,
 }: ProjectTasksSectionProps) => {
+  const sortedTaskStatuses = useMemo(() => {
+    return [...taskStatuses].sort((a, b) => {
+      if (a.position === b.position) {
+        return a.id - b.id;
+      }
+      return a.position - b.position;
+    });
+  }, [taskStatuses]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
@@ -115,19 +123,19 @@ export const ProjectTasksSection = ({
 
   const statusLookup = useMemo(() => {
     const map = new Map<number, ProjectTaskStatus>();
-    taskStatuses.forEach((status) => {
+    sortedTaskStatuses.forEach((status) => {
       map.set(status.id, status);
     });
     return map;
-  }, [taskStatuses]);
+  }, [sortedTaskStatuses]);
 
   const defaultStatusId = useMemo(() => {
-    if (taskStatuses.length === 0) {
+    if (sortedTaskStatuses.length === 0) {
       return null;
     }
-    const explicit = taskStatuses.find((status) => status.is_default);
-    return explicit?.id ?? taskStatuses[0]?.id ?? null;
-  }, [taskStatuses]);
+    const explicit = sortedTaskStatuses.find((status) => status.is_default);
+    return explicit?.id ?? sortedTaskStatuses[0]?.id ?? null;
+  }, [sortedTaskStatuses]);
 
   const filterStorageKey = useMemo(
     () => (Number.isFinite(projectId) ? `project:${projectId}:view-filters` : null),
@@ -186,9 +194,7 @@ export const ProjectTasksSection = ({
         const parsedListFilter = parsed.listStatusFilter;
         if (parsedListFilter === "all" || parsedListFilter === "incomplete") {
           setListStatusFilter(parsedListFilter);
-        } else if (
-          typeof parsedListFilter === "number" && Number.isFinite(parsedListFilter)
-        ) {
+        } else if (typeof parsedListFilter === "number" && Number.isFinite(parsedListFilter)) {
           setListStatusFilter(parsedListFilter);
         }
       }
@@ -252,13 +258,7 @@ export const ProjectTasksSection = ({
   });
 
   const updateTaskStatus = useMutation({
-    mutationFn: async ({
-      taskId,
-      taskStatusId,
-    }: {
-      taskId: number;
-      taskStatusId: number;
-    }) => {
+    mutationFn: async ({ taskId, taskStatusId }: { taskId: number; taskStatusId: number }) => {
       const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
         task_status_id: taskStatusId,
       });
@@ -285,7 +285,7 @@ export const ProjectTasksSection = ({
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
     mutationFn: async (payload: TaskReorderPayload) => {
-      const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
+      const response = await apiClient.post<Task[]>("/tasks/reorder/", payload);
       return response.data;
     },
     onSuccess: (data) => {
@@ -350,7 +350,7 @@ export const ProjectTasksSection = ({
 
   const groupedTasks = useMemo(() => {
     const groups: Record<number, Task[]> = {};
-    taskStatuses.forEach((status) => {
+    sortedTaskStatuses.forEach((status) => {
       groups[status.id] = [];
     });
     filteredTasks.forEach((task) => {
@@ -360,7 +360,7 @@ export const ProjectTasksSection = ({
       groups[task.task_status_id].push(task);
     });
     return groups;
-  }, [filteredTasks, taskStatuses]);
+  }, [filteredTasks, sortedTaskStatuses]);
 
   const tableTasks = useMemo(() => {
     if (listStatusFilter === "all") {
@@ -646,14 +646,14 @@ export const ProjectTasksSection = ({
               </Button>
             </CollapsibleTrigger>
           </div>
-        <CollapsibleContent forceMount className="mt-2 sm:mt-0 data-[state=closed]:hidden">
-          <ProjectTasksFilters
-            viewMode={viewMode}
-            taskStatuses={taskStatuses}
-            userOptions={userOptions}
-            assigneeFilter={assigneeFilter}
-            dueFilter={dueFilter}
-            listStatusFilter={listStatusFilter}
+          <CollapsibleContent forceMount className="mt-2 sm:mt-0 data-[state=closed]:hidden">
+            <ProjectTasksFilters
+              viewMode={viewMode}
+              taskStatuses={sortedTaskStatuses}
+              userOptions={userOptions}
+              assigneeFilter={assigneeFilter}
+              dueFilter={dueFilter}
+              listStatusFilter={listStatusFilter}
               onAssigneeFilterChange={setAssigneeFilter}
               onDueFilterChange={setDueFilter}
               onListStatusFilterChange={setListStatusFilter}
@@ -663,7 +663,7 @@ export const ProjectTasksSection = ({
 
         <TabsContent value="kanban">
           <ProjectTasksKanbanView
-            taskStatuses={taskStatuses}
+            taskStatuses={sortedTaskStatuses}
             groupedTasks={groupedTasks}
             canReorderTasks={canReorderTasks}
             canOpenTask={canViewTaskDetails}
@@ -681,7 +681,7 @@ export const ProjectTasksSection = ({
         <TabsContent value="table">
           <ProjectTasksTableView
             tasks={tableTasks}
-            taskStatuses={taskStatuses}
+            taskStatuses={sortedTaskStatuses}
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
             canEditTaskDetails={canEditTaskDetails}

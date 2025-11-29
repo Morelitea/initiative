@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -36,3 +36,12 @@ class TaskStatusRead(TaskStatusBase):
 
 class TaskStatusDeleteRequest(BaseModel):
     fallback_status_id: Optional[int] = None
+
+
+class TaskStatusReorderItem(BaseModel):
+    id: int
+    position: int
+
+
+class TaskStatusReorderRequest(BaseModel):
+    items: List[TaskStatusReorderItem]

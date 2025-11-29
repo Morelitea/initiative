@@ -230,7 +230,7 @@ export const ProjectsPage = () => {
   const reorderProjects = useMutation({
     mutationFn: async (orderedIds: number[]) => {
       const payload: ProjectReorderPayload = { project_ids: orderedIds };
-      await apiClient.post("/projects/reorder", payload);
+      await apiClient.post("/projects/reorder/", payload);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });

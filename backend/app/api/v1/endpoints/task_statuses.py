@@ -7,10 +7,14 @@ from sqlmodel import select, delete, update
 from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_guild_membership
 from app.api.v1.endpoints.tasks import _get_project_with_access, _ensure_can_manage
 from app.models.task import Task, TaskStatus, TaskStatusCategory
+from app.models.project import Project
+from app.models.initiative import InitiativeMember, InitiativeRole
+from app.models.guild import GuildRole
 from app.models.user import User
 from app.schemas.task_status import (
     TaskStatusCreate,
     TaskStatusDeleteRequest,
+    TaskStatusReorderRequest,
     TaskStatusRead,
     TaskStatusUpdate,
 )
@@ -39,6 +43,27 @@ def _ensure_default(statuses: List[TaskStatus]) -> None:
             return
     if statuses:
         statuses[0].is_default = True
+
+
+async def _ensure_project_manager_role(
+    session: SessionDep,
+    project: Project,
+    current_user: User,
+    guild_role: GuildRole | None,
+) -> None:
+    if guild_role == GuildRole.admin:
+        return
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == project.initiative_id,
+        InitiativeMember.user_id == current_user.id,
+    )
+    result = await session.exec(stmt)
+    membership = result.one_or_none()
+    if not membership or membership.role != InitiativeRole.project_manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project manager role required",
+        )
 
 
 async def _load_status_or_404(session: SessionDep, project_id: int, status_id: int) -> TaskStatus:
@@ -104,6 +129,7 @@ async def create_task_status(
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role,
     )
+    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
     statuses = await task_statuses_service.list_statuses(session, project.id)
     insert_at = status_in.position if status_in.position is not None else len(statuses)
     insert_at = max(0, min(insert_at, len(statuses)))
@@ -136,13 +162,14 @@ async def update_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
-    await _ensure_can_manage(
+    project = await _ensure_can_manage(
         session,
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role,
     )
+    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
     target = await _load_status_or_404(session, project_id, status_id)
     statuses = await task_statuses_service.list_statuses(session, project_id)
     update_data = status_in.model_dump(exclude_unset=True)
@@ -174,6 +201,45 @@ async def update_task_status(
     return target
 
 
+@router.post("/reorder", response_model=List[TaskStatusRead])
+async def reorder_task_statuses(
+    project_id: int,
+    reorder_in: TaskStatusReorderRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[TaskStatus]:
+    project = await _ensure_can_manage(
+        session,
+        project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
+
+    if not reorder_in.items:
+        return await task_statuses_service.list_statuses(session, project.id)
+
+    statuses = await task_statuses_service.list_statuses(session, project.id)
+    status_map = {status.id: status for status in statuses}
+    seen: set[int] = set()
+    ordered: list[TaskStatus] = []
+    for item in sorted(reorder_in.items, key=lambda entry: entry.position):
+        if item.id in seen:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate status id")
+        status_obj = status_map.get(item.id)
+        if status_obj is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task status not found")
+        ordered.append(status_obj)
+        seen.add(item.id)
+    remaining = [status for status in statuses if status.id not in seen]
+    combined = ordered + remaining
+    _resequence(combined)
+    await session.commit()
+    return await task_statuses_service.list_statuses(session, project.id)
+
+
 @router.delete("/{status_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task_status(
     project_id: int,
@@ -183,13 +249,14 @@ async def delete_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    await _ensure_can_manage(
+    project = await _ensure_can_manage(
         session,
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role,
     )
+    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
     target = await _load_status_or_404(session, project_id, status_id)
     await _ensure_category_not_last(session, project_id=project_id, target=target)
 

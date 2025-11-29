@@ -28,6 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
 import { Project, Initiative } from "@/types/api";
+import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 
@@ -352,6 +353,7 @@ export const ProjectSettingsPage = () => {
   const hasExplicitWrite = project.permissions.some(
     (permission) => permission.user_id === user?.id && permission.level === "write"
   );
+  const canManageTaskStatuses = user?.role === "admin" || isInitiativePm;
   const canManageAccess = user?.role === "admin" || isOwner || isInitiativePm;
   const hasImplicitWrite = Boolean(project.members_can_write && initiativeMembership);
   const canWriteProject =
@@ -650,6 +652,11 @@ export const ProjectSettingsPage = () => {
           </CardContent>
         </Card>
       ) : null}
+
+      <ProjectTaskStatusesManager
+        projectId={project.id}
+        canManage={Boolean(canManageTaskStatuses)}
+      />
 
       <Card className="shadow-sm">
         <CardHeader>
