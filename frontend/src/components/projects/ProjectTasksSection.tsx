@@ -76,6 +76,7 @@ type ProjectTasksSectionProps = {
   canEditTaskDetails: boolean;
   canWriteProject: boolean;
   projectIsArchived: boolean;
+  canViewTaskDetails: boolean;
   onTaskClick: (taskId: number) => void;
 };
 
@@ -86,6 +87,7 @@ export const ProjectTasksSection = ({
   canEditTaskDetails,
   canWriteProject,
   projectIsArchived,
+  canViewTaskDetails,
   onTaskClick,
 }: ProjectTasksSectionProps) => {
   const [title, setTitle] = useState("");
@@ -616,7 +618,7 @@ export const ProjectTasksSection = ({
           <ProjectTasksKanbanView
             groupedTasks={groupedTasks}
             canReorderTasks={canReorderTasks}
-            canEditTaskDetails={canEditTaskDetails}
+            canOpenTask={canViewTaskDetails}
             onTaskClick={onTaskClick}
             priorityVariant={priorityVariant}
             sensors={kanbanSensors}
@@ -634,6 +636,7 @@ export const ProjectTasksSection = ({
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
             canEditTaskDetails={canEditTaskDetails}
+            canOpenTask={canViewTaskDetails}
             taskActionsDisabled={taskActionsDisabled}
             priorityVariant={priorityVariant}
             onDragStart={handleTaskDragStart}
@@ -651,14 +654,14 @@ export const ProjectTasksSection = ({
         <TabsContent value="calendar">
           <ProjectCalendarView
             tasks={filteredTasks}
-            canOpenTask={canEditTaskDetails}
+            canOpenTask={canViewTaskDetails}
             onTaskClick={onTaskClick}
           />
         </TabsContent>
         <TabsContent value="gantt">
           <ProjectGanttView
             tasks={filteredTasks}
-            canOpenTask={canEditTaskDetails}
+            canOpenTask={canViewTaskDetails}
             onTaskClick={onTaskClick}
           />
         </TabsContent>

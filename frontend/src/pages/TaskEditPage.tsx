@@ -218,6 +218,7 @@ export const TaskEditPage = () => {
     : projectIsArchived
       ? "This project is archived. Unarchive it from project settings to edit tasks."
       : null;
+  const canModerateComments = user?.role === "admin" || isInitiativePm;
 
   const handleCommentCreated = (comment: Comment) => {
     queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
@@ -476,6 +477,7 @@ export const TaskEditPage = () => {
             isLoading={commentsQuery.isLoading}
             onCommentCreated={handleCommentCreated}
             onCommentDeleted={handleCommentDeleted}
+            canModerate={canModerateComments}
           />
         </div>
       </div>

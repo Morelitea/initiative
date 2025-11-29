@@ -36,6 +36,7 @@ type ProjectTasksListViewProps = {
   sensors: DndContextProps["sensors"];
   canReorderTasks: boolean;
   canEditTaskDetails: boolean;
+  canOpenTask: boolean;
   taskActionsDisabled: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onDragStart: (event: DragStartEvent) => void;
@@ -109,6 +110,7 @@ export const ProjectTasksTableView = ({
   sensors,
   canReorderTasks,
   canEditTaskDetails,
+  canOpenTask,
   taskActionsDisabled,
   priorityVariant,
   onDragStart,
@@ -160,6 +162,7 @@ export const ProjectTasksTableView = ({
           <TaskCell
             task={row.original}
             canEditTaskDetails={canEditTaskDetails}
+            canOpenTask={canOpenTask}
             onTaskClick={onTaskClick}
           />
         ),
@@ -207,7 +210,7 @@ export const ProjectTasksTableView = ({
         },
       },
     ],
-    [canEditTaskDetails, onStatusChange, onTaskClick, priorityVariant, statusDisabled]
+    [canEditTaskDetails, canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled]
   );
 
   return (
@@ -264,10 +267,11 @@ const DragHandleCell = () => {
 type TaskCellProps = {
   task: Task;
   canEditTaskDetails: boolean;
+  canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
 };
 
-const TaskCell = ({ task, canEditTaskDetails, onTaskClick }: TaskCellProps) => {
+const TaskCell = ({ task, canEditTaskDetails, canOpenTask, onTaskClick }: TaskCellProps) => {
   const recurrenceSummary = task.recurrence
     ? summarizeRecurrence(task.recurrence, {
         referenceDate: task.start_date || task.due_date,
@@ -282,12 +286,12 @@ const TaskCell = ({ task, canEditTaskDetails, onTaskClick }: TaskCellProps) => {
       type="button"
       className="flex w-full flex-col items-start text-left"
       onClick={() => {
-        if (!canEditTaskDetails) {
+        if (!canOpenTask) {
           return;
         }
         onTaskClick(task.id);
       }}
-      disabled={!canEditTaskDetails}
+      disabled={!canOpenTask}
     >
       <p className="font-medium">{task.title}</p>
       {task.description ? (

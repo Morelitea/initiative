@@ -22,6 +22,7 @@ interface CommentSectionProps {
   onCommentDeleted?: (commentId: number) => void;
   title?: string;
   isLoading?: boolean;
+  canModerate?: boolean;
 }
 
 interface CommentPayload {
@@ -40,6 +41,7 @@ export const CommentSection = ({
   onCommentDeleted,
   title = "Comments",
   isLoading = false,
+  canModerate = false,
 }: CommentSectionProps) => {
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +146,9 @@ export const CommentSection = ({
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div className="flex items-center gap-2">
         <MessageSquarePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h3>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-2">
@@ -177,7 +181,7 @@ export const CommentSection = ({
               const displayName = getDisplayName(comment);
               const avatarSrc = getAvatarSrc(comment);
               const initials = getInitials(displayName);
-              const canDelete = user?.id === comment.author_id;
+              const canDelete = user?.id === comment.author_id || canModerate;
               const isDeleting = deleteComment.isPending && deleteComment.variables === comment.id;
 
               return (
@@ -208,16 +212,15 @@ export const CommentSection = ({
                               {isDeleting ? (
                                 "Deleting…"
                               ) : (
-                                <>
-                                  <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                                  Delete
-                                </>
+                                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                               )}
                             </Button>
                           ) : null}
                         </div>
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{comment.content}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+                        {comment.content}
+                      </p>
                     </div>
                   </div>
                 </li>
@@ -225,7 +228,9 @@ export const CommentSection = ({
             })}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No comments yet. Be the first to contribute.</p>
+          <p className="text-sm text-muted-foreground">
+            No comments yet. Be the first to contribute.
+          </p>
         )}
         {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
       </div>

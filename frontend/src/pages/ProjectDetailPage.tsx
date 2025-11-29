@@ -141,11 +141,12 @@ export const ProjectDetailPage = () => {
   const canManageSettings = user?.role === "admin" || isOwner || isInitiativePm;
   const canWriteProject =
     user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
+  const canViewTaskDetails = Boolean(project && (canWriteProject || initiativeMembership));
   const projectIsArchived = project.is_archived ?? false;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 
   const handleTaskClick = (taskId: number) => {
-    if (!canEditTaskDetails) {
+    if (!canViewTaskDetails) {
       return;
     }
     navigate(`/tasks/${taskId}/edit`);
@@ -185,6 +186,7 @@ export const ProjectDetailPage = () => {
         canEditTaskDetails={canEditTaskDetails}
         canWriteProject={Boolean(canWriteProject)}
         projectIsArchived={projectIsArchived}
+        canViewTaskDetails={canViewTaskDetails}
         onTaskClick={handleTaskClick}
       />
     </div>

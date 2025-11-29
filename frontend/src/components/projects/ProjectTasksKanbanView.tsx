@@ -22,7 +22,7 @@ import { TaskAssigneeList } from "./TaskAssigneeList";
 type ProjectTasksKanbanViewProps = {
   groupedTasks: Record<TaskStatus, Task[]>;
   canReorderTasks: boolean;
-  canEditTaskDetails: boolean;
+  canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   sensors: DndContextProps["sensors"];
@@ -36,7 +36,7 @@ type ProjectTasksKanbanViewProps = {
 export const ProjectTasksKanbanView = ({
   groupedTasks,
   canReorderTasks,
-  canEditTaskDetails,
+  canOpenTask,
   onTaskClick,
   priorityVariant,
   sensors,
@@ -62,7 +62,7 @@ export const ProjectTasksKanbanView = ({
               status={status}
               tasks={groupedTasks[status]}
               canWrite={canReorderTasks}
-              canOpenTask={canEditTaskDetails}
+              canOpenTask={canOpenTask}
               priorityVariant={priorityVariant}
               onTaskClick={onTaskClick}
             />

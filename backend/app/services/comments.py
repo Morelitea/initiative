@@ -16,6 +16,7 @@ from app.models.project import Project, ProjectPermission
 from app.models.task import Task
 from app.models.user import User
 from app.services import documents as documents_service
+from app.services import initiatives as initiatives_service
 
 
 class CommentError(Exception):
@@ -280,10 +281,13 @@ async def delete_comment(
     if not comment:
         raise CommentNotFoundError("Comment not found")
 
+    initiative_id: int | None = None
+
     if comment.task_id is not None:
         context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
         if not context:
             raise CommentNotFoundError("Comment not found")
+        initiative_id = context.initiative.id
         await _ensure_task_access(
             session,
             project=context.project,
@@ -299,6 +303,7 @@ async def delete_comment(
         )
         if not document:
             raise CommentNotFoundError("Comment not found")
+        initiative_id = document.initiative_id
         await _ensure_document_access(
             session,
             document=document,
@@ -308,7 +313,17 @@ async def delete_comment(
     else:
         raise CommentValidationError("Comment is not linked to a task or document")
 
-    if comment.author_id != user.id:
+    is_author = comment.author_id == user.id
+    is_guild_admin = guild_role == GuildRole.admin
+    is_initiative_manager = False
+    if not is_author and not is_guild_admin and initiative_id is not None:
+        is_initiative_manager = await initiatives_service.is_initiative_manager(
+            session,
+            initiative_id=initiative_id,
+            user=user,
+        )
+
+    if not (is_author or is_guild_admin or is_initiative_manager):
         raise CommentPermissionError("You can only delete your own comments")
 
     await session.delete(comment)
