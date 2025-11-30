@@ -480,9 +480,9 @@ export const ProjectsPage = () => {
       <Tabs
         value={tabValue}
         onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
-        className="space-y-6"
+        className="space-y-6 "
       >
-        <TabsList className="w-full justify-start">
+        <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="active" className="inline-flex items-center gap-2">
             <LayoutGrid className="h-4 w-4" />
             Active Projects
