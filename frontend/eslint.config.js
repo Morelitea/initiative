@@ -1,0 +1,51 @@
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "eslint/config";
+import js from "@eslint/js";
+import tsPlugin from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
+import reactPlugin from "eslint-plugin-react";
+import reactHooksPlugin from "eslint-plugin-react-hooks";
+
+const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
+const tsRecommendedRules = tsPlugin.configs.recommended?.rules ?? {};
+
+export default defineConfig([
+  {
+    ignores: ["vite.config.ts", "dist/**", "public/**"],
+  },
+  js.configs.recommended,
+  reactPlugin.configs.flat.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        project: ["./tsconfig.json", "./tsconfig.node.json"],
+        tsconfigRootDir,
+      },
+    },
+    plugins: {
+      "@typescript-eslint": tsPlugin,
+      react: reactPlugin,
+      "react-hooks": reactHooksPlugin,
+    },
+    rules: {
+      ...tsRecommendedRules,
+      "no-undef": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  {
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+  },
+]);
