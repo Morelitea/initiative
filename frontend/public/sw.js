@@ -1,6 +1,6 @@
-const STATIC_CACHE = "initiative-static-v1";
+const STATIC_CACHE = "initiative-static-v2";
 const DATA_CACHE = "initiative-data-v1";
-const STATIC_ASSETS = ["/", "/index.html", "/manifest.webmanifest", "/icons/logo.svg"];
+const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/logo.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -70,24 +70,41 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const isStaticAsset = STATIC_ASSETS.includes(requestPath) || request.mode === "navigate";
+  if (request.mode === "navigate") {
+    event.respondWith(
+      (async () => {
+        try {
+          const networkResponse = await fetch(request);
+          const cache = await caches.open(STATIC_CACHE);
+          cache.put("index.html", networkResponse.clone());
+          return networkResponse;
+        } catch (error) {
+          const cache = await caches.open(STATIC_CACHE);
+          const cachedPage = await cache.match("index.html");
+          if (cachedPage) {
+            return cachedPage;
+          }
+          throw error;
+        }
+      })()
+    );
+    return;
+  }
 
-  if (!isStaticAsset) {
+  if (!STATIC_ASSETS.includes(requestPath)) {
     event.respondWith(fetch(request));
     return;
   }
 
   event.respondWith(
     caches.open(STATIC_CACHE).then(async (cache) => {
-      const cached = await cache.match(requestPath === "/" ? "index.html" : requestPath);
+      const cached = await cache.match(requestPath);
       if (cached) {
         return cached;
       }
       const response = await fetch(request);
-      // Only cache successful responses
       if (response.ok) {
-        const cacheKey = requestPath === "/" ? "index.html" : requestPath;
-        await cache.put(cacheKey, response.clone());
+        await cache.put(requestPath, response.clone());
       }
       return response;
     })
