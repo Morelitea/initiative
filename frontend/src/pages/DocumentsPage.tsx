@@ -52,16 +52,27 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
     cell: ({ row }) => {
       const document = row.original;
       return (
-        <div className="space-y-1">
+        <div className="min-w-[220px] sm:min-w-0">
           <Link
             to={`/documents/${document.id}`}
             className="font-medium text-primary hover:underline"
           >
             {document.title}
           </Link>
-          <p className="text-xs text-muted-foreground">
-            Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
-          </p>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "updated_at",
+    header: "Last updated",
+    cell: ({ row }) => {
+      const updatedAt = new Date(row.original.updated_at);
+      return (
+        <div className="min-w-[100px] sm:min-w-0">
+          <span className="text-muted-foreground">
+            {formatDistanceToNow(updatedAt, { addSuffix: true })}
+          </span>
         </div>
       );
     },
@@ -75,7 +86,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         return <span className="text-muted-foreground">—</span>;
       }
       return (
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 min-w-[140px]">
           <InitiativeColorDot color={initiative.color} />
           {initiative.name}
         </span>
@@ -99,15 +110,6 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
       ) : (
         <span className="text-muted-foreground">Document</span>
       ),
-  },
-  {
-    id: "actions",
-    header: "",
-    cell: ({ row }) => (
-      <Button asChild variant="ghost" size="sm" className="-mr-2">
-        <Link to={`/documents/${row.original.id}`}>Open</Link>
-      </Button>
-    ),
   },
 ];
 
