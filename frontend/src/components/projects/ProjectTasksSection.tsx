@@ -285,7 +285,7 @@ export const ProjectTasksSection = ({
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
     mutationFn: async (payload: TaskReorderPayload) => {
-      const response = await apiClient.post<Task[]>("/tasks/reorder/", payload);
+      const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
       return response.data;
     },
     onSuccess: (data) => {
