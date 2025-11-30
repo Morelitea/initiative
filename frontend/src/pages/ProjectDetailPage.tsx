@@ -106,8 +106,8 @@ export const ProjectDetailPage = () => {
     if (typeof document === "undefined" || !projectName) {
       return;
     }
-    const previousTitle = document.title || "initiative";
-    document.title = `initiative - ${projectName}`;
+    const previousTitle = document.title || "Initiative";
+    document.title = `${projectName} - Initiative`;
     return () => {
       document.title = previousTitle;
     };
