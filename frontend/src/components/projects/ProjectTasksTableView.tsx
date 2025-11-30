@@ -149,8 +149,8 @@ export const ProjectTasksTableView = ({
                   return;
                 }
                 const targetStatusId = value
-                  ? doneStatus?.id ?? task.task_status_id
-                  : inProgressStatus?.id ?? task.task_status_id;
+                  ? (doneStatus?.id ?? task.task_status_id)
+                  : (inProgressStatus?.id ?? task.task_status_id);
                 if (targetStatusId && targetStatusId !== task.task_status_id) {
                   onStatusChange(task.id, targetStatusId);
                 }
@@ -167,11 +167,7 @@ export const ProjectTasksTableView = ({
         accessorKey: "title",
         header: () => <span className="font-medium">Task</span>,
         cell: ({ row }) => (
-          <TaskCell
-            task={row.original}
-            canOpenTask={canOpenTask}
-            onTaskClick={onTaskClick}
-          />
+          <TaskCell task={row.original} canOpenTask={canOpenTask} onTaskClick={onTaskClick} />
         ),
       },
       {
@@ -221,7 +217,7 @@ export const ProjectTasksTableView = ({
               }}
               disabled={statusDisabled}
             >
-              <SelectTrigger className="w-[160px]" disabled={statusDisabled}>
+              <SelectTrigger className="w-40" disabled={statusDisabled}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -236,14 +232,7 @@ export const ProjectTasksTableView = ({
         },
       },
     ],
-    [
-      canOpenTask,
-      onStatusChange,
-      onTaskClick,
-      priorityVariant,
-      statusDisabled,
-      taskStatuses,
-    ]
+    [canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled, taskStatuses]
   );
 
   return (
@@ -312,7 +301,6 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
   const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
-  const commentCount = task.comment_count ?? 0;
 
   return (
     <button
@@ -342,12 +330,6 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
           </p>
         ) : null}
         {recurrenceText ? <p>{recurrenceText}</p> : null}
-        {commentCount > 0 ? (
-          <p className="inline-flex items-center gap-1">
-            <MessageSquare className="h-3 w-3" aria-hidden="true" />
-            {commentCount} comment{commentCount === 1 ? "" : "s"}
-          </p>
-        ) : null}
       </div>
     </button>
   );
