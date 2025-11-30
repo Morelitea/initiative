@@ -310,7 +310,7 @@ export const ProjectTaskStatusesManager = ({
       </CardHeader>
       <CardContent className="space-y-6">
         {!canManage ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Only project managers can modify task statuses. Contact a project manager if you need
             changes.
           </p>
@@ -354,7 +354,7 @@ export const ProjectTaskStatusesManager = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold">Existing statuses</h4>
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+            {isLoading ? <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" /> : null}
           </div>
           <div className="overflow-x-auto rounded-md border">
             <Table>
@@ -395,7 +395,7 @@ export const ProjectTaskStatusesManager = ({
                   <TableRow>
                     <TableCell
                       colSpan={5}
-                      className="py-6 text-center text-sm text-muted-foreground"
+                      className="text-muted-foreground py-6 text-center text-sm"
                     >
                       No statuses configured yet.
                     </TableCell>

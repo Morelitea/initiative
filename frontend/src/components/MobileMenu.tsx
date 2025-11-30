@@ -143,10 +143,10 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
         </SheetTrigger>
         <SheetContent
           side="left"
-          className="flex h-full w-80 max-w-[85vw] flex-col gap-4 border-r bg-card p-6"
+          className="bg-card flex h-full w-80 max-w-[85vw] flex-col gap-4 border-r p-6"
         >
           <SheetHeader className="items-start text-left">
-            <SheetTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <SheetTitle className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               <div className="mt-2 flex items-center justify-between gap-4">
                 <div className="mt-2">
                   <Label>
@@ -161,7 +161,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
                       <SelectContent>
                         {guilds.map((guild) => (
                           <SelectItem key={guild.id} value={String(guild.id)}>
-                            <div className="flex gap-2 items-center max-w-54 truncate">
+                            <div className="flex max-w-54 items-center gap-2 truncate">
                               <GuildAvatar
                                 name={guild.name}
                                 icon={guild.icon_base64}
@@ -208,17 +208,17 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
               </NavLink>
             ))}
           </nav>
-          <div className="mt-auto space-y-2 border-t border-border pt-4">
+          <div className="border-border mt-auto space-y-2 border-t pt-4">
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12">
                 {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
                 <AvatarFallback>{userInitials}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-base font-semibold leading-tight text-foreground">
+                <p className="text-foreground text-base leading-tight font-semibold">
                   {userDisplayName}
                 </p>
-                {userEmail ? <p className="text-sm text-muted-foreground">{userEmail}</p> : null}
+                {userEmail ? <p className="text-muted-foreground text-sm">{userEmail}</p> : null}
               </div>
 
               <div className="shrink-0">
@@ -228,7 +228,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
             <Link
               to="/profile"
               onClick={() => setIsOpen(false)}
-              className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+              className="text-muted-foreground hover:bg-muted/70 hover:text-foreground block rounded-md px-3 py-2 text-sm font-medium transition-colors"
             >
               User settings
             </Link>
@@ -236,7 +236,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
               <Link
                 to="/settings/guild"
                 onClick={() => setIsOpen(false)}
-                className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+                className="text-muted-foreground hover:bg-muted/70 hover:text-foreground block rounded-md px-3 py-2 text-sm font-medium transition-colors"
               >
                 Guild settings
               </Link>
@@ -245,7 +245,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
               <Link
                 to="/settings/admin"
                 onClick={() => setIsOpen(false)}
-                className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+                className="text-muted-foreground hover:bg-muted/70 hover:text-foreground block rounded-md px-3 py-2 text-sm font-medium transition-colors"
               >
                 {adminLabel} settings
               </Link>
@@ -289,7 +289,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
                   rows={3}
                 />
               </div>
-              {createError ? <p className="text-sm text-destructive">{createError}</p> : null}
+              {createError ? <p className="text-destructive text-sm">{createError}</p> : null}
               <DialogFooter>
                 <Button type="submit" disabled={creatingGuild}>
                   {creatingGuild ? "Creating…" : "Create guild"}

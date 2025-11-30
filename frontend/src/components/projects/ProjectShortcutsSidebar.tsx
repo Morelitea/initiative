@@ -35,7 +35,7 @@ const Section = ({
   <div>
     <button
       type="button"
-      className="flex w-full items-center justify-between rounded-md px-2 py-1 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+      className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between rounded-md px-2 py-1 text-sm font-semibold transition"
       onClick={onToggle}
     >
       <span className="inline-flex items-center gap-2">
@@ -54,7 +54,7 @@ const Section = ({
             >
               <Link
                 to={`/projects/${project.id}`}
-                className="flex flex-1 items-center gap-2 truncate text-muted-foreground transition group-hover:text-foreground"
+                className="text-muted-foreground group-hover:text-foreground flex flex-1 items-center gap-2 truncate transition"
               >
                 {project.initiative ? (
                   <InitiativeColorDot color={project.initiative.color} className="h-2 w-2" />
@@ -69,7 +69,7 @@ const Section = ({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-muted-foreground opacity-0 transition group-hover:opacity-100"
+                  className="text-muted-foreground h-6 w-6 opacity-0 transition group-hover:opacity-100"
                   onClick={(event) => {
                     event.preventDefault();
                     onClearRecent(project.id);
@@ -81,7 +81,7 @@ const Section = ({
             </div>
           ))
         ) : (
-          <p className="px-2 text-xs text-muted-foreground">{emptyMessage}</p>
+          <p className="text-muted-foreground px-2 text-xs">{emptyMessage}</p>
         )}
       </div>
     ) : null}
@@ -101,15 +101,15 @@ export const ProjectShortcutsSidebar = ({
   return (
     <aside
       className={cn(
-        "hidden w-72 flex-shrink-0 flex-col border-r bg-card/40 p-4 text-sm lg:flex max-h-screen sticky top-0 overflow-y-auto",
+        "bg-card/40 sticky top-0 hidden max-h-screen w-72 flex-shrink-0 flex-col overflow-y-auto border-r p-4 text-sm lg:flex",
         className
       )}
     >
-      <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-muted-foreground mb-4 text-xs font-semibold tracking-wide uppercase">
         Projects
       </h2>
       {loading ? (
-        <p className="text-xs text-muted-foreground">Loading shortcuts…</p>
+        <p className="text-muted-foreground text-xs">Loading shortcuts…</p>
       ) : (
         <div className="space-y-4">
           <Section

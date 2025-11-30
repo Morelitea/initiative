@@ -299,7 +299,7 @@ export const ProjectSettingsPage = () => {
   const initiativesLoading = user?.role === "admin" ? initiativesQuery.isLoading : false;
 
   if (projectQuery.isLoading || initiativesLoading) {
-    return <p className="text-sm text-muted-foreground">Loading project settings…</p>;
+    return <p className="text-muted-foreground text-sm">Loading project settings…</p>;
   }
 
   if (projectQuery.isError || !projectQuery.data) {
@@ -399,7 +399,7 @@ export const ProjectSettingsPage = () => {
           <div className="space-y-3">
             <div className="space-y-1">
               <h3 className="text-base font-medium">Identity</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Give the project a recognizable name and emoji.
               </p>
             </div>
@@ -420,7 +420,7 @@ export const ProjectSettingsPage = () => {
                       value={iconText || undefined}
                       onChange={(emoji) => setIconText(emoji ?? "")}
                     />
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">
                       Pick an emoji to make this project easy to spot.
                     </p>
                   </div>
@@ -440,26 +440,26 @@ export const ProjectSettingsPage = () => {
                     {updateIdentity.isPending ? "Saving…" : "Save project details"}
                   </Button>
                   {identityMessage ? (
-                    <p className="text-sm text-primary">{identityMessage}</p>
+                    <p className="text-primary text-sm">{identityMessage}</p>
                   ) : null}
                   {updateIdentity.isError ? (
-                    <p className="text-sm text-destructive">Unable to update project.</p>
+                    <p className="text-destructive text-sm">Unable to update project.</p>
                   ) : null}
                 </div>
               </form>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 You need write access to change the project name or icon.
               </p>
             )}
           </div>
 
-          <div className="h-px bg-border" />
+          <div className="bg-border h-px" />
 
           <div className="space-y-3">
             <div className="space-y-1">
               <h3 className="text-base font-medium">Description</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Share context to help collaborators understand the work.
               </p>
             </div>
@@ -482,12 +482,12 @@ export const ProjectSettingsPage = () => {
                     {updateDescription.isPending ? "Saving…" : "Save description"}
                   </Button>
                   {descriptionMessage ? (
-                    <p className="text-sm text-primary">{descriptionMessage}</p>
+                    <p className="text-primary text-sm">{descriptionMessage}</p>
                   ) : null}
                 </div>
               </form>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 You need write access to edit the description.
               </p>
             )}
@@ -503,7 +503,7 @@ export const ProjectSettingsPage = () => {
           </CardHeader>
           <CardContent>
             {initiativesQuery.isError ? (
-              <p className="text-sm text-destructive">Unable to load initiatives.</p>
+              <p className="text-destructive text-sm">Unable to load initiatives.</p>
             ) : (
               <form
                 className="flex flex-wrap items-end gap-3"
@@ -532,7 +532,7 @@ export const ProjectSettingsPage = () => {
                     {updateInitiativeOwnership.isPending ? "Saving…" : "Save initiative"}
                   </Button>
                   {initiativeMessage ? (
-                    <p className="text-sm text-primary">{initiativeMessage}</p>
+                    <p className="text-primary text-sm">{initiativeMessage}</p>
                   ) : null}
                 </div>
               </form>
@@ -555,7 +555,7 @@ export const ProjectSettingsPage = () => {
               <div className="flex flex-col gap-3 rounded-md border px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="font-medium">Allow everyone with the {memberLabel} role to write</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     When enabled, everyone with the {memberLabel} role can create and update work in
                     this project without an individual override.
                   </p>
@@ -572,15 +572,15 @@ export const ProjectSettingsPage = () => {
                 />
               </div>
               {membersWriteMessage ? (
-                <p className="text-sm text-primary">{membersWriteMessage}</p>
+                <p className="text-primary text-sm">{membersWriteMessage}</p>
               ) : null}
               {membersWriteError ? (
-                <p className="text-sm text-destructive">{membersWriteError}</p>
+                <p className="text-destructive text-sm">{membersWriteError}</p>
               ) : null}
             </div>
             <div className="space-y-2">
               {permissionRows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No overrides yet.</p>
+                <p className="text-muted-foreground text-sm">No overrides yet.</p>
               ) : (
                 <ul className="space-y-2 text-sm">
                   {permissionRows.map(({ permission, displayName, isOwner }) => (
@@ -590,7 +590,7 @@ export const ProjectSettingsPage = () => {
                     >
                       <div>
                         <p className="font-medium">{displayName}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-muted-foreground text-xs">
                           {isOwner ? "Owner" : "Write access"}
                         </p>
                       </div>
@@ -613,7 +613,7 @@ export const ProjectSettingsPage = () => {
             <div className="space-y-2">
               <Label htmlFor="writer-select">Grant write access</Label>
               {availableMembers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Everyone with the {memberLabel} role already has write access.
                 </p>
               ) : (
@@ -646,8 +646,8 @@ export const ProjectSettingsPage = () => {
                   </Button>
                 </form>
               )}
-              {writerMessage ? <p className="text-sm text-primary">{writerMessage}</p> : null}
-              {writerError ? <p className="text-sm text-destructive">{writerError}</p> : null}
+              {writerMessage ? <p className="text-primary text-sm">{writerMessage}</p> : null}
+              {writerError ? <p className="text-destructive text-sm">{writerError}</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -666,12 +666,12 @@ export const ProjectSettingsPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {project.is_template
               ? "This project is currently a template and appears on the Templates page."
               : "This project behaves like a standard project."}
           </p>
-          {templateMessage ? <p className="text-sm text-primary">{templateMessage}</p> : null}
+          {templateMessage ? <p className="text-primary text-sm">{templateMessage}</p> : null}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-3">
           {canWriteProject ? (
@@ -687,7 +687,7 @@ export const ProjectSettingsPage = () => {
               {project.is_template ? "Convert to standard project" : "Mark as template"}
             </Button>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               You need write access to change template status.
             </p>
           )}
@@ -707,7 +707,7 @@ export const ProjectSettingsPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {duplicateMessage ? <p className="text-sm text-primary">{duplicateMessage}</p> : null}
+          {duplicateMessage ? <p className="text-primary text-sm">{duplicateMessage}</p> : null}
         </CardContent>
         <CardFooter>
           {canWriteProject ? (
@@ -727,7 +727,7 @@ export const ProjectSettingsPage = () => {
               {duplicateProject.isPending ? "Duplicating…" : "Duplicate project"}
             </Button>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               You need write access to duplicate this project.
             </p>
           )}
@@ -754,7 +754,7 @@ export const ProjectSettingsPage = () => {
               {project.is_archived ? "Unarchive project" : "Archive project"}
             </Button>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               You need write access to change archive status.
             </p>
           )}

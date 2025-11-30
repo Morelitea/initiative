@@ -109,7 +109,7 @@ export const NotificationBell = () => {
   const renderContent = () => {
     if (notificationsQuery.isLoading) {
       return (
-        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-center py-8 text-sm">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Loading notifications…
         </div>
@@ -117,7 +117,7 @@ export const NotificationBell = () => {
     }
     if (!hasNotifications) {
       return (
-        <div className="py-8 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground py-8 text-center text-sm">
           You&apos;re all caught up!
         </div>
       );
@@ -129,17 +129,17 @@ export const NotificationBell = () => {
             <li key={notification.id}>
               <button
                 type="button"
-                className="flex w-full items-start gap-3 px-2 py-3 text-left transition hover:bg-accent/50"
+                className="hover:bg-accent/50 flex w-full items-start gap-3 px-2 py-3 text-left transition"
                 onClick={() => void handleNotificationClick(notification)}
               >
                 <div className="flex-1">
-                  <p className="text-sm text-foreground">{notificationText(notification)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-foreground text-sm">{notificationText(notification)}</p>
+                  <p className="text-muted-foreground mt-1 text-xs">
                     {new Date(notification.created_at).toLocaleString()}
                   </p>
                 </div>
                 {notification.read_at ? null : (
-                  <span className="h-2.5 w-2.5 rounded-full bg-primary mt-1" />
+                  <span className="bg-primary mt-1 h-2.5 w-2.5 rounded-full" />
                 )}
               </button>
             </li>
@@ -155,7 +155,7 @@ export const NotificationBell = () => {
         <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 ? (
-            <Badge className="absolute -right-1 -top-1 h-5 min-w-[20px] justify-center rounded-full px-1 py-0 text-[11px]">
+            <Badge className="absolute -top-1 -right-1 h-5 min-w-[20px] justify-center rounded-full px-1 py-0 text-[11px]">
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           ) : null}

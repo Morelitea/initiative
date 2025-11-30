@@ -140,7 +140,7 @@ export const ProjectDocumentsSection = ({
           localStorage.setItem(storageKey, (!open).toString());
         }
       }}
-      className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm"
+      className="bg-card space-y-4 rounded-2xl border p-5 shadow-sm"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -169,7 +169,7 @@ export const ProjectDocumentsSection = ({
               )}
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Attach initiative documents to keep context close to project work.
           </p>
         </div>
@@ -182,13 +182,13 @@ export const ProjectDocumentsSection = ({
               </Button>
             </DialogTrigger>
             {dialogOpen ? (
-              <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+              <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
                 <div
                   className="absolute inset-0 -z-10"
                   role="presentation"
                   onClick={() => setDialogOpen(false)}
                 />
-                <DialogContent className="w-full max-w-lg rounded-2xl border bg-card shadow-2xl">
+                <DialogContent className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
                   <DialogHeader>
                     <DialogTitle>Attach document</DialogTitle>
                     <DialogDescription>
@@ -211,7 +211,7 @@ export const ProjectDocumentsSection = ({
                         }
                         buttonClassName="justify-between"
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         Need a new one? Create it from the Documents tab and return here to attach
                         it.
                       </p>
@@ -245,7 +245,7 @@ export const ProjectDocumentsSection = ({
       </div>
       <CollapsibleContent className="space-y-4 data-[state=closed]:hidden">
         {documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             No documents attached yet. {canEdit ? "Attach one to highlight relevant briefs." : ""}
           </p>
         ) : (
@@ -266,7 +266,7 @@ export const ProjectDocumentsSection = ({
                           <Button
                             variant="secondary"
                             size="icon"
-                            className="absolute right-3 top-3 z-10 rounded-full bg-background/90 text-foreground shadow-md"
+                            className="bg-background/90 text-foreground absolute top-3 right-3 z-10 rounded-full shadow-md"
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
@@ -283,7 +283,7 @@ export const ProjectDocumentsSection = ({
                           </Button>
                         ) : null}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         Attached{" "}
                         {formatDistanceToNow(new Date(doc.attached_at), { addSuffix: true })}
                       </div>

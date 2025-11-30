@@ -127,7 +127,7 @@ export const SettingsApiKeysPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-start gap-4">
-            <code className="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-sm break-all">
+            <code className="bg-muted flex-1 rounded-md border px-3 py-2 font-mono text-sm break-all">
               {generatedSecret}
             </code>
             <Button type="button" variant="secondary" onClick={copySecret}>
@@ -163,7 +163,7 @@ export const SettingsApiKeysPage = () => {
                 onChange={setExpiresAtInput}
                 placeholder="Never expires"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Leave blank for a key that never expires.
               </p>
             </div>
@@ -183,15 +183,15 @@ export const SettingsApiKeysPage = () => {
         </CardHeader>
         <CardContent>
           {apiKeysQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading API keys…</p>
+            <p className="text-muted-foreground text-sm">Loading API keys…</p>
           ) : apiKeysQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load API keys.</p>
+            <p className="text-destructive text-sm">Unable to load API keys.</p>
           ) : apiKeys.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No API keys yet.</p>
+            <p className="text-muted-foreground text-sm">No API keys yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-left text-muted-foreground">
+                <thead className="text-muted-foreground text-left">
                   <tr>
                     <th className="py-2 pr-4 font-medium">Name</th>
                     <th className="py-2 pr-4 font-medium">Prefix</th>
@@ -208,7 +208,7 @@ export const SettingsApiKeysPage = () => {
                       <tr key={key.id} className="border-t">
                         <td className="py-3 pr-4">
                           <div className="font-medium">{key.name}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-muted-foreground text-xs">
                             {formatDateTime(key.created_at)}
                           </div>
                         </td>

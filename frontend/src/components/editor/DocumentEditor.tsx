@@ -198,12 +198,12 @@ export const DocumentEditor = ({
       <div
         data-document-editor="true"
         className={cn(
-          "rounded-xl border bg-card text-card-foreground shadow-sm max-h-160 sm:max-h-250 overflow-y-auto relative",
+          "bg-card text-card-foreground relative max-h-160 overflow-y-auto rounded-xl border shadow-sm sm:max-h-250",
           className
         )}
       >
         {showToolbar ? (
-          <div className="sticky top-0 z-10 rounded-t-xl border-b bg-card px-3 py-2">
+          <div className="bg-card sticky top-0 z-10 rounded-t-xl border-b px-3 py-2">
             <EditorToolbar readOnly={readOnly} />
           </div>
         ) : null}
@@ -218,7 +218,7 @@ export const DocumentEditor = ({
               />
             }
             placeholder={
-              <div className="pointer-events-none select-none text-sm text-muted-foreground">
+              <div className="text-muted-foreground pointer-events-none text-sm select-none">
                 {placeholder}
               </div>
             }

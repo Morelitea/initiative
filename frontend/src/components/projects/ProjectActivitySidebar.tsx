@@ -60,17 +60,17 @@ export const ProjectActivitySidebar = ({
   return (
     <aside
       className={cn(
-        "hidden lg:flex transition-all duration-200 sticky",
+        "sticky hidden transition-all duration-200 lg:flex",
         collapsed ? "w-15" : "w-80",
         showTabsPref ? "top-28 h-[calc(100vh-7rem)]" : "top-16 h-[calc(100vh-4rem)]",
         "shrink-0"
       )}
     >
-      <div className="flex h-full w-full flex-col border-l bg-card shadow-sm">
+      <div className="bg-card flex h-full w-full flex-col border-l shadow-sm">
         <div className="flex items-center justify-between border-b px-3 py-3">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden="true" />
               <p className="text-sm font-semibold">Project activity</p>
             </div>
           )}
@@ -110,13 +110,13 @@ export const ProjectActivitySidebar = ({
           </div>
         </div>
         {collapsed ? (
-          <div className="flex-1 px-2 py-4 text-center text-xs text-muted-foreground">Activity</div>
+          <div className="text-muted-foreground flex-1 px-2 py-4 text-center text-xs">Activity</div>
         ) : (
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {activityQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading activity…</p>
+              <p className="text-muted-foreground text-sm">Loading activity…</p>
             ) : entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No comments yet.</p>
+              <p className="text-muted-foreground text-sm">No comments yet.</p>
             ) : (
               <ul className="space-y-3">
                 {entries.map((entry) => {
@@ -127,17 +127,17 @@ export const ProjectActivitySidebar = ({
                   return (
                     <li
                       key={entry.comment_id}
-                      className="rounded-lg border border-border/60 bg-background px-3 py-2"
+                      className="border-border/60 bg-background rounded-lg border px-3 py-2"
                     >
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{authorName}</span>
+                      <div className="text-muted-foreground flex items-center justify-between text-xs">
+                        <span className="text-foreground font-medium">{authorName}</span>
                         <span>
                           {formatDistanceToNow(new Date(entry.created_at), {
                             addSuffix: true,
                           })}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground">
+                      <p className="text-foreground text-sm">
                         commented on{" "}
                         <Link
                           to={`/tasks/${entry.task_id}/edit`}
@@ -146,7 +146,7 @@ export const ProjectActivitySidebar = ({
                           {entry.task_title}
                         </Link>
                       </p>
-                      <p className="mt-1 text-sm text-muted-foreground line-clamp-3">
+                      <p className="text-muted-foreground mt-1 line-clamp-3 text-sm">
                         “{entry.content}”
                       </p>
                     </li>

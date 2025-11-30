@@ -463,11 +463,11 @@ export const ProjectsPage = () => {
     );
 
   if (projectsQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading projects…</p>;
+    return <p className="text-muted-foreground text-sm">Loading projects…</p>;
   }
 
   if (projectsQuery.isError) {
-    return <p className="text-sm text-destructive">Unable to load projects.</p>;
+    return <p className="text-destructive text-sm">Unable to load projects.</p>;
   }
 
   return (
@@ -480,7 +480,7 @@ export const ProjectsPage = () => {
       <Tabs
         value={tabValue}
         onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
-        className="space-y-6 "
+        className="space-y-6"
       >
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="active" className="inline-flex items-center gap-2">
@@ -518,7 +518,7 @@ export const ProjectsPage = () => {
           </div>
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
             <div className="flex items-center justify-between sm:hidden">
-              <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
                 <Filter className="h-4 w-4" />
                 Filters
               </div>
@@ -534,11 +534,11 @@ export const ProjectsPage = () => {
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-              <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+              <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
                 <div className="w-full lg:flex-1">
                   <Label
                     htmlFor="project-search"
-                    className="text-xs font-medium text-muted-foreground"
+                    className="text-muted-foreground text-xs font-medium"
                   >
                     Filter by name
                   </Label>
@@ -552,7 +552,7 @@ export const ProjectsPage = () => {
                 <div className="w-full sm:w-60">
                   <Label
                     htmlFor="project-initiative-filter"
-                    className="text-xs font-medium text-muted-foreground"
+                    className="text-muted-foreground text-xs font-medium"
                   >
                     Filter by initiative
                   </Label>
@@ -573,7 +573,7 @@ export const ProjectsPage = () => {
                 <div className="w-full sm:w-60">
                   <Label
                     htmlFor="project-sort"
-                    className="text-xs font-medium text-muted-foreground"
+                    className="text-muted-foreground text-xs font-medium"
                   >
                     Sort projects
                   </Label>
@@ -605,18 +605,18 @@ export const ProjectsPage = () => {
                 <div className="w-full sm:w-60">
                   <Label
                     htmlFor="favorites-only"
-                    className="text-xs font-medium text-muted-foreground"
+                    className="text-muted-foreground text-xs font-medium"
                   >
                     Favorites
                   </Label>
-                  <div className="flex h-10 items-center gap-3 rounded-md border bg-background/60 px-3">
+                  <div className="bg-background/60 flex h-10 items-center gap-3 rounded-md border px-3">
                     <Switch
                       id="favorites-only"
                       checked={favoritesOnly}
                       onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
                       aria-label="Filter to favorite projects"
                     />
-                    <span className="text-sm text-muted-foreground">Show only favorites</span>
+                    <span className="text-muted-foreground text-sm">Show only favorites</span>
                   </div>
                 </div>
               </div>
@@ -624,7 +624,7 @@ export const ProjectsPage = () => {
           </Collapsible>
 
           {sortedProjects.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {projects.length === 0
                 ? "No projects yet. Create one to get started."
                 : "No projects match your filters."}
@@ -636,9 +636,9 @@ export const ProjectsPage = () => {
 
         <TabsContent value="templates">
           {templatesQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading templates…</p>
+            <p className="text-muted-foreground text-sm">Loading templates…</p>
           ) : templatesQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load templates.</p>
+            <p className="text-destructive text-sm">Unable to load templates.</p>
           ) : templatesQuery.data?.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {templatesQuery.data.map((template) => (
@@ -649,7 +649,7 @@ export const ProjectsPage = () => {
                       <Markdown content={template.description} className="text-sm" />
                     ) : null}
                   </CardHeader>
-                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                  <CardContent className="text-muted-foreground space-y-2 text-sm">
                     {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
                     <p>Last updated: {new Date(template.updated_at).toLocaleString()}</p>
                   </CardContent>
@@ -685,9 +685,9 @@ export const ProjectsPage = () => {
 
         <TabsContent value="archive">
           {archivedQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading archived projects…</p>
+            <p className="text-muted-foreground text-sm">Loading archived projects…</p>
           ) : archivedQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load archived projects.</p>
+            <p className="text-destructive text-sm">Unable to load archived projects.</p>
           ) : archivedQuery.data?.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {archivedQuery.data.map((archived) => (
@@ -698,7 +698,7 @@ export const ProjectsPage = () => {
                       <Markdown content={archived.description} className="text-sm" />
                     ) : null}
                   </CardHeader>
-                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                  <CardContent className="text-muted-foreground space-y-2 text-sm">
                     {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
                     <p>
                       Archived at:{" "}
@@ -739,14 +739,14 @@ export const ProjectsPage = () => {
       {isProjectManager ? (
         <>
           <Button
-            className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+            className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
             onClick={() => setIsComposerOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Project
           </Button>
           {isComposerOpen ? (
-            <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+            <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
               <div
                 className="absolute inset-0 -z-10"
                 role="presentation"
@@ -792,9 +792,9 @@ export const ProjectsPage = () => {
                     <div className="space-y-2">
                       <Label>Initiative</Label>
                       {initiativesQuery.isLoading ? (
-                        <p className="text-sm text-muted-foreground">Loading initiatives…</p>
+                        <p className="text-muted-foreground text-sm">Loading initiatives…</p>
                       ) : initiativesQuery.isError ? (
-                        <p className="text-sm text-destructive">Unable to load initiatives.</p>
+                        <p className="text-destructive text-sm">Unable to load initiatives.</p>
                       ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
                         <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
                           <SelectTrigger>
@@ -809,15 +809,15 @@ export const ProjectsPage = () => {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <p className="text-sm text-muted-foreground">No initiatives available.</p>
+                        <p className="text-muted-foreground text-sm">No initiatives available.</p>
                       )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="project-template">Template (optional)</Label>
                       {templatesQuery.isLoading ? (
-                        <p className="text-sm text-muted-foreground">Loading templates…</p>
+                        <p className="text-muted-foreground text-sm">Loading templates…</p>
                       ) : templatesQuery.isError ? (
-                        <p className="text-sm text-destructive">Unable to load templates.</p>
+                        <p className="text-destructive text-sm">Unable to load templates.</p>
                       ) : (
                         <Select
                           value={selectedTemplateId}
@@ -838,17 +838,17 @@ export const ProjectsPage = () => {
                         </Select>
                       )}
                       {isTemplateProject ? (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-muted-foreground text-xs">
                           Disable &ldquo;Save as template&rdquo; to pick a template.
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
+                    <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
                       <div>
                         <Label htmlFor="create-as-template" className="text-base">
                           Save as template
                         </Label>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-muted-foreground text-xs">
                           Template projects live under the Templates tab and can be reused to spin
                           up new work.
                         </p>
@@ -878,7 +878,7 @@ export const ProjectsPage = () => {
                         Cancel
                       </Button>
                       {createProject.isError ? (
-                        <p className="text-sm text-destructive">Unable to create project.</p>
+                        <p className="text-destructive text-sm">Unable to create project.</p>
                       ) : null}
                     </div>
                   </CardContent>
@@ -904,7 +904,7 @@ const ProjectCardLink = ({
 
   return (
     <div className="relative">
-      <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <FavoriteProjectButton
           projectId={project.id}
           isFavorited={project.is_favorited ?? false}
@@ -913,7 +913,7 @@ const ProjectCardLink = ({
         {dragHandleProps ? (
           <button
             type="button"
-            className="rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="bg-background text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-full border p-1 transition focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Reorder project"
             {...dragHandleProps}
           >
@@ -936,7 +936,7 @@ const ProjectCardLink = ({
               <span>{project.name}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <CardContent className="text-muted-foreground space-y-2 text-sm">
             <InitiativeLabel initiative={initiative} />
             <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
           </CardContent>
@@ -984,14 +984,14 @@ const ProjectRowLink = ({
       {dragHandleProps ? (
         <button
           type="button"
-          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="bg-background text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full border p-1 transition focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Reorder project"
           {...dragHandleProps}
         >
           <GripVertical className="h-4 w-4" />
         </button>
       ) : null}
-      <div className="absolute right-4 top-4 z-10">
+      <div className="absolute top-4 right-4 z-10">
         <FavoriteProjectButton
           projectId={project.id}
           isFavorited={project.is_favorited ?? false}
@@ -1001,14 +1001,14 @@ const ProjectRowLink = ({
       </div>
       <Link to={`/projects/${project.id}`} className="block">
         <Card
-          className={`shadow-sm p-4 pr-16 ${initiativeColor ? "border-l-4" : ""}`}
+          className={`p-4 pr-16 shadow-sm ${initiativeColor ? "border-l-4" : ""}`}
           style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
         >
           <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
             {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
-            <div className="flex-1 min-w-[200px]">
+            <div className="min-w-[200px] flex-1">
               <p className="font-semibold">{project.name}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-xs">
                 <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
                 <InitiativeLabel initiative={project.initiative} />
               </div>
@@ -1048,7 +1048,7 @@ const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => 
     return null;
   }
   return (
-    <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+    <span className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
       <InitiativeColorDot color={initiative.color} />
       <span>{initiative.name}</span>
     </span>

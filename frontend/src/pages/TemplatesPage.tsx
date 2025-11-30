@@ -45,11 +45,11 @@ export const TemplatesPage = () => {
   });
 
   if (templatesQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading templates…</p>;
+    return <p className="text-muted-foreground text-sm">Loading templates…</p>;
   }
 
   if (templatesQuery.isError) {
-    return <p className="text-sm text-destructive">Unable to load templates.</p>;
+    return <p className="text-destructive text-sm">Unable to load templates.</p>;
   }
 
   const projects = templatesQuery.data ?? [];
@@ -82,7 +82,7 @@ export const TemplatesPage = () => {
                   <Markdown content={project.description} className="text-sm" />
                 ) : null}
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <CardContent className="text-muted-foreground space-y-2 text-sm">
                 {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
                 <p>Last updated: {new Date(project.updated_at).toLocaleString()}</p>
               </CardContent>

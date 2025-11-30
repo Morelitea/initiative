@@ -85,7 +85,7 @@ export const SortableTaskRow = ({
 
   return (
     <tr ref={setNodeRef} style={style} className={isDragging ? "bg-muted/60" : undefined}>
-      <td className="py-4 px-2 align-top">
+      <td className="px-2 py-4 align-top">
         <Checkbox
           checked={isDone}
           onCheckedChange={(value) => handleCompletionToggle(Boolean(value))}
@@ -93,11 +93,11 @@ export const SortableTaskRow = ({
           aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
         />
       </td>
-      <td className="py-2 px-2">
+      <td className="px-2 py-2">
         <div className="flex items-start gap-2">
           <button
             type="button"
-            className="mt-1 text-muted-foreground"
+            className="text-muted-foreground mt-1"
             {...attributes}
             {...listeners}
             disabled={dragDisabled}
@@ -117,9 +117,9 @@ export const SortableTaskRow = ({
           >
             <p className="font-medium">{task.title}</p>
             {task.description ? (
-              <p className="text-sm text-muted-foreground">{truncateText(task.description, 100)}</p>
+              <p className="text-muted-foreground text-sm">{truncateText(task.description, 100)}</p>
             ) : null}
-            <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground space-y-1 text-xs">
               {task.assignees.length > 0 ? (
                 <TaskAssigneeList assignees={task.assignees} className="text-xs" />
               ) : null}
@@ -141,10 +141,10 @@ export const SortableTaskRow = ({
           </button>
         </div>
       </td>
-      <td className="py-2 px-2 align-top">
+      <td className="px-2 py-2 align-top">
         <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
       </td>
-      <td className="py-2 px-2 align-top">
+      <td className="px-2 py-2 align-top">
         <Select
           value={String(task.task_status_id)}
           onValueChange={(value) => {

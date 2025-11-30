@@ -57,50 +57,52 @@ export const ProjectTasksKanbanView = ({
   useHorizontalDragScroll(scrollContainerRef);
 
   return (
-  <DndContext
-    sensors={sensors}
-    collisionDetection={kanbanCollisionDetection}
-    onDragStart={onDragStart}
-    onDragOver={onDragOver}
-    onDragEnd={onDragEnd}
-    onDragCancel={onDragCancel}
-  >
-    <div
-      ref={scrollContainerRef}
-      className="cursor-grab overflow-x-auto pb-4"
-      data-kanban-scroll-container
+    <DndContext
+      sensors={sensors}
+      collisionDetection={kanbanCollisionDetection}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
     >
-      <div className="flex gap-4">
-        {taskStatuses.map((status) => {
-          const isCollapsed = collapsedStatusIds.has(status.id);
-          return (
-            <div
-              key={status.id}
-              className={cn(
-                "shrink-0 transition-[width] duration-200",
-                isCollapsed ? "w-12 min-w-[48px]" : "w-70 sm:w-89"
-              )}
-            >
-              <KanbanColumn
-                status={status}
-                tasks={groupedTasks[status.id] ?? []}
-                canWrite={canReorderTasks}
-                canOpenTask={canOpenTask}
-                priorityVariant={priorityVariant}
-                onTaskClick={onTaskClick}
-                collapsed={isCollapsed}
-                onToggleCollapse={onToggleCollapse}
-                taskCount={groupedTasks[status.id]?.length ?? 0}
-              />
-            </div>
-          );
-        })}
+      <div
+        ref={scrollContainerRef}
+        className="cursor-grab overflow-x-auto pb-4"
+        data-kanban-scroll-container
+      >
+        <div className="flex gap-4">
+          {taskStatuses.map((status) => {
+            const isCollapsed = collapsedStatusIds.has(status.id);
+            return (
+              <div
+                key={status.id}
+                className={cn(
+                  "shrink-0 transition-[width] duration-200",
+                  isCollapsed ? "w-12 min-w-[48px]" : "w-70 sm:w-89"
+                )}
+              >
+                <KanbanColumn
+                  status={status}
+                  tasks={groupedTasks[status.id] ?? []}
+                  canWrite={canReorderTasks}
+                  canOpenTask={canOpenTask}
+                  priorityVariant={priorityVariant}
+                  onTaskClick={onTaskClick}
+                  collapsed={isCollapsed}
+                  onToggleCollapse={onToggleCollapse}
+                  taskCount={groupedTasks[status.id]?.length ?? 0}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-    <DragOverlay>
-      {activeTask ? <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} /> : null}
-    </DragOverlay>
-  </DndContext>
+      <DragOverlay>
+        {activeTask ? (
+          <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 };
 
@@ -140,14 +142,14 @@ const TaskDragOverlay = ({
   task: Task;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
 }) => (
-  <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
+  <div className="bg-card w-64 space-y-3 rounded-lg border p-3 shadow-lg">
     <div className="space-y-1">
       <p className="font-medium">{task.title}</p>
       {task.description ? (
-        <p className="text-xs text-muted-foreground">{truncateText(task.description, 80)}</p>
+        <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
       ) : null}
     </div>
-    <div className="space-y-1 text-xs text-muted-foreground">
+    <div className="text-muted-foreground space-y-1 text-xs">
       {task.assignees.length > 0 ? (
         <TaskAssigneeList assignees={task.assignees} className="text-xs" />
       ) : null}

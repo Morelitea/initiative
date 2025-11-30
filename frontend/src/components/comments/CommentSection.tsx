@@ -143,10 +143,10 @@ export const CommentSection = ({
   const isSubmitting = createComment.isPending;
 
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+    <section className="border-border bg-card space-y-4 rounded-lg border p-4">
       <div className="flex items-center gap-2">
-        <MessageSquarePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <MessageSquarePlus className="text-muted-foreground h-4 w-4" aria-hidden="true" />
+        <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">
           {title}
         </h3>
       </div>
@@ -164,7 +164,7 @@ export const CommentSection = ({
           rows={4}
           disabled={isSubmitting}
         />
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-destructive text-sm">{error}</p>}
         <div className="flex justify-end">
           <Button type="submit" disabled={isSubmitting || content.trim().length === 0}>
             {isSubmitting ? "Posting..." : "Post Comment"}
@@ -174,7 +174,7 @@ export const CommentSection = ({
 
       <div className="space-y-3">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading comments…</p>
+          <p className="text-muted-foreground text-sm">Loading comments…</p>
         ) : hasComments ? (
           <ul className="space-y-3">
             {comments.map((comment) => {
@@ -185,15 +185,15 @@ export const CommentSection = ({
               const isDeleting = deleteComment.isPending && deleteComment.variables === comment.id;
 
               return (
-                <li key={comment.id} className="rounded-md border border-border p-3">
+                <li key={comment.id} className="border-border rounded-md border p-3">
                   <div className="flex gap-3">
-                    <Avatar className="h-9 w-9 border bg-background">
+                    <Avatar className="bg-background h-9 w-9 border">
                       {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
                       <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{displayName}</span>
+                      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="text-foreground font-medium">{displayName}</span>
                         <div className="flex items-center gap-2">
                           <span>
                             {formatDistanceToNow(new Date(comment.created_at), {
@@ -205,7 +205,7 @@ export const CommentSection = ({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive h-8 px-2 text-xs"
                               disabled={isDeleting}
                               onClick={() => deleteComment.mutate(comment.id)}
                             >
@@ -218,7 +218,7 @@ export const CommentSection = ({
                           ) : null}
                         </div>
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+                      <p className="text-foreground mt-2 text-sm whitespace-pre-wrap">
                         {comment.content}
                       </p>
                     </div>
@@ -228,11 +228,11 @@ export const CommentSection = ({
             })}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             No comments yet. Be the first to contribute.
           </p>
         )}
-        {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+        {deleteError && <p className="text-destructive text-sm">{deleteError}</p>}
       </div>
     </section>
   );

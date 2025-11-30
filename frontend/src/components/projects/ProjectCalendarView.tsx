@@ -77,13 +77,13 @@ export const ProjectCalendarView = ({
   };
 
   return (
-    <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+    <div className="bg-card space-y-4 rounded-xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
         <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <Calendar className="text-muted-foreground h-5 w-5" />
           <div>
             <p className="text-lg font-semibold">{format(visibleMonth, "MMMM yyyy")}</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               See task start and due dates at a glance.
             </p>
           </div>
@@ -111,14 +111,14 @@ export const ProjectCalendarView = ({
       </div>
       <div className="space-y-2 overflow-x-auto sm:overflow-visible">
         <div className="min-w-[700px] sm:min-w-0">
-          <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase text-muted-foreground sm:text-xs">
+          <div className="text-muted-foreground grid grid-cols-7 text-center text-[11px] font-semibold uppercase sm:text-xs">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
               <div key={day} className="py-2">
                 {day}
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-px rounded-lg border bg-border">
+          <div className="bg-border grid grid-cols-7 gap-px rounded-lg border">
             {calendarDays.map((day) => {
               const key = format(day, "yyyy-MM-dd");
               const entries = entriesByDate.get(key) ?? [];
@@ -126,15 +126,15 @@ export const ProjectCalendarView = ({
                 <div
                   key={key}
                   className={cn(
-                    "flex min-h-[110px] flex-col gap-1 bg-card p-2 text-left text-xs sm:min-h-[130px]",
+                    "bg-card flex min-h-[110px] flex-col gap-1 p-2 text-left text-xs sm:min-h-[130px]",
                     !isSameMonth(day, visibleMonth) && "bg-muted/40 text-muted-foreground",
-                    isToday(day) && "ring-2 ring-primary/80"
+                    isToday(day) && "ring-primary/80 ring-2"
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium sm:text-base">{format(day, "d")}</span>
                     {isToday(day) ? (
-                      <span className="text-[10px] font-semibold uppercase text-primary">
+                      <span className="text-primary text-[10px] font-semibold uppercase">
                         Today
                       </span>
                     ) : null}
@@ -161,13 +161,13 @@ export const ProjectCalendarView = ({
                       >
                         <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                         <span className="truncate">{entry.task.title}</span>
-                        <span className="hidden lg:inline shrink-0 text-[10px] uppercase">
+                        <span className="hidden shrink-0 text-[10px] uppercase lg:inline">
                           {entry.type === "start" ? "Start" : "Due"}
                         </span>
                       </button>
                     ))}
                     {entries.length > 3 ? (
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-muted-foreground text-[10px]">
                         +{entries.length - 3} more
                       </p>
                     ) : null}

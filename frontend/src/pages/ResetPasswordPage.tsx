@@ -47,13 +47,13 @@ export const ResetPasswordPage = () => {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
             <CardTitle>Reset password</CardTitle>
             <CardDescription>This link is invalid. Request a new one.</CardDescription>
           </CardHeader>
-          <CardFooter className="text-sm text-muted-foreground">
+          <CardFooter className="text-muted-foreground text-sm">
             <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
               Request password reset
             </Link>
@@ -64,7 +64,7 @@ export const ResetPasswordPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+    <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>Choose a new password</CardTitle>
@@ -72,7 +72,7 @@ export const ResetPasswordPage = () => {
         </CardHeader>
         <CardContent>
           {status === "success" ? (
-            <div className="space-y-4 text-sm text-primary">
+            <div className="text-primary space-y-4 text-sm">
               <p>Password updated successfully.</p>
               <Button className="w-full" onClick={() => navigate("/login")}>
                 Go to sign in
@@ -103,12 +103,12 @@ export const ResetPasswordPage = () => {
               <Button className="w-full" type="submit" disabled={status === "submitting"}>
                 {status === "submitting" ? "Updating…" : "Reset password"}
               </Button>
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              {error ? <p className="text-destructive text-sm">{error}</p> : null}
             </form>
           )}
         </CardContent>
         {status !== "success" ? (
-          <CardFooter className="text-sm text-muted-foreground">
+          <CardFooter className="text-muted-foreground text-sm">
             <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
               Need a new link?
             </Link>

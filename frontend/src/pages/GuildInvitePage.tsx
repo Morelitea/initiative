@@ -96,8 +96,8 @@ export const GuildInvitePage = () => {
         backgroundSize: "72px 72px",
       }}
     >
-      <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-        <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+      <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
+        <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
           initiative
         </div>
@@ -114,12 +114,12 @@ export const GuildInvitePage = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-              <p className="flex items-center gap-2 text-muted-foreground">
+              <p className="text-muted-foreground flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading invite…
               </p>
             ) : (
               <>
-                <div className="rounded border bg-muted/40 p-4 text-sm">
+                <div className="bg-muted/40 rounded border p-4 text-sm">
                   <p>
                     <span className="font-medium">Invite code:</span> {normalizedCode || "—"}
                   </p>
@@ -140,7 +140,7 @@ export const GuildInvitePage = () => {
                   ) : null}
                 </div>
                 {inviteValid ? (
-                  <div className="space-y-2 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground space-y-2 text-sm">
                     <p>If you already have an account, sign in and accept the invite.</p>
                     <p>
                       Need an account?{" "}
@@ -154,9 +154,9 @@ export const GuildInvitePage = () => {
                     </p>
                   </div>
                 ) : null}
-                {acceptError ? <p className="text-sm text-destructive">{acceptError}</p> : null}
+                {acceptError ? <p className="text-destructive text-sm">{acceptError}</p> : null}
                 {accepted ? (
-                  <p className="text-sm text-primary">
+                  <p className="text-primary text-sm">
                     Invite accepted! You now have access to this guild.{" "}
                     <Link className="underline-offset-4 hover:underline" to="/">
                       Continue to dashboard
@@ -173,7 +173,7 @@ export const GuildInvitePage = () => {
                   </Button>
                   {!user ? (
                     <Link
-                      className="text-sm text-center text-primary underline-offset-4 hover:underline"
+                      className="text-primary text-center text-sm underline-offset-4 hover:underline"
                       to={`/login${normalizedCode ? `?invite_code=${encodeURIComponent(normalizedCode)}` : ""}`}
                     >
                       Sign in to accept

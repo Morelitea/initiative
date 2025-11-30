@@ -289,8 +289,8 @@ const ImageComponent = ({ src, altText, nodeKey, width, height, editor }: ImageC
 
   return (
     <span
-      className={`relative inline-flex max-w-full select-none flex-col ${
-        isSelected ? "outline outline-2 outline-primary" : ""
+      className={`relative inline-flex max-w-full flex-col select-none ${
+        isSelected ? "outline-primary outline outline-2" : ""
       } ${isResizing ? "cursor-ew-resize" : ""}`}
       draggable={false}
     >
@@ -305,7 +305,7 @@ const ImageComponent = ({ src, altText, nodeKey, width, height, editor }: ImageC
           height: styleHeight ? `${styleHeight}px` : undefined,
           maxWidth: "100%",
         }}
-        className="my-2 rounded-lg border border-border bg-card object-contain"
+        className="border-border bg-card my-2 rounded-lg border object-contain"
         onClick={(event) => {
           if (!event.shiftKey) {
             clearSelection();
@@ -388,9 +388,9 @@ const ImageResizer = ({ imageRef, onResize, onResizeEnd, onResizeStart }: ImageR
 
   return (
     <div className="pointer-events-none absolute inset-0">
-      <div className="pointer-events-none absolute inset-0 border-2 border-primary/60" />
+      <div className="border-primary/60 pointer-events-none absolute inset-0 border-2" />
       <div
-        className="pointer-events-auto absolute -bottom-2 -right-2 h-4 w-4 cursor-se-resize rounded-sm border border-primary bg-background shadow"
+        className="border-primary bg-background pointer-events-auto absolute -right-2 -bottom-2 h-4 w-4 cursor-se-resize rounded-sm border shadow"
         onPointerDown={handlePointerDown}
       />
     </div>

@@ -87,18 +87,18 @@ export const SettingsEmailPage = () => {
 
   if (!isSuperUser) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Only the initial super user can manage email settings.
       </p>
     );
   }
 
   if (emailQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading email settings…</p>;
+    return <p className="text-muted-foreground text-sm">Loading email settings…</p>;
   }
 
   if (emailQuery.isError || !emailQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load email settings.</p>;
+    return <p className="text-destructive text-sm">Unable to load email settings.</p>;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -157,7 +157,7 @@ export const SettingsEmailPage = () => {
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
               <div>
                 <p className="font-medium">Secure (TLS) connection</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Enable for port 465. Keep disabled for ports 587 or 25 (uses STARTTLS when
                   available).
                 </p>
@@ -172,7 +172,7 @@ export const SettingsEmailPage = () => {
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
               <div>
                 <p className="font-medium">Reject unauthorized certificates</p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Disable only if you fully trust the mail server and understand the risk.
                 </p>
               </div>
@@ -204,7 +204,7 @@ export const SettingsEmailPage = () => {
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder={emailQuery.data.has_password ? "••••••••" : ""}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Leave blank to keep the existing password.
               </p>
             </div>

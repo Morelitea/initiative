@@ -150,7 +150,7 @@ export const UserSettingsNotificationsPage = ({
               value={notificationTime}
               onChange={(event) => setNotificationTime(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Daily reminder time (uses the timezone above).
             </p>
           </div>
@@ -169,7 +169,7 @@ export const UserSettingsNotificationsPage = ({
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">Initiative invites</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Receive an email when you&apos;re added to a new initiative.
               </p>
             </div>
@@ -188,7 +188,7 @@ export const UserSettingsNotificationsPage = ({
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">Task assignments</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Get an hourly summary when others assign you tasks.
               </p>
             </div>
@@ -207,7 +207,7 @@ export const UserSettingsNotificationsPage = ({
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">New project in initiative</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Be alerted when projects are created inside initiatives you belong to.
               </p>
             </div>
@@ -226,7 +226,7 @@ export const UserSettingsNotificationsPage = ({
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">Overdue tasks</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Receive a daily reminder for tasks past due at your scheduled time.
               </p>
             </div>

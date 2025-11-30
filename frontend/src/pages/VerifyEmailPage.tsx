@@ -41,7 +41,7 @@ export const VerifyEmailPage = () => {
   }, [token]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+    <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>Email verification</CardTitle>
@@ -49,10 +49,10 @@ export const VerifyEmailPage = () => {
         </CardHeader>
         <CardContent>
           {status === "pending" ? (
-            <p className="text-sm text-muted-foreground">Hang tight…</p>
+            <p className="text-muted-foreground text-sm">Hang tight…</p>
           ) : null}
         </CardContent>
-        <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground">
+        <CardFooter className="text-muted-foreground flex flex-col gap-2 text-sm">
           {status === "success" ? (
             <Button asChild className="w-full">
               <Link to="/login">Go to sign in</Link>

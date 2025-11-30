@@ -45,8 +45,8 @@ export const ForgotPasswordPage = () => {
         backgroundSize: "72px 72px",
       }}
     >
-      <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-        <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+      <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
+        <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
           initiative
         </div>
@@ -73,17 +73,17 @@ export const ForgotPasswordPage = () => {
               <Button className="w-full" type="submit" disabled={status === "sending"}>
                 {status === "sending" ? "Sending…" : "Send reset link"}
               </Button>
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              {error ? <p className="text-destructive text-sm">{error}</p> : null}
               {status === "sent" ? (
-                <p className="text-sm text-primary">
+                <p className="text-primary text-sm">
                   If that account exists, a reset link is on its way to your inbox.
                 </p>
               ) : null}
             </form>
           </CardContent>
-          <CardFooter className="text-sm text-muted-foreground">
+          <CardFooter className="text-muted-foreground text-sm">
             Remembered it?{" "}
-            <Link className="ml-1 text-primary underline-offset-4 hover:underline" to="/login">
+            <Link className="text-primary ml-1 underline-offset-4 hover:underline" to="/login">
               Go back to sign in
             </Link>
           </CardFooter>

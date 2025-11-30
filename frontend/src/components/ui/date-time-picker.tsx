@@ -85,13 +85,13 @@ export const DateTimePicker = ({
           selected={selectedDate}
           onSelect={handleSelectDate}
           initialFocus
-          className="p-3 w-75"
+          className="w-75 p-3"
         />
-        <div className="flex items-end gap-3 border-t bg-muted/30 p-3">
+        <div className="bg-muted/30 flex items-end gap-3 border-t p-3">
           <div className="flex flex-1 flex-col gap-1">
             <label
               htmlFor={`${id ?? "datetime"}-time`}
-              className="text-xs font-medium text-muted-foreground"
+              className="text-muted-foreground text-xs font-medium"
             >
               Time
             </label>
@@ -108,7 +108,7 @@ export const DateTimePicker = ({
             type="button"
             variant="ghost"
             size="sm"
-            className="text-xs text-muted-foreground"
+            className="text-muted-foreground text-xs"
             onClick={handleClear}
             disabled={!selectedDate || disabled}
           >

@@ -91,8 +91,8 @@ export const LoginPage = () => {
 
   if (bootstrapStatus === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
+        <p className="text-muted-foreground text-sm">Loading…</p>
       </div>
     );
   }
@@ -112,8 +112,8 @@ export const LoginPage = () => {
         backgroundSize: "72px 72px",
       }}
     >
-      <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-        <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+      <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
+        <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
           initiative
         </div>
@@ -151,7 +151,7 @@ export const LoginPage = () => {
                 />
                 <div className="text-right">
                   <Link
-                    className="text-sm text-primary underline-offset-4 hover:underline"
+                    className="text-primary text-sm underline-offset-4 hover:underline"
                     to="/forgot-password"
                   >
                     Forgot password?
@@ -171,10 +171,10 @@ export const LoginPage = () => {
                   Continue with {oidcProviderName ?? "Single Sign-On"}
                 </Button>
               ) : null}
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              {error ? <p className="text-destructive text-sm">{error}</p> : null}
             </form>
           </CardContent>
-          <CardFooter className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+          <CardFooter className="text-muted-foreground flex flex-col items-start gap-2 text-sm">
             <p>
               Need an account?{" "}
               <Link

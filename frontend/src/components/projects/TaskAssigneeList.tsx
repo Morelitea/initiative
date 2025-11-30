@@ -44,7 +44,7 @@ export const TaskAssigneeList = ({ assignees, size = "sm", className }: TaskAssi
   const styles = sizeStyles[size];
 
   return (
-    <div className={cn("flex flex-wrap gap-3 text-muted-foreground", className)}>
+    <div className={cn("text-muted-foreground flex flex-wrap gap-3", className)}>
       {assignees.map((assignee) => {
         const displayName = getDisplayName(assignee);
         const avatarSrc = assignee.avatar_url || assignee.avatar_base64 || undefined;

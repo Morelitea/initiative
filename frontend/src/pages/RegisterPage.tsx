@@ -124,8 +124,8 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         backgroundSize: "72px 72px",
       }}
     >
-      <div className="flex flex-col gap-3 min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-        <div className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-primary">
+      <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
+        <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
           initiative
         </div>
@@ -169,7 +169,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                 />
               </div>
               {inviteCode ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   {inviteStatusLoading && "Checking invite…"}
                   {!inviteStatusLoading && inviteStatus && inviteStatus.is_valid
                     ? `You’re joining ${inviteStatus.guild_name ?? "this guild"}.`
@@ -191,13 +191,13 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
               >
                 {submitting ? "Creating account…" : "Sign up"}
               </Button>
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
-              {infoMessage ? <p className="text-sm text-primary">{infoMessage}</p> : null}
+              {error ? <p className="text-destructive text-sm">{error}</p> : null}
+              {infoMessage ? <p className="text-primary text-sm">{infoMessage}</p> : null}
             </form>
           </CardContent>
-          <CardFooter className="text-sm text-muted-foreground">
+          <CardFooter className="text-muted-foreground text-sm">
             Have an account?{" "}
-            <Link className="ml-1 text-primary underline-offset-4 hover:underline" to="/login">
+            <Link className="text-primary ml-1 underline-offset-4 hover:underline" to="/login">
               Sign in
             </Link>
           </CardFooter>

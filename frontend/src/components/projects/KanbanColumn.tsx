@@ -42,7 +42,7 @@ export const KanbanColumn = ({
   return (
     <div
       className={cn(
-        "flex h-full flex-col rounded-lg border bg-card shadow-sm transition-colors",
+        "bg-card flex h-full flex-col rounded-lg border shadow-sm transition-colors",
         collapsed && "items-center text-center"
       )}
     >
@@ -58,17 +58,17 @@ export const KanbanColumn = ({
       <div
         ref={setNodeRef}
         className={cn(
-          "w-full transition-colors min-h-[70vh] max-h-[70vh]",
+          "max-h-[70vh] min-h-[70vh] w-full transition-colors",
           collapsed
-            ? "flex flex-1 items-center justify-center px-2 "
+            ? "flex flex-1 items-center justify-center px-2"
             : "flex-1 space-y-3 overflow-y-auto p-3 pr-2",
           isOver ? "bg-muted/40" : null
         )}
       >
         {collapsed ? (
-          <span className="text-xs text-muted-foreground">Drop tasks here</span>
+          <span className="text-muted-foreground text-xs">Drop tasks here</span>
         ) : tasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tasks yet.</p>
+          <p className="text-muted-foreground text-sm">No tasks yet.</p>
         ) : (
           <SortableContext
             items={tasks.map((task) => task.id.toString())}
@@ -101,13 +101,13 @@ const ExpandedHeader = ({
   onToggleCollapse: (statusId: number) => void;
 }) => (
   <div
-    className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b bg-card px-3 py-2"
+    className="bg-card sticky top-0 z-20 flex items-center justify-between gap-2 border-b px-3 py-2"
     style={{ borderTopLeftRadius: "0.5rem", borderTopRightRadius: "0.5rem" }}
     data-kanban-scroll-lock="true"
   >
     <div>
-      <p className="text-lg font-semibold leading-none">{status.name}</p>
-      <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <p className="text-lg leading-none font-semibold">{status.name}</p>
+      <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
         <SquareCheckBig className="h-3 w-3" /> {taskCount} task{taskCount === 1 ? "" : "s"}
       </p>
     </div>
@@ -115,7 +115,7 @@ const ExpandedHeader = ({
       type="button"
       variant="ghost"
       size="icon"
-      className="h-7 w-7 text-muted-foreground"
+      className="text-muted-foreground h-7 w-7"
       onClick={() => onToggleCollapse(status.id)}
       aria-label={`Collapse ${status.name}`}
     >
@@ -138,18 +138,18 @@ const CollapsedHeader = ({
       type="button"
       variant="ghost"
       size="icon"
-      className="h-7 w-7 text-muted-foreground"
+      className="text-muted-foreground h-7 w-7"
       onClick={() => onToggleCollapse(status.id)}
       aria-label={`Expand ${status.name}`}
     >
       <ChevronRight className="h-4 w-4" />
     </Button>
     <div className="flex h-16 items-center justify-center">
-      <span className="rotate-90 whitespace-nowrap text-xs font-semibold tracking-wide text-muted-foreground">
+      <span className="text-muted-foreground rotate-90 text-xs font-semibold tracking-wide whitespace-nowrap">
         {status.name}
       </span>
     </div>
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+    <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
       <SquareCheckBig className="h-3 w-3" /> {taskCount}
     </span>
   </div>
@@ -196,7 +196,7 @@ const KanbanTaskCard = ({
       style={style}
       {...attributes}
       {...listeners}
-      className="space-y-3 rounded-lg border bg-card p-3 shadow-sm"
+      className="bg-card space-y-3 rounded-lg border p-3 shadow-sm"
       data-kanban-scroll-lock="true"
     >
       <button
@@ -215,9 +215,9 @@ const KanbanTaskCard = ({
       >
         <p className="font-medium">{task.title}</p>
         {task.description ? (
-          <p className="text-xs text-muted-foreground">{truncateText(task.description, 80)}</p>
+          <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
         ) : null}
-        <div className="space-y-1 text-xs text-muted-foreground">
+        <div className="text-muted-foreground space-y-1 text-xs">
           {task.assignees.length > 0 ? (
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
           ) : null}

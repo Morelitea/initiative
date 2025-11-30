@@ -648,7 +648,7 @@ export const ProjectTasksSection = ({
           <div>
             <h2 className="text-xl font-semibold">Project tasks</h2>
           </div>
-          <div className="w-full sm:w-auto sm:flex sm:items-center sm:justify-end sm:gap-3">
+          <div className="w-full sm:flex sm:w-auto sm:items-center sm:justify-end sm:gap-3">
             <div className="w-full sm:hidden">
               <Select value={viewMode} onValueChange={handleViewModeChange}>
                 <SelectTrigger className="w-full">
@@ -679,7 +679,7 @@ export const ProjectTasksSection = ({
 
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
           <div className="flex items-center justify-between sm:hidden">
-            <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
               <Filter className="h-4 w-4" />
               Filters
             </div>
@@ -692,7 +692,7 @@ export const ProjectTasksSection = ({
               </Button>
             </CollapsibleTrigger>
           </div>
-          <CollapsibleContent forceMount className="mt-2 sm:mt-0 data-[state=closed]:hidden">
+          <CollapsibleContent forceMount className="mt-2 data-[state=closed]:hidden sm:mt-0">
             <ProjectTasksFilters
               viewMode={viewMode}
               taskStatuses={sortedTaskStatuses}
@@ -770,7 +770,7 @@ export const ProjectTasksSection = ({
             <Tooltip delayDuration={400}>
               <TooltipTrigger asChild>
                 <Button
-                  className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+                  className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
                   onClick={() => setIsComposerOpen(true)}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -783,13 +783,13 @@ export const ProjectTasksSection = ({
             </Tooltip>
           </TooltipProvider>
           {isComposerOpen ? (
-            <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+            <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
               <div
                 className="absolute inset-0 -z-10"
                 role="presentation"
                 onClick={() => setIsComposerOpen(false)}
               />
-              <div className="w-full max-w-lg rounded-2xl border bg-card shadow-2xl">
+              <div className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
                 <ProjectTaskComposer
                   title={title}
                   description={description}

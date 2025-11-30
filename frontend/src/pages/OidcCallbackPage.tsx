@@ -41,7 +41,7 @@ export const OidcCallbackPage = () => {
           <CardDescription>Hold tight while we finish authenticating your account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">{status}</p>
+          <p className="text-muted-foreground text-sm">{status}</p>
         </CardContent>
       </Card>
     </div>

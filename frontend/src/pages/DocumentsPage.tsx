@@ -55,7 +55,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         <div className="min-w-[220px] sm:min-w-0">
           <Link
             to={`/documents/${document.id}`}
-            className="font-medium text-primary hover:underline"
+            className="text-primary font-medium hover:underline"
           >
             {document.title}
           </Link>
@@ -86,7 +86,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         return <span className="text-muted-foreground">—</span>;
       }
       return (
-        <span className="inline-flex items-center gap-2 min-w-[140px]">
+        <span className="inline-flex min-w-[140px] items-center gap-2">
           <InitiativeColorDot color={initiative.color} />
           {initiative.name}
         </span>
@@ -302,7 +302,7 @@ export const DocumentsPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Keep initiative knowledge organized and attach docs to projects.
           </p>
         </div>
@@ -325,7 +325,7 @@ export const DocumentsPage = () => {
       </div>
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
         <div className="flex items-center justify-between sm:hidden">
-          <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
             <Filter className="h-4 w-4" />
             Filters
           </div>
@@ -339,11 +339,11 @@ export const DocumentsPage = () => {
           </CollapsibleTrigger>
         </div>
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
-            <div className="w-full sm:flex-1 space-y-2">
+          <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
+            <div className="w-full space-y-2 sm:flex-1">
               <Label
                 htmlFor="document-search"
-                className="text-xs font-medium text-muted-foreground"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Search
               </Label>
@@ -355,10 +355,10 @@ export const DocumentsPage = () => {
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </div>
-            <div className="w-full sm:w-60 space-y-2">
+            <div className="w-full space-y-2 sm:w-60">
               <Label
                 htmlFor="document-initiative-filter"
-                className="text-xs font-medium text-muted-foreground"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Initiative
               </Label>
@@ -385,14 +385,14 @@ export const DocumentsPage = () => {
       </Collapsible>
 
       {documentsQuery.isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading documents…
         </div>
       ) : null}
 
       {documentsQuery.isError ? (
-        <p className="text-sm text-destructive">Unable to load documents right now.</p>
+        <p className="text-destructive text-sm">Unable to load documents right now.</p>
       ) : null}
 
       {!documentsQuery.isLoading && !documentsQuery.isError ? (
@@ -429,13 +429,13 @@ export const DocumentsPage = () => {
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         {createDialogOpen ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
             <div
               className="absolute inset-0 -z-10"
               role="presentation"
               onClick={() => setCreateDialogOpen(false)}
             />
-            <DialogContent className="w-full max-w-lg rounded-2xl border bg-card shadow-2xl">
+            <DialogContent className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
               <DialogHeader>
                 <DialogTitle>New document</DialogTitle>
                 <DialogDescription>
@@ -502,10 +502,10 @@ export const DocumentsPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium">Save as template</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       Template documents are best duplicated or copied into other initiatives.
                     </p>
                   </div>
@@ -541,7 +541,7 @@ export const DocumentsPage = () => {
       {canCreateDocuments ? (
         <Button
           type="button"
-          className="fixed bottom-6 right-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+          className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
           onClick={() => setCreateDialogOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" />

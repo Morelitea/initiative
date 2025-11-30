@@ -231,7 +231,7 @@ export const TaskRecurrenceSelector = ({
   ];
 
   return (
-    <div className="space-y-4 rounded-md border border-dashed border-border/70 p-4">
+    <div className="border-border/70 space-y-4 rounded-md border border-dashed p-4">
       <div className="space-y-2">
         <Label>Repeat</Label>
         <Select
@@ -250,11 +250,11 @@ export const TaskRecurrenceSelector = ({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">{summary}</p>
+        <p className="text-muted-foreground text-sm">{summary}</p>
       </div>
 
       {showCustomFields && recurrence ? (
-        <div className="space-y-4 rounded-md border border-border/70 p-4">
+        <div className="border-border/70 space-y-4 rounded-md border p-4">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Frequency</Label>
@@ -286,7 +286,7 @@ export const TaskRecurrenceSelector = ({
                 onChange={(event) => handleIntervalChange(event.target.value)}
                 disabled={disabled}
               />
-              <p className="text-xs text-muted-foreground capitalize">
+              <p className="text-muted-foreground text-xs capitalize">
                 {recurrence.frequency ? `${recurrence.frequency.replace("_", " ")}` : ""}
               </p>
             </div>

@@ -37,7 +37,7 @@ export const UserSettingsLayout = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">User settings</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Manage your profile, interface preferences, and notifications.
         </p>
       </div>

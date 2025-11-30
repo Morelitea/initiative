@@ -57,7 +57,7 @@ const CreateGuildButton = () => {
         <Button
           variant="secondary"
           size="icon"
-          className="h-12 w-12 rounded-2xl border border-dashed border-muted-foreground/40 bg-transparent text-muted-foreground hover:bg-muted"
+          className="border-muted-foreground/40 text-muted-foreground hover:bg-muted h-12 w-12 rounded-2xl border border-dashed bg-transparent"
           aria-label="Create guild"
         >
           <Plus className="h-5 w-5" />
@@ -91,7 +91,7 @@ const CreateGuildButton = () => {
               rows={3}
             />
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? <p className="text-destructive text-sm">{error}</p> : null}
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
               {submitting ? "Creating…" : "Create guild"}
@@ -140,8 +140,8 @@ export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, canCreateGuilds } = useGuilds();
 
   return (
-    <aside className="hidden w-20 flex-col items-center gap-3 border-r bg-card/80 px-2 py-4 sm:flex max-h-screen sticky top-0">
-      <span className="text-xs text-center text-muted-foreground">Guilds</span>
+    <aside className="bg-card/80 sticky top-0 hidden max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4 sm:flex">
+      <span className="text-muted-foreground text-center text-xs">Guilds</span>
       <div className="flex flex-1 flex-col items-center gap-3 overflow-y-auto">
         <TooltipProvider delayDuration={200}>
           {guilds.map((guild) => {
@@ -152,10 +152,10 @@ export const GuildSidebar = () => {
                   <button
                     type="button"
                     onClick={() => switchGuild(guild.id)}
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    className={`focus-visible:ring-ring flex h-12 w-12 items-center justify-center rounded-2xl border transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
                       isActive
                         ? "border-primary/60 bg-primary/10 text-primary"
-                        : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
                     }`}
                     aria-label={`Switch to ${guild.name}`}
                   >
@@ -171,8 +171,8 @@ export const GuildSidebar = () => {
         </TooltipProvider>
       </div>
       {canCreateGuilds ? (
-        <div className="flex items-center flex-col gap-2 border-border border-t pt-2">
-          <span className="text-xs text-center text-muted-foreground">Create Guild</span>
+        <div className="border-border flex flex-col items-center gap-2 border-t pt-2">
+          <span className="text-muted-foreground text-center text-xs">Create Guild</span>
           <CreateGuildButton />
         </div>
       ) : null}

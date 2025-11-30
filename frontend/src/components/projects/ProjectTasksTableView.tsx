@@ -189,11 +189,11 @@ export const ProjectTasksTableView = ({
           const count = row.original.comment_count ?? 0;
           return count > 0 ? (
             <span className="inline-flex items-center gap-1 text-sm">
-              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              <MessageSquare className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
               {count}
             </span>
           ) : (
-            <span className="text-sm text-muted-foreground">0</span>
+            <span className="text-muted-foreground text-sm">0</span>
           );
         },
         size: 90,
@@ -316,9 +316,9 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
     >
       <p className="font-medium">{task.title}</p>
       {task.description ? (
-        <p className="text-sm text-muted-foreground">{truncateText(task.description, 100)}</p>
+        <p className="text-muted-foreground text-sm">{truncateText(task.description, 100)}</p>
       ) : null}
-      <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="text-muted-foreground space-y-1 text-xs">
         {task.assignees.length > 0 ? (
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />
         ) : null}

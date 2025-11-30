@@ -74,24 +74,24 @@ export const SettingsAuthPage = () => {
   if (oidcQuery.isLoading) {
     if (!isSuperUser) {
       return (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Only the initial super user can manage authentication settings.
         </p>
       );
     }
-    return <p className="text-sm text-muted-foreground">Loading auth settings…</p>;
+    return <p className="text-muted-foreground text-sm">Loading auth settings…</p>;
   }
 
   if (!isSuperUser) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Only the initial super user can manage authentication settings.
       </p>
     );
   }
 
   if (oidcQuery.isError || !oidcQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load auth settings.</p>;
+    return <p className="text-destructive text-sm">Unable to load auth settings.</p>;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -114,7 +114,7 @@ export const SettingsAuthPage = () => {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+          <div className="bg-muted/40 flex items-center justify-between rounded-md border px-3 py-2">
             <div>
               <Label
                 htmlFor="oidc-enabled"
@@ -122,7 +122,7 @@ export const SettingsAuthPage = () => {
               >
                 Enabled
               </Label>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Allow users to authenticate via your OIDC provider.
               </p>
             </div>
@@ -164,7 +164,7 @@ export const SettingsAuthPage = () => {
               onChange={(event) => setClientSecret(event.target.value)}
               placeholder="••••••••"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Leave blank to keep the existing secret.
             </p>
           </div>
@@ -195,14 +195,14 @@ export const SettingsAuthPage = () => {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground">
+      <CardFooter className="text-muted-foreground flex flex-col gap-2 text-sm">
         <div>
           Authorization callback:{" "}
-          <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.redirect_uri}</code>
+          <code className="bg-muted rounded px-1 py-0.5">{oidcQuery.data.redirect_uri}</code>
         </div>
         <div>
           Post-login redirect:{" "}
-          <code className="rounded bg-muted px-1 py-0.5">{oidcQuery.data.post_login_redirect}</code>
+          <code className="bg-muted rounded px-1 py-0.5">{oidcQuery.data.post_login_redirect}</code>
         </div>
       </CardFooter>
     </Card>

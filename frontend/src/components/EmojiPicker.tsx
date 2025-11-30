@@ -68,7 +68,7 @@ export const EmojiPicker = ({
         </Button>
       ) : null}
       {open ? (
-        <div className="absolute left-0 top-full z-20 mt-2 w-full min-w-[16rem] rounded-md border bg-background p-2 shadow-lg">
+        <div className="bg-background absolute top-full left-0 z-20 mt-2 w-full min-w-[16rem] rounded-md border p-2 shadow-lg">
           <EmojiPickerBase
             onEmojiClick={handleEmojiClick}
             theme={Theme.AUTO}

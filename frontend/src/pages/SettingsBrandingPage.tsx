@@ -112,7 +112,7 @@ export const SettingsBrandingPage = () => {
 
   if (!isSuperUser) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Only the initial super user can manage branding settings.
       </p>
     );
@@ -127,9 +127,9 @@ export const SettingsBrandingPage = () => {
         </CardHeader>
         <CardContent>
           {interfaceQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading interface settings…</p>
+            <p className="text-muted-foreground text-sm">Loading interface settings…</p>
           ) : interfaceQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load interface settings.</p>
+            <p className="text-destructive text-sm">Unable to load interface settings.</p>
           ) : (
             <form className="grid gap-6 md:grid-cols-2" onSubmit={handleInterfaceSubmit}>
               <div className="space-y-3 rounded-lg border p-4">
@@ -142,7 +142,7 @@ export const SettingsBrandingPage = () => {
                   onChange={setLightColor}
                   triggerLabel="Adjust"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   Buttons, highlights, and focus states use this color while the app is in light
                   mode.
                 </p>
@@ -158,7 +158,7 @@ export const SettingsBrandingPage = () => {
                   onChange={setDarkColor}
                   triggerLabel="Adjust"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   Accent and primary elements use this color while dark mode is active.
                 </p>
               </div>
@@ -182,9 +182,9 @@ export const SettingsBrandingPage = () => {
         </CardHeader>
         <CardContent>
           {roleLabelsQuery.isLoading && !roleLabelsQuery.data ? (
-            <p className="text-sm text-muted-foreground">Loading role labels…</p>
+            <p className="text-muted-foreground text-sm">Loading role labels…</p>
           ) : roleLabelsQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load role labels.</p>
+            <p className="text-destructive text-sm">Unable to load role labels.</p>
           ) : (
             <form className="space-y-6" onSubmit={handleRoleSubmit}>
               {ROLE_FIELDS.map((field) => (
@@ -197,16 +197,16 @@ export const SettingsBrandingPage = () => {
                     maxLength={64}
                     required
                   />
-                  <p className="text-xs text-muted-foreground">{field.helper}</p>
+                  <p className="text-muted-foreground text-xs">{field.helper}</p>
                 </div>
               ))}
               <div className="flex flex-col gap-2">
                 <Button type="submit" disabled={updateRoleLabels.isPending}>
                   {updateRoleLabels.isPending ? "Saving…" : "Save role labels"}
                 </Button>
-                {roleMessage ? <p className="text-sm text-primary">{roleMessage}</p> : null}
+                {roleMessage ? <p className="text-primary text-sm">{roleMessage}</p> : null}
                 {updateRoleLabels.isError ? (
-                  <p className="text-sm text-destructive">Unable to update role labels.</p>
+                  <p className="text-destructive text-sm">Unable to update role labels.</p>
                 ) : null}
               </div>
             </form>

@@ -34,9 +34,9 @@ export const ProjectTasksFilters = ({
   onDueFilterChange,
   onListStatusFilterChange,
 }: ProjectTasksFiltersProps) => (
-  <div className="flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3">
+  <div className="border-muted bg-background/40 flex flex-wrap items-end gap-4 rounded-md border p-3">
     <div className="w-full sm:w-48">
-      <Label htmlFor="assignee-filter" className="text-xs font-medium text-muted-foreground">
+      <Label htmlFor="assignee-filter" className="text-muted-foreground text-xs font-medium">
         Filter by assignee
       </Label>
       <Select value={assigneeFilter} onValueChange={onAssigneeFilterChange}>
@@ -54,7 +54,7 @@ export const ProjectTasksFilters = ({
       </Select>
     </div>
     <div className="w-full sm:w-48">
-      <Label htmlFor="due-filter" className="text-xs font-medium text-muted-foreground">
+      <Label htmlFor="due-filter" className="text-muted-foreground text-xs font-medium">
         Due filter
       </Label>
       <Select
@@ -75,7 +75,7 @@ export const ProjectTasksFilters = ({
     </div>
     {viewMode === "table" ? (
       <div className="w-full sm:w-44">
-        <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
+        <Label htmlFor="status-filter" className="text-muted-foreground text-xs font-medium">
           Filter by status
         </Label>
         <Select

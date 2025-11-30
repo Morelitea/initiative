@@ -118,7 +118,7 @@ export const SettingsGuildPage = () => {
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-semibold">Guild Settings</h2>
-        <p className="text-sm text-muted-foreground">No active guild selected.</p>
+        <p className="text-muted-foreground text-sm">No active guild selected.</p>
       </div>
     );
   }
@@ -170,7 +170,7 @@ export const SettingsGuildPage = () => {
                   </Button>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Upload a square PNG or JPG up to 512 KB.
                 </p>
               )}
@@ -180,10 +180,10 @@ export const SettingsGuildPage = () => {
                 accept="image/*"
                 onChange={handleIconInputChange}
               />
-              {iconError ? <p className="text-sm text-destructive">{iconError}</p> : null}
+              {iconError ? <p className="text-destructive text-sm">{iconError}</p> : null}
             </div>
-            {saveError ? <p className="text-sm text-destructive">{saveError}</p> : null}
-            {saveMessage ? <p className="text-sm text-primary">{saveMessage}</p> : null}
+            {saveError ? <p className="text-destructive text-sm">{saveError}</p> : null}
+            {saveMessage ? <p className="text-primary text-sm">{saveMessage}</p> : null}
             <Button type="submit" disabled={saving}>
               {saving ? "Saving…" : "Save changes"}
             </Button>

@@ -302,14 +302,14 @@ export const MyTasksPage = () => {
           <div className="flex flex-col text-left">
             <Link
               to={`/tasks/${task.id}/edit`}
-              className="font-medium text-foreground hover:underline"
+              className="text-foreground font-medium hover:underline"
             >
               {task.title}
             </Link>
             {task.description ? (
-              <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+              <p className="text-muted-foreground line-clamp-2 text-sm">{task.description}</p>
             ) : null}
-            <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="text-muted-foreground space-y-1 text-xs">
               {task.start_date || task.due_date ? (
                 <p>
                   {task.start_date ? `Starts: ${new Date(task.start_date).toLocaleString()}` : null}
@@ -331,17 +331,17 @@ export const MyTasksPage = () => {
         const project = projectsById[task.project_id];
         const initiative = project?.initiative;
         if (!initiative) {
-          return <span className="text-sm text-muted-foreground">—</span>;
+          return <span className="text-muted-foreground text-sm">—</span>;
         }
         return (
           <div className="flex items-center gap-2">
             {initiative.color ? (
               <span
-                className="h-2.5 w-2.5 rounded-full border border-border/40"
+                className="border-border/40 h-2.5 w-2.5 rounded-full border"
                 style={{ backgroundColor: initiative.color }}
               />
             ) : null}
-            <span className="text-sm font-medium text-foreground">{initiative.name}</span>
+            <span className="text-foreground text-sm font-medium">{initiative.name}</span>
           </div>
         );
       },
@@ -353,12 +353,12 @@ export const MyTasksPage = () => {
         const task = row.original;
         const project = projectsById[task.project_id];
         if (!project) {
-          return <span className="text-sm text-muted-foreground">Project #{task.project_id}</span>;
+          return <span className="text-muted-foreground text-sm">Project #{task.project_id}</span>;
         }
         return (
           <Link
             to={`/projects/${project.id}`}
-            className="text-sm font-medium text-primary hover:underline"
+            className="text-primary text-sm font-medium hover:underline"
           >
             {project.name}
           </Link>
@@ -382,7 +382,7 @@ export const MyTasksPage = () => {
         const task = row.original;
         return (
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{task.task_status.name}</p>
+            <p className="text-muted-foreground text-xs">{task.task_status.name}</p>
             <Select
               value={task.task_status.category}
               onValueChange={(value) => void changeTaskStatus(task, value as TaskStatusCategory)}
@@ -428,7 +428,7 @@ export const MyTasksPage = () => {
     templatesQuery.isLoading ||
     archivedProjectsQuery.isLoading
   ) {
-    return <p className="text-sm text-muted-foreground">Loading your tasks…</p>;
+    return <p className="text-muted-foreground text-sm">Loading your tasks…</p>;
   }
 
   if (
@@ -437,7 +437,7 @@ export const MyTasksPage = () => {
     templatesQuery.isError ||
     archivedProjectsQuery.isError
   ) {
-    return <p className="text-sm text-destructive">Unable to load your tasks.</p>;
+    return <p className="text-destructive text-sm">Unable to load your tasks.</p>;
   }
 
   return (
@@ -449,7 +449,7 @@ export const MyTasksPage = () => {
 
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
         <div className="flex items-center justify-between sm:hidden">
-          <div className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
             <Filter className="h-4 w-4" />
             Filters
           </div>
@@ -464,11 +464,11 @@ export const MyTasksPage = () => {
           </CollapsibleTrigger>
         </div>
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+          <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-status-filter"
-                className="text-xs font-medium text-muted-foreground"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Status
               </Label>
@@ -495,7 +495,7 @@ export const MyTasksPage = () => {
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-priority-filter"
-                className="text-xs font-medium text-muted-foreground"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Priority
               </Label>
@@ -519,7 +519,7 @@ export const MyTasksPage = () => {
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-initiative-filter"
-                className="text-xs font-medium text-muted-foreground"
+                className="text-muted-foreground text-xs font-medium"
               >
                 Initiative
               </Label>
@@ -538,7 +538,7 @@ export const MyTasksPage = () => {
               </Select>
             </div>
             <div className="w-full sm:w-60 lg:flex-1">
-              <Label htmlFor="task-sort" className="text-xs font-medium text-muted-foreground">
+              <Label htmlFor="task-sort" className="text-muted-foreground text-xs font-medium">
                 Sort
               </Label>
               <Select

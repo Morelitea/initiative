@@ -142,18 +142,18 @@ export const SettingsUsersPage = () => {
 
   if (!isGuildAdmin) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         You need {adminLabel} permissions to view this page.
       </p>
     );
   }
 
   if (usersQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading settings…</p>;
+    return <p className="text-muted-foreground text-sm">Loading settings…</p>;
   }
 
   if (usersQuery.isError || !usersQuery.data) {
-    return <p className="text-sm text-destructive">Unable to load settings.</p>;
+    return <p className="text-destructive text-sm">Unable to load settings.</p>;
   }
 
   const normalizedEmailFilter = emailFilter.trim().toLowerCase();
@@ -174,7 +174,7 @@ export const SettingsUsersPage = () => {
         return (
           <div>
             <p className="font-medium">{displayName}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Status: {workspaceUser.is_active ? "Active" : "Pending approval"}
             </p>
           </div>
@@ -186,7 +186,7 @@ export const SettingsUsersPage = () => {
       header: "Email",
       cell: ({ row }) => {
         const workspaceUser = row.original;
-        return <p className="text-sm text-muted-foreground">{workspaceUser.email}</p>;
+        return <p className="text-muted-foreground text-sm">{workspaceUser.email}</p>;
       },
     },
     {
@@ -304,7 +304,7 @@ export const SettingsUsersPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Guild invites</CardTitle>
-            <p className="text-sm text-muted-foreground">Generate links to invite new members.</p>
+            <p className="text-muted-foreground text-sm">Generate links to invite new members.</p>
           </div>
           <Button variant="ghost" size="icon" onClick={() => loadInvites()}>
             <RefreshCcw className="h-4 w-4" />
@@ -339,13 +339,13 @@ export const SettingsUsersPage = () => {
               </Button>
             </div>
           </form>
-          <div className="h-px bg-border" />
+          <div className="bg-border h-px" />
           {invitesLoading ? (
-            <p className="text-sm text-muted-foreground">Loading invites…</p>
+            <p className="text-muted-foreground text-sm">Loading invites…</p>
           ) : null}
-          {invitesError ? <p className="text-sm text-destructive">{invitesError}</p> : null}
+          {invitesError ? <p className="text-destructive text-sm">{invitesError}</p> : null}
           {!invitesLoading && !inviteRows.length ? (
-            <p className="text-sm text-muted-foreground">No active invites.</p>
+            <p className="text-muted-foreground text-sm">No active invites.</p>
           ) : null}
           <div className="space-y-3">
             {inviteRows.map((invite) => {
@@ -357,7 +357,7 @@ export const SettingsUsersPage = () => {
               return (
                 <div
                   key={invite.id}
-                  className="flex flex-col gap-3 rounded border bg-muted/30 p-4 text-sm md:flex-row md:items-center md:justify-between"
+                  className="bg-muted/30 flex flex-col gap-3 rounded border p-4 text-sm md:flex-row md:items-center md:justify-between"
                 >
                   <div>
                     <p className="font-medium">{link}</p>
@@ -392,7 +392,7 @@ export const SettingsUsersPage = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="email-filter" className="text-xs text-muted-foreground">
+            <Label htmlFor="email-filter" className="text-muted-foreground text-xs">
               Filter by email
             </Label>
             <Input

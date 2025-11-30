@@ -75,11 +75,11 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
   };
 
   return (
-    <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+    <div className="bg-card space-y-4 rounded-xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
         <div>
           <h3 className="text-lg font-semibold">Timeline</h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Plan start and due dates over the next few weeks.
           </p>
         </div>
@@ -119,20 +119,20 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
           </Button>
         </div>
       </div>
-      <div className="space-y-2 overflow-x-auto overflow-visible">
+      <div className="space-y-2 overflow-visible overflow-x-auto">
         <div
           className="min-w-[720px] sm:min-w-0"
           style={{ minWidth: NAME_COLUMN_WIDTH + timelineWidth }}
         >
           <div
-            className="grid text-[11px] font-semibold uppercase text-muted-foreground sm:text-xs"
+            className="text-muted-foreground grid text-[11px] font-semibold uppercase sm:text-xs"
             style={{
               gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
             }}
           >
-            <div className="border-r border-border bg-card px-3 py-2">Task</div>
+            <div className="border-border bg-card border-r px-3 py-2">Task</div>
             <div
-              className="grid bg-background/80"
+              className="bg-background/80 grid"
               style={{
                 gridTemplateColumns: `repeat(${daysVisible}, minmax(${DAY_COLUMN_WIDTH}px, 1fr))`,
               }}
@@ -140,17 +140,17 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
               {days.map((day) => (
                 <div
                   key={day.toISOString()}
-                  className="border-l border-border px-2 py-2 text-center"
+                  className="border-border border-l px-2 py-2 text-center"
                 >
                   <div>{format(day, "MMM d")}</div>
-                  <div className="text-[10px] text-muted-foreground">{format(day, "EEE")}</div>
+                  <div className="text-muted-foreground text-[10px]">{format(day, "EEE")}</div>
                 </div>
               ))}
             </div>
           </div>
           <div className="divide-y border-t text-xs sm:text-sm">
             {rows.length === 0 ? (
-              <p className="px-3 py-6 text-sm text-muted-foreground">No tasks to display.</p>
+              <p className="text-muted-foreground px-3 py-6 text-sm">No tasks to display.</p>
             ) : (
               rows.map(({ task, start, end }) => {
                 const startOffset = differenceInCalendarDays(start, visibleStart);
@@ -170,9 +170,9 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                       gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
                     }}
                   >
-                    <div className="border-r border-border bg-card px-3 py-3 flex flex-col justify-center">
+                    <div className="border-border bg-card flex flex-col justify-center border-r px-3 py-3">
                       <p className="font-medium">{task.title}</p>
-                      <p className="text-[11px] text-muted-foreground sm:text-xs">
+                      <p className="text-muted-foreground text-[11px] sm:text-xs">
                         {start.toLocaleDateString()} → {end.toLocaleDateString()}
                       </p>
                     </div>
@@ -219,7 +219,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                         </TooltipProvider>
                       ) : (
                         <p
-                          className="px-3 py-3 text-xs text-muted-foreground"
+                          className="text-muted-foreground px-3 py-3 text-xs"
                           style={{ gridColumn: `1 / ${daysVisible + 1}` }}
                         >
                           Outside current range

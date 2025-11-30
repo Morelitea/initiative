@@ -39,7 +39,7 @@ export const AssigneeSelector = ({
     <div className="space-y-3">
       <div className="space-y-2 rounded-md border p-3">
         {options.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
+          <p className="text-muted-foreground text-sm">{resolvedEmptyMessage}</p>
         ) : (
           <ul className="space-y-2">
             {options.map((option) => (

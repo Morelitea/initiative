@@ -24,10 +24,10 @@ export const ProjectTabsBar = ({
   }
 
   return (
-    <div className="sticky top-16 z-40 border-b bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60">
+    <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-16 z-40 border-b backdrop-blur">
       <div className="flex h-12 items-end gap-2 overflow-x-auto px-4">
         {loading ? (
-          <p className="py-3 text-xs text-muted-foreground">Loading recent projects…</p>
+          <p className="text-muted-foreground py-3 text-xs">Loading recent projects…</p>
         ) : (
           projects?.map((project) => {
             const isActive = project.id === activeProjectId;
@@ -54,7 +54,7 @@ export const ProjectTabsBar = ({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="ml-1 h-7 w-7 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground ml-1 h-7 w-7"
                   onClick={(event) => {
                     event.preventDefault();
                     onClose(project.id);

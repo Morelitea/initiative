@@ -269,7 +269,7 @@ export const TaskEditPage = () => {
   }
 
   if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading task…</p>;
+    return <p className="text-muted-foreground text-sm">Loading task…</p>;
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {
@@ -308,18 +308,18 @@ export const TaskEditPage = () => {
           <h1 className="text-3xl font-semibold tracking-tight">{title || task?.title}</h1>
           <Badge variant="secondary">{currentStatus?.name ?? "Status"}</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">Edit every detail of this task.</p>
+        <p className="text-muted-foreground text-sm">Edit every detail of this task.</p>
       </div>
 
-      <div className="flex gap-6 flex-wrap">
-        <Card className="shadow-sm flex-1 md:min-w-100">
+      <div className="flex flex-wrap gap-6">
+        <Card className="flex-1 shadow-sm md:min-w-100">
           <CardHeader>
             <CardTitle>Task details</CardTitle>
             <CardDescription>Update the fields below and save your changes.</CardDescription>
           </CardHeader>
           <CardContent>
             {isReadOnly && readOnlyMessage ? (
-              <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+              <p className="border-border bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-sm">
                 {readOnlyMessage}
               </p>
             ) : null}
@@ -337,7 +337,7 @@ export const TaskEditPage = () => {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center  gap-2">
+                <div className="flex items-center gap-2">
                   <Label htmlFor="task-description">Description</Label>
                   {!isReadOnly ? (
                     <Button
@@ -361,11 +361,11 @@ export const TaskEditPage = () => {
                     disabled={isReadOnly}
                   />
                 ) : description ? (
-                  <div className="rounded-md border border-dashed border-border/70 bg-muted/40 px-3 py-2">
+                  <div className="border-border/70 bg-muted/40 rounded-md border border-dashed px-3 py-2">
                     <Markdown content={description} />
                   </div>
                 ) : (
-                  <p className="text-sm italic text-muted-foreground">
+                  <p className="text-muted-foreground text-sm italic">
                     {isReadOnly
                       ? "No description yet."
                       : "No description yet. Click edit to add more context."}
@@ -488,7 +488,7 @@ export const TaskEditPage = () => {
 
         <div className="w-full max-w-md space-y-2">
           {commentsQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load comments right now.</p>
+            <p className="text-destructive text-sm">Unable to load comments right now.</p>
           ) : null}
           <CommentSection
             entityType="task"

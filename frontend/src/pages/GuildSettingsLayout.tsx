@@ -44,7 +44,7 @@ export const GuildSettingsLayout = () => {
     return (
       <div className="space-y-4">
         <h1 className="text-3xl font-semibold tracking-tight">Guild settings</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           You need additional permissions to view this page.
         </p>
       </div>

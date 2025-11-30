@@ -284,7 +284,7 @@ export const DocumentSettingsPage = () => {
 
   if (documentQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading document…
       </div>
@@ -305,11 +305,11 @@ export const DocumentSettingsPage = () => {
             <Link to={`/documents/${document.id}`}>← Back to document</Link>
           </Button>
           <h1 className="text-2xl font-semibold">Document settings</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Manage template status, permissions, duplication, and deletion.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2 text-right text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex flex-col items-end gap-2 text-right text-sm">
           <p className="font-medium">{document.title}</p>
           <p>Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}</p>
           {document.initiative ? (
@@ -348,7 +348,7 @@ export const DocumentSettingsPage = () => {
         </CardHeader>
         <CardContent className="space-y-3">
           {attachedMembers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Add members to the initiative to manage document access.
             </p>
           ) : (
@@ -367,7 +367,7 @@ export const DocumentSettingsPage = () => {
                   >
                     <div>
                       <p className="text-sm font-medium">{displayName}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         {isManager ? pmLabel : "Member"}
                         {memberId === user?.id ? " · You" : null}
                       </p>
@@ -377,7 +377,7 @@ export const DocumentSettingsPage = () => {
                         <Badge variant="outline">Always editor</Badge>
                       ) : (
                         <>
-                          <span className="text-xs text-muted-foreground">Can edit</span>
+                          <span className="text-muted-foreground text-xs">Can edit</span>
                           <Switch
                             checked={canEdit}
                             onCheckedChange={(value) =>
@@ -498,12 +498,12 @@ export const DocumentSettingsPage = () => {
             </DialogDescription>
           </DialogHeader>
           {initiativesQuery.isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading initiatives…
             </div>
           ) : copyableInitiatives.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               You need manager access in another initiative to copy this document.
             </p>
           ) : (

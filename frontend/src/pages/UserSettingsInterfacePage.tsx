@@ -55,7 +55,7 @@ export const UserSettingsInterfacePage = ({
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="font-medium">Sidebar shortcuts</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Show favorite and recent projects in the left sidebar.
             </p>
           </div>
@@ -71,7 +71,7 @@ export const UserSettingsInterfacePage = ({
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="font-medium">Project tabs</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Show recently opened projects as tabs below the header.
             </p>
           </div>

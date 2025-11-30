@@ -82,7 +82,7 @@ export const ColorPickerPopover = ({
           type="button"
           variant="outline"
           className={cn(
-            "h-11 w-full justify-between gap-3 font-mono text-xs uppercase tracking-wide",
+            "h-11 w-full justify-between gap-3 font-mono text-xs tracking-wide uppercase",
             className
           )}
           disabled={disabled}
@@ -101,7 +101,7 @@ export const ColorPickerPopover = ({
         <ColorPicker value={draftColor} onChange={handleColorChange}>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-md border px-3 py-2 text-xs font-mono">
+              <div className="flex-1 rounded-md border px-3 py-2 font-mono text-xs">
                 {draftColor}
               </div>
               <ColorPickerOutput />

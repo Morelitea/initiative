@@ -94,14 +94,14 @@ export const SettingsInitiativesPage = () => {
 
   if (!canManageInitiatives) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         You need {projectManagerLabel} permissions to manage initiatives.
       </p>
     );
   }
 
   if (initiativesQuery.isLoading || usersQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading initiatives…</p>;
+    return <p className="text-muted-foreground text-sm">Loading initiatives…</p>;
   }
 
   if (
@@ -110,7 +110,7 @@ export const SettingsInitiativesPage = () => {
     !initiativesQuery.data ||
     !usersQuery.data
   ) {
-    return <p className="text-sm text-destructive">Unable to load initiatives.</p>;
+    return <p className="text-destructive text-sm">Unable to load initiatives.</p>;
   }
 
   return (
@@ -145,7 +145,7 @@ export const SettingsInitiativesPage = () => {
                   onChange={setInitiativeColor}
                   triggerLabel="Adjust"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   This color highlights projects tied to the initiative.
                 </p>
               </div>
@@ -158,7 +158,7 @@ export const SettingsInitiativesPage = () => {
       ) : null}
 
       {initiativesQuery.data.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No initiatives yet.</p>
+        <p className="text-muted-foreground text-sm">No initiatives yet.</p>
       ) : (
         initiativesQuery.data.map((initiative) => (
           <InitiativeCard
@@ -373,7 +373,7 @@ const InitiativeCard = ({
       header: "Email",
       cell: ({ row }) => {
         const initiativeMember = row.original;
-        return <p className="text-sm text-muted-foreground">{initiativeMember.user.email}</p>;
+        return <p className="text-muted-foreground text-sm">{initiativeMember.user.email}</p>;
       },
     },
     {

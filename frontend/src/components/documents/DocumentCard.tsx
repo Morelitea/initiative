@@ -22,12 +22,12 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
     <Link
       to={`/documents/${document.id}`}
       className={cn(
-        "group block w-full overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg",
+        "group bg-card text-card-foreground hover:border-primary/50 block w-full overflow-hidden rounded-2xl border shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg",
         className
       )}
       style={{ aspectRatio: "2 / 3" }}
     >
-      <div className="relative aspect-square overflow-hidden border-b bg-muted">
+      <div className="bg-muted relative aspect-square overflow-hidden border-b">
         {document.featured_image_url ? (
           <img
             src={document.featured_image_url}
@@ -36,11 +36,11 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
+          <div className="text-muted-foreground flex h-full items-center justify-center">
             <ScrollText className="h-10 w-10 md:h-20 md:w-20" />
           </div>
         )}
-        <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground absolute bottom-2 right-2">
+        <div className="text-muted-foreground absolute right-2 bottom-2 flex flex-col items-end gap-1 text-xs">
           {document.is_template ? <Badge variant="outline">Template</Badge> : null}
           <Badge variant="secondary">
             {projectCount} project{projectCount === 1 ? "" : "s"}
@@ -56,7 +56,7 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             <TooltipProvider delayDuration={300}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <h3 className="line-clamp-1 text-lg font-semibold leading-tight text-card-foreground">
+                  <h3 className="text-card-foreground line-clamp-1 text-lg leading-tight font-semibold">
                     {document.title}
                   </h3>
                 </TooltipTrigger>
@@ -66,20 +66,20 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
               </Tooltip>
             </TooltipProvider>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
           </p>
           {document.initiative && !hideInitiative ? (
-            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="text-muted-foreground inline-flex items-center gap-2 text-sm">
               <InitiativeColorDot color={document.initiative.color} />
               {document.initiative.name}
             </div>
           ) : null}
         </div>
-        <div className="mt-auto space-y-1 text-sm text-muted-foreground">
+        <div className="text-muted-foreground mt-auto space-y-1 text-sm">
           {document.projects.length > 0 ? (
             <>
-              <p className="text-xs font-medium text-foreground">
+              <p className="text-foreground text-xs font-medium">
                 Linked to {document.projects.length} project
                 {document.projects.length === 1 ? "" : "s"}
               </p>

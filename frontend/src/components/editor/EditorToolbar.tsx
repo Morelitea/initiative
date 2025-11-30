@@ -485,7 +485,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       <DropdownMenuContent className="w-64 space-y-4">
         <DropdownMenuLabel>Formatting</DropdownMenuLabel>
         <div className="space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">Font size</span>
+          <span className="text-muted-foreground text-xs font-medium">Font size</span>
           <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
             <SelectTrigger>
               <SelectValue placeholder="Font size" />
@@ -547,7 +547,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           </Button>
         </div>
         <div className="space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">Alignment</span>
+          <span className="text-muted-foreground text-xs font-medium">Alignment</span>
           <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
             <SelectTrigger>
               <SelectValue placeholder="Align" />
@@ -581,7 +581,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           </Select>
         </div>
         <div className="space-y-2">
-          <span className="text-xs font-medium text-muted-foreground">Insert</span>
+          <span className="text-muted-foreground text-xs font-medium">Insert</span>
           <div className="grid grid-cols-2 gap-2">
             {insertOptions.map((item) => (
               <Button
@@ -598,7 +598,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           </div>
         </div>
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-between text-xs font-medium">
             <span>Table actions</span>
             {!isInTable ? <span className="text-[10px]">Select a table</span> : null}
           </div>

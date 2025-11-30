@@ -208,7 +208,7 @@ export const DocumentDetailPage = () => {
 
   if (documentQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading document…
       </div>
@@ -247,7 +247,7 @@ export const DocumentDetailPage = () => {
           className="text-2xl font-semibold"
           disabled={!canEditDocument}
         />
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
           {document.initiative ? (
             <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1">
               <InitiativeColorDot color={document.initiative.color} />
@@ -263,103 +263,105 @@ export const DocumentDetailPage = () => {
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex-1 space-y-6">
           <Card>
-        <CardHeader>
-          <CardTitle>Featured image</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative aspect-square w-full overflow-hidden rounded-xl border bg-muted md:w-50">
-              {featuredImageUrl ? (
-                <img src={featuredImageUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                  <ScrollText className="h-10 w-10" />
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <input
-                ref={featuredImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFeaturedImageChange}
-              />
-              {canEditDocument ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={openFeaturedImagePicker}
-                    disabled={isUploadingFeaturedImage}
-                  >
-                    {isUploadingFeaturedImage ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Uploading…
-                      </>
-                    ) : (
-                      <>
-                        <ImagePlus className="mr-2 h-4 w-4" />
-                        Upload featured image
-                      </>
-                    )}
-                  </Button>
+            <CardHeader>
+              <CardTitle>Featured image</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
                   {featuredImageUrl ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setFeaturedImageUrl(null)}
-                      disabled={isUploadingFeaturedImage}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Remove image
-                    </Button>
-                  ) : null}
+                    <img src={featuredImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="text-muted-foreground flex h-full items-center justify-center">
+                      <ScrollText className="h-10 w-10" />
+                    </div>
+                  )}
                 </div>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                Uploads are stored locally under <code>/uploads</code>. Remember to save changes to
-                keep your new image.
-              </p>
-            </div>
-          </div>
-        </CardContent>
+                <div className="space-y-2">
+                  <input
+                    ref={featuredImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFeaturedImageChange}
+                  />
+                  {canEditDocument ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={openFeaturedImagePicker}
+                        disabled={isUploadingFeaturedImage}
+                      >
+                        {isUploadingFeaturedImage ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Uploading…
+                          </>
+                        ) : (
+                          <>
+                            <ImagePlus className="mr-2 h-4 w-4" />
+                            Upload featured image
+                          </>
+                        )}
+                      </Button>
+                      {featuredImageUrl ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setFeaturedImageUrl(null)}
+                          disabled={isUploadingFeaturedImage}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Remove image
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <p className="text-muted-foreground text-xs">
+                    Uploads are stored locally under <code>/uploads</code>. Remember to save changes
+                    to keep your new image.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
           <DocumentEditor
-        key={document.id}
-        initialState={normalizedDocumentContent}
-        onChange={setContentState}
-        placeholder="Capture requirements, share decisions, or outline processes…"
-        readOnly={!canEditDocument}
-        showToolbar={canEditDocument}
-      />
+            key={document.id}
+            initialState={normalizedDocumentContent}
+            onChange={setContentState}
+            placeholder="Capture requirements, share decisions, or outline processes…"
+            readOnly={!canEditDocument}
+            showToolbar={canEditDocument}
+          />
           <div className="flex flex-wrap gap-3">
-        {canEditDocument ? (
-          <>
-            <Button
-              type="button"
-              onClick={() => saveDocument.mutate()}
-              disabled={!isDirty || saveDocument.isPending}
-            >
-              {saveDocument.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                "Save changes"
-              )}
-            </Button>
-            {!isDirty ? (
-              <span className="self-center text-sm text-muted-foreground">All changes saved</span>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            You only have read access to this document.
-          </p>
-        )}
+            {canEditDocument ? (
+              <>
+                <Button
+                  type="button"
+                  onClick={() => saveDocument.mutate()}
+                  disabled={!isDirty || saveDocument.isPending}
+                >
+                  {saveDocument.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save changes"
+                  )}
+                </Button>
+                {!isDirty ? (
+                  <span className="text-muted-foreground self-center text-sm">
+                    All changes saved
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                You only have read access to this document.
+              </p>
+            )}
           </div>
           <Card>
             <CardHeader>
@@ -367,7 +369,7 @@ export const DocumentDetailPage = () => {
             </CardHeader>
             <CardContent>
               {attachedProjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   This document is not attached to any projects yet. Attach it from a project detail
                   page.
                 </p>
@@ -385,7 +387,7 @@ export const DocumentDetailPage = () => {
                         >
                           {link.project_name ?? `Project #${link.project_id}`}
                         </Link>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-muted-foreground text-xs">
                           Attached{" "}
                           {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
                         </p>
@@ -399,7 +401,7 @@ export const DocumentDetailPage = () => {
         </div>
         <div className="space-y-2 lg:w-96">
           {commentsQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load comments right now.</p>
+            <p className="text-destructive text-sm">Unable to load comments right now.</p>
           ) : null}
           <CommentSection
             entityType="document"

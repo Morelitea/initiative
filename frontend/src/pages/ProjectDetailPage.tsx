@@ -125,7 +125,7 @@ export const ProjectDetailPage = () => {
   }
 
   if (projectQuery.isLoading || tasksQuery.isLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading project…</p>;
+    return <p className="text-muted-foreground text-sm">Loading project…</p>;
   }
 
   if (projectQuery.isError || tasksQuery.isError || taskStatusesQuery.isError || !project) {

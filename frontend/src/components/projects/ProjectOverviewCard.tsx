@@ -23,7 +23,7 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
   }, [project.initiative?.color]);
 
   return (
-    <div className="space-y-4 rounded-2xl border bg-card/90 p-6 shadow-sm" style={detailCardStyle}>
+    <div className="bg-card/90 space-y-4 rounded-2xl border p-6 shadow-sm" style={detailCardStyle}>
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="flex flex-1 items-center gap-2 sm:gap-3">
           {project.icon ? (
@@ -43,19 +43,19 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
         </div>
       </div>
       {project.initiative ? (
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
           <InitiativeColorDot color={project.initiative.color} />
           <span>{project.initiative.name}</span>
         </div>
       ) : null}
       {project.is_template ? (
-        <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
+        <p className="border-muted/70 bg-muted/30 text-muted-foreground rounded-md border px-4 py-2 text-sm">
           This project is a template. Use it to create new projects from the Templates tab.
         </p>
       ) : null}
       {project.description ? <Markdown content={project.description} /> : null}
       {projectIsArchived ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
           This project is archived. Unarchive it from settings to add or update tasks.
         </p>
       ) : null}

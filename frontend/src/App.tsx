@@ -103,7 +103,7 @@ const AppLayout = () => {
   const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="bg-background flex min-h-screen flex-col">
       <div className="flex flex-1">
         <GuildSidebar />
         {showSidebarPref ? (
@@ -114,7 +114,7 @@ const AppLayout = () => {
             onClearRecent={handleClearRecent}
           />
         ) : null}
-        <div className="flex-1 min-w-0 bg-muted/50">
+        <div className="bg-muted/50 min-w-0 flex-1">
           <AppHeader />
           {showTabsPref ? (
             <ProjectTabsBar
@@ -124,8 +124,8 @@ const AppLayout = () => {
               onClose={handleClearRecent}
             />
           ) : null}
-          <div className="flex gap-4 justify-between">
-            <main className="container min-w-0 p-4 md:p-8 pb-20 md:pb-20">
+          <div className="flex justify-between gap-4">
+            <main className="container min-w-0 p-4 pb-20 md:p-8 md:pb-20">
               <PageRoutes />
             </main>
             <ProjectActivitySidebar projectId={activeProjectId} showTabsPref={showTabsPref} />
@@ -141,7 +141,7 @@ export const App = () => {
   return (
     <BrowserRouter>
       <Suspense
-        fallback={<div className="py-10 text-center text-muted-foreground">Loading...</div>}
+        fallback={<div className="text-muted-foreground py-10 text-center">Loading...</div>}
       >
         <Routes>
           <Route path="/login" element={<LoginPage />} />

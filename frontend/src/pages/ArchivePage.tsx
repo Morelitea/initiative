@@ -45,11 +45,11 @@ export const ArchivePage = () => {
   });
 
   if (archivedProjectsQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading archived projects…</p>;
+    return <p className="text-muted-foreground text-sm">Loading archived projects…</p>;
   }
 
   if (archivedProjectsQuery.isError) {
-    return <p className="text-sm text-destructive">Unable to load archived projects.</p>;
+    return <p className="text-destructive text-sm">Unable to load archived projects.</p>;
   }
 
   const projects = archivedProjectsQuery.data ?? [];
@@ -78,7 +78,7 @@ export const ArchivePage = () => {
                   <Markdown content={project.description} className="text-sm" />
                 ) : null}
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <CardContent className="text-muted-foreground space-y-2 text-sm">
                 {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
                 <p>
                   Archived at:{" "}

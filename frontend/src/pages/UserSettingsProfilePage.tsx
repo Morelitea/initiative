@@ -116,7 +116,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
         </Avatar>
         <div>
           <p className="text-lg font-semibold">{user.full_name || user.email}</p>
-          <p className="text-sm text-muted-foreground">Keep your account details up to date.</p>
+          <p className="text-muted-foreground text-sm">Keep your account details up to date.</p>
         </div>
       </div>
       <Card className="shadow-sm">
@@ -135,7 +135,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             <div className="space-y-2">
               <Label>Email</Label>
               <Input value={user.email} disabled readOnly />
-              <p className="text-xs text-muted-foreground">Email addresses cannot be changed.</p>
+              <p className="text-muted-foreground text-xs">Email addresses cannot be changed.</p>
             </div>
 
             <div className="space-y-2">
@@ -215,7 +215,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               </Tabs>
             </div>
 
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={updateProfile.isPending}>

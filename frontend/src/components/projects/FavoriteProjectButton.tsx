@@ -36,7 +36,7 @@ export const FavoriteProjectButton = ({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center justify-center rounded-full border bg-background text-muted-foreground transition hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+        "bg-background text-muted-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-full border transition hover:text-amber-500 focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60",
         sizeClasses,
         className
       )}

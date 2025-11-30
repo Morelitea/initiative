@@ -90,7 +90,7 @@ export const ProjectTaskComposer = ({
       </CardHeader>
       <CardContent>
         {isArchived ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             This project is archived. Unarchive it to add new tasks.
           </p>
         ) : canWrite ? (
@@ -189,11 +189,11 @@ export const ProjectTaskComposer = ({
                   Cancel
                 </Button>
               ) : null}
-              {hasError ? <p className="text-sm text-destructive">Unable to create task.</p> : null}
+              {hasError ? <p className="text-destructive text-sm">Unable to create task.</p> : null}
             </div>
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">You need write access to create tasks.</p>
+          <p className="text-muted-foreground text-sm">You need write access to create tasks.</p>
         )}
       </CardContent>
     </Card>

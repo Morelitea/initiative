@@ -40,17 +40,17 @@ export const AppHeader = () => {
   const isSuperUser = user?.id === 1;
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur supports-backdrop-filter:bg-card/60">
+    <header className="bg-card/80 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 border-b backdrop-blur">
       <div className="flex h-16 items-center gap-3 px-4 md:px-8">
         <MobileMenu navItems={navItems} user={user} onLogout={logout} />
         <Link
           to="/"
-          className="flex items-center gap-3 text-lg font-semibold tracking-tight text-primary"
+          className="text-primary flex items-center gap-3 text-lg font-semibold tracking-tight"
         >
           <LogoIcon className="h-8 w-8" aria-hidden="true" focusable="false" />
           initiative
         </Link>
-        <nav className="hidden items-center gap-4 text-sm font-medium text-muted-foreground md:flex">
+        <nav className="text-muted-foreground hidden items-center gap-4 text-sm font-medium md:flex">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -64,7 +64,7 @@ export const AppHeader = () => {
         </nav>
         <div className="ml-auto flex items-center gap-3">
           {activeGuild ? (
-            <div className="hidden rounded-full border border-muted bg-muted/60 px-3 py-1 text-xs font-medium text-muted-foreground md:flex">
+            <div className="border-muted bg-muted/60 text-muted-foreground hidden rounded-full border px-3 py-1 text-xs font-medium md:flex">
               {activeGuild.name}
             </div>
           ) : null}
@@ -75,7 +75,7 @@ export const AppHeader = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="rounded-full border bg-card p-0.5 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="bg-card hover:bg-muted focus-visible:ring-ring rounded-full border p-0.5 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                     aria-label="Account menu"
                   >
                     <Avatar>
@@ -87,8 +87,8 @@ export const AppHeader = () => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{userDisplayName}</p>
-                      <p className="text-xs text-muted-foreground">{userEmail}</p>
+                      <p className="text-sm leading-none font-medium">{userDisplayName}</p>
+                      <p className="text-muted-foreground text-xs">{userEmail}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
