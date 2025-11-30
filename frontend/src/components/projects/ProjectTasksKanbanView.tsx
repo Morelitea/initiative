@@ -11,16 +11,19 @@ import {
   type DroppableContainer,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
+import { useEffect, useRef } from "react";
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
 import { Badge } from "@/components/ui/badge";
 import { truncateText } from "@/lib/text";
+import { cn } from "@/lib/utils";
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
 type ProjectTasksKanbanViewProps = {
   taskStatuses: ProjectTaskStatus[];
   groupedTasks: Record<number, Task[]>;
+  collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
@@ -31,11 +34,13 @@ type ProjectTasksKanbanViewProps = {
   onDragOver: (event: DragOverEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
+  onToggleCollapse: (statusId: number) => void;
 };
 
 export const ProjectTasksKanbanView = ({
   taskStatuses,
   groupedTasks,
+  collapsedStatusIds,
   canReorderTasks,
   canOpenTask,
   onTaskClick,
@@ -46,7 +51,12 @@ export const ProjectTasksKanbanView = ({
   onDragOver,
   onDragEnd,
   onDragCancel,
-}: ProjectTasksKanbanViewProps) => (
+  onToggleCollapse,
+}: ProjectTasksKanbanViewProps) => {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  useHorizontalDragScroll(scrollContainerRef);
+
+  return (
   <DndContext
     sensors={sensors}
     collisionDetection={kanbanCollisionDetection}
@@ -55,27 +65,44 @@ export const ProjectTasksKanbanView = ({
     onDragEnd={onDragEnd}
     onDragCancel={onDragCancel}
   >
-  <div className="overflow-x-auto pb-4">
+    <div
+      ref={scrollContainerRef}
+      className="cursor-grab overflow-x-auto pb-4"
+      data-kanban-scroll-container
+    >
       <div className="flex gap-4">
-        {taskStatuses.map((status) => (
-          <div key={status.id} className="w-70 sm:w-89 shrink-0">
-            <KanbanColumn
-              status={status}
-              tasks={groupedTasks[status.id] ?? []}
-              canWrite={canReorderTasks}
-              canOpenTask={canOpenTask}
-              priorityVariant={priorityVariant}
-              onTaskClick={onTaskClick}
-            />
-          </div>
-        ))}
+        {taskStatuses.map((status) => {
+          const isCollapsed = collapsedStatusIds.has(status.id);
+          return (
+            <div
+              key={status.id}
+              className={cn(
+                "shrink-0 transition-[width] duration-200",
+                isCollapsed ? "w-12 min-w-[48px]" : "w-70 sm:w-89"
+              )}
+            >
+              <KanbanColumn
+                status={status}
+                tasks={groupedTasks[status.id] ?? []}
+                canWrite={canReorderTasks}
+                canOpenTask={canOpenTask}
+                priorityVariant={priorityVariant}
+                onTaskClick={onTaskClick}
+                collapsed={isCollapsed}
+                onToggleCollapse={onToggleCollapse}
+                taskCount={groupedTasks[status.id]?.length ?? 0}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
     <DragOverlay>
       {activeTask ? <TaskDragOverlay task={activeTask} priorityVariant={priorityVariant} /> : null}
     </DragOverlay>
   </DndContext>
-);
+  );
+};
 
 // Prefer pointer-over targets to avoid snapping tasks into neighboring columns.
 const kanbanCollisionDetection: CollisionDetection = (args) => {
@@ -131,3 +158,76 @@ const TaskDragOverlay = ({
     </Badge>
   </div>
 );
+
+const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement>) => {
+  useEffect(() => {
+    const container = ref.current;
+    if (!container) {
+      return;
+    }
+    let isDragging = false;
+    let startX = 0;
+    let scrollStart = 0;
+    let pointerId: number | null = null;
+
+    const shouldIgnoreEvent = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+      return Boolean(target.closest('[data-kanban-scroll-lock="true"]'));
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) {
+        return;
+      }
+      if (shouldIgnoreEvent(event.target)) {
+        return;
+      }
+      isDragging = true;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      scrollStart = container.scrollLeft;
+      container.setPointerCapture(event.pointerId);
+      container.style.cursor = "grabbing";
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDragging || pointerId !== event.pointerId) {
+        return;
+      }
+      const delta = event.clientX - startX;
+      container.scrollLeft = scrollStart - delta;
+    };
+
+    const stopDragging = () => {
+      if (!isDragging) {
+        return;
+      }
+      isDragging = false;
+      if (pointerId !== null) {
+        try {
+          container.releasePointerCapture(pointerId);
+        } catch {
+          // ignore
+        }
+      }
+      pointerId = null;
+      container.style.cursor = "";
+    };
+
+    container.addEventListener("pointerdown", handlePointerDown);
+    container.addEventListener("pointermove", handlePointerMove);
+    container.addEventListener("pointerup", stopDragging);
+    container.addEventListener("pointerleave", stopDragging);
+    container.addEventListener("pointercancel", stopDragging);
+
+    return () => {
+      container.removeEventListener("pointerdown", handlePointerDown);
+      container.removeEventListener("pointermove", handlePointerMove);
+      container.removeEventListener("pointerup", stopDragging);
+      container.removeEventListener("pointerleave", stopDragging);
+      container.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [ref]);
+};

@@ -120,6 +120,11 @@ export const ProjectTasksSection = ({
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
+  const collapsedStorageKey = useMemo(
+    () => (Number.isFinite(projectId) ? `project:${projectId}:kanban-collapsed` : null),
+    [projectId]
+  );
+  const [collapsedStatuses, setCollapsedStatuses] = useState<Set<number>>(new Set());
 
   const statusLookup = useMemo(() => {
     const map = new Map<number, ProjectTaskStatus>();
@@ -217,6 +222,47 @@ export const ProjectTasksSection = ({
     };
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
   }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilter, dueFilter, listStatusFilter]);
+
+  useEffect(() => {
+    if (!collapsedStorageKey || typeof window === "undefined") {
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(collapsedStorageKey);
+      if (raw) {
+        const parsed: number[] = JSON.parse(raw);
+        setCollapsedStatuses(new Set(parsed));
+      }
+    } catch {
+      setCollapsedStatuses(new Set());
+    }
+  }, [collapsedStorageKey]);
+
+  const persistCollapsedStatuses = useCallback(
+    (next: Set<number>) => {
+      if (!collapsedStorageKey || typeof window === "undefined") {
+        return;
+      }
+      localStorage.setItem(collapsedStorageKey, JSON.stringify(Array.from(next)));
+    },
+    [collapsedStorageKey]
+  );
+
+  const toggleStatusCollapse = useCallback(
+    (statusId: number) => {
+      setCollapsedStatuses((prev) => {
+        const next = new Set(prev);
+        if (next.has(statusId)) {
+          next.delete(statusId);
+        } else {
+          next.add(statusId);
+        }
+        persistCollapsedStatuses(next);
+        return next;
+      });
+    },
+    [persistCollapsedStatuses]
+  );
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -665,6 +711,7 @@ export const ProjectTasksSection = ({
           <ProjectTasksKanbanView
             taskStatuses={sortedTaskStatuses}
             groupedTasks={groupedTasks}
+            collapsedStatusIds={collapsedStatuses}
             canReorderTasks={canReorderTasks}
             canOpenTask={canViewTaskDetails}
             onTaskClick={onTaskClick}
@@ -675,6 +722,7 @@ export const ProjectTasksSection = ({
             onDragOver={handleKanbanDragOver}
             onDragEnd={handleKanbanDragEnd}
             onDragCancel={handleKanbanDragCancel}
+            onToggleCollapse={toggleStatusCollapse}
           />
         </TabsContent>
 
