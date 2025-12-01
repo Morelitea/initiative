@@ -55,6 +55,24 @@ def _normalize_notification_time(value: str | None) -> str | None:
     return cleaned
 
 
+def _normalize_week_starts_on(value: int | str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Week start must be between 0 (Sunday) and 6 (Saturday)",
+        )
+    if number < 0 or number > 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Week start must be between 0 (Sunday) and 6 (Saturday)",
+        )
+    return number
+
+
 @router.get("/me", response_model=UserRead)
 async def read_users_me(session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
     await initiatives_service.load_user_initiative_roles(session, [current_user])
@@ -154,6 +172,10 @@ async def update_users_me(
         current_user.show_project_sidebar = bool(update_data["show_project_sidebar"])
     if "show_project_tabs" in update_data:
         current_user.show_project_tabs = bool(update_data["show_project_tabs"])
+    if "week_starts_on" in update_data:
+        normalized_week_start = _normalize_week_starts_on(update_data["week_starts_on"])
+        if normalized_week_start is not None:
+            current_user.week_starts_on = normalized_week_start
     if "timezone" in update_data:
         normalized_timezone = _normalize_timezone(update_data["timezone"])
         if normalized_timezone:
@@ -229,6 +251,11 @@ async def update_user(
             normalized_time = _normalize_notification_time(value)
             if normalized_time:
                 setattr(user, field, normalized_time)
+            continue
+        if field == "week_starts_on":
+            normalized_week_start = _normalize_week_starts_on(value)
+            if normalized_week_start is not None:
+                setattr(user, field, normalized_week_start)
             continue
         if field == "notify_task_assignment" and value is False:
             await notifications_service.clear_task_assignment_queue_for_user(session, user.id)

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DateTimePickerProps {
   id?: string;
@@ -38,8 +39,21 @@ export const DateTimePicker = ({
   clearLabel = "Clear",
   calendarProps,
 }: DateTimePickerProps) => {
+  const { user } = useAuth();
   const selectedDate = value ? new Date(value) : undefined;
   const timeValue = selectedDate ? format(selectedDate, "HH:mm") : "";
+  const resolvedWeekStartsOn = (calendarProps?.weekStartsOn ?? user?.week_starts_on ?? 0) as
+    | 0
+    | 1
+    | 2
+    | 3
+    | 4
+    | 5
+    | 6;
+  const mergedCalendarProps = {
+    ...(calendarProps ?? {}),
+    weekStartsOn: resolvedWeekStartsOn,
+  };
 
   const handleSelectDate = (date: Date | undefined) => {
     if (!date) {
@@ -83,7 +97,7 @@ export const DateTimePicker = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
-          {...calendarProps}
+          {...mergedCalendarProps}
           mode="single"
           selected={selectedDate}
           onSelect={handleSelectDate}

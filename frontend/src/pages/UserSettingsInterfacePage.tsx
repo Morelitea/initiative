@@ -5,7 +5,24 @@ import { toast } from "sonner";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { User } from "@/types/api";
+
+const WEEK_START_OPTIONS = [
+  { label: "Sunday", value: 0 },
+  { label: "Monday", value: 1 },
+  { label: "Tuesday", value: 2 },
+  { label: "Wednesday", value: 3 },
+  { label: "Thursday", value: 4 },
+  { label: "Friday", value: 5 },
+  { label: "Saturday", value: 6 },
+];
 
 interface UserSettingsInterfacePageProps {
   user: User;
@@ -18,14 +35,16 @@ export const UserSettingsInterfacePage = ({
 }: UserSettingsInterfacePageProps) => {
   const [showSidebar, setShowSidebar] = useState(user.show_project_sidebar ?? true);
   const [showTabs, setShowTabs] = useState(user.show_project_tabs ?? false);
+  const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
 
   useEffect(() => {
     setShowSidebar(user.show_project_sidebar ?? true);
     setShowTabs(user.show_project_tabs ?? false);
+    setWeekStartsOn(user.week_starts_on ?? 0);
   }, [user]);
 
   const updateInterfacePrefs = useMutation({
-    mutationFn: async (payload: Record<string, boolean>) => {
+    mutationFn: async (payload: Record<string, boolean | number>) => {
       await apiClient.patch<User>("/users/me", payload);
     },
     onSuccess: async (_, variables) => {
@@ -35,6 +54,9 @@ export const UserSettingsInterfacePage = ({
       if (variables.show_project_tabs !== undefined) {
         setShowTabs(Boolean(variables.show_project_tabs));
       }
+      if (variables.week_starts_on !== undefined) {
+        setWeekStartsOn(Number(variables.week_starts_on));
+      }
       await refreshUser();
       toast.success("Interface preferences updated");
     },
@@ -42,6 +64,7 @@ export const UserSettingsInterfacePage = ({
       toast.error("Unable to update interface preferences");
       setShowSidebar(user.show_project_sidebar ?? true);
       setShowTabs(user.show_project_tabs ?? false);
+      setWeekStartsOn(user.week_starts_on ?? 0);
     },
   });
 
@@ -83,6 +106,37 @@ export const UserSettingsInterfacePage = ({
             }}
             disabled={updateInterfacePrefs.isPending}
           />
+        </div>
+        <div className="flex flex-col gap-4 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">Week starts on</p>
+            <p className="text-muted-foreground text-sm">
+              Choose which day to show first on calendars and date pickers.
+            </p>
+          </div>
+          <Select
+            value={String(weekStartsOn)}
+            onValueChange={(next) => {
+              const value = Number(next);
+              setWeekStartsOn(value);
+              updateInterfacePrefs.mutate({ week_starts_on: value });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>
+                {WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.label ??
+                  "Sunday"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {WEEK_START_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={String(option.value)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardContent>
     </Card>

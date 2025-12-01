@@ -27,6 +27,7 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None
     show_project_sidebar: Optional[bool] = None
     show_project_tabs: Optional[bool] = None
+    week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
     notify_initiative_addition: Optional[bool] = None
@@ -46,6 +47,7 @@ class UserRead(UserBase):
     avatar_url: Optional[str] = None
     show_project_sidebar: bool = True
     show_project_tabs: bool = False
+    week_starts_on: int = 0
     timezone: str = "UTC"
     overdue_notification_time: str = "21:00"
     notify_initiative_addition: bool = True
@@ -82,6 +84,7 @@ class UserSelfUpdate(BaseModel):
     avatar_url: Optional[str] = None
     show_project_sidebar: Optional[bool] = None
     show_project_tabs: Optional[bool] = None
+    week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
     notify_initiative_addition: Optional[bool] = None

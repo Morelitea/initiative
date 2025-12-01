@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Text, Boolean, String
+from sqlalchemy import Column, DateTime, Text, Boolean, String, Integer
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -51,6 +51,10 @@ class User(SQLModel, table=True):
     show_project_tabs: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    week_starts_on: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
     )
     email_verified: bool = Field(
         default=True,

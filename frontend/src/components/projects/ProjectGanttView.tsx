@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 type ProjectGanttViewProps = {
   tasks: Task[];
@@ -57,8 +58,10 @@ const normalizeRanges = (tasks: Task[]): NormalizedRange[] =>
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 
 export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGanttViewProps) => {
+  const { user } = useAuth();
+  const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
   const [visibleStart, setVisibleStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 0 })
+    startOfWeek(new Date(), { weekStartsOn })
   );
   const [daysVisible, setDaysVisible] = useState(14);
   const rows = useMemo(() => normalizeRanges(tasks), [tasks]);
@@ -67,6 +70,10 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
     [visibleStart, daysVisible]
   );
   const timelineWidth = daysVisible * DAY_COLUMN_WIDTH;
+
+  useEffect(() => {
+    setVisibleStart((current) => startOfWeek(current, { weekStartsOn }));
+  }, [weekStartsOn]);
 
   const handleShift = (direction: "back" | "forward") => {
     setVisibleStart((current) =>

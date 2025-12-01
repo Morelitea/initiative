@@ -16,6 +16,7 @@ import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import type { Task } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 type ProjectCalendarViewProps = {
   tasks: Task[];
@@ -27,6 +28,8 @@ type CalendarEntry = {
   task: Task;
   type: "start" | "due";
 };
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const formatDateKey = (value: string) => {
   const date = parseISO(value);
@@ -41,13 +44,19 @@ export const ProjectCalendarView = ({
   canOpenTask,
   onTaskClick,
 }: ProjectCalendarViewProps) => {
+  const { user } = useAuth();
+  const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
 
   const calendarDays = useMemo(() => {
-    const start = startOfWeek(startOfMonth(visibleMonth), { weekStartsOn: 0 });
-    const end = endOfWeek(endOfMonth(visibleMonth), { weekStartsOn: 0 });
+    const start = startOfWeek(startOfMonth(visibleMonth), { weekStartsOn });
+    const end = endOfWeek(endOfMonth(visibleMonth), { weekStartsOn });
     return eachDayOfInterval({ start, end });
-  }, [visibleMonth]);
+  }, [visibleMonth, weekStartsOn]);
+
+  const weekdayLabels = useMemo(() => {
+    return WEEKDAY_LABELS.slice(weekStartsOn).concat(WEEKDAY_LABELS.slice(0, weekStartsOn));
+  }, [weekStartsOn]);
 
   const entriesByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -112,7 +121,7 @@ export const ProjectCalendarView = ({
       <div className="space-y-2 overflow-x-auto sm:overflow-visible">
         <div className="min-w-[700px] sm:min-w-0">
           <div className="text-muted-foreground grid grid-cols-7 text-center text-[11px] font-semibold uppercase sm:text-xs">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+            {weekdayLabels.map((day) => (
               <div key={day} className="py-2">
                 {day}
               </div>

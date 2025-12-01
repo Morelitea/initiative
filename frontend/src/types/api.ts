@@ -20,6 +20,7 @@ export interface User {
   avatar_url?: string | null;
   show_project_sidebar?: boolean;
   show_project_tabs?: boolean;
+  week_starts_on?: number;
   timezone?: string;
   overdue_notification_time?: string;
   notify_initiative_addition?: boolean;
