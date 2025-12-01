@@ -152,7 +152,7 @@ export const GuildSidebar = () => {
                   <button
                     type="button"
                     onClick={() => switchGuild(guild.id)}
-                    className={`focus-visible:ring-ring flex h-12 w-12 items-center justify-center rounded-2xl border transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                    className={`focus-visible:ring-ring flex h-12 w-12 items-center justify-center rounded-2xl border-3 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
                       isActive
                         ? "border-primary/60 bg-primary/10 text-primary"
                         : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
