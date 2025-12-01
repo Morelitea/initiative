@@ -1,4 +1,4 @@
-const STATIC_CACHE = "initiative-static-v2";
+const STATIC_CACHE = "initiative-static-v3";
 const DATA_CACHE = "initiative-data-v1";
 const STATIC_ASSETS = ["/manifest.webmanifest", "/icons/logo.svg"];
 
@@ -91,22 +91,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (!STATIC_ASSETS.includes(requestPath)) {
+  if (STATIC_ASSETS.includes(requestPath)) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        const cached = await cache.match(requestPath);
+        if (cached) {
+          return cached;
+        }
+        const response = await fetch(request);
+        if (response.ok) {
+          await cache.put(requestPath, response.clone());
+        }
+        return response;
+      })
+    );
+    return;
+  }
+
+  // For hashed Vite assets (js/css), always go network-first without caching
+  if (/\/(assets|@fs)\//.test(requestPath)) {
     event.respondWith(fetch(request));
     return;
   }
 
-  event.respondWith(
-    caches.open(STATIC_CACHE).then(async (cache) => {
-      const cached = await cache.match(requestPath);
-      if (cached) {
-        return cached;
-      }
-      const response = await fetch(request);
-      if (response.ok) {
-        await cache.put(requestPath, response.clone());
-      }
-      return response;
-    })
-  );
+  event.respondWith(fetch(request));
 });
