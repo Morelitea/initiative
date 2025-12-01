@@ -56,6 +56,8 @@ export const ProjectTasksKanbanView = ({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
 
+  const taskStatusesLength = taskStatuses.length;
+
   return (
     <DndContext
       sensors={sensors}
@@ -74,25 +76,22 @@ export const ProjectTasksKanbanView = ({
           {taskStatuses.map((status) => {
             const isCollapsed = collapsedStatusIds.has(status.id);
             return (
-              <div
+              <KanbanColumn
                 key={status.id}
+                status={status}
+                tasks={groupedTasks[status.id] ?? []}
+                canWrite={canReorderTasks}
+                canOpenTask={canOpenTask}
+                priorityVariant={priorityVariant}
+                onTaskClick={onTaskClick}
+                collapsed={isCollapsed}
+                onToggleCollapse={onToggleCollapse}
+                taskCount={groupedTasks[status.id]?.length ?? 0}
                 className={cn(
                   "shrink-0 transition-[width] duration-200",
-                  isCollapsed ? "w-12 min-w-[48px]" : "w-70 sm:w-89"
+                  isCollapsed ? "w-12 min-w-12" : taskStatusesLength > 4 ? "sm:w-80" : "sm:w-89" // Full width columns when 4 or fewer
                 )}
-              >
-                <KanbanColumn
-                  status={status}
-                  tasks={groupedTasks[status.id] ?? []}
-                  canWrite={canReorderTasks}
-                  canOpenTask={canOpenTask}
-                  priorityVariant={priorityVariant}
-                  onTaskClick={onTaskClick}
-                  collapsed={isCollapsed}
-                  onToggleCollapse={onToggleCollapse}
-                  taskCount={groupedTasks[status.id]?.length ?? 0}
-                />
-              </div>
+              />
             );
           })}
         </div>

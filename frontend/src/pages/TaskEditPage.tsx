@@ -439,6 +439,11 @@ export const TaskEditPage = () => {
                       onChange={setStartDate}
                       disabled={isReadOnly}
                       placeholder="Optional"
+                      calendarProps={{
+                        hidden: {
+                          after: new Date(dueDate),
+                        },
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -449,6 +454,11 @@ export const TaskEditPage = () => {
                       onChange={setDueDate}
                       disabled={isReadOnly}
                       placeholder="Optional"
+                      calendarProps={{
+                        hidden: {
+                          before: new Date(startDate),
+                        },
+                      }}
                     />
                   </div>
                 </div>

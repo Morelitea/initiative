@@ -14,6 +14,7 @@ interface DateTimePickerProps {
   disabled?: boolean;
   placeholder?: string;
   clearLabel?: string;
+  calendarProps?: React.ComponentProps<typeof Calendar>;
 }
 
 const formatForStorage = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm");
@@ -35,6 +36,7 @@ export const DateTimePicker = ({
   disabled = false,
   placeholder = "Pick a date and time",
   clearLabel = "Clear",
+  calendarProps,
 }: DateTimePickerProps) => {
   const selectedDate = value ? new Date(value) : undefined;
   const timeValue = selectedDate ? format(selectedDate, "HH:mm") : "";
@@ -81,10 +83,11 @@ export const DateTimePicker = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
+          {...calendarProps}
           mode="single"
           selected={selectedDate}
           onSelect={handleSelectDate}
-          initialFocus
+          autoFocus
           className="w-75 p-3"
         />
         <div className="bg-muted/30 flex items-end gap-3 border-t p-3">

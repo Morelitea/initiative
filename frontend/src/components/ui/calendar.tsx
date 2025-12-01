@@ -23,7 +23,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:2rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-background group/calendar p-3 [--cell-size:2rem] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -43,12 +43,12 @@ function Calendar({
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] p-0 select-none aria-disabled:opacity-50",
+          "h-[--cell-size] w-[--cell-size] p-2 select-none aria-disabled:opacity-50",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] p-0 select-none aria-disabled:opacity-50",
+          "h-[--cell-size] w-[--cell-size] p-2 select-none aria-disabled:opacity-50",
           defaultClassNames.button_next
         ),
         month_caption: cn(

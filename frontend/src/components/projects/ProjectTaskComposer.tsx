@@ -157,6 +157,11 @@ export const ProjectTaskComposer = ({
                       onChange={onStartDateChange}
                       disabled={isSubmitting}
                       placeholder="Optional"
+                      calendarProps={{
+                        hidden: {
+                          after: new Date(dueDate),
+                        },
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -167,6 +172,11 @@ export const ProjectTaskComposer = ({
                       onChange={onDueDateChange}
                       disabled={isSubmitting}
                       placeholder="Optional"
+                      calendarProps={{
+                        hidden: {
+                          before: new Date(startDate),
+                        },
+                      }}
                     />
                   </div>
                   <div className="space-y-2">

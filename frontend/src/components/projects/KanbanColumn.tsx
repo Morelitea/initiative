@@ -21,6 +21,7 @@ interface KanbanColumnProps {
   collapsed: boolean;
   onToggleCollapse: (statusId: number) => void;
   taskCount: number;
+  className?: string;
 }
 
 export const KanbanColumn = ({
@@ -33,6 +34,7 @@ export const KanbanColumn = ({
   collapsed,
   onToggleCollapse,
   taskCount,
+  className,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${status.id}`,
@@ -43,7 +45,8 @@ export const KanbanColumn = ({
     <div
       className={cn(
         "bg-card flex h-full flex-col rounded-lg border shadow-sm transition-colors",
-        collapsed && "items-center text-center"
+        collapsed && "items-center text-center",
+        className
       )}
     >
       {collapsed ? (
@@ -179,7 +182,7 @@ const KanbanTaskCard = ({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.6 : undefined,
+    opacity: isDragging ? 0.25 : undefined,
   };
 
   const recurrenceSummary = task.recurrence

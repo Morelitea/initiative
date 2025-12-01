@@ -162,6 +162,11 @@ export const SettingsApiKeysPage = () => {
                 value={expiresAtInput}
                 onChange={setExpiresAtInput}
                 placeholder="Never expires"
+                calendarProps={{
+                  hidden: {
+                    before: new Date(),
+                  },
+                }}
               />
               <p className="text-muted-foreground text-xs">
                 Leave blank for a key that never expires.
