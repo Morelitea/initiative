@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import EmojiPickerBase, { EmojiClickData, Theme } from "emoji-picker-react";
+import EmojiPickerBase, { EmojiClickData, Theme, EmojiStyle } from "emoji-picker-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -77,6 +77,7 @@ export const EmojiPicker = ({
             height={360}
             width="100%"
             skinTonesDisabled
+            emojiStyle={EmojiStyle.NATIVE}
           />
         </div>
       ) : null}
