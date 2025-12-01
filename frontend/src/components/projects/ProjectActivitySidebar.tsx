@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronLeft, ChevronRight, MessageSquare, RefreshCw } from "lucide-react";
+import { ChevronRight, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { apiClient } from "@/api/client";
@@ -11,13 +11,9 @@ import { cn } from "@/lib/utils";
 
 interface ProjectActivitySidebarProps {
   projectId: number | null;
-  showTabsPref?: boolean;
 }
 
-export const ProjectActivitySidebar = ({
-  projectId,
-  showTabsPref,
-}: ProjectActivitySidebarProps) => {
+export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
@@ -60,14 +56,12 @@ export const ProjectActivitySidebar = ({
   return (
     <aside
       className={cn(
-        "sticky hidden transition-all duration-200 lg:flex",
-        collapsed ? "w-15" : "w-80",
-        showTabsPref ? "top-28 h-[calc(100vh-7rem)]" : "top-16 h-[calc(100vh-4rem)]",
-        "shrink-0"
+        "sticky top-0 right-0 z-20 flex h-screen shrink-0 transition-all duration-200 lg:flex",
+        collapsed ? "w-0 lg:w-15" : "w-80"
       )}
     >
       <div className="bg-card flex h-full w-full flex-col border-l shadow-sm">
-        <div className="flex items-center justify-between border-b px-3 py-3">
+        <div className="flex h-[calc(4rem+1px)] items-center justify-between border-b px-3 py-3">
           {!collapsed && (
             <div className="flex items-center gap-2">
               <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden="true" />
@@ -75,22 +69,6 @@ export const ProjectActivitySidebar = ({
             </div>
           )}
           <div className="flex items-center gap-2">
-            {!collapsed ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => activityQuery.refetch()}
-                disabled={activityQuery.isFetching}
-              >
-                <RefreshCw
-                  className={cn("h-4 w-4", activityQuery.isFetching && "animate-spin")}
-                  aria-hidden="true"
-                />
-                <span className="sr-only">Refresh activity</span>
-              </Button>
-            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -99,7 +77,7 @@ export const ProjectActivitySidebar = ({
               onClick={toggleCollapsed}
             >
               {collapsed ? (
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden="true" />
               ) : (
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               )}

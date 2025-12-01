@@ -170,15 +170,9 @@ export const ProjectDetailPage = () => {
           <Link to="/">← Back to projects</Link>
         </Button>
         {canManageSettings ? (
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Open project settings"
-          >
+          <Button asChild variant="outline" size="sm" aria-label="Open project settings">
             <Link to={`/projects/${project.id}/settings`}>
-              <Settings className="h-5 w-5" />
+              <Settings className="h-5 w-5" /> Project Settings
             </Link>
           </Button>
         ) : null}

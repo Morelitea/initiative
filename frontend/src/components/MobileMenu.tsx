@@ -261,7 +261,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
           open={isCreateGuildOpen}
           onOpenChange={(next) => !creatingGuild && setIsCreateGuildOpen(next)}
         >
-          <DialogContent>
+          <DialogContent className="bg-card">
             <DialogHeader>
               <DialogTitle>Create a new guild</DialogTitle>
               <DialogDescription>

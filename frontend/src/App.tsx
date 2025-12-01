@@ -124,13 +124,13 @@ const AppLayout = () => {
               onClose={handleClearRecent}
             />
           ) : null}
-          <div className="flex justify-between gap-4">
-            <main className="container min-w-0 p-4 pb-20 md:p-8 md:pb-20">
+          <div className="flex justify-between">
+            <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
               <PageRoutes />
             </main>
-            <ProjectActivitySidebar projectId={activeProjectId} showTabsPref={showTabsPref} />
           </div>
         </div>
+        <ProjectActivitySidebar projectId={activeProjectId} />
       </div>
     </div>
   );

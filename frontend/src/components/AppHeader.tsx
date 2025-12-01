@@ -41,7 +41,7 @@ export const AppHeader = () => {
 
   return (
     <header className="bg-card/80 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 border-b backdrop-blur">
-      <div className="flex h-16 items-center gap-3 px-4 md:px-8">
+      <div className="container mx-auto flex h-16 items-center gap-3 px-4 md:px-8">
         <MobileMenu navItems={navItems} user={user} onLogout={logout} />
         <Link
           to="/"
@@ -62,12 +62,12 @@ export const AppHeader = () => {
             </NavLink>
           ))}
         </nav>
+        {activeGuild ? (
+          <div className="bg-muted/60 text-muted-foreground text-s ml-auto truncate rounded-full border px-3 py-1 font-medium">
+            {activeGuild.name}
+          </div>
+        ) : null}
         <div className="ml-auto flex items-center gap-3">
-          {activeGuild ? (
-            <div className="border-muted bg-muted/60 text-muted-foreground hidden rounded-full border px-3 py-1 text-xs font-medium md:flex">
-              {activeGuild.name}
-            </div>
-          ) : null}
           {user ? <NotificationBell /> : null}
           <div className="hidden items-center gap-3 md:flex">
             <ModeToggle />
