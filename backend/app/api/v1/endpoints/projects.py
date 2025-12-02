@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import case, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -15,7 +16,7 @@ from app.api.deps import (
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
-from app.models.task import Task, TaskAssignee, TaskStatusCategory
+from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.comment import Comment
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
@@ -32,6 +33,7 @@ from app.schemas.project import (
     ProjectPermissionCreate,
     ProjectPermissionRead,
     ProjectRead,
+    ProjectTaskSummary,
     ProjectReorderRequest,
     ProjectUpdate,
     ProjectFavoriteStatus,
@@ -61,11 +63,48 @@ def _project_documents(project: Project) -> List[ProjectDocumentSummary]:
     return documents
 
 
+async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -> None:
+    if not projects:
+        return
+    project_ids = [project.id for project in projects if project.id is not None]
+    summary_map: dict[int, ProjectTaskSummary] = {}
+    if project_ids:
+        done_case = case((TaskStatus.category == TaskStatusCategory.done, 1), else_=0)
+        stmt = (
+            select(
+                Task.project_id,
+                func.count(Task.id),
+                func.coalesce(func.sum(done_case), 0),
+            )
+            .join(Task.task_status)
+            .where(Task.project_id.in_(tuple(project_ids)))
+            .group_by(Task.project_id)
+        )
+        result = await session.exec(stmt)
+        for project_id, total, completed in result.all():
+            summary_map[int(project_id)] = ProjectTaskSummary(
+                total=int(total or 0),
+                completed=int(completed or 0),
+            )
+
+    for project in projects:
+        summary = summary_map.get(project.id or 0, ProjectTaskSummary())
+        setattr(project, "_task_summary", summary)
+
+
 def _project_payload(project: Project) -> dict:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
         payload.initiative = serialize_initiative(project.initiative)
-    payload = payload.model_copy(update={"documents": _project_documents(project)})
+    summary = getattr(project, "_task_summary", None)
+    if not isinstance(summary, ProjectTaskSummary):
+        summary = ProjectTaskSummary()
+    payload = payload.model_copy(
+        update={
+            "documents": _project_documents(project),
+            "task_summary": summary,
+        }
+    )
     return payload.model_dump(mode="json")
 
 
@@ -297,6 +336,8 @@ async def _project_reads_with_order(
     if not projects:
         return []
 
+    await _attach_task_summaries(session, projects)
+
     project_ids = [project.id for project in projects if project.id is not None]
     order_map: dict[int, float] = {}
     if project_ids:
@@ -403,12 +444,16 @@ def _build_project_payload(
     if project.initiative:
         payload.initiative = serialize_initiative(project.initiative)
     project_id = project.id or 0
+    summary = getattr(project, "_task_summary", None)
+    if not isinstance(summary, ProjectTaskSummary):
+        summary = ProjectTaskSummary()
     return payload.model_copy(
         update={
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
             "documents": _project_documents(project),
+            "task_summary": summary,
         }
     )
 
@@ -501,6 +546,7 @@ async def _project_read_for_user(
         return payloads[0]
     project_ids = [project.id] if project.id is not None else []
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
+    await _attach_task_summaries(session, [project])
     return _build_project_payload(
         project,
         sort_order=None,
@@ -666,6 +712,7 @@ async def create_project(
                 project_id=project.id,
                 initiative_id=project.initiative.id,
             )
+    await _attach_task_summaries(session, [project])
     await broadcast_event("project", "created", _project_payload(project))
     return await _project_read_for_user(session, current_user, project)
 
@@ -692,6 +739,7 @@ async def archive_project(
         session.add(project)
         await session.commit()
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _attach_task_summaries(session, [updated])
     await broadcast_event("project", "updated", _project_payload(updated))
     return await _project_read_for_user(session, current_user, updated)
 
@@ -763,6 +811,7 @@ async def duplicate_project(
                 project_id=new_project.id,
                 initiative_id=new_project.initiative.id,
             )
+    await _attach_task_summaries(session, [new_project])
     await broadcast_event("project", "created", _project_payload(new_project))
     return await _project_read_for_user(session, current_user, new_project)
 
@@ -789,6 +838,7 @@ async def unarchive_project(
         session.add(project)
         await session.commit()
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _attach_task_summaries(session, [updated])
     await broadcast_event("project", "updated", _project_payload(updated))
     return await _project_read_for_user(session, current_user, updated)
 
@@ -1091,6 +1141,7 @@ async def update_project(
                 project_id=project.id,
                 initiative_id=project.initiative.id,
             )
+    await _attach_task_summaries(session, [project])
     await broadcast_event("project", "updated", _project_payload(project))
     return await _project_read_for_user(session, current_user, project)
 
@@ -1128,6 +1179,7 @@ async def attach_project_document(
         user_id=current_user.id,
     )
     updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _attach_task_summaries(session, [updated_project])
     await broadcast_event("project", "updated", _project_payload(updated_project))
     return await _project_read_for_user(session, current_user, updated_project)
 
@@ -1164,6 +1216,7 @@ async def detach_project_document(
         project_id=project.id,
     )
     updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _attach_task_summaries(session, [updated_project])
     await broadcast_event("project", "updated", _project_payload(updated_project))
     return await _project_read_for_user(session, current_user, updated_project)
 

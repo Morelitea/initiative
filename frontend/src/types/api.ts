@@ -161,6 +161,7 @@ export interface Project {
   is_favorited?: boolean;
   last_viewed_at?: string | null;
   documents?: ProjectDocumentLink[];
+  task_summary?: ProjectTaskSummary;
 }
 
 export interface AttachmentUploadResponse {
@@ -192,6 +193,11 @@ export interface ProjectTaskStatus {
   category: TaskStatusCategory;
   position: number;
   is_default: boolean;
+}
+
+export interface ProjectTaskSummary {
+  total: number;
+  completed: number;
 }
 
 export interface TaskRecurrence {

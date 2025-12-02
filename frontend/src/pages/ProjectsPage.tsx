@@ -54,6 +54,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
+import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
@@ -930,16 +932,22 @@ const ProjectCardLink = ({
               aria-hidden="true"
             />
           ) : null}
-          <CardHeader>
+          <CardHeader className="pr-22">
             <CardTitle className="flex items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-muted-foreground space-y-2 text-sm">
-            <InitiativeLabel initiative={initiative} />
-            <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
-          </CardContent>
+          <CardFooter className="text-muted-foreground flex justify-between gap-6 space-y-2 text-sm">
+            <div>
+              <InitiativeLabel initiative={initiative} />
+              <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
+            </div>
+
+            <div className="flex-1">
+              <ProjectProgress summary={project.task_summary} />
+            </div>
+          </CardFooter>
         </Card>
       </Link>
     </div>
@@ -965,6 +973,26 @@ const SortableProjectCardLink = ({ project }: { project: Project }) => {
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
       <ProjectCardLink project={project} dragHandleProps={dragHandleProps} />
+    </div>
+  );
+};
+
+const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => {
+  const total = summary?.total ?? 0;
+  const completed = summary?.completed ?? 0;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div className="@container flex w-full items-center justify-between gap-4">
+      <div className="hidden w-full flex-col gap-2 @xs:flex">
+        <span className="text-muted-foreground flex justify-end text-xs">
+          {completed}/{total} done
+        </span>
+        <Progress value={percent} className="h-2" />
+      </div>
+      <div className="flex w-full items-center justify-end gap-3 @xs:hidden">
+        <ProgressCircle value={percent} />
+      </div>
     </div>
   );
 };
@@ -1008,9 +1036,16 @@ const ProjectRowLink = ({
             {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
             <div className="min-w-[200px] flex-1">
               <p className="font-semibold">{project.name}</p>
-              <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-xs">
-                <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
-                <InitiativeLabel initiative={project.initiative} />
+              <div className="flex flex-wrap gap-6">
+                <div className="min-w-30 flex-1">
+                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-xs">
+                    <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
+                    <InitiativeLabel initiative={project.initiative} />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <ProjectProgress summary={project.task_summary} />
+                </div>
               </div>
             </div>
           </div>

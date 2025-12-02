@@ -53,6 +53,11 @@ class ProjectPermissionRead(ProjectPermissionBase):
         from_attributes = True
 
 
+class ProjectTaskSummary(BaseModel):
+    total: int = 0
+    completed: int = 0
+
+
 class ProjectRead(ProjectBase):
     id: int
     owner_id: int
@@ -69,6 +74,7 @@ class ProjectRead(ProjectBase):
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
     documents: List[ProjectDocumentSummary] = Field(default_factory=list)
+    task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
 
     class Config:
         from_attributes = True
