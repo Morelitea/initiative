@@ -977,26 +977,6 @@ const SortableProjectCardLink = ({ project }: { project: Project }) => {
   );
 };
 
-const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => {
-  const total = summary?.total ?? 0;
-  const completed = summary?.completed ?? 0;
-  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-  return (
-    <div className="@container flex w-full items-center justify-between gap-4">
-      <div className="hidden w-full flex-col gap-2 @xs:flex">
-        <span className="text-muted-foreground flex justify-end text-xs">
-          {completed}/{total} done
-        </span>
-        <Progress value={percent} className="h-2" />
-      </div>
-      <div className="flex w-full items-center justify-end gap-3 @xs:hidden">
-        <ProgressCircle value={percent} />
-      </div>
-    </div>
-  );
-};
-
 const ProjectRowLink = ({
   project,
   dragHandleProps,
@@ -1087,5 +1067,25 @@ const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => 
       <InitiativeColorDot color={initiative.color} />
       <span>{initiative.name}</span>
     </span>
+  );
+};
+
+const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => {
+  const total = summary?.total ?? 0;
+  const completed = summary?.completed ?? 0;
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div className="@container flex w-full items-center justify-between gap-4">
+      <div className="hidden w-full flex-col gap-2 @xs:flex">
+        <span className="text-muted-foreground flex justify-end text-xs">
+          {completed}/{total} done
+        </span>
+        <Progress value={percent} className="h-2" />
+      </div>
+      <div className="flex w-full items-center justify-end gap-3 @xs:hidden">
+        <ProgressCircle value={percent} />
+      </div>
+    </div>
   );
 };
