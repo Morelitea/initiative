@@ -60,6 +60,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { Project, ProjectReorderPayload, Initiative } from "@/types/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
@@ -549,6 +556,7 @@ export const ProjectsPage = () => {
                     placeholder="Search projects"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
+                    className="min-w-60"
                   />
                 </div>
                 <div className="w-full sm:w-60">
@@ -747,147 +755,140 @@ export const ProjectsPage = () => {
             <Plus className="mr-2 h-4 w-4" />
             Add Project
           </Button>
-          {isComposerOpen ? (
-            <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-              <div
-                className="absolute inset-0 -z-10"
-                role="presentation"
-                onClick={() => setIsComposerOpen(false)}
-              />
+          <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+            <DialogContent className="bg-card">
+              <DialogHeader>
+                <DialogTitle>Create project</DialogTitle>
+                <DialogDescription>
+                  Give the project a name, optional description, and owning initiative.
+                </DialogDescription>
+              </DialogHeader>
               <form className="w-full max-w-lg" onSubmit={handleSubmit}>
-                <Card className="rounded-2xl border shadow-2xl">
-                  <CardHeader>
-                    <CardTitle>Create project</CardTitle>
-                    <CardDescription>
-                      Give the project a name, optional description, and owning initiative.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="project-icon">Icon (optional)</Label>
-                      <EmojiPicker
-                        id="project-icon"
-                        value={icon || undefined}
-                        onChange={(emoji) => setIcon(emoji ?? "")}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="project-name">Name</Label>
-                      <Input
-                        id="project-name"
-                        placeholder="Foundation refresh"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="project-description">Description (Markdown supported)</Label>
-                      <Textarea
-                        id="project-description"
-                        placeholder="Share context to help the initiative prioritize."
-                        rows={3}
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Initiative</Label>
-                      {initiativesQuery.isLoading ? (
-                        <p className="text-muted-foreground text-sm">Loading initiatives…</p>
-                      ) : initiativesQuery.isError ? (
-                        <p className="text-destructive text-sm">Unable to load initiatives.</p>
-                      ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
-                        <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select initiative" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {initiativesQuery.data.map((initiative) => (
-                              <SelectItem key={initiative.id} value={String(initiative.id)}>
-                                {initiative.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <p className="text-muted-foreground text-sm">No initiatives available.</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="project-template">Template (optional)</Label>
-                      {templatesQuery.isLoading ? (
-                        <p className="text-muted-foreground text-sm">Loading templates…</p>
-                      ) : templatesQuery.isError ? (
-                        <p className="text-destructive text-sm">Unable to load templates.</p>
-                      ) : (
-                        <Select
-                          value={selectedTemplateId}
-                          onValueChange={setSelectedTemplateId}
-                          disabled={isTemplateProject}
-                        >
-                          <SelectTrigger id="project-template">
-                            <SelectValue placeholder="No template" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
-                            {templatesQuery.data?.map((template) => (
-                              <SelectItem key={template.id} value={String(template.id)}>
-                                {template.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {isTemplateProject ? (
-                        <p className="text-muted-foreground text-xs">
-                          Disable &ldquo;Save as template&rdquo; to pick a template.
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
-                      <div>
-                        <Label htmlFor="create-as-template" className="text-base">
-                          Save as template
-                        </Label>
-                        <p className="text-muted-foreground text-xs">
-                          Template projects live under the Templates tab and can be reused to spin
-                          up new work.
-                        </p>
-                      </div>
-                      <Switch
-                        id="create-as-template"
-                        checked={isTemplateProject}
-                        onCheckedChange={(checked) => {
-                          const nextStatus = Boolean(checked);
-                          setIsTemplateProject(nextStatus);
-                          if (nextStatus) {
-                            setSelectedTemplateId(NO_TEMPLATE_VALUE);
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="submit" disabled={createProject.isPending}>
-                        {createProject.isPending ? "Creating…" : "Create project"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={createProject.isPending}
-                        onClick={() => setIsComposerOpen(false)}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="project-icon">Icon (optional)</Label>
+                    <EmojiPicker
+                      id="project-icon"
+                      value={icon || undefined}
+                      onChange={(emoji) => setIcon(emoji ?? "")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-name">Name</Label>
+                    <Input
+                      id="project-name"
+                      placeholder="Foundation refresh"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-description">Description (Markdown supported)</Label>
+                    <Textarea
+                      id="project-description"
+                      placeholder="Share context to help the initiative prioritize."
+                      rows={3}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Initiative</Label>
+                    {initiativesQuery.isLoading ? (
+                      <p className="text-muted-foreground text-sm">Loading initiatives…</p>
+                    ) : initiativesQuery.isError ? (
+                      <p className="text-destructive text-sm">Unable to load initiatives.</p>
+                    ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
+                      <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select initiative" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {initiativesQuery.data.map((initiative) => (
+                            <SelectItem key={initiative.id} value={String(initiative.id)}>
+                              {initiative.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">No initiatives available.</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-template">Template (optional)</Label>
+                    {templatesQuery.isLoading ? (
+                      <p className="text-muted-foreground text-sm">Loading templates…</p>
+                    ) : templatesQuery.isError ? (
+                      <p className="text-destructive text-sm">Unable to load templates.</p>
+                    ) : (
+                      <Select
+                        value={selectedTemplateId}
+                        onValueChange={setSelectedTemplateId}
+                        disabled={isTemplateProject}
                       >
-                        Cancel
-                      </Button>
-                      {createProject.isError ? (
-                        <p className="text-destructive text-sm">Unable to create project.</p>
-                      ) : null}
+                        <SelectTrigger id="project-template">
+                          <SelectValue placeholder="No template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
+                          {templatesQuery.data?.map((template) => (
+                            <SelectItem key={template.id} value={String(template.id)}>
+                              {template.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {isTemplateProject ? (
+                      <p className="text-muted-foreground text-xs">
+                        Disable &ldquo;Save as template&rdquo; to pick a template.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <Label htmlFor="create-as-template" className="text-base">
+                        Save as template
+                      </Label>
+                      <p className="text-muted-foreground text-xs">
+                        Template projects live under the Templates tab and can be reused to spin up
+                        new work.
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Switch
+                      id="create-as-template"
+                      checked={isTemplateProject}
+                      onCheckedChange={(checked) => {
+                        const nextStatus = Boolean(checked);
+                        setIsTemplateProject(nextStatus);
+                        if (nextStatus) {
+                          setSelectedTemplateId(NO_TEMPLATE_VALUE);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={createProject.isPending}>
+                      {createProject.isPending ? "Creating…" : "Create project"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={createProject.isPending}
+                      onClick={() => setIsComposerOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    {createProject.isError ? (
+                      <p className="text-destructive text-sm">Unable to create project.</p>
+                    ) : null}
+                  </div>
+                </div>
               </form>
-            </div>
-          ) : null}
+            </DialogContent>
+          </Dialog>
         </>
       ) : null}
     </div>

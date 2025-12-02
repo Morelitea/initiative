@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogTitle, DialogHeader, DialogContent } from "@/components/ui/dialog";
 
 type ViewMode = "table" | "kanban" | "calendar" | "gantt";
 
@@ -782,41 +783,32 @@ export const ProjectTasksSection = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          {isComposerOpen ? (
-            <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-              <div
-                className="absolute inset-0 -z-10"
-                role="presentation"
-                onClick={() => setIsComposerOpen(false)}
-              />
-              <div className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
-                <ProjectTaskComposer
-                  title={title}
-                  description={description}
-                  priority={priority}
-                  assigneeIds={assigneeIds}
-                  startDate={startDate}
-                  dueDate={dueDate}
-                  recurrence={recurrence}
-                  canWrite={canWriteProject}
-                  isArchived={projectIsArchived}
-                  isSubmitting={createTask.isPending}
-                  hasError={Boolean(createTask.isError)}
-                  users={userOptions}
-                  onTitleChange={setTitle}
-                  onDescriptionChange={setDescription}
-                  onPriorityChange={setPriority}
-                  onAssigneesChange={setAssigneeIds}
-                  onStartDateChange={setStartDate}
-                  onDueDateChange={setDueDate}
-                  onRecurrenceChange={setRecurrence}
-                  onSubmit={() => createTask.mutate()}
-                  onCancel={() => setIsComposerOpen(false)}
-                  autoFocusTitle
-                />
-              </div>
-            </div>
-          ) : null}
+          <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+            <ProjectTaskComposer
+              title={title}
+              description={description}
+              priority={priority}
+              assigneeIds={assigneeIds}
+              startDate={startDate}
+              dueDate={dueDate}
+              recurrence={recurrence}
+              canWrite={canWriteProject}
+              isArchived={projectIsArchived}
+              isSubmitting={createTask.isPending}
+              hasError={Boolean(createTask.isError)}
+              users={userOptions}
+              onTitleChange={setTitle}
+              onDescriptionChange={setDescription}
+              onPriorityChange={setPriority}
+              onAssigneesChange={setAssigneeIds}
+              onStartDateChange={setStartDate}
+              onDueDateChange={setDueDate}
+              onRecurrenceChange={setRecurrence}
+              onSubmit={() => createTask.mutate()}
+              onCancel={() => setIsComposerOpen(false)}
+              autoFocusTitle
+            />
+          </Dialog>
         </>
       ) : null}
     </div>

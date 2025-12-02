@@ -428,114 +428,105 @@ export const DocumentsPage = () => {
       ) : null}
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        {createDialogOpen ? (
-          <div className="bg-background/70 fixed inset-0 z-50 flex items-end justify-center p-4 backdrop-blur-sm sm:items-center">
-            <div
-              className="absolute inset-0 -z-10"
-              role="presentation"
-              onClick={() => setCreateDialogOpen(false)}
-            />
-            <DialogContent className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
-              <DialogHeader>
-                <DialogTitle>New document</DialogTitle>
-                <DialogDescription>
-                  Documents live inside an initiative and can be attached to projects later.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-title">Title</Label>
-                  <Input
-                    id="new-document-title"
-                    value={newTitle}
-                    onChange={(event) => setNewTitle(event.target.value)}
-                    placeholder="Product launch brief"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-initiative">Initiative</Label>
-                  <Select
-                    value={newInitiativeId}
-                    onValueChange={(value) => setNewInitiativeId(value)}
-                    disabled={!canCreateDocuments}
-                  >
-                    <SelectTrigger id="new-document-initiative">
-                      <SelectValue placeholder="Select initiative" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {manageableInitiatives.map((initiative) => (
-                        <SelectItem key={initiative.id} value={String(initiative.id)}>
-                          {initiative.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-template-selector">Start from template</Label>
-                  <Select
-                    value={selectedTemplateId || undefined}
-                    onValueChange={(value) => setSelectedTemplateId(value)}
-                    disabled={
-                      templateDocumentsQuery.isLoading ||
-                      manageableTemplates.length === 0 ||
-                      isTemplateDocument
+        <DialogContent className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle>New document</DialogTitle>
+            <DialogDescription>
+              Documents live inside an initiative and can be attached to projects later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="new-document-title">Title</Label>
+              <Input
+                id="new-document-title"
+                value={newTitle}
+                onChange={(event) => setNewTitle(event.target.value)}
+                placeholder="Product launch brief"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-document-initiative">Initiative</Label>
+              <Select
+                value={newInitiativeId}
+                onValueChange={(value) => setNewInitiativeId(value)}
+                disabled={!canCreateDocuments}
+              >
+                <SelectTrigger id="new-document-initiative">
+                  <SelectValue placeholder="Select initiative" />
+                </SelectTrigger>
+                <SelectContent>
+                  {manageableInitiatives.map((initiative) => (
+                    <SelectItem key={initiative.id} value={String(initiative.id)}>
+                      {initiative.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-document-template-selector">Start from template</Label>
+              <Select
+                value={selectedTemplateId || undefined}
+                onValueChange={(value) => setSelectedTemplateId(value)}
+                disabled={
+                  templateDocumentsQuery.isLoading ||
+                  manageableTemplates.length === 0 ||
+                  isTemplateDocument
+                }
+              >
+                <SelectTrigger id="new-document-template-selector">
+                  <SelectValue
+                    placeholder={
+                      templateDocumentsQuery.isLoading
+                        ? "Loading templates…"
+                        : manageableTemplates.length > 0
+                          ? "Select template (optional)"
+                          : "No templates available"
                     }
-                  >
-                    <SelectTrigger id="new-document-template-selector">
-                      <SelectValue
-                        placeholder={
-                          templateDocumentsQuery.isLoading
-                            ? "Loading templates…"
-                            : manageableTemplates.length > 0
-                              ? "Select template (optional)"
-                              : "No templates available"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {manageableTemplates.map((template) => (
-                        <SelectItem key={template.id} value={String(template.id)}>
-                          {template.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Save as template</p>
-                    <p className="text-muted-foreground text-xs">
-                      Template documents are best duplicated or copied into other initiatives.
-                    </p>
-                  </div>
-                  <Switch
-                    id="new-document-template"
-                    checked={isTemplateDocument}
-                    onCheckedChange={setIsTemplateDocument}
-                    aria-label="Toggle template status for the new document"
                   />
-                </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {manageableTemplates.map((template) => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Save as template</p>
+                <p className="text-muted-foreground text-xs">
+                  Template documents are best duplicated or copied into other initiatives.
+                </p>
               </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  onClick={() => createDocument.mutate()}
-                  disabled={createDocument.isPending || !newTitle.trim() || !newInitiativeId}
-                >
-                  {createDocument.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating…
-                    </>
-                  ) : (
-                    "Create document"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
+              <Switch
+                id="new-document-template"
+                checked={isTemplateDocument}
+                onCheckedChange={setIsTemplateDocument}
+                aria-label="Toggle template status for the new document"
+              />
+            </div>
           </div>
-        ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => createDocument.mutate()}
+              disabled={createDocument.isPending || !newTitle.trim() || !newInitiativeId}
+            >
+              {createDocument.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create document"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
 
       {canCreateDocuments ? (

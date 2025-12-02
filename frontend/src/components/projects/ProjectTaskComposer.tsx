@@ -1,6 +1,5 @@
 import { FormEvent } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Accordion,
@@ -23,6 +22,12 @@ import type { TaskPriority, TaskRecurrence } from "@/types/api";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import {
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ProjectTaskComposerProps {
   title: string;
@@ -81,14 +86,14 @@ export const ProjectTaskComposer = ({
   };
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Create task</CardTitle>
-        <CardDescription>
+    <DialogContent className="bg-card">
+      <DialogHeader>
+        <DialogTitle>Create task</DialogTitle>
+        <DialogDescription>
           Add work to the board. Only people with write access can create tasks.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </DialogDescription>
+      </DialogHeader>
+      <div>
         {isArchived ? (
           <p className="text-muted-foreground text-sm">
             This project is archived. Unarchive it to add new tasks.
@@ -205,7 +210,7 @@ export const ProjectTaskComposer = ({
         ) : (
           <p className="text-muted-foreground text-sm">You need write access to create tasks.</p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </DialogContent>
   );
 };
