@@ -56,8 +56,8 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
   return (
     <aside
       className={cn(
-        "sticky top-0 right-0 z-20 flex h-screen shrink-0 transition-all duration-200 lg:flex",
-        collapsed ? "w-0 lg:w-15" : "w-80"
+        "sticky top-0 right-0 z-20 hidden h-screen shrink-0 transition-all duration-200 xl:flex",
+        collapsed ? "w-15" : "w-80"
       )}
     >
       <div className="bg-card flex h-full w-full flex-col border-l shadow-sm">

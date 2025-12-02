@@ -88,8 +88,13 @@ export const ProjectTasksKanbanView = ({
                 onToggleCollapse={onToggleCollapse}
                 taskCount={groupedTasks[status.id]?.length ?? 0}
                 className={cn(
-                  "shrink-0 transition-[width] duration-200",
-                  isCollapsed ? "w-12 min-w-12" : taskStatusesLength > 4 ? "sm:w-80" : "sm:w-89" // Full width columns when 4 or fewer
+                  "transition-[width] duration-200",
+                  isCollapsed
+                    ? "w-12 min-w-12"
+                    : taskStatusesLength > 4
+                      ? "w-70 sm:w-80"
+                      : "sm:w-89",
+                  "shrink-0"
                 )}
               />
             );
