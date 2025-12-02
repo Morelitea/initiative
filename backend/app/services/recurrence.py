@@ -113,12 +113,12 @@ def _next_yearly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
 
 
 def get_next_due_date(
-    current_due: datetime,
+    base_date: datetime,
     recurrence: TaskRecurrence,
     *,
     completed_occurrences: int = 0,
 ) -> datetime | None:
-    base = _ensure_timezone(current_due)
+    base = _ensure_timezone(base_date)
     if base is None:
         return None
 

@@ -91,6 +91,7 @@ class TaskBase(BaseModel):
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence] = None
+    recurrence_strategy: Literal["fixed", "rolling"] = "fixed"
 
 
 class TaskCreate(TaskBase):
@@ -108,6 +109,7 @@ class TaskUpdate(BaseModel):
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence | None] = None
+    recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
 
 
 class TaskRead(TaskBase):

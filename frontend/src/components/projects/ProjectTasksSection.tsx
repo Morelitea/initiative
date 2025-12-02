@@ -16,12 +16,13 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
-import {
-  type ProjectTaskStatus,
-  type Task,
-  type TaskPriority,
-  type TaskRecurrence,
-  type TaskReorderPayload,
+import type {
+  TaskRecurrenceStrategy,
+  ProjectTaskStatus,
+  Task,
+  TaskPriority,
+  TaskRecurrence,
+  TaskReorderPayload,
 } from "@/types/api";
 import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
@@ -111,6 +112,7 @@ export const ProjectTasksSection = ({
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+  const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
@@ -279,6 +281,7 @@ export const ProjectTasksSection = ({
         start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         recurrence,
+        recurrence_strategy: recurrenceStrategy,
         task_status_id: defaultStatusId,
       };
       const response = await apiClient.post<Task>("/tasks/", payload);
@@ -292,6 +295,7 @@ export const ProjectTasksSection = ({
       setStartDate("");
       setDueDate("");
       setRecurrence(null);
+      setRecurrenceStrategy("fixed");
       setIsComposerOpen(false);
       setOrderedTasks((prev) => [...prev, newTask]);
       void queryClient.invalidateQueries({
@@ -792,6 +796,7 @@ export const ProjectTasksSection = ({
               startDate={startDate}
               dueDate={dueDate}
               recurrence={recurrence}
+              recurrenceStrategy={recurrenceStrategy}
               canWrite={canWriteProject}
               isArchived={projectIsArchived}
               isSubmitting={createTask.isPending}
@@ -804,6 +809,7 @@ export const ProjectTasksSection = ({
               onStartDateChange={setStartDate}
               onDueDateChange={setDueDate}
               onRecurrenceChange={setRecurrence}
+              onRecurrenceStrategyChange={setRecurrenceStrategy}
               onSubmit={() => createTask.mutate()}
               onCancel={() => setIsComposerOpen(false)}
               autoFocusTitle

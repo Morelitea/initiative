@@ -138,20 +138,44 @@ async def _advance_recurrence_if_needed(
     except ValidationError:
         return False
 
+    strategy = task.recurrence_strategy or "fixed"
+    base_date = task.due_date if strategy == "fixed" else now
     next_due = get_next_due_date(
-        task.due_date,
+        base_date,
         recurrence,
         completed_occurrences=task.recurrence_occurrence_count,
     )
     if next_due is None:
+        task.recurrence = None
         return False
 
+    duration = None
+    if task.start_date and task.due_date:
+        duration = task.due_date - task.start_date
+    new_start = next_due - duration if duration else None
+
     default_status = await task_statuses_service.get_default_status(session, task.project_id)
-    task.task_status_id = default_status.id
-    task.task_status = default_status
-    task.due_date = next_due
-    task.sort_order = await _next_sort_order(session, task.project_id)
-    task.recurrence_occurrence_count = task.recurrence_occurrence_count + 1
+    new_task = Task(
+        project_id=task.project_id,
+        task_status_id=default_status.id,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        start_date=new_start,
+        due_date=next_due,
+        recurrence=recurrence.model_dump(mode="json"),
+        recurrence_strategy=strategy,
+        sort_order=await _next_sort_order(session, task.project_id),
+        recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
+    )
+    session.add(new_task)
+    await session.flush()
+    assignee_ids = [assignee.id for assignee in task.assignees]
+    await _set_task_assignees(session, new_task, assignee_ids)
+    await session.refresh(new_task, attribute_names=["assignees"])
+    await broadcast_event("task", "created", _task_payload(new_task))
+
+    task.recurrence = None
     task.updated_at = now
     session.add(task)
     return True

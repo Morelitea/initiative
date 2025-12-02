@@ -28,6 +28,7 @@ import type {
   Task,
   TaskPriority,
   TaskRecurrence,
+  TaskRecurrenceStrategy,
   User,
 } from "@/types/api";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,7 @@ export const TaskEditPage = () => {
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+  const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
 
   const taskQuery = useQuery({
     queryKey: ["task", parsedTaskId],
@@ -128,6 +130,7 @@ export const TaskEditPage = () => {
       setStartDate(toLocalInputValue(task.start_date));
       setDueDate(toLocalInputValue(task.due_date));
       setRecurrence(task.recurrence ?? null);
+      setRecurrenceStrategy(task.recurrence_strategy ?? "fixed");
     }
   }, [taskQuery.data]);
 
@@ -148,6 +151,7 @@ export const TaskEditPage = () => {
         start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         recurrence,
+        recurrence_strategy: recurrence ? recurrenceStrategy : null,
       };
       const response = await apiClient.patch<Task>(`/tasks/${parsedTaskId}`, payload);
       return response.data;
@@ -162,6 +166,7 @@ export const TaskEditPage = () => {
       setStartDate(toLocalInputValue(updatedTask.start_date));
       setDueDate(toLocalInputValue(updatedTask.due_date));
       setRecurrence(updatedTask.recurrence ?? null);
+      setRecurrenceStrategy(updatedTask.recurrence_strategy ?? "fixed");
       toast.success("Task updated");
     },
   });
@@ -466,6 +471,8 @@ export const TaskEditPage = () => {
               <TaskRecurrenceSelector
                 recurrence={recurrence}
                 onChange={setRecurrence}
+                strategy={recurrenceStrategy}
+                onStrategyChange={setRecurrenceStrategy}
                 disabled={isReadOnly}
                 referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
               />

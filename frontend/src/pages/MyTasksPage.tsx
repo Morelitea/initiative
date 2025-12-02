@@ -296,6 +296,7 @@ export const MyTasksPage = () => {
         const recurrenceSummary = task.recurrence
           ? summarizeRecurrence(task.recurrence, {
               referenceDate: task.start_date || task.due_date,
+              strategy: task.recurrence_strategy,
             })
           : null;
         return (

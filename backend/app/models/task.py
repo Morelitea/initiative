@@ -70,6 +70,10 @@ class Task(SQLModel, table=True):
     start_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     due_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     recurrence: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    recurrence_strategy: str = Field(
+        default="fixed",
+        sa_column=Column(String(length=20), nullable=False, server_default="fixed"),
+    )
     recurrence_occurrence_count: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),

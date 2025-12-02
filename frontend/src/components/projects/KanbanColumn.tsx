@@ -186,7 +186,10 @@ const KanbanTaskCard = ({
   };
 
   const recurrenceSummary = task.recurrence
-    ? summarizeRecurrence(task.recurrence, { referenceDate: task.start_date || task.due_date })
+    ? summarizeRecurrence(task.recurrence, {
+        referenceDate: task.start_date || task.due_date,
+        strategy: task.recurrence_strategy,
+      })
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;

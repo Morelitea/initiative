@@ -1,9 +1,10 @@
 import type {
   TaskRecurrence,
   TaskRecurrenceFrequency,
+  TaskRecurrenceStrategy,
   TaskWeekPosition,
   TaskWeekday,
-} from "../types/api";
+} from "@/types/api";
 
 export type RecurrencePreset =
   | "none"
@@ -241,7 +242,7 @@ const describeMonthlyDetail = (rule: TaskRecurrence) => {
 
 export const summarizeRecurrence = (
   rule: TaskRecurrence | null,
-  options?: { referenceDate?: string | null }
+  options?: { referenceDate?: string | null; strategy?: TaskRecurrenceStrategy }
 ): string => {
   if (!rule) {
     return "Does not repeat";
@@ -283,6 +284,15 @@ export const summarizeRecurrence = (
   }
 
   const parts = [`Repeats ${everyLabel}`];
+  const strategyLabel =
+    options?.strategy === "rolling"
+      ? "after completion"
+      : options?.strategy === "fixed"
+        ? "on schedule"
+        : null;
+  if (strategyLabel) {
+    parts.push(`(${strategyLabel})`);
+  }
   if (detail) {
     parts.push(detail);
   }

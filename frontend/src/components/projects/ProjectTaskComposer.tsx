@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import type { TaskPriority, TaskRecurrence } from "@/types/api";
+import type { TaskPriority, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
@@ -37,6 +37,7 @@ interface ProjectTaskComposerProps {
   startDate: string;
   dueDate: string;
   recurrence: TaskRecurrence | null;
+  recurrenceStrategy: TaskRecurrenceStrategy;
   canWrite: boolean;
   isArchived: boolean;
   isSubmitting: boolean;
@@ -49,6 +50,7 @@ interface ProjectTaskComposerProps {
   onStartDateChange: (value: string) => void;
   onDueDateChange: (value: string) => void;
   onRecurrenceChange: (value: TaskRecurrence | null) => void;
+  onRecurrenceStrategyChange: (value: TaskRecurrenceStrategy) => void;
   onSubmit: () => void;
   onCancel?: () => void;
   autoFocusTitle?: boolean;
@@ -62,6 +64,7 @@ export const ProjectTaskComposer = ({
   startDate,
   dueDate,
   recurrence,
+  recurrenceStrategy,
   canWrite,
   isArchived,
   isSubmitting,
@@ -74,6 +77,7 @@ export const ProjectTaskComposer = ({
   onStartDateChange,
   onDueDateChange,
   onRecurrenceChange,
+  onRecurrenceStrategyChange,
   onSubmit,
   onCancel,
   autoFocusTitle = false,
@@ -188,6 +192,8 @@ export const ProjectTaskComposer = ({
                     <TaskRecurrenceSelector
                       recurrence={recurrence}
                       onChange={onRecurrenceChange}
+                      strategy={recurrenceStrategy}
+                      onStrategyChange={onRecurrenceStrategyChange}
                       disabled={isSubmitting}
                       referenceDate={dueDate || startDate}
                     />

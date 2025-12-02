@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type {
   TaskRecurrence,
   TaskRecurrenceFrequency,
+  TaskRecurrenceStrategy,
   TaskWeekPosition,
   TaskWeekday,
 } from "@/types/api";
@@ -69,6 +70,8 @@ const getAnchorDate = (referenceDate?: string | null) => {
 type TaskRecurrenceSelectorProps = {
   recurrence: TaskRecurrence | null;
   onChange: (rule: TaskRecurrence | null) => void;
+  strategy: TaskRecurrenceStrategy;
+  onStrategyChange: (value: TaskRecurrenceStrategy) => void;
   disabled?: boolean;
   referenceDate?: string | null;
 };
@@ -76,6 +79,8 @@ type TaskRecurrenceSelectorProps = {
 export const TaskRecurrenceSelector = ({
   recurrence,
   onChange,
+  strategy,
+  onStrategyChange,
   disabled = false,
   referenceDate,
 }: TaskRecurrenceSelectorProps) => {
@@ -93,7 +98,7 @@ export const TaskRecurrenceSelector = ({
 
   const preset = forceCustomMode ? "custom" : detectedPreset;
   const anchorDate = getAnchorDate(referenceDate);
-  const summary = summarizeRecurrence(recurrence, { referenceDate });
+  const summary = summarizeRecurrence(recurrence, { referenceDate, strategy });
   const showCustomFields = forceCustomMode && recurrence !== null;
 
   const ensureRule = (): TaskRecurrence => {
@@ -480,6 +485,28 @@ export const TaskRecurrenceSelector = ({
                 disabled={disabled}
               />
             ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Repeat strategy</Label>
+            <Select
+              value={strategy}
+              onValueChange={(value) => onStrategyChange(value as TaskRecurrenceStrategy)}
+              disabled={disabled || !recurrence}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select strategy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">On schedule</SelectItem>
+                <SelectItem value="rolling">After completion</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {strategy === "rolling"
+                ? "Next dates are based on when you complete the task."
+                : "Next dates follow the calendar schedule regardless of completion time."}
+            </p>
           </div>
         </div>
       ) : null}

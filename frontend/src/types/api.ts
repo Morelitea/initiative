@@ -186,6 +186,7 @@ export type TaskWeekday =
   | "saturday"
   | "sunday";
 export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
+export type TaskRecurrenceStrategy = "fixed" | "rolling";
 
 export interface ProjectTaskStatus {
   id: number;
@@ -227,6 +228,7 @@ export interface Task {
   start_date?: string;
   due_date?: string;
   recurrence?: TaskRecurrence | null;
+  recurrence_strategy?: TaskRecurrenceStrategy;
   recurrence_occurrence_count?: number;
   created_at: string;
   updated_at: string;
