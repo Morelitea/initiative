@@ -31,6 +31,7 @@ class ProjectUpdate(BaseModel):
     initiative_id: Optional[int] = None
     members_can_write: Optional[bool] = None
     is_template: Optional[bool] = None
+    pinned: Optional[bool] = None
 
 
 class ProjectDuplicateRequest(BaseModel):
@@ -67,6 +68,7 @@ class ProjectRead(ProjectBase):
     is_archived: bool
     is_template: bool
     archived_at: Optional[datetime] = None
+    pinned_at: Optional[datetime] = None
     owner: Optional[UserRead] = None
     initiative: Optional[InitiativeRead] = None
     permissions: List[ProjectPermissionRead] = Field(default_factory=list)

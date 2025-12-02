@@ -1096,6 +1096,18 @@ async def update_project(
     previous_initiative_id = project.initiative_id
 
     update_data = project_in.dict(exclude_unset=True)
+    pinned_sentinel = object()
+    pinned_value = update_data.pop("pinned", pinned_sentinel)
+    if pinned_value is not pinned_sentinel:
+        if guild_context.role != GuildRole.admin:
+            initiative_membership = await _get_initiative_membership(project, current_user, session)
+            if not initiative_membership or initiative_membership.role != InitiativeRole.project_manager:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Initiative manager role required to pin projects",
+                )
+        project.pinned_at = datetime.now(timezone.utc) if bool(pinned_value) else None
+
     if "initiative_id" in update_data:
         new_initiative_id = update_data.pop("initiative_id")
         if new_initiative_id is None:

@@ -42,6 +42,10 @@ class Project(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
+    pinned_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
 
     owner: Optional["User"] = Relationship(back_populates="projects_owned")
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")

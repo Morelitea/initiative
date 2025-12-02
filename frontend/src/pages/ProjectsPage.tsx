@@ -26,11 +26,13 @@ import {
   Filter,
   ChevronDown,
   Plus,
+  Pin as PinIcon,
 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
+import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -184,6 +186,7 @@ export const ProjectsPage = () => {
   }, [initiativesQuery.data, user]);
   const isProjectManager = guildManagedInitiatives.length > 0;
   const canManageProjects = user?.role === "admin" || isProjectManager;
+  const canPinProjects = user?.role === "admin" || isProjectManager;
 
   const templatesQuery = useQuery<Project[]>({
     queryKey: ["projects", "templates"],
@@ -317,12 +320,12 @@ export const ProjectsPage = () => {
   }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
   useEffect(() => {
-    const projects = projectsQuery.data ?? [];
-    if (projects.length === 0) {
+    const reorderableProjects = (projectsQuery.data ?? []).filter((project) => !project.pinned_at);
+    if (reorderableProjects.length === 0) {
       setCustomOrder((prev) => (prev.length ? [] : prev));
       return;
     }
-    const projectIds = projects.map((project) => project.id);
+    const projectIds = reorderableProjects.map((project) => project.id);
     setCustomOrder((prev) => {
       if (
         prev.length === projectIds.length &&
@@ -366,8 +369,26 @@ export const ProjectsPage = () => {
     });
   }, [projects, searchQuery, initiativeFilter, favoritesOnly]);
 
+  const pinnedProjects = useMemo(() => {
+    return filteredProjects
+      .filter((project) => Boolean(project.pinned_at))
+      .sort((a, b) => {
+        const aPinned = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+        const bPinned = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+        if (aPinned === bPinned) {
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        }
+        return bPinned - aPinned;
+      });
+  }, [filteredProjects]);
+
+  const unpinnedProjects = useMemo(
+    () => filteredProjects.filter((project) => !project.pinned_at),
+    [filteredProjects]
+  );
+
   const sortedProjects = useMemo(() => {
-    const next = [...filteredProjects];
+    const next = [...unpinnedProjects];
     if (sortMode === "alphabetical") {
       next.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortMode === "created") {
@@ -393,7 +414,7 @@ export const ProjectsPage = () => {
       });
     }
     return next;
-  }, [filteredProjects, sortMode, customOrder]);
+  }, [unpinnedProjects, sortMode, customOrder]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -441,13 +462,21 @@ export const ProjectsPage = () => {
           {viewMode === "list" ? (
             <div className="space-y-3">
               {sortedProjects.map((project) => (
-                <SortableProjectRowLink key={project.id} project={project} />
+                <SortableProjectRowLink
+                  key={project.id}
+                  project={project}
+                  canPinProjects={canPinProjects}
+                />
               ))}
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {sortedProjects.map((project) => (
-                <SortableProjectCardLink key={project.id} project={project} />
+                <SortableProjectCardLink
+                  key={project.id}
+                  project={project}
+                  canPinProjects={canPinProjects}
+                />
               ))}
             </div>
           )}
@@ -458,18 +487,50 @@ export const ProjectsPage = () => {
         {viewMode === "list" ? (
           <div className="space-y-3">
             {sortedProjects.map((project) => (
-              <ProjectRowLink key={project.id} project={project} />
+              <ProjectRowLink key={project.id} project={project} canPinProjects={canPinProjects} />
             ))}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {sortedProjects.map((project) => (
-              <ProjectCardLink key={project.id} project={project} />
+              <ProjectCardLink key={project.id} project={project} canPinProjects={canPinProjects} />
             ))}
           </div>
         )}
       </>
     );
+
+  const pinnedProjectsSection =
+    pinnedProjects.length > 0 ? (
+      <div className="border-b pb-4">
+        <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
+          <PinIcon className="h-4 w-4" />
+          Pinned
+        </div>
+
+        {viewMode === "list" ? (
+          <div className="space-y-3">
+            {pinnedProjects.map((project) => (
+              <ProjectRowLink
+                key={`pinned-${project.id}`}
+                project={project}
+                canPinProjects={canPinProjects}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {pinnedProjects.map((project) => (
+              <ProjectCardLink
+                key={`pinned-${project.id}`}
+                project={project}
+                canPinProjects={canPinProjects}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    ) : null;
 
   if (projectsQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">Loading projects…</p>;
@@ -633,14 +694,23 @@ export const ProjectsPage = () => {
             </CollapsibleContent>
           </Collapsible>
 
-          {sortedProjects.length === 0 ? (
+          {filteredProjects.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               {projects.length === 0
                 ? "No projects yet. Create one to get started."
                 : "No projects match your filters."}
             </p>
           ) : (
-            projectCards
+            <>
+              {pinnedProjectsSection}
+              {sortedProjects.length > 0 ? (
+                projectCards
+              ) : pinnedProjects.length > 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  Only pinned projects match your filters.
+                </p>
+              ) : null}
+            </>
           )}
         </TabsContent>
 
@@ -898,16 +968,25 @@ export const ProjectsPage = () => {
 const ProjectCardLink = ({
   project,
   dragHandleProps,
+  canPinProjects,
 }: {
   project: Project;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
+  canPinProjects: boolean;
 }) => {
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
+  const isPinned = Boolean(project.pinned_at);
 
   return (
     <div className="relative">
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <PinProjectButton
+          projectId={project.id}
+          isPinned={isPinned}
+          canPin={canPinProjects}
+          suppressNavigation
+        />
         <FavoriteProjectButton
           projectId={project.id}
           isFavorited={project.is_favorited ?? false}
@@ -955,7 +1034,13 @@ const ProjectCardLink = ({
   );
 };
 
-const SortableProjectCardLink = ({ project }: { project: Project }) => {
+const SortableProjectCardLink = ({
+  project,
+  canPinProjects,
+}: {
+  project: Project;
+  canPinProjects: boolean;
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -973,7 +1058,11 @@ const SortableProjectCardLink = ({ project }: { project: Project }) => {
   };
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
-      <ProjectCardLink project={project} dragHandleProps={dragHandleProps} />
+      <ProjectCardLink
+        project={project}
+        dragHandleProps={dragHandleProps}
+        canPinProjects={canPinProjects}
+      />
     </div>
   );
 };
@@ -981,13 +1070,16 @@ const SortableProjectCardLink = ({ project }: { project: Project }) => {
 const ProjectRowLink = ({
   project,
   dragHandleProps,
+  canPinProjects,
 }: {
   project: Project;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
+  canPinProjects: boolean;
 }) => {
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
     : null;
+  const isPinned = Boolean(project.pinned_at);
   return (
     <div className="relative">
       {dragHandleProps ? (
@@ -1001,12 +1093,21 @@ const ProjectRowLink = ({
         </button>
       ) : null}
       <div className="absolute top-4 right-4 z-10">
-        <FavoriteProjectButton
-          projectId={project.id}
-          isFavorited={project.is_favorited ?? false}
-          suppressNavigation
-          iconSize="sm"
-        />
+        <div className="flex items-center gap-2">
+          <PinProjectButton
+            projectId={project.id}
+            isPinned={isPinned}
+            canPin={canPinProjects}
+            suppressNavigation
+            iconSize="sm"
+          />
+          <FavoriteProjectButton
+            projectId={project.id}
+            isFavorited={project.is_favorited ?? false}
+            suppressNavigation
+            iconSize="sm"
+          />
+        </div>
       </div>
       <Link to={`/projects/${project.id}`} className="block">
         <Card
@@ -1036,7 +1137,13 @@ const ProjectRowLink = ({
   );
 };
 
-const SortableProjectRowLink = ({ project }: { project: Project }) => {
+const SortableProjectRowLink = ({
+  project,
+  canPinProjects,
+}: {
+  project: Project;
+  canPinProjects: boolean;
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -1054,7 +1161,11 @@ const SortableProjectRowLink = ({ project }: { project: Project }) => {
   };
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
-      <ProjectRowLink project={project} dragHandleProps={dragHandleProps} />
+      <ProjectRowLink
+        project={project}
+        dragHandleProps={dragHandleProps}
+        canPinProjects={canPinProjects}
+      />
     </div>
   );
 };

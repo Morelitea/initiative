@@ -154,6 +154,7 @@ export interface Project {
   is_archived: boolean;
   is_template: boolean;
   archived_at?: string | null;
+  pinned_at?: string | null;
   owner?: User;
   initiative?: Initiative | null;
   permissions: ProjectPermission[];
