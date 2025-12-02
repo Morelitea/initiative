@@ -361,7 +361,7 @@ export const ProjectTaskStatusesManager = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead>Name</TableHead>
+                  <TableHead className="min-w-40">Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead className="w-24 text-center">Default</TableHead>
                   <TableHead className="w-32 text-right">Actions</TableHead>
@@ -408,7 +408,7 @@ export const ProjectTaskStatusesManager = ({
       </CardContent>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
+        <DialogContent className="bg-card">
           <DialogHeader>
             <DialogTitle>Delete status</DialogTitle>
             <DialogDescription>
@@ -550,7 +550,7 @@ const SortableStatusRow = ({
             onClick={onDelete}
             disabled={disabled}
           >
-            <Trash2 className="mr-1 h-4 w-4" /> Delete
+            <Trash2 className="mr-1 h-4 w-4" />
           </Button>
         </div>
       </TableCell>
