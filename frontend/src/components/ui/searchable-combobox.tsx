@@ -19,6 +19,7 @@ export interface SearchableComboboxProps {
   emptyMessage?: string;
   className?: string;
   buttonClassName?: string;
+  disabled?: boolean;
 }
 
 export const SearchableCombobox = ({
@@ -29,6 +30,7 @@ export const SearchableCombobox = ({
   emptyMessage = "No results found.",
   className,
   buttonClassName,
+  disabled = false,
 }: SearchableComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [internalValue, setInternalValue] = useState(value ?? "");
@@ -45,6 +47,9 @@ export const SearchableCombobox = ({
   );
 
   const handleSelect = (currentValue: string) => {
+    if (disabled) {
+      return;
+    }
     setInternalValue(currentValue);
     onValueChange?.(currentValue);
     setOpen(false);
@@ -52,13 +57,17 @@ export const SearchableCombobox = ({
 
   return (
     <div className={cn("w-full", className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={disabled ? false : open}
+        onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
-            aria-expanded={open}
+            aria-expanded={!disabled && open}
             className={cn("w-full justify-between", buttonClassName)}
+            disabled={disabled}
           >
             {selectedItem?.label ?? placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -66,7 +75,7 @@ export const SearchableCombobox = ({
         </PopoverTrigger>
         <PopoverContent className="w-[320px] p-0">
           <Command>
-            <CommandInput placeholder="Search..." />
+            <CommandInput placeholder="Search..." disabled={disabled} />
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup className="max-h-64 overflow-y-auto">
               {items.map((item) => (
