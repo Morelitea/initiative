@@ -1,6 +1,6 @@
 import { Menu } from "lucide-react";
 import { FormEvent, Fragment, useEffect, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -59,6 +59,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
   const [creatingGuild, setCreatingGuild] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     guilds,
     activeGuildId,
@@ -101,8 +102,28 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
     if (!Number.isFinite(guildId) || guildId === activeGuildId) {
       return;
     }
+
+    // Determine where to go based on current page
+    const currentPath = location.pathname;
+    let targetPath = "/"; // Default to Project Dashboard
+    if (currentPath.startsWith("/tasks")) {
+      // My Tasks is safe to persist across guilds
+      targetPath = "/tasks";
+    } else if (currentPath.startsWith("/documents")) {
+      // If we are on a document detail page (/documents/123), that ID won't exist in the new guild.
+      // So we fallback to the Document List page (/documents).
+      targetPath = "/documents";
+    } else if (currentPath.startsWith("/settings")) {
+      // Settings pages are generally safe to persist
+      targetPath = currentPath;
+    } else if (currentPath.startsWith("/profile")) {
+      // User profile is global
+      targetPath = currentPath;
+    }
+
     await switchGuildFn(guildId);
     setIsOpen(false);
+    navigate(targetPath);
   };
 
   const handleCreateGuildSubmit = async (event: FormEvent<HTMLFormElement>) => {

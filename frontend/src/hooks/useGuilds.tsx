@@ -122,7 +122,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         await apiClient.post(`/guilds/${guildId}/switch`);
         setActiveGuildId(guildId);
         await Promise.all([refreshGuilds(), refreshUser()]);
-        window.location.replace("/");
       } catch (err) {
         console.error("Failed to switch guild", err);
         throw err;
@@ -148,9 +147,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         description: description?.trim() || undefined,
       });
       await Promise.all([refreshGuilds(), refreshUser()]);
-      if (typeof window !== "undefined") {
-        window.location.replace("/");
-      }
       return response.data;
     },
     [user, canCreateGuilds, refreshGuilds, refreshUser]

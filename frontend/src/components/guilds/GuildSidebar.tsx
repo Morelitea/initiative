@@ -1,4 +1,5 @@
 import { useMemo, useState, FormEvent } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Plus } from "lucide-react";
 
 import { useGuilds } from "@/hooks/useGuilds";
@@ -27,6 +28,7 @@ const CreateGuildButton = () => {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   if (!canCreateGuilds) {
     return null;
@@ -48,6 +50,7 @@ const CreateGuildButton = () => {
       toast.error(message);
     } finally {
       setSubmitting(false);
+      navigate("/");
     }
   };
 
@@ -138,6 +141,34 @@ export const GuildAvatar = ({
 
 export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, canCreateGuilds } = useGuilds();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleGuildSwitch = async (guildId: number) => {
+    if (guildId === activeGuildId) return;
+
+    // Determine where to go based on current page
+    const currentPath = location.pathname;
+    let targetPath = "/"; // Default to Project Dashboard
+    if (currentPath.startsWith("/tasks")) {
+      // My Tasks is safe to persist across guilds
+      targetPath = "/tasks";
+    } else if (currentPath.startsWith("/documents")) {
+      // If we are on a document detail page (/documents/123), that ID won't exist in the new guild.
+      // So we fallback to the Document List page (/documents).
+      targetPath = "/documents";
+    } else if (currentPath.startsWith("/settings")) {
+      // Settings pages are generally safe to persist
+      targetPath = currentPath;
+    } else if (currentPath.startsWith("/profile")) {
+      // User profile is global
+      targetPath = currentPath;
+    }
+
+    await switchGuild(guildId);
+
+    navigate(targetPath);
+  };
 
   return (
     <aside className="bg-card/80 sticky top-0 hidden max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4 sm:flex">
@@ -151,7 +182,7 @@ export const GuildSidebar = () => {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => switchGuild(guild.id)}
+                    onClick={() => handleGuildSwitch(guild.id)}
                     className={`focus-visible:ring-ring flex h-12 w-12 items-center justify-center rounded-2xl border-3 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
                       isActive
                         ? "border-primary/60 bg-primary/10 text-primary"
