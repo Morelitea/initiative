@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ChevronDown, Filter } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Filter } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -30,6 +30,7 @@ import type {
   TaskPriority,
   TaskStatusCategory,
 } from "@/types/api";
+import { formatDistance } from "date-fns";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -114,7 +115,6 @@ export const MyTasksPage = () => {
     "incomplete"
   );
   const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
-  const [sortMode, setSortMode] = useState<"due" | "priority" | "alphabetical">("due");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
 
@@ -239,27 +239,6 @@ export const MyTasksPage = () => {
     });
   }, [myTasks, statusFilter, priorityFilter, initiativeFilter, projectsById]);
 
-  const sortedTasks = useMemo(() => {
-    const next = [...filteredTasks];
-    if (sortMode === "due") {
-      next.sort((a, b) => {
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-      });
-    } else if (sortMode === "priority") {
-      const order = new Map(priorityOrder.map((value, index) => [value, index]));
-      next.sort((a, b) => {
-        const aRank = order.get(a.priority) ?? 0;
-        const bRank = order.get(b.priority) ?? 0;
-        return bRank - aRank;
-      });
-    } else {
-      next.sort((a, b) => a.title.localeCompare(b.title));
-    }
-    return next;
-  }, [filteredTasks, sortMode]);
-
   const columns: ColumnDef<Task>[] = [
     {
       id: "completed",
@@ -290,7 +269,20 @@ export const MyTasksPage = () => {
     },
     {
       accessorKey: "title",
-      header: () => <span className="font-medium">Task</span>,
+      header: ({ column }) => {
+        return (
+          <div className="flex items-center gap-2">
+            Task
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      },
       cell: ({ row }) => {
         const task = row.original;
         const recurrenceSummary = task.recurrence
@@ -323,6 +315,64 @@ export const MyTasksPage = () => {
           </div>
         );
       },
+    },
+    {
+      accessorKey: "start_date",
+      header: ({ column }) => {
+        return (
+          <div className="flex items-center gap-2">
+            Start Date
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      },
+      cell: ({ row }) => {
+        const task = row.original;
+        return task.start_date ? (
+          <div className="min-w-20">
+            {formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
+      },
+      enableSorting: true,
+      sortingFn: "datetime",
+    },
+    {
+      accessorKey: "due_date",
+      header: ({ column }) => {
+        return (
+          <div className="flex items-center gap-2">
+            Due Date
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      },
+      cell: ({ row }) => {
+        const task = row.original;
+        return task.due_date ? (
+          <div className="min-w-20">
+            {formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
+      },
+      enableSorting: true,
+      sortingFn: "datetime",
     },
     {
       id: "initiative",
@@ -389,7 +439,7 @@ export const MyTasksPage = () => {
               onValueChange={(value) => void changeTaskStatus(task, value as TaskStatusCategory)}
               disabled={isUpdatingTaskStatus}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -538,29 +588,11 @@ export const MyTasksPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label htmlFor="task-sort" className="text-muted-foreground text-xs font-medium">
-                Sort
-              </Label>
-              <Select
-                value={sortMode}
-                onValueChange={(value) => setSortMode(value as typeof sortMode)}
-              >
-                <SelectTrigger id="task-sort">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="due">Due date</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                  <SelectItem value="alphabetical">Alphabetical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </CollapsibleContent>
       </Collapsible>
 
-      <DataTable columns={columns} data={sortedTasks} />
+      <DataTable columns={columns} data={filteredTasks} />
     </div>
   );
 };

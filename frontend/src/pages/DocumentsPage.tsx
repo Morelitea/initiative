@@ -3,7 +3,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
+import { ArrowUpDown, ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -48,7 +48,20 @@ const getDefaultDocumentFiltersVisibility = () => {
 const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     accessorKey: "title",
-    header: "Title",
+    header: ({ column }) => {
+      return (
+        <div className="flex items-center gap-2">
+          Title
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      );
+    },
     cell: ({ row }) => {
       const document = row.original;
       return (
@@ -62,10 +75,27 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         </div>
       );
     },
+    enableSorting: true,
+    sortingFn: "alphanumeric",
+    enableHiding: false,
   },
   {
+    id: "last updated",
     accessorKey: "updated_at",
-    header: "Last updated",
+    header: ({ column }) => {
+      return (
+        <div className="flex items-center gap-2">
+          Last updated
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      );
+    },
     cell: ({ row }) => {
       const updatedAt = new Date(row.original.updated_at);
       return (
@@ -76,6 +106,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         </div>
       );
     },
+    sortingFn: "datetime",
   },
   {
     accessorKey: "initiative",
@@ -102,6 +133,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
     },
   },
   {
+    id: "type",
     accessorKey: "is_template",
     header: "Type",
     cell: ({ row }) =>
@@ -408,7 +440,14 @@ export const DocumentsPage = () => {
               ))}
             </div>
           ) : (
-            <DataTable columns={documentColumns} data={documents} />
+            <DataTable
+              columns={documentColumns}
+              data={documents}
+              enableFilterInput
+              filterInputColumnKey="title"
+              filterInputPlaceholder="Filter by title..."
+              enableColumnVisibilityDropdown
+            />
           )
         ) : (
           <Card>

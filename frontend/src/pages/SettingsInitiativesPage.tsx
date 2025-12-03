@@ -523,7 +523,13 @@ const InitiativeCard = ({
           {initiative.members.length === 0 ? (
             <p className="text-s text-muted-foreground">No {memberLabel} assigned yet.</p>
           ) : (
-            <DataTable columns={userColumns} data={initiative.members} />
+            <DataTable
+              columns={userColumns}
+              data={initiative.members}
+              enableFilterInput
+              filterInputColumnKey="email"
+              filterInputPlaceholder="Filter by email..."
+            />
           )}
         </div>
         {canEditMembers ? (

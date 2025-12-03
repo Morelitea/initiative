@@ -35,7 +35,6 @@ const inviteLinkForCode = (code: string) => {
 
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
-  const [emailFilter, setEmailFilter] = useState("");
 
   const isAdmin = user?.role === "admin";
   const { activeGuild } = useGuilds();
@@ -156,14 +155,6 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">Unable to load settings.</p>;
   }
 
-  const normalizedEmailFilter = emailFilter.trim().toLowerCase();
-  const filteredUsers = usersQuery.data.filter((workspaceUser) => {
-    if (!normalizedEmailFilter) {
-      return true;
-    }
-    return workspaceUser.email.toLowerCase().includes(normalizedEmailFilter);
-  });
-
   const userColumns: ColumnDef<User>[] = [
     {
       id: "user",
@@ -174,9 +165,6 @@ export const SettingsUsersPage = () => {
         return (
           <div>
             <p className="font-medium">{displayName}</p>
-            <p className="text-muted-foreground text-xs">
-              Status: {workspaceUser.is_active ? "Active" : "Pending approval"}
-            </p>
           </div>
         );
       },
@@ -391,19 +379,13 @@ export const SettingsUsersPage = () => {
           <CardDescription>Update roles or remove accounts.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="email-filter" className="text-muted-foreground text-xs">
-              Filter by email
-            </Label>
-            <Input
-              id="email-filter"
-              value={emailFilter}
-              onChange={(event) => setEmailFilter(event.target.value)}
-              placeholder="user@example.com"
-              autoComplete="off"
-            />
-          </div>
-          <DataTable columns={userColumns} data={filteredUsers} />
+          <DataTable
+            columns={userColumns}
+            data={usersQuery.data}
+            enableFilterInput
+            filterInputColumnKey="email"
+            filterInputPlaceholder="Filter by email..."
+          />
         </CardContent>
       </Card>
     </div>

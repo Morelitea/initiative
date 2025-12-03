@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
   DndContext,
   closestCenter,
@@ -11,12 +11,14 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, MessageSquare } from "lucide-react";
+import { ArrowUpDown, GripVertical, MessageSquare } from "lucide-react";
+import { formatDistance } from "date-fns";
 
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -129,6 +131,7 @@ export const ProjectTasksTableView = ({
         cell: () => <DragHandleCell />,
         enableSorting: false,
         size: 40,
+        enableHiding: false,
       },
       {
         id: "completed",
@@ -155,6 +158,7 @@ export const ProjectTasksTableView = ({
                   onStatusChange(task.id, targetStatusId);
                 }
               }}
+              className="h-6 w-6"
               disabled={statusDisabled}
               aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
             />
@@ -162,13 +166,89 @@ export const ProjectTasksTableView = ({
         },
         enableSorting: false,
         size: 64,
+        enableHiding: false,
       },
       {
+        id: "title",
         accessorKey: "title",
-        header: () => <span className="font-medium">Task</span>,
+        header: ({ column }) => {
+          return (
+            <div className="flex items-center gap-2">
+              Task
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              >
+                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          );
+        },
         cell: ({ row }) => (
           <TaskCell task={row.original} canOpenTask={canOpenTask} onTaskClick={onTaskClick} />
         ),
+        enableSorting: true,
+        sortingFn: "alphanumeric",
+        enableHiding: false,
+      },
+      {
+        accessorKey: "start_date",
+        header: ({ column }) => {
+          return (
+            <div className="flex items-center gap-2">
+              Start Date
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              >
+                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ row }) => {
+          const task = row.original;
+          return task.start_date ? (
+            <div className="min-w-20">
+              {formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
+        },
+        enableSorting: true,
+        sortingFn: "datetime",
+      },
+      {
+        accessorKey: "due_date",
+        header: ({ column }) => {
+          return (
+            <div className="flex items-center gap-2">
+              Due Date
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              >
+                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ row }) => {
+          const task = row.original;
+          return task.due_date ? (
+            <div className="min-w-20">
+              {formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
+        },
+        enableSorting: true,
+        sortingFn: "datetime",
       },
       {
         id: "priority",
@@ -230,38 +310,45 @@ export const ProjectTasksTableView = ({
             </Select>
           );
         },
+        enableHiding: false,
       },
     ],
     [canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled, taskStatuses]
   );
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onDragCancel={onDragCancel}
-    >
-      <SortableContext
-        items={tasks.map((task) => task.id.toString())}
-        strategy={verticalListSortingStrategy}
+    <div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
       >
-        <div className="w-full overflow-x-auto">
-          <div className="min-w-[720px]">
-            <DataTable
-              columns={columns}
-              data={tasks}
-              rowWrapper={({ row, children }) => (
-                <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
-                  {children}
-                </SortableRowWrapper>
-              )}
-            />
+        <SortableContext
+          items={tasks.map((task) => task.id.toString())}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[720px]">
+              <DataTable
+                columns={columns}
+                data={tasks}
+                rowWrapper={({ row, children }) => (
+                  <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
+                    {children}
+                  </SortableRowWrapper>
+                )}
+                enableFilterInput
+                filterInputColumnKey="title"
+                filterInputPlaceholder="Filter tasks..."
+                enableColumnVisibilityDropdown
+              />
+            </div>
           </div>
-        </div>
-      </SortableContext>
-    </DndContext>
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 };
 
@@ -300,13 +387,11 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
       })
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
-  const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
-  const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
 
   return (
     <button
       type="button"
-      className="flex w-full flex-col items-start text-left"
+      className="flex w-full min-w-50 flex-col items-start text-left"
       onClick={() => {
         if (!canOpenTask) {
           return;
@@ -322,13 +407,6 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
       <div className="text-muted-foreground space-y-1 text-xs">
         {task.assignees.length > 0 ? (
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-        ) : null}
-        {formattedStart || formattedDue ? (
-          <p>
-            {formattedStart ? `Starts: ${formattedStart}` : null}
-            {formattedStart && formattedDue ? <span> &mdash; </span> : null}
-            {formattedDue ? `Due: ${formattedDue}` : null}
-          </p>
         ) : null}
         {recurrenceText ? <p>{recurrenceText}</p> : null}
       </div>
