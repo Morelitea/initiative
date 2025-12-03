@@ -2,10 +2,11 @@ import asyncio
 from contextlib import suppress
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api.v1.api import api_router
 from app.core.config import settings
@@ -15,6 +16,15 @@ from app.services import notifications as notifications_service
 
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
+static_path = Path(settings.STATIC_DIR)
+static_path.mkdir(parents=True, exist_ok=True)
+static_index_path = static_path / "index.html"
+static_root = static_path.resolve()
+reserved_prefixes = [
+    prefix.strip("/")
+    for prefix in {settings.API_V1_STR, "/uploads"}
+    if prefix and prefix.strip("/")
+]
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -33,6 +43,39 @@ app.add_middleware(
 
 app.mount("/uploads", StaticFiles(directory=str(uploads_path), check_dir=False), name="uploads")
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+def _is_reserved_path(path: str) -> bool:
+    normalized = path.strip("/")
+    for prefix in reserved_prefixes:
+        if not prefix:
+            continue
+        if normalized == prefix or normalized.startswith(f"{prefix}/"):
+            return True
+    return False
+
+
+def _resolve_static_file(path: str) -> Path | None:
+    try:
+        candidate = (static_path / path).resolve()
+        candidate.relative_to(static_root)
+    except ValueError:
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str) -> FileResponse:
+    if _is_reserved_path(full_path):
+        raise HTTPException(status_code=404)
+    static_file = _resolve_static_file(full_path) if full_path else None
+    if static_file:
+        return FileResponse(static_file)
+    if static_index_path.is_file():
+        return FileResponse(static_index_path)
+    raise HTTPException(status_code=404, detail="SPA bundle not found")
 
 
 def custom_openapi() -> dict:

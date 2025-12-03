@@ -15,35 +15,25 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
+  initiative:
     build:
-      context: ./backend
-    container_name: initiative-api
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    container_name: initiative
     volumes:
       - ./uploads:/app/uploads
     environment:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@db:5432/initiative
       SECRET_KEY: super-secret-key
-      ACCESS_TOKEN_EXPIRE_MINUTES: 1440
-      APP_URL: ${APP_URL:-http://localhost:5173}
+      ACCESS_TOKEN_EXPIRE_MINUTES: 10080
+      APP_URL: ${APP_URL:-http://localhost:8173}
     depends_on:
       db:
         condition: service_healthy
-    # Expose port 8173 to view API docs at http://localhost:8173/api/v1/docs
-    # ports:
-    #   - "8173:8173"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8173
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: /api/v1
-    container_name: initiative
-    depends_on:
-      - backend
     ports:
-      - "5173:80"
+      - "8173:8173"
 
 volumes:
   postgres_data:
