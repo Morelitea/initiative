@@ -46,6 +46,12 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   done: ["done", "in_progress", "todo", "backlog"],
 };
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const priorityRank: Record<TaskPriority, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  urgent: 3,
+};
 const INITIATIVE_FILTER_ALL = "all";
 const getDefaultFiltersVisibility = () => {
   if (typeof window === "undefined") {
@@ -266,6 +272,7 @@ export const MyTasksPage = () => {
       },
       enableSorting: false,
       size: 64,
+      enableHiding: false,
     },
     {
       accessorKey: "title",
@@ -303,20 +310,16 @@ export const MyTasksPage = () => {
               <p className="text-muted-foreground line-clamp-2 text-sm">{task.description}</p>
             ) : null}
             <div className="text-muted-foreground space-y-1 text-xs">
-              {task.start_date || task.due_date ? (
-                <p>
-                  {task.start_date ? `Starts: ${new Date(task.start_date).toLocaleString()}` : null}
-                  {task.start_date && task.due_date ? <span> &mdash; </span> : null}
-                  {task.due_date ? `Due: ${new Date(task.due_date).toLocaleString()}` : null}
-                </p>
-              ) : null}
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
             </div>
           </div>
         );
       },
+      sortingFn: "alphanumeric",
+      enableHiding: false,
     },
     {
+      id: "start date",
       accessorKey: "start_date",
       header: ({ column }) => {
         return (
@@ -346,6 +349,7 @@ export const MyTasksPage = () => {
       sortingFn: "datetime",
     },
     {
+      id: "due date",
       accessorKey: "due_date",
       header: ({ column }) => {
         return (
@@ -371,7 +375,6 @@ export const MyTasksPage = () => {
           <span className="text-muted-foreground">—</span>
         );
       },
-      enableSorting: true,
       sortingFn: "datetime",
     },
     {
@@ -417,13 +420,34 @@ export const MyTasksPage = () => {
       },
     },
     {
+      accessorKey: "priority",
       id: "priority",
-      header: () => <span className="font-medium">Priority</span>,
+      header: ({ column }) => {
+        return (
+          <div className="flex items-center gap-2">
+            Priority
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      },
       cell: ({ row }) => {
         const task = row.original;
         return (
           <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
         );
+      },
+      sortingFn: (rowA, rowB, columnId) => {
+        const priorityA = rowA.getValue<TaskPriority>(columnId);
+        const priorityB = rowB.getValue<TaskPriority>(columnId);
+        const aRank = priorityA ? priorityRank[priorityA] : -1;
+        const bRank = priorityB ? priorityRank[priorityB] : -1;
+        return aRank - bRank;
       },
     },
     {
@@ -592,7 +616,16 @@ export const MyTasksPage = () => {
         </CollapsibleContent>
       </Collapsible>
 
-      <DataTable columns={columns} data={filteredTasks} />
+      <DataTable
+        columns={columns}
+        data={filteredTasks}
+        enableFilterInput
+        filterInputColumnKey="title"
+        filterInputPlaceholder="Filter tasks..."
+        enablePagination
+        enableResetSorting
+        enableColumnVisibilityDropdown
+      />
     </div>
   );
 };

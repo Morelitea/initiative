@@ -447,6 +447,8 @@ export const DocumentsPage = () => {
               filterInputColumnKey="title"
               filterInputPlaceholder="Filter by title..."
               enableColumnVisibilityDropdown
+              enablePagination
+              enableResetSorting
             />
           )
         ) : (

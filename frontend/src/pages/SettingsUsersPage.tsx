@@ -385,6 +385,7 @@ export const SettingsUsersPage = () => {
             enableFilterInput
             filterInputColumnKey="email"
             filterInputPlaceholder="Filter by email..."
+            enableResetSorting
           />
         </CardContent>
       </Card>

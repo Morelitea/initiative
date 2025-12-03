@@ -32,6 +32,13 @@ import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 
+const priorityRank: Record<TaskPriority, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  urgent: 3,
+};
+
 type ProjectTasksListViewProps = {
   tasks: Task[];
   taskStatuses: ProjectTaskStatus[];
@@ -251,8 +258,22 @@ export const ProjectTasksTableView = ({
         sortingFn: "datetime",
       },
       {
+        accessorKey: "priority",
         id: "priority",
-        header: () => <span className="font-medium">Priority</span>,
+        header: ({ column }) => {
+          return (
+            <div className="flex items-center gap-2">
+              Priority
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              >
+                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          );
+        },
         cell: ({ row }) => {
           const task = row.original;
           return (
@@ -260,6 +281,13 @@ export const ProjectTasksTableView = ({
               {task.priority.replace("_", " ")}
             </Badge>
           );
+        },
+        sortingFn: (rowA, rowB, columnId) => {
+          const priorityA = rowA.getValue<TaskPriority>(columnId);
+          const priorityB = rowB.getValue<TaskPriority>(columnId);
+          const aRank = priorityA ? priorityRank[priorityA] : -1;
+          const bRank = priorityB ? priorityRank[priorityB] : -1;
+          return aRank - bRank;
         },
       },
       {
@@ -343,6 +371,8 @@ export const ProjectTasksTableView = ({
                 filterInputColumnKey="title"
                 filterInputPlaceholder="Filter tasks..."
                 enableColumnVisibilityDropdown
+                enablePagination
+                enableResetSorting
               />
             </div>
           </div>

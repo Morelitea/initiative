@@ -42,6 +42,7 @@ interface DataTableProps<TData, TValue> {
   filterInputColumnKey?: string;
   enableColumnVisibilityDropdown?: boolean;
   enablePagination?: boolean;
+  enableResetSorting?: boolean;
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -57,7 +58,8 @@ export function DataTable<TData, TValue>({
   filterInputPlaceholder = "Filter...",
   filterInputColumnKey = "name",
   enableColumnVisibilityDropdown = false,
-  enablePagination = true,
+  enablePagination = false,
+  enableResetSorting: enableClearSorting = false,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -81,44 +83,53 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="overflow-hidden rounded-md border">
-      {enableFilterInput || enableColumnVisibilityDropdown ? (
+      {enableFilterInput || enableClearSorting || enableColumnVisibilityDropdown ? (
         <div className="flex items-center justify-between gap-2 p-4">
-          {enableFilterInput && (
-            <Input
-              placeholder={filterInputPlaceholder}
-              value={(table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? ""}
-              onChange={(event) =>
-                table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
-              }
-              className="max-w-sm"
-            />
-          )}
-          {enableColumnVisibilityDropdown && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto">
-                  Columns <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {table
-                  .getAllColumns()
-                  .filter((column) => column.getCanHide())
-                  .map((column) => {
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={column.id}
-                        className="capitalize"
-                        checked={column.getIsVisible()}
-                        onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                      >
-                        {column.id}
-                      </DropdownMenuCheckboxItem>
-                    );
-                  })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <div className="flex items-center gap-2">
+            {enableFilterInput && (
+              <Input
+                placeholder={filterInputPlaceholder}
+                value={(table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? ""}
+                onChange={(event) =>
+                  table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
+                }
+                className="max-w-sm"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {enableClearSorting && (
+              <Button variant="ghost" onClick={() => table.resetSorting()}>
+                <span className="text-muted-foreground">Reset Sorting</span>
+              </Button>
+            )}
+            {enableColumnVisibilityDropdown && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="ml-auto">
+                    Columns <ChevronDown />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {table
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide())
+                    .map((column) => {
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize"
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                        >
+                          {column.id}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       ) : null}
 

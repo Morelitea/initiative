@@ -25,6 +25,7 @@ import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
 import { Initiative, InitiativeMember, InitiativeRole, User } from "@/types/api";
 import { toast } from "sonner";
+import { ArrowUpDown } from "lucide-react";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 const NO_USER_VALUE = "none";
@@ -369,8 +370,22 @@ const InitiativeCard = ({
       },
     },
     {
-      accessorKey: "email",
-      header: "Email",
+      id: "email",
+      accessorKey: "user.email",
+      header: ({ column }) => {
+        return (
+          <div className="flex items-center gap-2">
+            Email
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      },
       cell: ({ row }) => {
         const initiativeMember = row.original;
         return <p className="text-muted-foreground text-sm">{initiativeMember.user.email}</p>;
@@ -393,7 +408,7 @@ const InitiativeCard = ({
             }
             disabled={!canEditMembers || updateInitiativeMemberRole.isPending}
           >
-            <SelectTrigger className="min-w-[160px]">
+            <SelectTrigger className="min-w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -529,6 +544,7 @@ const InitiativeCard = ({
               enableFilterInput
               filterInputColumnKey="email"
               filterInputPlaceholder="Filter by email..."
+              enableResetSorting
             />
           )}
         </div>
