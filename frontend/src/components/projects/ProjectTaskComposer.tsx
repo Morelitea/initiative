@@ -93,9 +93,7 @@ export const ProjectTaskComposer = ({
     <DialogContent className="bg-card max-h-screen overflow-y-auto">
       <DialogHeader>
         <DialogTitle>Create task</DialogTitle>
-        <DialogDescription>
-          Add work to the board. Only people with write access can create tasks.
-        </DialogDescription>
+        <DialogDescription>Add work to be done.</DialogDescription>
       </DialogHeader>
       <div>
         {isArchived ? (

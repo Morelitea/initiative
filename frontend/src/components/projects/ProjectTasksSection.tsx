@@ -656,8 +656,23 @@ export const ProjectTasksSection = ({
     <div className="space-y-4">
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="flex gap-2">
             <h2 className="text-xl font-semibold">Project tasks</h2>
+            {canEditTaskDetails && (
+              <TooltipProvider>
+                <Tooltip delayDuration={400}>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
+                      <Plus className="h-4 w-4" />
+                      Add Task
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={12}>
+                    Hit &lsquo;enter&rsquo; to create a new task
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
           <div className="w-full sm:flex sm:w-auto sm:items-center sm:justify-end sm:gap-3">
             <div className="w-full sm:hidden">
@@ -784,7 +799,7 @@ export const ProjectTasksSection = ({
                   className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
                   onClick={() => setIsComposerOpen(true)}
                 >
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   Add Task
                 </Button>
               </TooltipTrigger>

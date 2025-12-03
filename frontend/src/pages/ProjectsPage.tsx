@@ -543,7 +543,15 @@ export const ProjectsPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
+        <div className="flex items-baseline gap-4">
+          <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
+          {isProjectManager && (
+            <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Add Project
+            </Button>
+          )}
+        </div>
         <p className="text-muted-foreground">Track initiatives and collaborate with your guild.</p>
       </div>
 
@@ -822,7 +830,7 @@ export const ProjectsPage = () => {
             className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
             onClick={() => setIsComposerOpen(true)}
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Add Project
           </Button>
           <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>

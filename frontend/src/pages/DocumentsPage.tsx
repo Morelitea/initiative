@@ -333,7 +333,15 @@ export const DocumentsPage = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
+          <div className="flex items-baseline gap-4">
+            <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
+            {canCreateDocuments ? (
+              <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                New document
+              </Button>
+            ) : null}
+          </div>
           <p className="text-muted-foreground text-sm">
             Keep initiative knowledge organized and attach docs to projects.
           </p>
@@ -576,7 +584,7 @@ export const DocumentsPage = () => {
           className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
           onClick={() => setCreateDialogOpen(true)}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-4 w-4" />
           New document
         </Button>
       ) : null}
