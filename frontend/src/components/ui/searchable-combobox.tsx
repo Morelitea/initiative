@@ -40,7 +40,9 @@ export const SearchableCombobox = ({
   }, [value, internalValue]);
 
   const selectedValue = value ?? internalValue;
-  const selectedItem = items.find((item) => item.value === selectedValue);
+  const selectedItem = items.find(
+    (item) => item.value.toLowerCase() === selectedValue.toLowerCase()
+  );
 
   const handleSelect = (currentValue: string) => {
     setInternalValue(currentValue);
@@ -68,7 +70,11 @@ export const SearchableCombobox = ({
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup className="max-h-64 overflow-y-auto">
               {items.map((item) => (
-                <CommandItem key={item.value} value={item.value} onSelect={handleSelect}>
+                <CommandItem
+                  key={item.value}
+                  value={item.label}
+                  onSelect={() => handleSelect(item.value)}
+                >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
