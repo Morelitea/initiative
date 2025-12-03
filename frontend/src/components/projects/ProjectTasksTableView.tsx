@@ -371,7 +371,6 @@ export const ProjectTasksTableView = ({
                 filterInputColumnKey="title"
                 filterInputPlaceholder="Filter tasks..."
                 enableColumnVisibilityDropdown
-                enablePagination
                 enableResetSorting
               />
             </div>
