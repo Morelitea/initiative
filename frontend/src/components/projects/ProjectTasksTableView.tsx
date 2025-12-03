@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Markdown } from "@/components/Markdown";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
@@ -430,9 +431,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
       disabled={!canOpenTask}
     >
       <p className="font-medium">{task.title}</p>
-      {task.description ? (
-        <p className="text-muted-foreground text-sm">{truncateText(task.description, 100)}</p>
-      ) : null}
+      {task.description ? <Markdown content={task.description} className="line-clamp-2" /> : null}
       <div className="text-muted-foreground space-y-1 text-xs">
         {task.assignees.length > 0 ? (
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />

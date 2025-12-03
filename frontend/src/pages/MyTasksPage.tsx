@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Markdown } from "@/components/Markdown";
 import { ArrowUpDown, ChevronDown, Filter } from "lucide-react";
 import { toast } from "sonner";
 
@@ -261,6 +262,7 @@ export const MyTasksPage = () => {
               const targetCategory: TaskStatusCategory = value ? "done" : "in_progress";
               void changeTaskStatus(task, targetCategory);
             }}
+            className="h-6 w-6"
             disabled={isUpdatingTaskStatus}
             aria-label={
               task.task_status.category === "done"
@@ -307,7 +309,7 @@ export const MyTasksPage = () => {
               {task.title}
             </Link>
             {task.description ? (
-              <p className="text-muted-foreground line-clamp-2 text-sm">{task.description}</p>
+              <Markdown content={task.description} className="line-clamp-2" />
             ) : null}
             <div className="text-muted-foreground space-y-1 text-xs">
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare } from "lucide
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/Markdown";
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
@@ -220,9 +221,7 @@ const KanbanTaskCard = ({
         }`}
       >
         <p className="font-medium">{task.title}</p>
-        {task.description ? (
-          <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
-        ) : null}
+        {task.description ? <Markdown content={task.description} className="line-clamp-2" /> : null}
         <div className="text-muted-foreground space-y-1 text-xs">
           {task.assignees.length > 0 ? (
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
