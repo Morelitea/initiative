@@ -90,7 +90,7 @@ export const ProjectTaskComposer = ({
   };
 
   return (
-    <DialogContent className="bg-card">
+    <DialogContent className="bg-card max-h-screen overflow-y-auto">
       <DialogHeader>
         <DialogTitle>Create task</DialogTitle>
         <DialogDescription>

@@ -181,7 +181,7 @@ export const ProjectDocumentsSection = ({
                 Attach document
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
+            <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
               <DialogHeader>
                 <DialogTitle>Attach document</DialogTitle>
                 <DialogDescription>

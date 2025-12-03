@@ -826,7 +826,7 @@ export const ProjectsPage = () => {
             Add Project
           </Button>
           <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
-            <DialogContent className="bg-card">
+            <DialogContent className="bg-card max-h-screen overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create project</DialogTitle>
                 <DialogDescription>

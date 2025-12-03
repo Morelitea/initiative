@@ -451,7 +451,7 @@ export const DocumentSettingsPage = () => {
       </Card>
 
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Duplicate document</DialogTitle>
             <DialogDescription>
@@ -490,7 +490,7 @@ export const DocumentSettingsPage = () => {
       </Dialog>
 
       <Dialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Copy to another initiative</DialogTitle>
             <DialogDescription>
@@ -565,7 +565,7 @@ export const DocumentSettingsPage = () => {
       </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete this document?</DialogTitle>
             <DialogDescription>

@@ -469,7 +469,7 @@ export const DocumentsPage = () => {
       ) : null}
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-card w-full max-w-lg rounded-2xl border shadow-2xl">
+        <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
           <DialogHeader>
             <DialogTitle>New document</DialogTitle>
             <DialogDescription>

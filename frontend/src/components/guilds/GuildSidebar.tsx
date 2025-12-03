@@ -63,7 +63,7 @@ const CreateGuildButton = () => {
           <Plus className="h-5 w-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-card">
+      <DialogContent className="bg-card max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create a new guild</DialogTitle>
           <DialogDescription>
