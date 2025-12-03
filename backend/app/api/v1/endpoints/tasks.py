@@ -176,6 +176,7 @@ async def _advance_recurrence_if_needed(
     await broadcast_event("task", "created", _task_payload(new_task))
 
     task.recurrence = None
+    task.recurrence_strategy = "fixed"
     task.updated_at = now
     session.add(task)
     return True
@@ -480,9 +481,12 @@ async def update_task(
             if value is None:
                 task.recurrence_occurrence_count = 0
                 setattr(task, field, None)
+                task.recurrence_strategy = "fixed"
                 continue
             if isinstance(value, TaskRecurrence):
                 value = value.model_dump(mode="json")
+        if field == "recurrence_strategy" and value is None:
+            continue
         setattr(task, field, value)
     now = datetime.now(timezone.utc)
     task.updated_at = now

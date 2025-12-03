@@ -151,7 +151,7 @@ export const TaskEditPage = () => {
         start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         recurrence,
-        recurrence_strategy: recurrence ? recurrenceStrategy : null,
+        recurrence_strategy: recurrence ? recurrenceStrategy : "fixed",
       };
       const response = await apiClient.patch<Task>(`/tasks/${parsedTaskId}`, payload);
       return response.data;

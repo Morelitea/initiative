@@ -280,10 +280,16 @@ export const ProjectTasksSection = ({
         assignee_ids: assigneeIds,
         start_date: startDate ? new Date(startDate).toISOString() : null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        recurrence,
-        recurrence_strategy: recurrenceStrategy,
+        recurrence: recurrence,
         task_status_id: defaultStatusId,
       };
+      if (recurrence) {
+        payload.recurrence = recurrence;
+        payload.recurrence_strategy = recurrenceStrategy;
+      } else {
+        payload.recurrence = null;
+        payload.recurrence_strategy = "fixed";
+      }
       const response = await apiClient.post<Task>("/tasks/", payload);
       return response.data;
     },
