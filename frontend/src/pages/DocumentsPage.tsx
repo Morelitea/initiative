@@ -352,7 +352,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
 
   const initiatives = initiativesQuery.data ?? [];
   const lockedInitiative = lockedInitiativeId
-    ? initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null
+    ? (initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null)
     : null;
   const documents = documentsQuery.data ?? [];
 

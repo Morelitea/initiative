@@ -60,9 +60,7 @@ const normalizeRanges = (tasks: Task[]): NormalizedRange[] =>
 export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGanttViewProps) => {
   const { user } = useAuth();
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  const [visibleStart, setVisibleStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn })
-  );
+  const [visibleStart, setVisibleStart] = useState(() => startOfWeek(new Date(), { weekStartsOn }));
   const [daysVisible, setDaysVisible] = useState(14);
   const rows = useMemo(() => normalizeRanges(tasks), [tasks]);
   const days = useMemo(

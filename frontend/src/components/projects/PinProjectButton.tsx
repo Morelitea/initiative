@@ -61,12 +61,7 @@ export const PinProjectButton = ({
   return (
     <button
       type="button"
-      className={cn(
-        baseClasses,
-        sizeClasses,
-        "hover:text-primary disabled:opacity-60",
-        className
-      )}
+      className={cn(baseClasses, sizeClasses, "hover:text-primary disabled:opacity-60", className)}
       aria-pressed={isPinned}
       aria-label={isPinned ? "Unpin project" : "Pin project"}
       disabled={pending}

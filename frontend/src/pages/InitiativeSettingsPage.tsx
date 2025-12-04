@@ -59,7 +59,7 @@ export const InitiativeSettingsPage = () => {
 
   const initiative =
     hasValidInitiativeId && initiativesQuery.data
-      ? initiativesQuery.data.find((item) => item.id === initiativeId) ?? null
+      ? (initiativesQuery.data.find((item) => item.id === initiativeId) ?? null)
       : null;
 
   const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
@@ -133,13 +133,10 @@ export const InitiativeSettingsPage = () => {
 
   const addMember = useMutation({
     mutationFn: async (userId: number) => {
-      const response = await apiClient.post<Initiative>(
-        `/initiatives/${initiativeId}/members`,
-        {
-          user_id: userId,
-          role: "member",
-        }
-      );
+      const response = await apiClient.post<Initiative>(`/initiatives/${initiativeId}/members`, {
+        user_id: userId,
+        role: "member",
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -148,8 +145,7 @@ export const InitiativeSettingsPage = () => {
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to add member right now.";
+      const message = error instanceof Error ? error.message : "Unable to add member right now.";
       toast.error(message);
     },
   });
@@ -163,8 +159,7 @@ export const InitiativeSettingsPage = () => {
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to remove member right now.";
+      const message = error instanceof Error ? error.message : "Unable to remove member right now.";
       toast.error(message);
     },
   });
@@ -195,7 +190,7 @@ export const InitiativeSettingsPage = () => {
     }
     updateInitiative.mutate({
       name: trimmedName,
-      description: description.trim() || null,
+      description: description.trim() || undefined,
       color,
     });
   };

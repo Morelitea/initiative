@@ -37,4 +37,3 @@ export const useProjectPinMutation = () =>
       queryClient.setQueryData<Project>(["projects", data.id], () => data);
     },
   });
-
