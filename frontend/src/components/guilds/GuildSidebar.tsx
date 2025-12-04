@@ -1,5 +1,6 @@
 import { useMemo, useState, FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
 import { useGuilds } from "@/hooks/useGuilds";
@@ -22,13 +23,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const CreateGuildButton = () => {
-  const { createGuild, canCreateGuilds } = useGuilds();
+  const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   if (!canCreateGuilds) {
     return null;
@@ -39,10 +41,18 @@ const CreateGuildButton = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await createGuild({ name, description });
+      const newGuild = await createGuild({ name, description });
+      await switchGuild(newGuild.id);
       setOpen(false);
       setName("");
       setDescription("");
+      // NUKE THE CACHE
+      await queryClient.resetQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key !== "guilds" && key !== "user";
+        },
+      });
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : "Unable to create guild";
@@ -143,6 +153,7 @@ export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, canCreateGuilds } = useGuilds();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const handleGuildSwitch = async (guildId: number) => {
     if (guildId === activeGuildId) return;
@@ -169,6 +180,14 @@ export const GuildSidebar = () => {
     }
 
     await switchGuild(guildId);
+
+    // NUKE THE CACHE
+    await queryClient.resetQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key !== "guilds" && key !== "user";
+      },
+    });
 
     navigate(targetPath);
   };

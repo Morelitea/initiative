@@ -1,6 +1,7 @@
 import { Menu } from "lucide-react";
 import { FormEvent, Fragment, useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
   const [createError, setCreateError] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const {
     guilds,
     activeGuildId,
@@ -125,6 +127,14 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
     }
 
     await switchGuildFn(guildId);
+
+    // NUKE THE CACHE
+    await queryClient.resetQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key !== "guilds" && key !== "user";
+      },
+    });
     setIsOpen(false);
     navigate(targetPath);
   };
@@ -134,11 +144,19 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
     setCreatingGuild(true);
     setCreateError(null);
     try {
-      await createGuild({ name: newGuildName, description: newGuildDescription });
+      const newGuild = await createGuild({ name: newGuildName, description: newGuildDescription });
       setIsCreateGuildOpen(false);
       setNewGuildName("");
       setNewGuildDescription("");
       setIsOpen(false);
+      switchGuildFn(newGuild.id);
+      // NUKE THE CACHE
+      await queryClient.resetQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key !== "guilds" && key !== "user";
+        },
+      });
     } catch (error) {
       console.error(error);
       const message =
@@ -147,6 +165,7 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
       toast.error(message);
     } finally {
       setCreatingGuild(false);
+      navigate("/");
     }
   };
 
