@@ -10,7 +10,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write .",
-    "prepare": "husky"
+    "prepare": "cd .. && husky ./frontend/.husky"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -83,11 +83,19 @@
     "eslint-plugin-react": "^7.34.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "postcss": "^8.4.38",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5",
     "vite": "^5.2.0"
+  },
+  "lint-staged": {
+    "*.css": "prettier --write",
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
