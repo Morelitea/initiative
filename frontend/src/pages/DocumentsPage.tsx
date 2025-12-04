@@ -461,13 +461,9 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
       {!documentsQuery.isLoading && !documentsQuery.isError ? (
         documents.length > 0 ? (
           viewMode === "grid" ? (
-            <div className="flex flex-wrap gap-4">
+            <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
               {documents.map((document) => (
-                <DocumentCard
-                  key={document.id}
-                  document={document}
-                  className="w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.75rem)] xl:w-[calc(25%-0.75rem)] 2xl:w-[calc(20%-0.8rem)]"
-                />
+                <DocumentCard key={document.id} document={document} hideInitiative />
               ))}
             </div>
           ) : (
