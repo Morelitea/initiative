@@ -33,6 +33,7 @@ import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
+import { dateSortingFn } from "@/lib/sorting";
 
 const priorityRank: Record<TaskPriority, number> = {
   low: 0,
@@ -228,7 +229,7 @@ export const ProjectTasksTableView = ({
           );
         },
         enableSorting: true,
-        sortingFn: "datetime",
+        sortingFn: dateSortingFn,
       },
       {
         accessorKey: "due_date",
@@ -256,7 +257,7 @@ export const ProjectTasksTableView = ({
           );
         },
         enableSorting: true,
-        sortingFn: "datetime",
+        sortingFn: dateSortingFn,
       },
       {
         accessorKey: "priority",

@@ -33,6 +33,7 @@ import type {
 } from "@/types/api";
 import { formatDistance } from "date-fns";
 import { SortIcon } from "@/components/SortIcon";
+import { dateSortingFn } from "@/lib/sorting";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -347,7 +348,7 @@ export const MyTasksPage = () => {
           <span className="text-muted-foreground">—</span>
         );
       },
-      sortingFn: "datetime",
+      sortingFn: dateSortingFn,
     },
     {
       id: "due date",
@@ -377,7 +378,7 @@ export const MyTasksPage = () => {
           <span className="text-muted-foreground">—</span>
         );
       },
-      sortingFn: "datetime",
+      sortingFn: dateSortingFn,
     },
     {
       id: "initiative",
