@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import type { AxiosError } from "axios";
-
 import { apiClient, setCurrentGuildId } from "@/api/client";
 import type { Guild } from "@/types/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,25 +58,50 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
+  // Sync API Client whenever ID changes
   useEffect(() => {
     setCurrentGuildId(activeGuildId);
     persistGuildId(activeGuildId);
   }, [activeGuildId]);
 
+  // Sync Tabs: If another tab updates the guild, this tab should follow suit.
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === GUILD_STORAGE_KEY) {
+        const newId = event.newValue ? Number(event.newValue) : null;
+        if (newId !== activeGuildId) {
+          setActiveGuildId(newId);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [activeGuildId]);
+
   const applyGuildState = useCallback((guildList: Guild[]) => {
     setGuilds(guildList);
-    const serverActive = guildList.find((guild) => guild.is_active);
-    if (serverActive) {
-      setActiveGuildId(serverActive.id);
-      return;
-    }
+
+    // 1. PRIORITY: Check Local Storage (Client Session Preference)
+    // This allows unique browsing sessions on different devices.
     const stored = readStoredGuildId();
     if (stored && guildList.some((guild) => guild.id === stored)) {
       setActiveGuildId(stored);
       return;
     }
+
+    // 2. FALLBACK: Server State
+    // Only trust the server's "active" flag if we have no local preference.
+    const serverActive = guildList.find((guild) => guild.is_active);
+    if (serverActive) {
+      setActiveGuildId(serverActive.id);
+      return;
+    }
+
+    // 3. FINAL FALLBACK: First available guild
     setActiveGuildId(guildList[0]?.id ?? null);
   }, []);
 
@@ -88,7 +112,10 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setError(null);
       return;
     }
-    setLoading(true);
+
+    // Avoid setting loading=true on background refreshes if we already have data
+    if (guilds.length === 0) setLoading(true);
+
     setError(null);
     try {
       const response = await apiClient.get<Guild[]>("/guilds/");
@@ -101,7 +128,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [token, user, applyGuildState]);
+  }, [token, user, applyGuildState, guilds.length]);
 
   useEffect(() => {
     if (!user || !token) {
@@ -115,12 +142,19 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
   const switchGuild = useCallback(
     async (guildId: number) => {
+      // Don't switch if we are already there
       if (!user || guildId === activeGuildId) {
         return;
       }
+
       try {
+        // Tell backend we switched (for future default logins)
         await apiClient.post(`/guilds/${guildId}/switch`);
+
+        // Update local state immediately so UI reacts
         setActiveGuildId(guildId);
+
+        // Refresh data in background to ensure everything is synced
         await Promise.all([refreshGuilds(), refreshUser()]);
       } catch (err) {
         console.error("Failed to switch guild", err);
@@ -138,15 +172,19 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       if (!canCreateGuilds) {
         throw new Error("Guild creation is disabled.");
       }
+
       const trimmedName = name.trim();
       if (!trimmedName) {
         throw new Error("Guild name is required.");
       }
+
       const response = await apiClient.post<Guild>("/guilds/", {
         name: trimmedName,
         description: description?.trim() || undefined,
       });
+
       await Promise.all([refreshGuilds(), refreshUser()]);
+
       return response.data;
     },
     [user, canCreateGuilds, refreshGuilds, refreshUser]
@@ -164,6 +202,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       });
       return replaced ? next : prev.concat(guild);
     });
+
     if (guild.is_active) {
       setActiveGuildId(guild.id);
     }
