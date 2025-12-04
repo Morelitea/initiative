@@ -94,7 +94,7 @@
   "lint-staged": {
     "*.css": "prettier --write",
     "*.{ts,tsx}": [
-      "eslint --fix",
+      "eslint --report-unused-disable-directives --max-warnings 0 --fix",
       "prettier --write"
     ]
   }
