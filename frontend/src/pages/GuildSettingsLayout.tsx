@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +7,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 const guildSettingsTabs = [
   { value: "guild", label: "Guild", path: "/settings/guild" },
   { value: "users", label: "Users", path: "/settings/guild/users" },
-  { value: "initiatives", label: "Initiatives", path: "/settings/guild/initiatives" },
   { value: "api-keys", label: "API Keys", path: "/settings/guild/api-keys" },
 ];
 
@@ -16,29 +14,11 @@ export const GuildSettingsLayout = () => {
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
-  const managesInitiatives =
-    user?.initiative_roles?.some((assignment) => assignment.role === "project_manager") ?? false;
   const location = useLocation();
   const navigate = useNavigate();
 
-  const canViewSettings = isGuildAdmin || managesInitiatives;
-  const availableTabs = isGuildAdmin
-    ? guildSettingsTabs
-    : managesInitiatives
-      ? guildSettingsTabs.filter((tab) => tab.value === "initiatives")
-      : [];
-
-  useEffect(() => {
-    if (!isGuildAdmin && managesInitiatives) {
-      const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
-      const initiativesPath = "/settings/guild/initiatives";
-      const isOnInitiatives =
-        normalizedPath === initiativesPath || normalizedPath.startsWith(`${initiativesPath}/`);
-      if (!isOnInitiatives) {
-        navigate(initiativesPath, { replace: true });
-      }
-    }
-  }, [isGuildAdmin, managesInitiatives, location.pathname, navigate]);
+  const canViewSettings = isGuildAdmin;
+  const availableTabs = isGuildAdmin ? guildSettingsTabs : [];
 
   if (!canViewSettings) {
     return (
@@ -65,9 +45,7 @@ export const GuildSettingsLayout = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Guild settings</h1>
-        <p className="text-muted-foreground">
-          Manage workspace membership, initiatives, and guild details.
-        </p>
+        <p className="text-muted-foreground">Manage workspace membership and guild details.</p>
       </div>
       <Tabs
         value={activeTab}

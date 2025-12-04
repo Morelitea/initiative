@@ -18,7 +18,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical,
   LayoutGrid,
   ScrollText,
   Archive,
@@ -31,8 +30,7 @@ import {
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
-import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
-import { PinProjectButton } from "@/components/projects/PinProjectButton";
+import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -56,11 +54,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
-import { ProgressCircle } from "@/components/ui/progress-circle";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
-import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { Project, ProjectReorderPayload, Initiative } from "@/types/api";
 import {
   Dialog,
@@ -973,75 +968,6 @@ export const ProjectsPage = () => {
   );
 };
 
-const ProjectCardLink = ({
-  project,
-  dragHandleProps,
-  canPinProjects,
-}: {
-  project: Project;
-  dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-  canPinProjects: boolean;
-}) => {
-  const initiative = project.initiative;
-  const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
-  const isPinned = Boolean(project.pinned_at);
-
-  return (
-    <div className="relative">
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <PinProjectButton
-          projectId={project.id}
-          isPinned={isPinned}
-          canPin={canPinProjects}
-          suppressNavigation
-        />
-        <FavoriteProjectButton
-          projectId={project.id}
-          isFavorited={project.is_favorited ?? false}
-          suppressNavigation
-        />
-        {dragHandleProps ? (
-          <button
-            type="button"
-            className="bg-background text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-full border p-1 transition focus-visible:ring-2 focus-visible:outline-none"
-            aria-label="Reorder project"
-            {...dragHandleProps}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-        ) : null}
-      </div>
-      <Link to={`/projects/${project.id}`} className="block">
-        <Card className="overflow-hidden shadow-sm">
-          {initiativeColor ? (
-            <div
-              className="h-1.5 w-full"
-              style={{ backgroundColor: initiativeColor }}
-              aria-hidden="true"
-            />
-          ) : null}
-          <CardHeader className="pr-22">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
-              <span>{project.name}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardFooter className="text-muted-foreground flex justify-between gap-6 space-y-2 text-sm">
-            <div>
-              <InitiativeLabel initiative={initiative} />
-              <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
-            </div>
-
-            <div className="flex-1">
-              <ProjectProgress summary={project.task_summary} />
-            </div>
-          </CardFooter>
-        </Card>
-      </Link>
-    </div>
-  );
-};
-
 const SortableProjectCardLink = ({
   project,
   canPinProjects,
@@ -1075,76 +1001,6 @@ const SortableProjectCardLink = ({
   );
 };
 
-const ProjectRowLink = ({
-  project,
-  dragHandleProps,
-  canPinProjects,
-}: {
-  project: Project;
-  dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-  canPinProjects: boolean;
-}) => {
-  const initiativeColor = project.initiative
-    ? resolveInitiativeColor(project.initiative.color)
-    : null;
-  const isPinned = Boolean(project.pinned_at);
-  return (
-    <div className="relative">
-      {dragHandleProps ? (
-        <button
-          type="button"
-          className="bg-background text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full border p-1 transition focus-visible:ring-2 focus-visible:outline-none"
-          aria-label="Reorder project"
-          {...dragHandleProps}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-      ) : null}
-      <div className="absolute top-4 right-4 z-10">
-        <div className="flex items-center gap-2">
-          <PinProjectButton
-            projectId={project.id}
-            isPinned={isPinned}
-            canPin={canPinProjects}
-            suppressNavigation
-            iconSize="sm"
-          />
-          <FavoriteProjectButton
-            projectId={project.id}
-            isFavorited={project.is_favorited ?? false}
-            suppressNavigation
-            iconSize="sm"
-          />
-        </div>
-      </div>
-      <Link to={`/projects/${project.id}`} className="block">
-        <Card
-          className={`p-4 pr-16 shadow-sm ${initiativeColor ? "border-l-4" : ""}`}
-          style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
-        >
-          <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
-            {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
-            <div className="min-w-[200px] flex-1">
-              <p className="font-semibold">{project.name}</p>
-              <div className="flex flex-wrap gap-6">
-                <div className="min-w-30 flex-1">
-                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-xs">
-                    <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
-                    <InitiativeLabel initiative={project.initiative} />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <ProjectProgress summary={project.task_summary} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </Link>
-    </div>
-  );
-};
-
 const SortableProjectRowLink = ({
   project,
   canPinProjects,
@@ -1174,38 +1030,6 @@ const SortableProjectRowLink = ({
         dragHandleProps={dragHandleProps}
         canPinProjects={canPinProjects}
       />
-    </div>
-  );
-};
-
-const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => {
-  if (!initiative) {
-    return null;
-  }
-  return (
-    <span className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
-      <InitiativeColorDot color={initiative.color} />
-      <span>{initiative.name}</span>
-    </span>
-  );
-};
-
-const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => {
-  const total = summary?.total ?? 0;
-  const completed = summary?.completed ?? 0;
-  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-  return (
-    <div className="@container flex w-full items-center justify-between gap-4">
-      <div className="hidden w-full flex-col gap-2 @xs:flex">
-        <span className="text-muted-foreground flex justify-end text-xs">
-          {completed}/{total} done
-        </span>
-        <Progress value={percent} className="h-2" />
-      </div>
-      <div className="flex w-full items-center justify-end gap-3 @xs:hidden">
-        <ProgressCircle value={percent} />
-      </div>
     </div>
   );
 };

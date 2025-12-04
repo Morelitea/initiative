@@ -145,11 +145,18 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
   },
 ];
 
-export const DocumentsPage = () => {
+type DocumentsViewProps = {
+  fixedInitiativeId?: number;
+};
+
+export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
+  const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(
+    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
   const [viewMode, setViewMode] = useState<"grid" | "table">(() => {
@@ -159,6 +166,13 @@ export const DocumentsPage = () => {
     const stored = localStorage.getItem(DOCUMENT_VIEW_KEY);
     return stored === "table" || stored === "grid" ? stored : "grid";
   });
+
+  useEffect(() => {
+    if (lockedInitiativeId) {
+      const lockedValue = String(lockedInitiativeId);
+      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
+    }
+  }, [lockedInitiativeId]);
 
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", { initiative: initiativeFilter, search: searchQuery }],
@@ -200,10 +214,14 @@ export const DocumentsPage = () => {
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newInitiativeId, setNewInitiativeId] = useState<string>("");
+  const [newInitiativeId, setNewInitiativeId] = useState<string>(
+    lockedInitiativeId ? String(lockedInitiativeId) : ""
+  );
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const canCreateDocuments = manageableInitiatives.length > 0;
+  const canCreateDocuments = lockedInitiativeId
+    ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
+    : manageableInitiatives.length > 0;
 
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", "templates"],
@@ -259,10 +277,14 @@ export const DocumentsPage = () => {
       setSelectedTemplateId("");
       return;
     }
+    if (lockedInitiativeId) {
+      setNewInitiativeId(String(lockedInitiativeId));
+      return;
+    }
     if (!newInitiativeId && manageableInitiatives.length > 0) {
       setNewInitiativeId(String(manageableInitiatives[0].id));
     }
-  }, [createDialogOpen, manageableInitiatives, newInitiativeId]);
+  }, [createDialogOpen, manageableInitiatives, newInitiativeId, lockedInitiativeId]);
 
   useEffect(() => {
     if (isTemplateDocument && selectedTemplateId) {
@@ -288,12 +310,14 @@ export const DocumentsPage = () => {
       if (!trimmedTitle) {
         throw new Error("Document title is required");
       }
-      if (!newInitiativeId) {
+      const resolvedInitiativeId =
+        newInitiativeId || (lockedInitiativeId ? String(lockedInitiativeId) : "");
+      if (!resolvedInitiativeId) {
         throw new Error("Select an initiative");
       }
       if (selectedTemplateId) {
         const payload = {
-          target_initiative_id: Number(newInitiativeId),
+          target_initiative_id: Number(resolvedInitiativeId),
           title: trimmedTitle,
         };
         const response = await apiClient.post<DocumentRead>(
@@ -304,7 +328,7 @@ export const DocumentsPage = () => {
       }
       const payload = {
         title: trimmedTitle,
-        initiative_id: Number(newInitiativeId),
+        initiative_id: Number(resolvedInitiativeId),
         is_template: isTemplateDocument,
       };
       const response = await apiClient.post<DocumentRead>("/documents/", payload);
@@ -327,6 +351,9 @@ export const DocumentsPage = () => {
   });
 
   const initiatives = initiativesQuery.data ?? [];
+  const lockedInitiative = lockedInitiativeId
+    ? initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null
+    : null;
   const documents = documentsQuery.data ?? [];
 
   return (
@@ -395,31 +422,40 @@ export const DocumentsPage = () => {
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </div>
-            <div className="w-full space-y-2 sm:w-60">
-              <Label
-                htmlFor="document-initiative-filter"
-                className="text-muted-foreground text-xs font-medium"
-              >
-                Initiative
-              </Label>
-              <Select
-                value={initiativeFilter}
-                onValueChange={(value) => setInitiativeFilter(value)}
-                disabled={initiativesQuery.isLoading}
-              >
-                <SelectTrigger id="document-initiative-filter">
-                  <SelectValue placeholder="All initiatives" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                  {initiatives.map((initiative) => (
-                    <SelectItem key={initiative.id} value={String(initiative.id)}>
-                      {initiative.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {lockedInitiativeId ? (
+              <div className="w-full space-y-2 sm:w-60">
+                <Label className="text-muted-foreground text-xs font-medium">Initiative</Label>
+                <p className="text-sm font-medium">
+                  {lockedInitiative?.name ?? "Selected initiative"}
+                </p>
+              </div>
+            ) : (
+              <div className="w-full space-y-2 sm:w-60">
+                <Label
+                  htmlFor="document-initiative-filter"
+                  className="text-muted-foreground text-xs font-medium"
+                >
+                  Initiative
+                </Label>
+                <Select
+                  value={initiativeFilter}
+                  onValueChange={(value) => setInitiativeFilter(value)}
+                  disabled={initiativesQuery.isLoading}
+                >
+                  <SelectTrigger id="document-initiative-filter">
+                    <SelectValue placeholder="All initiatives" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                    {initiatives.map((initiative) => (
+                      <SelectItem key={initiative.id} value={String(initiative.id)}>
+                        {initiative.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -496,22 +532,28 @@ export const DocumentsPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-document-initiative">Initiative</Label>
-              <Select
-                value={newInitiativeId}
-                onValueChange={(value) => setNewInitiativeId(value)}
-                disabled={!canCreateDocuments}
-              >
-                <SelectTrigger id="new-document-initiative">
-                  <SelectValue placeholder="Select initiative" />
-                </SelectTrigger>
-                <SelectContent>
-                  {manageableInitiatives.map((initiative) => (
-                    <SelectItem key={initiative.id} value={String(initiative.id)}>
-                      {initiative.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {lockedInitiativeId ? (
+                <div className="rounded-md border px-3 py-2 text-sm">
+                  {lockedInitiative?.name ?? "Selected initiative"}
+                </div>
+              ) : (
+                <Select
+                  value={newInitiativeId}
+                  onValueChange={(value) => setNewInitiativeId(value)}
+                  disabled={!canCreateDocuments}
+                >
+                  <SelectTrigger id="new-document-initiative">
+                    <SelectValue placeholder="Select initiative" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {manageableInitiatives.map((initiative) => (
+                      <SelectItem key={initiative.id} value={String(initiative.id)}>
+                        {initiative.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-document-template-selector">Start from template</Label>
@@ -563,7 +605,11 @@ export const DocumentsPage = () => {
             <Button
               type="button"
               onClick={() => createDocument.mutate()}
-              disabled={createDocument.isPending || !newTitle.trim() || !newInitiativeId}
+              disabled={
+                createDocument.isPending ||
+                !newTitle.trim() ||
+                (!newInitiativeId && !lockedInitiativeId)
+              }
             >
               {createDocument.isPending ? (
                 <>
@@ -591,3 +637,5 @@ export const DocumentsPage = () => {
     </div>
   );
 };
+
+export const DocumentsPage = () => <DocumentsView />;

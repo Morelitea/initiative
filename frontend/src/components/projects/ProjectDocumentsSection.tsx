@@ -205,7 +205,8 @@ export const ProjectDocumentsSection = ({
                     buttonClassName="justify-between"
                   />
                   <p className="text-muted-foreground text-xs">
-                    Need a new one? Create it from the Documents tab and return here to attach it.
+                    Need a new one? Open My Initiatives and use the initiative&apos;s Documents tab
+                    to create it, then return here to attach it.
                   </p>
                 </div>
               </div>

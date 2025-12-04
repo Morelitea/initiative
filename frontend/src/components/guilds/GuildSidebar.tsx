@@ -153,6 +153,9 @@ export const GuildSidebar = () => {
     if (currentPath.startsWith("/tasks")) {
       // My Tasks is safe to persist across guilds
       targetPath = "/tasks";
+    } else if (currentPath.startsWith("/initiatives")) {
+      // Initiative detail IDs are guild-scoped, so return to the list.
+      targetPath = "/initiatives";
     } else if (currentPath.startsWith("/documents")) {
       // If we are on a document detail page (/documents/123), that ID won't exist in the new guild.
       // So we fallback to the Document List page (/documents).

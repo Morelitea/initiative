@@ -24,6 +24,21 @@ const DocumentsPage = lazy(() =>
     default: module.DocumentsPage,
   }))
 );
+const InitiativesPage = lazy(() =>
+  import("./pages/InitiativesPage").then((module) => ({
+    default: module.InitiativesPage,
+  }))
+);
+const InitiativeDetailPage = lazy(() =>
+  import("./pages/InitiativeDetailPage").then((module) => ({
+    default: module.InitiativeDetailPage,
+  }))
+);
+const InitiativeSettingsPage = lazy(() =>
+  import("./pages/InitiativeSettingsPage").then((module) => ({
+    default: module.InitiativeSettingsPage,
+  }))
+);
 const DocumentDetailPage = lazy(() =>
   import("./pages/DocumentDetailPage").then((module) => ({
     default: module.DocumentDetailPage,
@@ -62,11 +77,6 @@ const AdminSettingsLayout = lazy(() =>
 const SettingsUsersPage = lazy(() =>
   import("./pages/SettingsUsersPage").then((module) => ({
     default: module.SettingsUsersPage,
-  }))
-);
-const SettingsInitiativesPage = lazy(() =>
-  import("./pages/SettingsInitiativesPage").then((module) => ({
-    default: module.SettingsInitiativesPage,
   }))
 );
 const SettingsAuthPage = lazy(() =>
@@ -165,6 +175,9 @@ export const PageRoutes = () => {
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
         <Route path="/tasks/:taskId/edit" element={<TaskEditPage />} />
         <Route path="/tasks" element={<MyTasksPage />} />
+        <Route path="/initiatives" element={<InitiativesPage />} />
+        <Route path="/initiatives/:initiativeId" element={<InitiativeDetailPage />} />
+        <Route path="/initiatives/:initiativeId/settings" element={<InitiativeSettingsPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/documents/:documentId" element={<DocumentDetailPage />} />
         <Route path="/documents/:documentId/settings" element={<DocumentSettingsPage />} />
@@ -190,7 +203,6 @@ export const PageRoutes = () => {
         <Route path="/settings/guild/*" element={<GuildSettingsLayout />}>
           <Route index element={<SettingsGuildPage />} />
           <Route path="users" element={<SettingsUsersPage />} />
-          <Route path="initiatives" element={<SettingsInitiativesPage />} />
           <Route path="api-keys" element={<SettingsApiKeysPage />} />
         </Route>
         <Route path="/settings/admin/*" element={<AdminSettingsLayout />}>
