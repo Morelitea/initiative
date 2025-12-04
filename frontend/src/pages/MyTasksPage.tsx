@@ -34,6 +34,7 @@ import type {
 import { formatDistance } from "date-fns";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
+import { InitiativeColorDot } from "@/lib/initiativeColors";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -391,14 +392,14 @@ export const MyTasksPage = () => {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
         return (
-          <div className="flex min-w-40 items-center gap-2">
-            {initiative.color ? (
-              <span
-                className="border-border/40 h-2.5 w-2.5 rounded-full border"
-                style={{ backgroundColor: initiative.color }}
-              />
-            ) : null}
-            <span className="text-foreground text-sm font-medium">{initiative.name}</span>
+          <div className="min-w-40">
+            <Link
+              to={`/initiatives/${initiative.id}`}
+              className="text-foreground flex items-center gap-2 text-sm font-medium"
+            >
+              <InitiativeColorDot color={initiative.color} />
+              {initiative.name}
+            </Link>
           </div>
         );
       },

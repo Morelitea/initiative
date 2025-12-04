@@ -70,10 +70,13 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
           </p>
           {document.initiative && !hideInitiative ? (
-            <div className="text-muted-foreground inline-flex items-center gap-2 text-sm">
+            <Link
+              to={`/initiatives/${document.initiative.id}`}
+              className="text-muted-foreground inline-flex items-center gap-2 text-sm"
+            >
               <InitiativeColorDot color={document.initiative.color} />
               {document.initiative.name}
-            </div>
+            </Link>
           ) : null}
         </div>
         <div className="text-muted-foreground mt-auto space-y-1 text-sm">

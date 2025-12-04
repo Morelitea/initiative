@@ -32,10 +32,10 @@ import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { DocumentCard } from "@/components/documents/DocumentCard";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { useAuth } from "@/hooks/useAuth";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
+import { dateSortingFn } from "@/lib/sorting";
 
 const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
@@ -109,23 +109,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         </div>
       );
     },
-    sortingFn: "datetime",
-  },
-  {
-    accessorKey: "initiative",
-    header: "Initiative",
-    cell: ({ row }) => {
-      const initiative = row.original.initiative;
-      if (!initiative) {
-        return <span className="text-muted-foreground">—</span>;
-      }
-      return (
-        <span className="inline-flex min-w-[140px] items-center gap-2">
-          <InitiativeColorDot color={initiative.color} />
-          {initiative.name}
-        </span>
-      );
-    },
+    sortingFn: dateSortingFn,
   },
   {
     accessorKey: "projects",

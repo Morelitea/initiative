@@ -10,6 +10,7 @@ import {
   resolveInitiativeColor,
 } from "@/lib/initiativeColors";
 import type { Project } from "@/types/api";
+import { Link } from "react-router-dom";
 
 type ProjectOverviewCardProps = {
   project: Project;
@@ -43,10 +44,13 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
         </div>
       </div>
       {project.initiative ? (
-        <div className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+        <Link
+          to={`/initiatives/${project.initiative.id}`}
+          className="text-muted-foreground flex items-center gap-2 text-sm font-medium"
+        >
           <InitiativeColorDot color={project.initiative.color} />
           <span>{project.initiative.name}</span>
-        </div>
+        </Link>
       ) : null}
       {project.is_template ? (
         <p className="border-muted/70 bg-muted/30 text-muted-foreground rounded-md border px-4 py-2 text-sm">

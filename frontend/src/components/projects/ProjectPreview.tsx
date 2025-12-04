@@ -142,10 +142,13 @@ export const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null
     return null;
   }
   return (
-    <span className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
+    <Link
+      to={`/initiatives/${initiative.id}`}
+      className="text-muted-foreground flex items-center gap-2 text-xs font-medium"
+    >
       <InitiativeColorDot color={initiative.color} />
-      <span>{initiative.name}</span>
-    </span>
+      {initiative.name}
+    </Link>
   );
 };
 
