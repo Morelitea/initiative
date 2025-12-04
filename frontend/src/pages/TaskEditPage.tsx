@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -262,12 +262,19 @@ export const TaskEditPage = () => {
     }
   }, [isReadOnly]);
 
+  const handleBackClick = () => {
+    navigate(-1);
+  };
+
   if (!Number.isFinite(parsedTaskId)) {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Invalid task id.</p>
-        <Button asChild variant="link" className="px-0">
+        {/* <Button asChild variant="link" className="px-0">
           <Link to="/">← Back to projects</Link>
+        </Button> */}
+        <Button variant="link" className="px-0" onClick={handleBackClick}>
+          ← Back
         </Button>
       </div>
     );
@@ -281,8 +288,11 @@ export const TaskEditPage = () => {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Unable to load task.</p>
-        <Button asChild variant="link" className="px-0">
+        {/* <Button asChild variant="link" className="px-0">
           <Link to="/">← Back to projects</Link>
+        </Button> */}
+        <Button variant="link" className="px-0" onClick={handleBackClick}>
+          ← Back
         </Button>
       </div>
     );
@@ -292,8 +302,11 @@ export const TaskEditPage = () => {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project context for this task.</p>
-        <Button asChild variant="link" className="px-0">
+        {/* <Button asChild variant="link" className="px-0">
           <Link to="/">← Back to projects</Link>
+        </Button> */}
+        <Button variant="link" className="px-0" onClick={handleBackClick}>
+          ← Back
         </Button>
       </div>
     );
@@ -305,8 +318,8 @@ export const TaskEditPage = () => {
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="link" className="px-0">
-        <Link to={projectLink}>← Back to project</Link>
+      <Button variant="link" className="px-0" onClick={handleBackClick}>
+        ← Back
       </Button>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">

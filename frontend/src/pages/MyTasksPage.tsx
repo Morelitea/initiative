@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Markdown } from "@/components/Markdown";
-import { ArrowUpDown, ChevronDown, Filter } from "lucide-react";
+import { ChevronDown, Filter } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -32,6 +32,7 @@ import type {
   TaskStatusCategory,
 } from "@/types/api";
 import { formatDistance } from "date-fns";
+import { SortIcon } from "@/components/SortIcon";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -279,15 +280,16 @@ export const MyTasksPage = () => {
     {
       accessorKey: "title",
       header: ({ column }) => {
+        const isSorted = column.getIsSorted();
         return (
           <div className="flex items-center gap-2">
             Task
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              onClick={() => column.toggleSorting(isSorted === "asc")}
             >
-              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              <SortIcon isSorted={isSorted} />
             </Button>
           </div>
         );
@@ -301,11 +303,8 @@ export const MyTasksPage = () => {
             })
           : null;
         return (
-          <div className="flex flex-col text-left">
-            <Link
-              to={`/tasks/${task.id}/edit`}
-              className="text-foreground font-medium hover:underline"
-            >
+          <div className="flex min-w-60 flex-col text-left">
+            <Link to={`/tasks/${task.id}`} className="text-foreground font-medium hover:underline">
               {task.title}
             </Link>
             {task.description ? (
@@ -324,15 +323,16 @@ export const MyTasksPage = () => {
       id: "start date",
       accessorKey: "start_date",
       header: ({ column }) => {
+        const isSorted = column.getIsSorted();
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-30 items-center gap-2">
             Start Date
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              onClick={() => column.toggleSorting(isSorted === "asc")}
             >
-              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              <SortIcon isSorted={isSorted} />
             </Button>
           </div>
         );
@@ -340,29 +340,29 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         return task.start_date ? (
-          <div className="min-w-20">
+          <div className="min-w-30">
             {formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })}
           </div>
         ) : (
           <span className="text-muted-foreground">—</span>
         );
       },
-      enableSorting: true,
       sortingFn: "datetime",
     },
     {
       id: "due date",
       accessorKey: "due_date",
       header: ({ column }) => {
+        const isSorted = column.getIsSorted();
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-30 items-center gap-2">
             Due Date
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              onClick={() => column.toggleSorting(isSorted === "asc")}
             >
-              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              <SortIcon isSorted={isSorted} />
             </Button>
           </div>
         );
@@ -370,7 +370,7 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         return task.due_date ? (
-          <div className="min-w-20">
+          <div className="min-w-30">
             {formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })}
           </div>
         ) : (
@@ -390,7 +390,7 @@ export const MyTasksPage = () => {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-40 items-center gap-2">
             {initiative.color ? (
               <span
                 className="border-border/40 h-2.5 w-2.5 rounded-full border"
@@ -409,15 +409,21 @@ export const MyTasksPage = () => {
         const task = row.original;
         const project = projectsById[task.project_id];
         if (!project) {
-          return <span className="text-muted-foreground text-sm">Project #{task.project_id}</span>;
+          return (
+            <div className="min-w-30">
+              <span className="text-muted-foreground text-sm">Project #{task.project_id}</span>
+            </div>
+          );
         }
         return (
-          <Link
-            to={`/projects/${project.id}`}
-            className="text-primary text-sm font-medium hover:underline"
-          >
-            {project.name}
-          </Link>
+          <div className="min-w-30">
+            <Link
+              to={`/projects/${project.id}`}
+              className="text-primary text-sm font-medium hover:underline"
+            >
+              {project.name}
+            </Link>
+          </div>
         );
       },
     },
@@ -425,15 +431,16 @@ export const MyTasksPage = () => {
       accessorKey: "priority",
       id: "priority",
       header: ({ column }) => {
+        const isSorted = column.getIsSorted();
         return (
           <div className="flex items-center gap-2">
             Priority
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              onClick={() => column.toggleSorting(isSorted === "asc")}
             >
-              <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+              <SortIcon isSorted={isSorted} />
             </Button>
           </div>
         );

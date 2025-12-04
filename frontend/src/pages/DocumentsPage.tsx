@@ -3,7 +3,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowUpDown, ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
+import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -35,6 +35,7 @@ import { DocumentCard } from "@/components/documents/DocumentCard";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { useAuth } from "@/hooks/useAuth";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
+import { SortIcon } from "@/components/SortIcon";
 
 const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
@@ -49,15 +50,16 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     accessorKey: "title",
     header: ({ column }) => {
+      const isSorted = column.getIsSorted();
       return (
         <div className="flex items-center gap-2">
           Title
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            onClick={() => column.toggleSorting(isSorted === "asc")}
           >
-            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            <SortIcon isSorted={isSorted} />
           </Button>
         </div>
       );
@@ -83,15 +85,16 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
     id: "last updated",
     accessorKey: "updated_at",
     header: ({ column }) => {
+      const isSorted = column.getIsSorted();
       return (
         <div className="flex items-center gap-2">
           Last updated
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            onClick={() => column.toggleSorting(isSorted === "asc")}
           >
-            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+            <SortIcon isSorted={isSorted} />
           </Button>
         </div>
       );

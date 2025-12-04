@@ -160,7 +160,7 @@ export const ProjectDetailPage = () => {
     if (!canViewTaskDetails) {
       return;
     }
-    navigate(`/tasks/${taskId}/edit`);
+    navigate(`/tasks/${taskId}`);
   };
 
   return (

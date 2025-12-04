@@ -118,7 +118,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                       <p className="text-foreground text-sm">
                         commented on{" "}
                         <Link
-                          to={`/tasks/${entry.task_id}/edit`}
+                          to={`/tasks/${entry.task_id}`}
                           className="font-medium hover:underline"
                         >
                           {entry.task_title}

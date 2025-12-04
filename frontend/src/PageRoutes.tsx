@@ -173,8 +173,8 @@ export const PageRoutes = () => {
         <Route path="/" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
-        <Route path="/tasks/:taskId/edit" element={<TaskEditPage />} />
         <Route path="/tasks" element={<MyTasksPage />} />
+        <Route path="/tasks/:taskId" element={<TaskEditPage />} />
         <Route path="/initiatives" element={<InitiativesPage />} />
         <Route path="/initiatives/:initiativeId" element={<InitiativeDetailPage />} />
         <Route path="/initiatives/:initiativeId/settings" element={<InitiativeSettingsPage />} />

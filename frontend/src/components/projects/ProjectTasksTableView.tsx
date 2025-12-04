@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowUpDown, GripVertical, MessageSquare } from "lucide-react";
+import { GripVertical, MessageSquare } from "lucide-react";
 import { formatDistance } from "date-fns";
 
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Markdown } from "@/components/Markdown";
+import { SortIcon } from "@/components/SortIcon";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
@@ -180,15 +181,16 @@ export const ProjectTasksTableView = ({
         id: "title",
         accessorKey: "title",
         header: ({ column }) => {
+          const isSorted = column.getIsSorted();
           return (
             <div className="flex items-center gap-2">
               Task
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                onClick={() => column.toggleSorting(isSorted === "asc")}
               >
-                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                <SortIcon isSorted={isSorted} />
               </Button>
             </div>
           );
@@ -203,15 +205,16 @@ export const ProjectTasksTableView = ({
       {
         accessorKey: "start_date",
         header: ({ column }) => {
+          const isSorted = column.getIsSorted();
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-30 items-center gap-2">
               Start Date
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                onClick={() => column.toggleSorting(isSorted === "asc")}
               >
-                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                <SortIcon isSorted={isSorted} />
               </Button>
             </div>
           );
@@ -219,9 +222,7 @@ export const ProjectTasksTableView = ({
         cell: ({ row }) => {
           const task = row.original;
           return task.start_date ? (
-            <div className="min-w-20">
-              {formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })}
-            </div>
+            formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })
           ) : (
             <span className="text-muted-foreground">—</span>
           );
@@ -232,15 +233,16 @@ export const ProjectTasksTableView = ({
       {
         accessorKey: "due_date",
         header: ({ column }) => {
+          const isSorted = column.getIsSorted();
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-30 items-center gap-2">
               Due Date
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                onClick={() => column.toggleSorting(isSorted === "asc")}
               >
-                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                <SortIcon isSorted={isSorted} />
               </Button>
             </div>
           );
@@ -248,9 +250,7 @@ export const ProjectTasksTableView = ({
         cell: ({ row }) => {
           const task = row.original;
           return task.due_date ? (
-            <div className="min-w-20">
-              {formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })}
-            </div>
+            formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })
           ) : (
             <span className="text-muted-foreground">—</span>
           );
@@ -262,15 +262,16 @@ export const ProjectTasksTableView = ({
         accessorKey: "priority",
         id: "priority",
         header: ({ column }) => {
+          const isSorted = column.getIsSorted();
           return (
             <div className="flex items-center gap-2">
               Priority
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                onClick={() => column.toggleSorting(isSorted === "asc")}
               >
-                <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                <SortIcon isSorted={isSorted} />
               </Button>
             </div>
           );
@@ -421,7 +422,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
   return (
     <button
       type="button"
-      className="flex w-full min-w-50 flex-col items-start text-left"
+      className="flex w-full min-w-60 flex-col items-start text-left"
       onClick={() => {
         if (!canOpenTask) {
           return;
