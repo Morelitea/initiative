@@ -1,4 +1,4 @@
-import type { SortingFn } from "@tanstack/react-table";
+import type { Row } from "@tanstack/react-table";
 
 const toTimestamp = (value: unknown): number | null => {
   if (!value) {
@@ -21,7 +21,7 @@ const toTimestamp = (value: unknown): number | null => {
 /**
  * Sorts nullable date-ish values while keeping undated rows at the bottom.
  */
-export const dateSortingFn: SortingFn<unknown> = (rowA, rowB, columnId) => {
+export const dateSortingFn = <TData>(rowA: Row<TData>, rowB: Row<TData>, columnId: string) => {
   const valueA = toTimestamp(rowA.getValue(columnId));
   const valueB = toTimestamp(rowB.getValue(columnId));
 
