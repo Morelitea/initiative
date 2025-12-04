@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 import type { AxiosError } from "axios";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { apiClient, setCurrentGuildId } from "@/api/client";
 import type { Guild } from "@/types/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -58,6 +60,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
@@ -154,6 +157,15 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         // Update local state immediately so UI reacts
         setActiveGuildId(guildId);
 
+        // Clear all project-specific data so the UI doesn't show Guild A data while loading Guild B
+        await queryClient.resetQueries({
+          predicate: (query) => {
+            const key = query.queryKey[0] as string;
+            // Keep 'user' (global) and 'guilds' (navigation list), nuke everything else
+            return key !== "guilds" && key !== "user";
+          },
+        });
+
         // Refresh data in background to ensure everything is synced
         await Promise.all([refreshGuilds(), refreshUser()]);
       } catch (err) {
@@ -161,7 +173,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         throw err;
       }
     },
-    [user, activeGuildId, refreshGuilds, refreshUser]
+    [user, activeGuildId, refreshGuilds, refreshUser, queryClient]
   );
 
   const createGuild = useCallback(
