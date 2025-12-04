@@ -9,6 +9,7 @@ import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus, Task, User } from "@/types/api";
 
@@ -16,6 +17,7 @@ export const ProjectDetailPage = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeGuildId } = useGuilds();
   const parsedProjectId = Number(projectId);
 
   const projectQuery = useQuery<Project>({
@@ -65,13 +67,13 @@ export const ProjectDetailPage = () => {
     const recordView = async () => {
       try {
         await apiClient.post(`/projects/${viewedProjectId}/view`);
-        await queryClient.invalidateQueries({ queryKey: ["projects", "recent"] });
+        await queryClient.invalidateQueries({ queryKey: ["projects", activeGuildId, "recent"] });
       } catch (error) {
         console.error("Failed to record project view", error);
       }
     };
     void recordView();
-  }, [viewedProjectId]);
+  }, [viewedProjectId, activeGuildId]);
 
   const userOptions = useMemo(() => {
     const project = projectQuery.data;

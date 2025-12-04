@@ -9,6 +9,7 @@ import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { apiClient } from "@/api/client";
@@ -51,6 +52,7 @@ const GuildInvitePage = lazy(() =>
 
 const AppLayout = () => {
   const { user } = useAuth();
+  const { activeGuildId } = useGuilds();
   useRealtimeUpdates();
 
   const location = useLocation();
@@ -59,24 +61,28 @@ const AppLayout = () => {
   const showTabsPref = !!user && (user.show_project_tabs ?? false);
   const shouldFetchFavorites = Boolean(user && showSidebarPref);
   const shouldFetchRecents = Boolean(user && (showSidebarPref || showTabsPref));
+  const favoritesEnabled = shouldFetchFavorites && activeGuildId !== null;
+  const recentsEnabled = shouldFetchRecents && activeGuildId !== null;
+  const favoritesQueryKey = ["projects", activeGuildId, "favorites"] as const;
+  const recentQueryKey = ["projects", activeGuildId, "recent"] as const;
 
   const favoritesQuery = useQuery<Project[]>({
-    queryKey: ["projects", "favorites"],
+    queryKey: favoritesQueryKey,
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/favorites");
       return response.data;
     },
-    enabled: shouldFetchFavorites,
+    enabled: favoritesEnabled,
     staleTime: 60_000,
   });
 
   const recentQuery = useQuery<Project[]>({
-    queryKey: ["projects", "recent"],
+    queryKey: recentQueryKey,
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/recent");
       return response.data;
     },
-    enabled: shouldFetchRecents,
+    enabled: recentsEnabled,
     staleTime: 30_000,
   });
 
@@ -86,7 +92,7 @@ const AppLayout = () => {
       return projectId;
     },
     onSuccess: (projectId) => {
-      void queryClient.invalidateQueries({ queryKey: ["projects", "recent"] });
+      void queryClient.invalidateQueries({ queryKey: recentQueryKey });
       if (projectId) {
         void queryClient.invalidateQueries({
           queryKey: ["projects", projectId],

@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 
 import { apiClient } from "@/api/client";
+import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "../lib/queryClient";
 import type { Project } from "../types/api";
 
@@ -25,8 +26,11 @@ const updateProjectListFavorite = (projects: Project[] | undefined, response: To
   );
 };
 
-export const useProjectFavoriteMutation = () =>
-  useMutation<ToggleResponse, unknown, ToggleArgs>({
+export const useProjectFavoriteMutation = () => {
+  const { activeGuildId } = useGuilds();
+  const favoritesQueryKey = ["projects", activeGuildId, "favorites"] as const;
+
+  return useMutation<ToggleResponse, unknown, ToggleArgs>({
     mutationFn: async ({ projectId, nextState }) => {
       if (nextState) {
         await apiClient.post(`/projects/${projectId}/favorite`);
@@ -48,6 +52,7 @@ export const useProjectFavoriteMutation = () =>
       queryClient.setQueryData<Project>(["projects", data.project_id], (project) =>
         project ? { ...project, is_favorited: data.is_favorited } : project
       );
-      queryClient.invalidateQueries({ queryKey: ["projects", "favorites"] });
+      queryClient.invalidateQueries({ queryKey: favoritesQueryKey });
     },
   });
+};
