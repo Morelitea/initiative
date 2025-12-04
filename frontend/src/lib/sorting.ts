@@ -1,3 +1,4 @@
+import { TaskPriority } from "@/types/api";
 import type { Row } from "@tanstack/react-table";
 
 const toTimestamp = (value: unknown): number | null => {
@@ -38,4 +39,22 @@ export const dateSortingFn = <TData>(rowA: Row<TData>, rowB: Row<TData>, columnI
   }
 
   return valueA - valueB;
+};
+
+const priorityRank: Record<TaskPriority, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  urgent: 3,
+};
+
+/**
+ * Sorts by task priority (low to urgent)
+ */
+export const prioritySortingFn = <TData>(rowA: Row<TData>, rowB: Row<TData>, columnId: string) => {
+  const priorityA = rowA.getValue<TaskPriority>(columnId);
+  const priorityB = rowB.getValue<TaskPriority>(columnId);
+  const aRank = priorityA ? priorityRank[priorityA] : -1;
+  const bRank = priorityB ? priorityRank[priorityB] : -1;
+  return aRank - bRank;
 };

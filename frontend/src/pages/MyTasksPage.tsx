@@ -33,7 +33,7 @@ import type {
 } from "@/types/api";
 import { formatDistance } from "date-fns";
 import { SortIcon } from "@/components/SortIcon";
-import { dateSortingFn } from "@/lib/sorting";
+import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
@@ -50,12 +50,7 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   done: ["done", "in_progress", "todo", "backlog"],
 };
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
-const priorityRank: Record<TaskPriority, number> = {
-  low: 0,
-  medium: 1,
-  high: 2,
-  urgent: 3,
-};
+
 const INITIATIVE_FILTER_ALL = "all";
 const getDefaultFiltersVisibility = () => {
   if (typeof window === "undefined") {
@@ -453,13 +448,7 @@ export const MyTasksPage = () => {
           <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
         );
       },
-      sortingFn: (rowA, rowB, columnId) => {
-        const priorityA = rowA.getValue<TaskPriority>(columnId);
-        const priorityB = rowB.getValue<TaskPriority>(columnId);
-        const aRank = priorityA ? priorityRank[priorityA] : -1;
-        const bRank = priorityB ? priorityRank[priorityB] : -1;
-        return aRank - bRank;
-      },
+      sortingFn: prioritySortingFn,
     },
     {
       id: "status",

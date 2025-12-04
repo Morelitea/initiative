@@ -33,14 +33,7 @@ import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
-import { dateSortingFn } from "@/lib/sorting";
-
-const priorityRank: Record<TaskPriority, number> = {
-  low: 0,
-  medium: 1,
-  high: 2,
-  urgent: 3,
-};
+import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -285,13 +278,7 @@ export const ProjectTasksTableView = ({
             </Badge>
           );
         },
-        sortingFn: (rowA, rowB, columnId) => {
-          const priorityA = rowA.getValue<TaskPriority>(columnId);
-          const priorityB = rowB.getValue<TaskPriority>(columnId);
-          const aRank = priorityA ? priorityRank[priorityA] : -1;
-          const bRank = priorityB ? priorityRank[priorityB] : -1;
-          return aRank - bRank;
-        },
+        sortingFn: prioritySortingFn,
       },
       {
         id: "comments",
