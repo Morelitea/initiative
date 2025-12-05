@@ -54,6 +54,53 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 const INITIATIVE_FILTER_ALL = "all";
+const GUILD_FILTER_ALL = "all";
+const MY_TASKS_FILTERS_KEY = "initiative-my-tasks-filters";
+const STATUS_FILTER_VALUES: Array<"all" | "incomplete" | TaskStatusCategory> = [
+  "all",
+  "incomplete",
+  ...statusOptions.map((option) => option.value),
+];
+const PRIORITY_FILTER_VALUES: Array<"all" | TaskPriority> = ["all", ...priorityOrder];
+const FILTER_DEFAULTS = {
+  statusFilter: "incomplete" as "all" | "incomplete" | TaskStatusCategory,
+  priorityFilter: "all" as "all" | TaskPriority,
+  initiativeFilter: INITIATIVE_FILTER_ALL,
+  guildFilter: GUILD_FILTER_ALL,
+};
+
+const readStoredFilters = () => {
+  if (typeof window === "undefined") {
+    return FILTER_DEFAULTS;
+  }
+  try {
+    const raw = window.localStorage.getItem(MY_TASKS_FILTERS_KEY);
+    if (!raw) {
+      return FILTER_DEFAULTS;
+    }
+    const parsed = JSON.parse(raw);
+    const statusFilter = STATUS_FILTER_VALUES.includes(parsed?.statusFilter)
+      ? parsed.statusFilter
+      : FILTER_DEFAULTS.statusFilter;
+    const priorityFilter = PRIORITY_FILTER_VALUES.includes(parsed?.priorityFilter)
+      ? parsed.priorityFilter
+      : FILTER_DEFAULTS.priorityFilter;
+    const initiativeFilter =
+      typeof parsed?.initiativeFilter === "string"
+        ? parsed.initiativeFilter
+        : FILTER_DEFAULTS.initiativeFilter;
+    const guildFilter =
+      typeof parsed?.guildFilter === "string" ? parsed.guildFilter : FILTER_DEFAULTS.guildFilter;
+    return {
+      statusFilter,
+      priorityFilter,
+      initiativeFilter,
+      guildFilter,
+    };
+  } catch {
+    return FILTER_DEFAULTS;
+  }
+};
 const getDefaultFiltersVisibility = () => {
   if (typeof window === "undefined") {
     return true;
@@ -75,7 +122,7 @@ const getGuildInitials = (name: string) => {
 
 export const MyTasksPage = () => {
   const { user } = useAuth();
-  const { activeGuildId, switchGuild } = useGuilds();
+  const { guilds, activeGuildId, switchGuild } = useGuilds();
   const navigate = useNavigate();
   const projectStatusCache = useRef<Map<number, ProjectTaskStatus[]>>(new Map());
   const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
@@ -134,11 +181,16 @@ export const MyTasksPage = () => {
   });
 
   const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
-    "incomplete"
+    () => readStoredFilters().statusFilter
   );
-  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>(
+    () => readStoredFilters().priorityFilter
+  );
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(
+    () => readStoredFilters().initiativeFilter
+  );
+  const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -173,6 +225,19 @@ export const MyTasksPage = () => {
       }
     });
   }, [tasks]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const payload = {
+      statusFilter,
+      priorityFilter,
+      initiativeFilter,
+      guildFilter,
+    };
+    window.localStorage.setItem(MY_TASKS_FILTERS_KEY, JSON.stringify(payload));
+  }, [statusFilter, priorityFilter, initiativeFilter, guildFilter]);
 
   const fetchProjectStatuses = useCallback(async (projectId: number) => {
     const cached = projectStatusCache.current.get(projectId);
@@ -280,6 +345,7 @@ export const MyTasksPage = () => {
   const filteredTasks = useMemo(() => {
     const selectedInitiativeId =
       initiativeFilter === INITIATIVE_FILTER_ALL ? null : Number(initiativeFilter);
+    const selectedGuildId = guildFilter === GUILD_FILTER_ALL ? null : Number(guildFilter);
     return myTasks.filter((task) => {
       if (statusFilter === "incomplete") {
         if (task.task_status.category === "done") {
@@ -302,9 +368,14 @@ export const MyTasksPage = () => {
           return false;
         }
       }
+      if (selectedGuildId) {
+        if (task.guild?.id !== selectedGuildId) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [myTasks, statusFilter, priorityFilter, initiativeFilter, projectsById]);
+  }, [myTasks, statusFilter, priorityFilter, initiativeFilter, guildFilter, projectsById]);
 
   const columns: ColumnDef<Task>[] = [
     {
@@ -671,6 +742,27 @@ export const MyTasksPage = () => {
                   {priorityOrder.map((priority) => (
                     <SelectItem key={priority} value={priority}>
                       {priority.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-60 lg:flex-1">
+              <Label
+                htmlFor="task-guild-filter"
+                className="text-muted-foreground text-xs font-medium"
+              >
+                Guild
+              </Label>
+              <Select value={guildFilter} onValueChange={setGuildFilter}>
+                <SelectTrigger id="task-guild-filter">
+                  <SelectValue placeholder="All guilds" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={GUILD_FILTER_ALL}>All guilds</SelectItem>
+                  {guilds.map((guild) => (
+                    <SelectItem key={guild.id} value={String(guild.id)}>
+                      {guild.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
