@@ -53,12 +53,8 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
       const isSorted = column.getIsSorted();
       return (
         <div className="flex items-center gap-2">
-          Title
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => column.toggleSorting(isSorted === "asc")}
-          >
+          <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+            Title
             <SortIcon isSorted={isSorted} />
           </Button>
         </div>
@@ -88,12 +84,8 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
       const isSorted = column.getIsSorted();
       return (
         <div className="flex items-center gap-2">
-          Last updated
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => column.toggleSorting(isSorted === "asc")}
-          >
+          <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+            Last updated
             <SortIcon isSorted={isSorted} />
           </Button>
         </div>

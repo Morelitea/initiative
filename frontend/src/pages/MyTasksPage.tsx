@@ -342,12 +342,8 @@ export const MyTasksPage = () => {
         const isSorted = column.getIsSorted();
         return (
           <div className="flex items-center gap-2">
-            Task
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => column.toggleSorting(isSorted === "asc")}
-            >
+            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+              Task
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -397,12 +393,8 @@ export const MyTasksPage = () => {
         const isSorted = column.getIsSorted();
         return (
           <div className="flex min-w-30 items-center gap-2">
-            Start Date
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => column.toggleSorting(isSorted === "asc")}
-            >
+            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+              Start Date
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -427,12 +419,8 @@ export const MyTasksPage = () => {
         const isSorted = column.getIsSorted();
         return (
           <div className="flex min-w-30 items-center gap-2">
-            Due Date
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => column.toggleSorting(isSorted === "asc")}
-            >
+            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+              Due Date
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -532,12 +520,8 @@ export const MyTasksPage = () => {
         const isSorted = column.getIsSorted();
         return (
           <div className="flex items-center gap-2">
-            Priority
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => column.toggleSorting(isSorted === "asc")}
-            >
+            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+              Priority
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>

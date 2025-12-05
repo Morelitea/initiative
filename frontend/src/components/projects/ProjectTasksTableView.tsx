@@ -178,12 +178,8 @@ export const ProjectTasksTableView = ({
           const isSorted = column.getIsSorted();
           return (
             <div className="flex items-center gap-2">
-              Task
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => column.toggleSorting(isSorted === "asc")}
-              >
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                Task
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -202,12 +198,8 @@ export const ProjectTasksTableView = ({
           const isSorted = column.getIsSorted();
           return (
             <div className="flex min-w-30 items-center gap-2">
-              Start Date
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => column.toggleSorting(isSorted === "asc")}
-              >
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                Start Date
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -230,12 +222,8 @@ export const ProjectTasksTableView = ({
           const isSorted = column.getIsSorted();
           return (
             <div className="flex min-w-30 items-center gap-2">
-              Due Date
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => column.toggleSorting(isSorted === "asc")}
-              >
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                Due Date
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -259,12 +247,8 @@ export const ProjectTasksTableView = ({
           const isSorted = column.getIsSorted();
           return (
             <div className="flex items-center gap-2">
-              Priority
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => column.toggleSorting(isSorted === "asc")}
-              >
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                Priority
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -335,39 +319,33 @@ export const ProjectTasksTableView = ({
   );
 
   return (
-    <div>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={onDragCancel}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+    >
+      <SortableContext
+        items={tasks.map((task) => task.id.toString())}
+        strategy={verticalListSortingStrategy}
       >
-        <SortableContext
-          items={tasks.map((task) => task.id.toString())}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="w-full overflow-x-auto">
-            <div className="min-w-[720px]">
-              <DataTable
-                columns={columns}
-                data={tasks}
-                rowWrapper={({ row, children }) => (
-                  <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
-                    {children}
-                  </SortableRowWrapper>
-                )}
-                enableFilterInput
-                filterInputColumnKey="title"
-                filterInputPlaceholder="Filter tasks..."
-                enableColumnVisibilityDropdown
-                enableResetSorting
-              />
-            </div>
-          </div>
-        </SortableContext>
-      </DndContext>
-    </div>
+        <DataTable
+          columns={columns}
+          data={tasks}
+          rowWrapper={({ row, children }) => (
+            <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
+              {children}
+            </SortableRowWrapper>
+          )}
+          enableFilterInput
+          filterInputColumnKey="title"
+          filterInputPlaceholder="Filter tasks..."
+          enableColumnVisibilityDropdown
+          enableResetSorting
+        />
+      </SortableContext>
+    </DndContext>
   );
 };
 
