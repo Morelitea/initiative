@@ -124,7 +124,9 @@ export const MyTasksPage = () => {
   const { user } = useAuth();
   const { guilds, activeGuildId, switchGuild } = useGuilds();
   const navigate = useNavigate();
-  const projectStatusCache = useRef<Map<number, ProjectTaskStatus[]>>(new Map());
+  const projectStatusCache = useRef<
+    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
+  >(new Map());
   const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
 
   const tasksQuery = useQuery<Task[]>({
@@ -160,10 +162,28 @@ export const MyTasksPage = () => {
   });
 
   const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
-    mutationFn: async ({ taskId, taskStatusId }: { taskId: number; taskStatusId: number }) => {
-      const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
-        task_status_id: taskStatusId,
-      });
+    mutationFn: async ({
+      taskId,
+      taskStatusId,
+      guildId,
+    }: {
+      taskId: number;
+      taskStatusId: number;
+      guildId: number | null;
+    }) => {
+      const response = await apiClient.patch<Task>(
+        `/tasks/${taskId}`,
+        {
+          task_status_id: taskStatusId,
+        },
+        guildId
+          ? {
+              headers: {
+                "X-Guild-ID": String(guildId),
+              },
+            }
+          : undefined
+      );
       return response.data;
     },
     onSuccess: (updatedTask) => {
@@ -174,8 +194,8 @@ export const MyTasksPage = () => {
         return prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
       });
       const cached = projectStatusCache.current.get(updatedTask.project_id);
-      if (cached && !cached.some((status) => status.id === updatedTask.task_status.id)) {
-        cached.push(updatedTask.task_status);
+      if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
+        cached.statuses.push(updatedTask.task_status);
       }
     },
   });
@@ -217,11 +237,14 @@ export const MyTasksPage = () => {
     tasks.forEach((task) => {
       const cached = projectStatusCache.current.get(task.project_id);
       if (cached) {
-        if (!cached.some((status) => status.id === task.task_status.id)) {
-          cached.push(task.task_status);
+        if (!cached.statuses.some((status) => status.id === task.task_status.id)) {
+          cached.statuses.push(task.task_status);
         }
       } else {
-        projectStatusCache.current.set(task.project_id, [task.task_status]);
+        projectStatusCache.current.set(task.project_id, {
+          statuses: [task.task_status],
+          complete: false,
+        });
       }
     });
   }, [tasks]);
@@ -239,21 +262,35 @@ export const MyTasksPage = () => {
     window.localStorage.setItem(MY_TASKS_FILTERS_KEY, JSON.stringify(payload));
   }, [statusFilter, priorityFilter, initiativeFilter, guildFilter]);
 
-  const fetchProjectStatuses = useCallback(async (projectId: number) => {
+  const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {
     const cached = projectStatusCache.current.get(projectId);
-    if (cached) {
-      return cached;
+    if (cached?.complete) {
+      return cached.statuses;
+    }
+    if (!guildId) {
+      return cached?.statuses ?? [];
     }
     const response = await apiClient.get<ProjectTaskStatus[]>(
-      `/projects/${projectId}/task-statuses/`
+      `/projects/${projectId}/task-statuses/`,
+      {
+        headers: {
+          "X-Guild-ID": String(guildId),
+        },
+      }
     );
-    projectStatusCache.current.set(projectId, response.data);
-    return response.data;
+    const merged = cached
+      ? [
+          ...cached.statuses,
+          ...response.data.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
+        ]
+      : response.data;
+    projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
+    return merged;
   }, []);
 
   const resolveStatusIdForCategory = useCallback(
-    async (projectId: number, category: TaskStatusCategory) => {
-      const statuses = await fetchProjectStatuses(projectId);
+    async (projectId: number, category: TaskStatusCategory, guildId: number | null) => {
+      const statuses = await fetchProjectStatuses(projectId, guildId);
       const fallback = statusFallbackOrder[category] ?? [category];
       for (const candidate of fallback) {
         const match = statuses.find((status) => status.category === candidate);
@@ -292,18 +329,33 @@ export const MyTasksPage = () => {
 
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
-      const ready = await ensureTaskGuildContext(task);
-      if (!ready) {
+      const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
+      if (!targetGuildId) {
+        toast.error("Unable to determine guild context for this task.");
         return;
       }
-      const targetStatusId = await resolveStatusIdForCategory(task.project_id, targetCategory);
+      const targetStatusId = await resolveStatusIdForCategory(
+        task.project_id,
+        targetCategory,
+        targetGuildId
+      );
       if (!targetStatusId) {
         toast.error("Unable to update task status. No matching status found.");
         return;
       }
-      await updateTaskStatusMutate({ taskId: task.id, taskStatusId: targetStatusId });
+      try {
+        await updateTaskStatusMutate({
+          taskId: task.id,
+          taskStatusId: targetStatusId,
+          guildId: targetGuildId,
+        });
+      } catch (error) {
+        console.error(error);
+        const message = error instanceof Error ? error.message : "Unable to update task status.";
+        toast.error(message);
+      }
     },
-    [ensureTaskGuildContext, resolveStatusIdForCategory, updateTaskStatusMutate]
+    [activeGuildId, resolveStatusIdForCategory, updateTaskStatusMutate]
   );
 
   const handleCrossGuildNavigation = useCallback(

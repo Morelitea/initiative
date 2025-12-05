@@ -68,7 +68,12 @@ apiClient.interceptors.request.use((config) => {
   }
   if (activeGuildId !== null) {
     config.headers = config.headers ?? {};
-    config.headers["X-Guild-ID"] = String(activeGuildId);
+    const hasCustomGuildHeader = Object.keys(config.headers).some(
+      (key) => key.toLowerCase() === "x-guild-id"
+    );
+    if (!hasCustomGuildHeader) {
+      config.headers["X-Guild-ID"] = String(activeGuildId);
+    }
   }
   return config;
 });
