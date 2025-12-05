@@ -319,10 +319,28 @@ async def send_task_assignment_digest_email(
     if not assignments:
         return
     settings_obj, accent = await _email_context(session)
-    items_html = "".join(
-        f"<li><strong>{item['task_title']}</strong> in {item['project_name']} (assigned by {item['assigned_by_name']})</li>"
-        for item in assignments
-    )
+    def assignment_html(item: dict) -> str:
+        title = item.get("task_title") or "Task"
+        project_name = item.get("project_name") or "a project"
+        assigned_by = item.get("assigned_by_name")
+        link = item.get("link")
+        title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
+        assigned_fragment = f" (assigned by {assigned_by})" if assigned_by else ""
+        return f"<li>{title_markup} in {project_name}{assigned_fragment}</li>"
+
+    def assignment_text(item: dict) -> str:
+        title = item.get("task_title") or "Task"
+        project_name = item.get("project_name") or "a project"
+        assigned_by = item.get("assigned_by_name")
+        link = item.get("link")
+        line = f"- {title} in {project_name}"
+        if assigned_by:
+            line += f" (assigned by {assigned_by})"
+        if link:
+            line += f" -> {link}"
+        return line
+
+    items_html = "".join(assignment_html(item) for item in assignments)
     body = f"""
     <p>Hi {user.full_name or user.email},</p>
     <p>Here is your hourly summary of tasks assigned to you:</p>
@@ -332,7 +350,7 @@ async def send_task_assignment_digest_email(
     html_body = _build_html_layout("Task assignment summary", body, accent)
     text_lines = [
         "Here is your hourly summary of tasks assigned to you:",
-        *(f"- {item['task_title']} in {item['project_name']} (assigned by {item['assigned_by_name']})" for item in assignments),
+        *(assignment_text(item) for item in assignments),
         "Visit Initiative to review the tasks.",
     ]
     text_body = "\n".join(text_lines)
@@ -354,10 +372,25 @@ async def send_overdue_tasks_email(
     if not tasks:
         return
     settings_obj, accent = await _email_context(session)
-    items_html = "".join(
-        f"<li><strong>{item['title']}</strong> (project: {item['project_name']}, due {item['due_date']})</li>"
-        for item in tasks
-    )
+    def overdue_html(item: dict) -> str:
+        title = item.get("title") or "Task"
+        project_name = item.get("project_name") or "a project"
+        due_date = item.get("due_date") or "N/A"
+        link = item.get("link")
+        title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
+        return f"<li>{title_markup} (project: {project_name}, due {due_date})</li>"
+
+    def overdue_text(item: dict) -> str:
+        title = item.get("title") or "Task"
+        project_name = item.get("project_name") or "a project"
+        due_date = item.get("due_date") or "N/A"
+        link = item.get("link")
+        line = f"- {title} (project: {project_name}, due {due_date})"
+        if link:
+            line += f" -> {link}"
+        return line
+
+    items_html = "".join(overdue_html(item) for item in tasks)
     body = f"""
     <p>Hi {user.full_name or user.email},</p>
     <p>You have {len(tasks)} overdue task(s):</p>
@@ -367,7 +400,7 @@ async def send_overdue_tasks_email(
     html_body = _build_html_layout("Overdue tasks reminder", body, accent)
     text_lines = [
         f"You have {len(tasks)} overdue task(s):",
-        *(f"- {item['title']} (project: {item['project_name']}, due {item['due_date']})" for item in tasks),
+        *(overdue_text(item) for item in tasks),
         "Visit Initiative to get back on track.",
     ]
     text_body = "\n".join(text_lines)

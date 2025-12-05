@@ -17,7 +17,50 @@ import { useAuth } from "@/hooks/useAuth";
 
 const NOTIFICATION_QUERY_KEY = ["notifications"];
 
+const buildNavigatePath = (guildId: number, targetPath: string): string => {
+  const normalized = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
+  const encodedTarget = encodeURIComponent(normalized);
+  return `/navigate?guild_id=${guildId}&target=${encodedTarget}`;
+};
+
+const resolveSmartLink = (notification: Notification): string | null => {
+  const data = notification.data || {};
+  const guildValue = data.guild_id;
+  const targetValue = data.target_path;
+
+  let guildId: number | null = null;
+  if (typeof guildValue === "number") {
+    guildId = guildValue;
+  } else if (typeof guildValue === "string") {
+    const parsed = Number(guildValue);
+    guildId = Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const targetPath = typeof targetValue === "string" ? targetValue : null;
+  if (guildId !== null && targetPath) {
+    return buildNavigatePath(guildId, targetPath);
+  }
+
+  if (typeof data.smart_link === "string" && data.smart_link) {
+    try {
+      const base = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+      const parsed = new URL(data.smart_link, base);
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      if (data.smart_link.startsWith("/")) {
+        return data.smart_link;
+      }
+    }
+  }
+
+  return null;
+};
+
 const notificationLink = (notification: Notification): string | null => {
+  const smartLink = resolveSmartLink(notification);
+  if (smartLink) {
+    return smartLink;
+  }
   const data = notification.data || {};
   switch (notification.type) {
     case "task_assignment":

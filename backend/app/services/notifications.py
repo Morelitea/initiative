@@ -3,13 +3,15 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Sequence
+from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import AsyncSessionLocal
+from app.core.config import settings as app_config
+from app.models.initiative import Initiative
 from app.models.project import Project
 from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
@@ -24,6 +26,51 @@ DIGEST_POLL_SECONDS = 120
 OVERDUE_POLL_SECONDS = 300
 
 
+def _normalize_target_path(target_path: str) -> str:
+    if not target_path:
+        return "/"
+    return target_path if target_path.startswith("/") else f"/{target_path}"
+
+
+def _build_smart_link(*, target_path: str, guild_id: int | None) -> str | None:
+    if guild_id is None:
+        return None
+    normalized = _normalize_target_path(target_path)
+    encoded = quote(normalized, safe="")
+    base = app_config.APP_URL.rstrip("/") or "http://localhost:5173"
+    return f"{base}/navigate?guild_id={guild_id}&target={encoded}"
+
+
+def _task_target_path(task_id: int | None, project_id: int | None) -> str:
+    base = f"/projects/{project_id}" if project_id else "/projects"
+    if task_id:
+        return f"{base}?taskId={task_id}"
+    return base
+
+
+def _project_target_path(project_id: int | None) -> str:
+    if project_id is None:
+        return "/projects"
+    return f"/projects/{project_id}"
+
+
+async def _project_guild_map(session: AsyncSession, project_ids: set[int]) -> dict[int, int]:
+    if not project_ids:
+        return {}
+    stmt = (
+        select(Project.id, Initiative.guild_id)
+        .join(Project.initiative)
+        .where(Project.id.in_(tuple(project_ids)))
+    )
+    result = await session.exec(stmt)
+    rows = result.all()
+    mapping: dict[int, int] = {}
+    for project_id, guild_id in rows:
+        if project_id is not None and guild_id is not None:
+            mapping[int(project_id)] = int(guild_id)
+    return mapping
+
+
 async def enqueue_task_assignment_event(
     session: AsyncSession,
     *,
@@ -31,6 +78,7 @@ async def enqueue_task_assignment_event(
     assignee: User,
     assigned_by: User,
     project_name: str,
+    guild_id: int,
 ) -> None:
     if assignee.id == assigned_by.id:
         return
@@ -46,6 +94,8 @@ async def enqueue_task_assignment_event(
         assigned_by_id=assigned_by.id,
     )
     session.add(event)
+    target_path = _task_target_path(task.id, task.project_id)
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     await user_notifications.create_notification(
         session,
         user_id=assignee.id,
@@ -56,6 +106,9 @@ async def enqueue_task_assignment_event(
             "project_id": task.project_id,
             "project_name": project_name,
             "assigned_by_name": assigned_by.full_name or assigned_by.email,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
         },
     )
 
@@ -99,6 +152,7 @@ async def notify_project_added(
     project_name: str,
     project_id: int,
     initiative_id: int,
+    guild_id: int,
 ) -> None:
     if user.notify_project_added is False:
         return
@@ -114,6 +168,7 @@ async def notify_project_added(
         logger.warning("SMTP not configured; skipping project notification for %s", user.email)
     except RuntimeError as exc:  # pragma: no cover
         logger.error("Failed to send project notification: %s", exc)
+    target_path = _project_target_path(project_id)
     await user_notifications.create_notification(
         session,
         user_id=user.id,
@@ -123,6 +178,12 @@ async def notify_project_added(
             "initiative_name": initiative_name,
             "project_id": project_id,
             "project_name": project_name,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(
+                target_path=target_path,
+                guild_id=guild_id,
+            ),
         },
     )
     await session.commit()
@@ -187,14 +248,22 @@ async def process_task_assignment_digests() -> None:
                 continue
             if user.last_task_assignment_digest_at and user.last_task_assignment_digest_at + timedelta(hours=1) > now:
                 continue
-            assignments = [
-                {
-                    "task_title": event.task_title,
-                    "project_name": event.project_name,
-                    "assigned_by_name": event.assigned_by_name,
-                }
-                for event in events
-            ]
+            project_ids = {event.project_id for event in events if event.project_id is not None}
+            guild_map = await _project_guild_map(session, project_ids)
+            assignments = []
+            for event in events:
+                target_path = _task_target_path(event.task_id, event.project_id)
+                assignments.append(
+                    {
+                        "task_title": event.task_title,
+                        "project_name": event.project_name,
+                        "assigned_by_name": event.assigned_by_name,
+                        "link": _build_smart_link(
+                            target_path=target_path,
+                            guild_id=guild_map.get(event.project_id),
+                        ),
+                    }
+                )
             try:
                 await email_service.send_task_assignment_digest_email(session, user, assignments)
                 logger.info(
@@ -226,8 +295,9 @@ def _resolve_timezone(value: str | None) -> ZoneInfo:
 
 async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dict]:
     stmt = (
-        select(Task, Project.name)
+        select(Task, Project.name, Project.id, Initiative.guild_id)
         .join(Project, Task.project_id == Project.id)
+        .join(Initiative, Project.initiative_id == Initiative.id)
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
         .join(TaskStatus, Task.task_status_id == TaskStatus.id)
         .where(
@@ -242,12 +312,14 @@ async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dic
     rows = result.all()
     tasks: list[dict] = []
     for row in rows:
-        task, project_name = row
+        task, project_name, project_id, guild_id = row
+        target_path = _task_target_path(task.id, project_id)
         tasks.append(
             {
                 "title": task.title,
                 "project_name": project_name,
                 "due_date": task.due_date.strftime("%Y-%m-%d %H:%M UTC") if task.due_date else "N/A",
+                "link": _build_smart_link(target_path=target_path, guild_id=guild_id),
             }
         )
     return tasks

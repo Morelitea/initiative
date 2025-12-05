@@ -474,6 +474,7 @@ async def create_task(
                 assignee=assignee,
                 assigned_by=current_user,
                 project_name=project.name,
+                guild_id=guild_context.guild_id,
             )
     await session.commit()
     task = await _fetch_task(session, task.id, guild_context.guild_id)
@@ -583,6 +584,7 @@ async def update_task(
                 assignee=assignee,
                 assigned_by=current_user,
                 project_name=project.name,
+                guild_id=guild_context.guild_id,
             )
     session.add(task)
     await session.commit()

@@ -49,6 +49,11 @@ const GuildInvitePage = lazy(() =>
     default: module.GuildInvitePage,
   }))
 );
+const NavigatePage = lazy(() =>
+  import("./pages/NavigatePage").then((module) => ({
+    default: module.NavigatePage,
+  }))
+);
 
 const AppLayout = () => {
   const { user } = useAuth();
@@ -158,6 +163,7 @@ export const App = () => {
           <Route path="/oidc/callback" element={<OidcCallbackPage />} />
           <Route path="/invite/:code" element={<GuildInvitePage />} />
           <Route element={<ProtectedRoute />}>
+            <Route path="/navigate" element={<NavigatePage />} />
             <Route path="/*" element={<AppLayout />} />
           </Route>
         </Routes>

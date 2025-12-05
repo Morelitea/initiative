@@ -711,6 +711,7 @@ async def create_project(
                 project_name=project.name,
                 project_id=project.id,
                 initiative_id=project.initiative.id,
+                guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
     await broadcast_event("project", "created", _project_payload(project))
@@ -810,6 +811,7 @@ async def duplicate_project(
                 project_name=new_project.name,
                 project_id=new_project.id,
                 initiative_id=new_project.initiative.id,
+                guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [new_project])
     await broadcast_event("project", "created", _project_payload(new_project))
@@ -1152,6 +1154,7 @@ async def update_project(
                 project_name=project.name,
                 project_id=project.id,
                 initiative_id=project.initiative.id,
+                guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
     await broadcast_event("project", "updated", _project_payload(project))
