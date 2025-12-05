@@ -1,6 +1,26 @@
-import { useMemo, useState, FormEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Plus } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { useGuilds } from "@/hooks/useGuilds";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,6 +40,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import type { Guild } from "@/types/api";
 
 const CreateGuildButton = () => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
@@ -140,10 +161,72 @@ export const GuildAvatar = ({
   );
 };
 
+const SortableGuildButton = ({
+  guild,
+  isActive,
+  onSelect,
+}: {
+  guild: Guild;
+  isActive: boolean;
+  onSelect: (guildId: number) => void;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: guild.id,
+  });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  if (isDragging) {
+    style.opacity = 0.4;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          ref={setNodeRef}
+          onClick={() => onSelect(guild.id)}
+          className={cn(
+            "focus-visible:ring-ring flex h-12 w-12 cursor-grab items-center justify-center rounded-2xl border-3 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:cursor-grabbing",
+            isActive
+              ? "border-primary/60 bg-primary/10 text-primary"
+              : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
+          )}
+          aria-label={`Switch to ${guild.name}`}
+          style={style}
+          {...attributes}
+          {...listeners}
+        >
+          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={12}>
+        {guild.name}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
 export const GuildSidebar = () => {
-  const { guilds, activeGuildId, switchGuild, canCreateGuilds } = useGuilds();
+  const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
   const navigate = useNavigate();
   const location = useLocation();
+  const [activeDragId, setActiveDragId] = useState<number | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+  const draggedGuild = useMemo(
+    () => guilds.find((guild) => guild.id === activeDragId) ?? null,
+    [guilds, activeDragId]
+  );
 
   const handleGuildSwitch = async (guildId: number) => {
     if (guildId === activeGuildId) return;
@@ -177,35 +260,77 @@ export const GuildSidebar = () => {
     }
   };
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const draggedId = Number(event.active.id);
+    if (Number.isFinite(draggedId)) {
+      setActiveDragId(draggedId);
+    }
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveDragId(null);
+      if (!over || active.id === over.id) {
+        return;
+      }
+      const activeId = Number(active.id);
+      const overId = Number(over.id);
+      if (!Number.isFinite(activeId) || !Number.isFinite(overId)) {
+        return;
+      }
+      const oldIndex = guilds.findIndex((guild) => guild.id === activeId);
+      const newIndex = guilds.findIndex((guild) => guild.id === overId);
+      if (oldIndex === -1 || newIndex === -1) {
+        return;
+      }
+      const orderedIds = arrayMove(guilds, oldIndex, newIndex).map((guild) => guild.id);
+      reorderGuilds(orderedIds);
+    },
+    [guilds, reorderGuilds]
+  );
+
+  const handleDragCancel = useCallback(() => {
+    setActiveDragId(null);
+  }, []);
+
   return (
     <aside className="bg-card/80 sticky top-0 hidden max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4 sm:flex">
       <span className="text-muted-foreground text-center text-xs">Guilds</span>
       <div className="flex flex-1 flex-col items-center gap-3 overflow-y-auto">
         <TooltipProvider delayDuration={200}>
-          {guilds.map((guild) => {
-            const isActive = guild.id === activeGuildId;
-            return (
-              <Tooltip key={guild.id}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => handleGuildSwitch(guild.id)}
-                    className={`focus-visible:ring-ring flex h-12 w-12 items-center justify-center rounded-2xl border-3 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none ${
-                      isActive
-                        ? "border-primary/60 bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
-                    }`}
-                    aria-label={`Switch to ${guild.name}`}
-                  >
-                    <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={12}>
-                  {guild.name}
-                </TooltipContent>
-              </Tooltip>
-            );
-          })}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <SortableContext
+              items={guilds.map((guild) => guild.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {guilds.map((guild) => (
+                <SortableGuildButton
+                  key={guild.id}
+                  guild={guild}
+                  isActive={guild.id === activeGuildId}
+                  onSelect={handleGuildSwitch}
+                />
+              ))}
+            </SortableContext>
+            <DragOverlay>
+              {draggedGuild ? (
+                <div className="border-primary/60 bg-primary/20 pointer-events-none flex h-12 w-12 items-center justify-center rounded-2xl border-3 opacity-80 shadow-lg">
+                  <GuildAvatar
+                    name={draggedGuild.name}
+                    icon={draggedGuild.icon_base64}
+                    active={draggedGuild.id === activeGuildId}
+                  />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </TooltipProvider>
       </div>
       {canCreateGuilds ? (

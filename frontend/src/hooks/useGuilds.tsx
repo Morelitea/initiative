@@ -5,10 +5,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { AxiosError } from "axios";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { apiClient, setCurrentGuildId } from "@/api/client";
 import type { Guild } from "@/types/api";
@@ -24,6 +26,7 @@ interface GuildContextValue {
   switchGuild: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<Guild>;
   updateGuildInState: (guild: Guild) => void;
+  reorderGuilds: (guildIds: number[]) => void;
   canCreateGuilds: boolean;
 }
 
@@ -54,12 +57,24 @@ const persistGuildId = (guildId: number | null) => {
   }
 };
 
+const sortGuilds = (guildList: Guild[]): Guild[] => {
+  return [...guildList].sort((a, b) => {
+    const positionDelta = (a.position ?? 0) - (b.position ?? 0);
+    if (positionDelta !== 0) {
+      return positionDelta;
+    }
+    return a.id - b.id;
+  });
+};
+
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, token, refreshUser } = useAuth();
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reorderDebounceRef = useRef<number | null>(null);
+  const pendingOrderRef = useRef<number[] | null>(null);
   const queryClient = useQueryClient();
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
@@ -86,26 +101,27 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   }, [activeGuildId]);
 
   const applyGuildState = useCallback((guildList: Guild[]) => {
-    setGuilds(guildList);
+    const sortedGuilds = sortGuilds(guildList);
+    setGuilds(sortedGuilds);
 
     // 1. PRIORITY: Check Local Storage (Client Session Preference)
     // This allows unique browsing sessions on different devices.
     const stored = readStoredGuildId();
-    if (stored && guildList.some((guild) => guild.id === stored)) {
+    if (stored && sortedGuilds.some((guild) => guild.id === stored)) {
       setActiveGuildId(stored);
       return;
     }
 
     // 2. FALLBACK: Server State
     // Only trust the server's "active" flag if we have no local preference.
-    const serverActive = guildList.find((guild) => guild.is_active);
+    const serverActive = sortedGuilds.find((guild) => guild.is_active);
     if (serverActive) {
       setActiveGuildId(serverActive.id);
       return;
     }
 
     // 3. FINAL FALLBACK: First available guild
-    setActiveGuildId(guildList[0]?.id ?? null);
+    setActiveGuildId(sortedGuilds[0]?.id ?? null);
   }, []);
 
   const refreshGuilds = useCallback(async () => {
@@ -132,6 +148,53 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     }
   }, [token, user, applyGuildState, guilds.length]);
+
+  const flushPendingOrder = useCallback(async () => {
+    if (!pendingOrderRef.current) {
+      return;
+    }
+    const payload = pendingOrderRef.current;
+    pendingOrderRef.current = null;
+    try {
+      await apiClient.put("/guilds/order", { guildIds: payload });
+    } catch (err) {
+      console.error("Failed to save guild order", err);
+      toast.error("Unable to save guild order. Refreshing…");
+      await refreshGuilds();
+    }
+  }, [refreshGuilds]);
+
+  const scheduleOrderSave = useCallback(
+    (guildIds: number[]) => {
+      if (guildIds.length === 0) {
+        return;
+      }
+      pendingOrderRef.current = guildIds;
+      if (typeof window === "undefined") {
+        void flushPendingOrder();
+        return;
+      }
+      if (reorderDebounceRef.current) {
+        window.clearTimeout(reorderDebounceRef.current);
+      }
+      reorderDebounceRef.current = window.setTimeout(() => {
+        reorderDebounceRef.current = null;
+        void flushPendingOrder();
+      }, 500);
+    },
+    [flushPendingOrder]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && reorderDebounceRef.current) {
+        window.clearTimeout(reorderDebounceRef.current);
+      }
+      if (pendingOrderRef.current) {
+        void flushPendingOrder();
+      }
+    };
+  }, [flushPendingOrder]);
 
   useEffect(() => {
     if (!user || !token) {
@@ -176,6 +239,48 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     [user, activeGuildId, refreshGuilds, refreshUser, queryClient]
   );
 
+  const reorderGuilds = useCallback(
+    (guildIds: number[]) => {
+      if (guildIds.length === 0) {
+        return;
+      }
+      if (guilds.length <= 1) {
+        return;
+      }
+      const uniqueIds: number[] = [];
+      const seenIds = new Set<number>();
+      for (const id of guildIds) {
+        if (seenIds.has(id)) {
+          continue;
+        }
+        seenIds.add(id);
+        uniqueIds.push(id);
+      }
+      setGuilds((prev) => {
+        if (prev.length <= 1) {
+          return prev;
+        }
+        const lookup = new Map(prev.map((guild) => [guild.id, guild]));
+        const ordered: Guild[] = [];
+        uniqueIds.forEach((id) => {
+          const match = lookup.get(id);
+          if (match) {
+            ordered.push({ ...match });
+            lookup.delete(id);
+          }
+        });
+        ordered.push(...Array.from(lookup.values()).map((guild) => ({ ...guild })));
+        const withPositions = ordered.map((guild, index) => ({
+          ...guild,
+          position: index,
+        }));
+        return sortGuilds(withPositions);
+      });
+      scheduleOrderSave(uniqueIds);
+    },
+    [guilds.length, scheduleOrderSave]
+  );
+
   const createGuild = useCallback(
     async ({ name, description }: { name: string; description?: string }) => {
       if (!user) {
@@ -212,7 +317,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         }
         return existing;
       });
-      return replaced ? next : prev.concat(guild);
+      const merged = replaced ? next : next.concat(guild);
+      return sortGuilds(merged);
     });
 
     if (guild.is_active) {
@@ -235,6 +341,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     switchGuild,
     createGuild,
     updateGuildInState,
+    reorderGuilds,
     canCreateGuilds,
   };
 

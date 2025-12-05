@@ -15,6 +15,7 @@ from app.schemas.guild import (
     GuildInviteCreate,
     GuildInviteRead,
     GuildInviteStatus,
+    GuildOrderUpdate,
     GuildUpdate,
 )
 from app.services import guilds as guilds_service
@@ -33,6 +34,7 @@ def _serialize_guild(guild: Guild, membership: GuildMembership, active_guild_id:
         updated_at=guild.updated_at,
         role=membership.role,
         is_active=guild.id == active_guild_id,
+        position=membership.position,
     )
 
 
@@ -57,6 +59,21 @@ async def list_guilds(session: SessionDep, current_user: Annotated[User, Depends
     for guild, membership in memberships:
         payloads.append(_serialize_guild(guild, membership, current_user.active_guild_id))
     return payloads
+
+
+@router.put("/order", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def reorder_guilds(
+    payload: GuildOrderUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    await guilds_service.reorder_memberships(
+        session,
+        user_id=current_user.id,
+        ordered_guild_ids=payload.guild_ids,
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/invite/{code}", response_model=GuildInviteStatus)

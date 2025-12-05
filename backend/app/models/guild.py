@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, Integer
 from sqlmodel import Field, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
@@ -65,6 +65,10 @@ class GuildMembership(SQLModel, table=True):
     joined_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    position: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
     )
 
     guild: Optional[Guild] = Relationship(back_populates="members")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.guild import GuildRole
 
@@ -22,6 +22,7 @@ class GuildRead(GuildBase):
     id: int
     role: GuildRole
     is_active: bool
+    position: int
     created_at: datetime
     updated_at: datetime
 
@@ -69,6 +70,11 @@ class GuildUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     icon_base64: Optional[str] = None
+
+
+class GuildOrderUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    guild_ids: list[int] = Field(min_length=1, alias="guildIds")
 
 
 class GuildSummary(BaseModel):

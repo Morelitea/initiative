@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import secrets
 
+from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -93,14 +94,70 @@ async def ensure_membership(
             session.add(membership)
             await session.flush()
         return membership
+    next_position = await _next_membership_position(session, user_id=user_id)
     membership = GuildMembership(
         guild_id=guild_id,
         user_id=user_id,
         role=role,
+        position=next_position,
     )
     session.add(membership)
     await session.flush()
     return membership
+
+
+async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
+    result = await session.exec(
+        select(func.max(GuildMembership.position)).where(GuildMembership.user_id == user_id)
+    )
+    max_value = result.one_or_none()
+    highest = max_value if max_value is not None else -1
+    return highest + 1
+
+
+async def reorder_memberships(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    ordered_guild_ids: list[int],
+) -> None:
+    if not ordered_guild_ids:
+        return
+
+    stmt = select(GuildMembership).where(GuildMembership.user_id == user_id)
+    result = await session.exec(stmt)
+    memberships = result.all()
+    if not memberships:
+        return
+
+    membership_by_guild = {membership.guild_id: membership for membership in memberships}
+    seen: set[int] = set()
+    position = 0
+
+    for guild_id in ordered_guild_ids:
+        if guild_id in seen:
+            continue
+        membership = membership_by_guild.get(guild_id)
+        if not membership:
+            continue
+        membership.position = position
+        session.add(membership)
+        seen.add(guild_id)
+        position += 1
+
+    remaining = [membership for membership in memberships if membership.guild_id not in seen]
+    remaining.sort(
+        key=lambda membership: (
+            membership.position if membership.position is not None else 0,
+            membership.joined_at,
+        )
+    )
+    for membership in remaining:
+        membership.position = position
+        session.add(membership)
+        position += 1
+
+    await session.flush()
 
 
 async def get_membership(
@@ -126,7 +183,11 @@ async def list_memberships(
         select(Guild, GuildMembership)
         .join(GuildMembership, GuildMembership.guild_id == Guild.id)
         .where(GuildMembership.user_id == user_id)
-        .order_by(Guild.created_at.asc())
+        .order_by(
+            GuildMembership.position.asc(),
+            GuildMembership.joined_at.asc(),
+            Guild.id.asc(),
+        )
     )
     result = await session.exec(stmt)
     return result.all()

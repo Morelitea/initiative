@@ -114,6 +114,7 @@ export interface Guild {
   icon_base64?: string | null;
   role: GuildRole;
   is_active: boolean;
+  position: number;
   created_at: string;
   updated_at: string;
 }
