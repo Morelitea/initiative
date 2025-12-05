@@ -228,6 +228,8 @@ export interface TaskProjectSummary {
   icon?: string | null;
   initiative_id?: number | null;
   initiative?: TaskProjectInitiativeSummary | null;
+  is_archived?: boolean | null;
+  is_template?: boolean | null;
 }
 
 export interface TaskGuildSummary {

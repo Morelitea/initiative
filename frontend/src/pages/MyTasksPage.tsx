@@ -266,11 +266,15 @@ export const MyTasksPage = () => {
     if (!user) {
       return [];
     }
-    return tasks.filter(
-      (task) =>
-        !excludedProjectIds.has(task.project_id) &&
-        task.assignees.some((assignee) => assignee.id === user.id)
-    );
+    return tasks.filter((task) => {
+      if (excludedProjectIds.has(task.project_id)) {
+        return false;
+      }
+      if (task.project?.is_archived || task.project?.is_template) {
+        return false;
+      }
+      return task.assignees.some((assignee) => assignee.id === user.id);
+    });
   }, [tasks, user, excludedProjectIds]);
 
   const filteredTasks = useMemo(() => {

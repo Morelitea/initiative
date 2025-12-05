@@ -323,13 +323,13 @@ async def _allowed_project_ids(
     permission_ids = {row for row in permission_ids_result.all() if row is not None}
 
     project_result = await session.exec(
-        select(Project.id, Project.owner_id, Project.initiative_id, Project.is_archived)
+        select(Project.id, Project.owner_id, Project.initiative_id, Project.is_archived, Project.is_template)
         .join(Project.initiative)
         .where(Initiative.guild_id == guild_id)
     )
     ids: set[int] = set()
-    for project_id, owner_id, initiative_id, is_archived in project_result.all():
-        if is_archived:
+    for project_id, owner_id, initiative_id, is_archived, is_template in project_result.all():
+        if is_archived or is_template:
             continue
         if owner_id == user.id:
             ids.add(project_id)
@@ -358,6 +358,8 @@ async def _list_global_tasks(
         .where(
             TaskAssignee.user_id == current_user.id,
             GuildMembership.user_id == current_user.id,
+            Project.is_archived.is_(False),
+            Project.is_template.is_(False),
         )
         .options(
             selectinload(Task.project)

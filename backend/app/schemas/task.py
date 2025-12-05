@@ -128,6 +128,8 @@ class TaskProjectSummary(BaseModel):
     icon: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative: Optional[TaskProjectInitiativeSummary] = None
+    is_archived: Optional[bool] = None
+    is_template: Optional[bool] = None
 
     class Config:
         from_attributes = True
