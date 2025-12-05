@@ -2,6 +2,7 @@
 .DS_Store
 .env
 .env.*
+!.env.example
 .vscode/
 .idea/
 *.log
