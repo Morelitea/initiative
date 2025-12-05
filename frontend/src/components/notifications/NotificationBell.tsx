@@ -64,6 +64,15 @@ const notificationLink = (notification: Notification): string | null => {
   const data = notification.data || {};
   switch (notification.type) {
     case "task_assignment":
+      if (typeof data.task_id === "number") {
+        return `/tasks/${data.task_id}`;
+      }
+      if (typeof data.task_id === "string") {
+        const parsedTaskId = Number(data.task_id);
+        if (Number.isFinite(parsedTaskId)) {
+          return `/tasks/${parsedTaskId}`;
+        }
+      }
       if (typeof data.project_id === "number") {
         return `/projects/${data.project_id}`;
       }

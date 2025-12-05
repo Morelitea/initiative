@@ -42,10 +42,11 @@ def _build_smart_link(*, target_path: str, guild_id: int | None) -> str | None:
 
 
 def _task_target_path(task_id: int | None, project_id: int | None) -> str:
-    base = f"/projects/{project_id}" if project_id else "/projects"
     if task_id:
-        return f"{base}?taskId={task_id}"
-    return base
+        return f"/tasks/{task_id}"
+    if project_id:
+        return f"/projects/{project_id}"
+    return "/projects"
 
 
 def _project_target_path(project_id: int | None) -> str:
