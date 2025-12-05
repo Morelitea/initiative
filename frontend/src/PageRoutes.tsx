@@ -2,7 +2,6 @@ import { lazy, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
-import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 
 const PAGE_TRANSITION_DURATION_MS = 300;
@@ -128,7 +127,6 @@ const UserSettingsNotificationsPage = lazy(() =>
 export const PageRoutes = () => {
   const location = useLocation();
   const { user, refreshUser } = useAuth();
-  const prefersReducedMotion = usePrefersReducedMotion();
   // Keep rendering the previous route until the fade-out completes.
   const [displayLocation, setDisplayLocation] = useState(location);
   const [transitionStage, setTransitionStage] = useState<TransitionStage>("fadeIn");
@@ -138,19 +136,13 @@ export const PageRoutes = () => {
     `${displayLocation.pathname}${displayLocation.search}${displayLocation.hash}`;
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      setDisplayLocation(location);
-      setTransitionStage("fadeIn");
-      return;
-    }
-
     if (locationKey !== displayKey) {
       setTransitionStage("fadeOut");
     }
-  }, [prefersReducedMotion, location, locationKey, displayKey]);
+  }, [locationKey, displayKey]);
 
   useEffect(() => {
-    if (prefersReducedMotion || transitionStage !== "fadeOut") {
+    if (transitionStage !== "fadeOut") {
       return;
     }
 
@@ -160,13 +152,16 @@ export const PageRoutes = () => {
     }, PAGE_TRANSITION_DURATION_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [prefersReducedMotion, transitionStage, location]);
+  }, [transitionStage, location]);
 
   return (
     <div
       className={cn(
-        !prefersReducedMotion && "transition-all duration-300 ease-in-out",
-        transitionStage === "fadeIn" ? "mt-0 opacity-100" : "pointer-events-none mt-2 opacity-0"
+        "mt-0 opacity-100",
+        "motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-in-out",
+        transitionStage === "fadeIn"
+          ? "motion-safe:mt-0 motion-safe:opacity-100"
+          : "motion-safe:pointer-events-none motion-safe:mt-2 motion-safe:opacity-0"
       )}
     >
       <Routes location={displayLocation} key={displayKey}>

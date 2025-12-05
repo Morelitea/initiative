@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
@@ -16,7 +16,7 @@ from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.user import User
-from app.models.guild import GuildRole
+from app.models.guild import GuildRole, GuildMembership
 from app.models.comment import Comment
 from pydantic import ValidationError
 
@@ -51,6 +51,14 @@ async def _annotate_task_comment_counts(session: SessionDep, tasks: list[Task]) 
         object.__setattr__(task, "comment_count", counts.get(task.id, 0))
 
 
+def _annotate_task_guild(tasks: list[Task]) -> None:
+    for task in tasks:
+        project = getattr(task, "project", None)
+        initiative = getattr(project, "initiative", None) if project else None
+        guild = getattr(initiative, "guild", None) if initiative else None
+        object.__setattr__(task, "guild", guild)
+
+
 def _task_payload(task: Task) -> dict:
     return TaskRead.model_validate(task).model_dump(mode="json")
 
@@ -64,12 +72,19 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
             Task.id == task_id,
             Initiative.guild_id == guild_id,
         )
-        .options(selectinload(Task.assignees), selectinload(Task.task_status))
+        .options(
+            selectinload(Task.project)
+            .selectinload(Project.initiative)
+            .selectinload(Initiative.guild),
+            selectinload(Task.assignees),
+            selectinload(Task.task_status),
+        )
     )
     result = await session.exec(stmt)
     task = result.one_or_none()
     if task:
         await _annotate_task_comment_counts(session, [task])
+        _annotate_task_guild([task])
     return task
 
 
@@ -327,19 +342,69 @@ async def _allowed_project_ids(
     return ids
 
 
+async def _list_global_tasks(
+    session: SessionDep,
+    current_user: User,
+    *,
+    project_id: Optional[int],
+) -> list[Task]:
+    statement = (
+        select(Task)
+        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+        .join(Task.project)
+        .join(Project.initiative)
+        .join(Initiative.guild)
+        .join(GuildMembership, GuildMembership.guild_id == Initiative.guild_id)
+        .where(
+            TaskAssignee.user_id == current_user.id,
+            GuildMembership.user_id == current_user.id,
+        )
+        .options(
+            selectinload(Task.project)
+            .selectinload(Project.initiative)
+            .selectinload(Initiative.guild),
+            selectinload(Task.assignees),
+            selectinload(Task.task_status),
+        )
+        .order_by(Task.sort_order.asc(), Task.id.asc())
+    )
+    if project_id is not None:
+        statement = statement.where(Task.project_id == project_id)
+
+    result = await session.exec(statement)
+    return result.all()
+
+
 @router.get("/", response_model=List[TaskRead])
 async def list_tasks(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: Optional[int] = Query(default=None),
+    scope: Annotated[Literal["global"] | None, Query()] = None,
 ) -> List[Task]:
+    if scope == "global":
+        tasks = await _list_global_tasks(
+            session,
+            current_user,
+            project_id=project_id,
+        )
+        await _annotate_task_comment_counts(session, tasks)
+        _annotate_task_guild(tasks)
+        return tasks
+
     statement = (
         select(Task)
         .join(Task.project)
         .join(Project.initiative)
         .where(Initiative.guild_id == guild_context.guild_id)
-        .options(selectinload(Task.project), selectinload(Task.assignees), selectinload(Task.task_status))
+        .options(
+            selectinload(Task.project)
+            .selectinload(Project.initiative)
+            .selectinload(Initiative.guild),
+            selectinload(Task.assignees),
+            selectinload(Task.task_status),
+        )
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
 
@@ -360,6 +425,7 @@ async def list_tasks(
     result = await session.exec(statement)
     tasks = result.all()
     await _annotate_task_comment_counts(session, tasks)
+    _annotate_task_guild(tasks)
     return tasks
 
 
@@ -635,12 +701,19 @@ async def reorder_tasks(
 
     refreshed_stmt = (
         select(Task)
-        .options(selectinload(Task.assignees), selectinload(Task.task_status))
+        .options(
+            selectinload(Task.project)
+            .selectinload(Project.initiative)
+            .selectinload(Initiative.guild),
+            selectinload(Task.assignees),
+            selectinload(Task.task_status),
+        )
         .where(Task.project_id == reorder_in.project_id)
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
     refreshed_result = await session.exec(refreshed_stmt)
     tasks = refreshed_result.all()
     await _annotate_task_comment_counts(session, tasks)
+    _annotate_task_guild(tasks)
     await broadcast_event("task", "reordered", {"project_id": reorder_in.project_id})
     return tasks

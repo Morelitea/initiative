@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.user import UserRead
 from app.schemas.task_status import TaskStatusRead
+from app.schemas.guild import GuildSummary
 
 from app.models.task import TaskPriority, TaskStatusCategory
 
@@ -112,6 +113,26 @@ class TaskUpdate(BaseModel):
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
 
 
+class TaskProjectInitiativeSummary(BaseModel):
+    id: int
+    name: str
+    color: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TaskProjectSummary(BaseModel):
+    id: int
+    name: str
+    icon: Optional[str] = None
+    initiative_id: Optional[int] = None
+    initiative: Optional[TaskProjectInitiativeSummary] = None
+
+    class Config:
+        from_attributes = True
+
+
 class TaskRead(TaskBase):
     id: int
     project_id: int
@@ -123,6 +144,8 @@ class TaskRead(TaskBase):
     assignees: List[UserRead] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0
+    guild: Optional[GuildSummary] = None
+    project: Optional[TaskProjectSummary] = None
 
     class Config:
         from_attributes = True

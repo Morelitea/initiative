@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Markdown } from "@/components/Markdown";
-import { ChevronDown, Filter } from "lucide-react";
+import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -35,6 +36,7 @@ import { formatDistance } from "date-fns";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -59,14 +61,29 @@ const getDefaultFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
+const getGuildInitials = (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "G";
+  }
+  return trimmed
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+};
+
 export const MyTasksPage = () => {
   const { user } = useAuth();
+  const { activeGuildId, switchGuild } = useGuilds();
+  const navigate = useNavigate();
   const projectStatusCache = useRef<Map<number, ProjectTaskStatus[]>>(new Map());
+  const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
 
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "all"],
+    queryKey: ["tasks", "global"],
     queryFn: async () => {
-      const response = await apiClient.get<Task[]>("/tasks/");
+      const response = await apiClient.get<Task[]>("/tasks/", { params: { scope: "global" } });
       return response.data;
     },
   });
@@ -103,7 +120,7 @@ export const MyTasksPage = () => {
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task[] | undefined>(["tasks", "all"], (prev) => {
+      queryClient.setQueryData<Task[] | undefined>(["tasks", "global"], (prev) => {
         if (!prev) {
           return prev;
         }
@@ -184,8 +201,36 @@ export const MyTasksPage = () => {
     [fetchProjectStatuses]
   );
 
+  const ensureTaskGuildContext = useCallback(
+    async (task: Task) => {
+      if (!task.guild || task.guild.id === activeGuildId) {
+        return true;
+      }
+
+      setSwitchingTaskId(task.id);
+      const toastId = toast.loading(`Switching to ${task.guild.name}...`);
+      try {
+        await switchGuild(task.guild.id);
+        toast.success(`Switched to ${task.guild.name}`, { id: toastId });
+        return true;
+      } catch (error) {
+        console.error(error);
+        const message = error instanceof Error ? error.message : "Unable to switch guild";
+        toast.error(message, { id: toastId });
+        return false;
+      } finally {
+        setSwitchingTaskId(null);
+      }
+    },
+    [activeGuildId, switchGuild]
+  );
+
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
+      const ready = await ensureTaskGuildContext(task);
+      if (!ready) {
+        return;
+      }
       const targetStatusId = await resolveStatusIdForCategory(task.project_id, targetCategory);
       if (!targetStatusId) {
         toast.error("Unable to update task status. No matching status found.");
@@ -193,7 +238,17 @@ export const MyTasksPage = () => {
       }
       await updateTaskStatusMutate({ taskId: task.id, taskStatusId: targetStatusId });
     },
-    [resolveStatusIdForCategory, updateTaskStatusMutate]
+    [ensureTaskGuildContext, resolveStatusIdForCategory, updateTaskStatusMutate]
+  );
+
+  const handleCrossGuildNavigation = useCallback(
+    async (task: Task, targetPath: string) => {
+      const ready = await ensureTaskGuildContext(task);
+      if (ready) {
+        navigate(targetPath);
+      }
+    },
+    [ensureTaskGuildContext, navigate]
   );
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
@@ -236,7 +291,10 @@ export const MyTasksPage = () => {
 
       if (selectedInitiativeId) {
         const project = projectsById[task.project_id];
-        if (!project || project.initiative_id !== selectedInitiativeId) {
+        const fallbackInitiativeId = task.project?.initiative_id ?? null;
+        const matchesProject = project?.initiative_id === selectedInitiativeId;
+        const matchesFallback = fallbackInitiativeId === selectedInitiativeId;
+        if (!matchesProject && !matchesFallback) {
           return false;
         }
       }
@@ -301,9 +359,21 @@ export const MyTasksPage = () => {
           : null;
         return (
           <div className="flex min-w-60 flex-col text-left">
-            <Link to={`/tasks/${task.id}`} className="text-foreground font-medium hover:underline">
-              {task.title}
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to={`/tasks/${task.id}`}
+                className="text-foreground font-medium hover:underline"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleCrossGuildNavigation(task, `/tasks/${task.id}`);
+                }}
+              >
+                {task.title}
+              </Link>
+              {switchingTaskId === task.id ? (
+                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+            </div>
             {task.description ? (
               <Markdown content={task.description} className="line-clamp-2" />
             ) : null}
@@ -382,15 +452,21 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        const initiative = project?.initiative;
+        const fallbackProject = task.project;
+        const initiative = project?.initiative ?? fallbackProject?.initiative ?? null;
         if (!initiative) {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
+        const initiativePath = `/initiatives/${initiative.id}`;
         return (
           <div className="min-w-40">
             <Link
-              to={`/initiatives/${initiative.id}`}
+              to={initiativePath}
               className="text-foreground flex items-center gap-2 text-sm font-medium"
+              onClick={(event) => {
+                event.preventDefault();
+                void handleCrossGuildNavigation(task, initiativePath);
+              }}
             >
               <InitiativeColorDot color={initiative.color} />
               {initiative.name}
@@ -405,21 +481,42 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        if (!project) {
-          return (
-            <div className="min-w-30">
-              <span className="text-muted-foreground text-sm">Project #{task.project_id}</span>
-            </div>
-          );
-        }
+        const fallbackProject = task.project;
+        const guild = task.guild;
+        const projectLabel =
+          project?.name ?? fallbackProject?.name ?? `Project #${task.project_id}`;
+        const projectIdentifier = project?.id ?? fallbackProject?.id ?? task.project_id;
+        const projectPath = `/projects/${projectIdentifier}`;
         return (
           <div className="min-w-30">
-            <Link
-              to={`/projects/${project.id}`}
-              className="text-primary text-sm font-medium hover:underline"
-            >
-              {project.name}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {guild ? (
+                <>
+                  <Avatar className="border-border h-6 w-6 border">
+                    {guild.icon_base64 ? (
+                      <AvatarImage src={guild.icon_base64} alt={guild.name} />
+                    ) : null}
+                    <AvatarFallback className="text-[10px] font-medium">
+                      {getGuildInitials(guild.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-muted-foreground text-xs sm:text-sm">{guild.name}</span>
+                  <span className="text-muted-foreground text-sm" aria-hidden>
+                    {"\u00B7"}
+                  </span>
+                </>
+              ) : null}
+              <Link
+                to={projectPath}
+                className="text-primary text-sm font-medium hover:underline"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleCrossGuildNavigation(task, projectPath);
+                }}
+              >
+                {projectLabel}
+              </Link>
+            </div>
           </div>
         );
       },

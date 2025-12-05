@@ -127,7 +127,10 @@ export const MobileMenu = ({ navItems, user, onLogout }: MobileMenuProps) => {
     await switchGuildFn(guildId);
 
     setIsOpen(false);
-    navigate(targetPath);
+    if (targetPath !== "/tasks") {
+      // My tasks is global, don't navigate/refresh
+      navigate(targetPath);
+    }
   };
 
   const handleCreateGuildSubmit = async (event: FormEvent<HTMLFormElement>) => {

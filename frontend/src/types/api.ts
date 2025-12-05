@@ -216,6 +216,26 @@ export interface TaskRecurrence {
   end_date?: string | null;
 }
 
+export interface TaskProjectInitiativeSummary {
+  id: number;
+  name: string;
+  color?: string | null;
+}
+
+export interface TaskProjectSummary {
+  id: number;
+  name: string;
+  icon?: string | null;
+  initiative_id?: number | null;
+  initiative?: TaskProjectInitiativeSummary | null;
+}
+
+export interface TaskGuildSummary {
+  id: number;
+  name: string;
+  icon_base64?: string | null;
+}
+
 export interface Task {
   id: number;
   title: string;
@@ -234,6 +254,8 @@ export interface Task {
   updated_at: string;
   sort_order: number;
   comment_count?: number;
+  guild?: TaskGuildSummary | null;
+  project?: TaskProjectSummary | null;
 }
 
 export interface CommentAuthor {

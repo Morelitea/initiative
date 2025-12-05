@@ -152,7 +152,7 @@ export const GuildSidebar = () => {
     const currentPath = location.pathname;
     let targetPath = "/"; // Default to Project Dashboard
     if (currentPath.startsWith("/tasks")) {
-      // My Tasks is safe to persist across guilds
+      // My Tasks is safe to persist across guilds, is global, don't refresh
       targetPath = "/tasks";
     } else if (currentPath.startsWith("/initiatives")) {
       // Initiative detail IDs are guild-scoped, so return to the list.
@@ -171,7 +171,10 @@ export const GuildSidebar = () => {
 
     await switchGuild(guildId);
 
-    navigate(targetPath);
+    if (targetPath !== "/tasks") {
+      // My tasks is global, don't navigate/refresh
+      navigate(targetPath);
+    }
   };
 
   return (

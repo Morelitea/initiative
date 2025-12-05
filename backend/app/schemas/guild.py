@@ -69,3 +69,12 @@ class GuildUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     icon_base64: Optional[str] = None
+
+
+class GuildSummary(BaseModel):
+    id: int
+    name: str
+    icon_base64: Optional[str] = None
+
+    class Config:
+        from_attributes = True
