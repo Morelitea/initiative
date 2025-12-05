@@ -211,6 +211,7 @@ export const MyTasksPage = () => {
     () => readStoredFilters().initiativeFilter
   );
   const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
+  const [statusCacheVersion, setStatusCacheVersion] = useState(0);
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -234,19 +235,25 @@ export const MyTasksPage = () => {
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   useEffect(() => {
+    let updated = false;
     tasks.forEach((task) => {
       const cached = projectStatusCache.current.get(task.project_id);
       if (cached) {
         if (!cached.statuses.some((status) => status.id === task.task_status.id)) {
           cached.statuses.push(task.task_status);
+          updated = true;
         }
       } else {
         projectStatusCache.current.set(task.project_id, {
           statuses: [task.task_status],
           complete: false,
         });
+        updated = true;
       }
     });
+    if (updated) {
+      setStatusCacheVersion((prev) => prev + 1);
+    }
   }, [tasks]);
 
   useEffect(() => {
@@ -285,6 +292,7 @@ export const MyTasksPage = () => {
         ]
       : response.data;
     projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
+    setStatusCacheVersion((prev) => prev + 1);
     return merged;
   }, []);
 
@@ -301,6 +309,12 @@ export const MyTasksPage = () => {
       return null;
     },
     [fetchProjectStatuses]
+  );
+
+  const projectStatusesForTask = useCallback(
+    (task: Task) => projectStatusCache.current.get(task.project_id)?.statuses ?? [task.task_status],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [statusCacheVersion]
   );
 
   const ensureTaskGuildContext = useCallback(
@@ -327,6 +341,28 @@ export const MyTasksPage = () => {
     [activeGuildId, switchGuild]
   );
 
+  const changeTaskStatusById = useCallback(
+    async (task: Task, targetStatusId: number) => {
+      const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
+      if (!targetGuildId) {
+        toast.error("Unable to determine guild context for this task.");
+        return;
+      }
+      try {
+        await updateTaskStatusMutate({
+          taskId: task.id,
+          taskStatusId: targetStatusId,
+          guildId: targetGuildId,
+        });
+      } catch (error) {
+        console.error(error);
+        const message = error instanceof Error ? error.message : "Unable to update task status.";
+        toast.error(message);
+      }
+    },
+    [activeGuildId, updateTaskStatusMutate]
+  );
+
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
       const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
@@ -343,19 +379,9 @@ export const MyTasksPage = () => {
         toast.error("Unable to update task status. No matching status found.");
         return;
       }
-      try {
-        await updateTaskStatusMutate({
-          taskId: task.id,
-          taskStatusId: targetStatusId,
-          guildId: targetGuildId,
-        });
-      } catch (error) {
-        console.error(error);
-        const message = error instanceof Error ? error.message : "Unable to update task status.";
-        toast.error(message);
-      }
+      await changeTaskStatusById(task, targetStatusId);
     },
-    [activeGuildId, resolveStatusIdForCategory, updateTaskStatusMutate]
+    [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory]
   );
 
   const handleCrossGuildNavigation = useCallback(
@@ -663,21 +689,36 @@ export const MyTasksPage = () => {
       header: () => <span className="font-medium">Status</span>,
       cell: ({ row }) => {
         const task = row.original;
+        const projectStatuses = projectStatusesForTask(task)
+          .slice()
+          .sort((a, b) => a.position - b.position);
         return (
           <div className="space-y-1">
-            <p className="text-muted-foreground text-xs">{task.task_status.name}</p>
             <Select
-              value={task.task_status.category}
-              onValueChange={(value) => void changeTaskStatus(task, value as TaskStatusCategory)}
+              value={String(task.task_status.id)}
+              onValueChange={(value) => {
+                const targetId = Number(value);
+                if (Number.isNaN(targetId)) {
+                  toast.error("Invalid status selected.");
+                  return;
+                }
+                void changeTaskStatusById(task, targetId);
+              }}
+              onOpenChange={(open) => {
+                if (open) {
+                  const guildId = task.guild?.id ?? activeGuildId ?? null;
+                  void fetchProjectStatuses(task.project_id, guildId);
+                }
+              }}
               disabled={isUpdatingTaskStatus}
             >
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {projectStatuses.map((status) => (
+                  <SelectItem key={status.id} value={String(status.id)}>
+                    {status.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -753,7 +794,7 @@ export const MyTasksPage = () => {
                 htmlFor="task-status-filter"
                 className="text-muted-foreground text-xs font-medium"
               >
-                Status
+                Status category
               </Label>
               <Select
                 value={statusFilter}
@@ -762,11 +803,11 @@ export const MyTasksPage = () => {
                 }
               >
                 <SelectTrigger id="task-status-filter">
-                  <SelectValue placeholder="All statuses" />
+                  <SelectValue placeholder="All status categories" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="incomplete">Incomplete</SelectItem>
-                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="all">All status categories</SelectItem>
                   {statusOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
