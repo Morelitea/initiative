@@ -495,7 +495,7 @@ export const MyTasksPage = () => {
           </div>
         );
       },
-      cell: ({ getValue }) => <span className="text-sm font-medium">{getValue<string>()}</span>,
+      cell: ({ getValue }) => <span className="text-base font-medium">{getValue<string>()}</span>,
       enableHiding: true,
       enableSorting: true,
       sortingFn: "alphanumeric",
