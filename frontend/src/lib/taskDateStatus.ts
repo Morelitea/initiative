@@ -1,12 +1,12 @@
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
-type TaskDateStatusKey = "0_overdue" | "1_do_now" | "2_next_week" | "3_next_month" | "4_later";
+type TaskDateStatusKey = "0_overdue" | "1_do_now" | "2_this_week" | "3_this_month" | "4_later";
 
 const TASK_DATE_STATUS_LABELS: Record<TaskDateStatusKey, string> = {
   "0_overdue": "Overdue",
   "1_do_now": "Do Now",
-  "2_next_week": "Next Week",
-  "3_next_month": "Next Month",
+  "2_this_week": "This Week",
+  "3_this_month": "This Month",
   "4_later": "Later",
 };
 
@@ -40,14 +40,14 @@ export const getTaskDateStatus = (
     return "1_do_now";
   }
 
-  const nextWeek = createFutureDate(now, 7);
-  if ((start && isOnOrBefore(start, nextWeek)) || (due && isOnOrBefore(due, nextWeek))) {
-    return "2_next_week";
+  const thisWeek = createFutureDate(now, 7);
+  if ((start && isOnOrBefore(start, thisWeek)) || (due && isOnOrBefore(due, thisWeek))) {
+    return "2_this_week";
   }
 
-  const nextMonth = createFutureDate(now, 30);
-  if ((start && isOnOrBefore(start, nextMonth)) || (due && isOnOrBefore(due, nextMonth))) {
-    return "3_next_month";
+  const thisMonth = createFutureDate(now, 30);
+  if ((start && isOnOrBefore(start, thisMonth)) || (due && isOnOrBefore(due, thisMonth))) {
+    return "3_this_month";
   }
 
   return "4_later";
