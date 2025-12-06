@@ -12,7 +12,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
-import { formatDistance } from "date-fns";
+import { formatDistance, isPast } from "date-fns";
 
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
@@ -207,10 +207,15 @@ export const ProjectTasksTableView = ({
         },
         cell: ({ row }) => {
           const task = row.original;
-          return task.start_date ? (
-            formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })
-          ) : (
-            <span className="text-muted-foreground">—</span>
+          if (!task.start_date) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          const startDate = new Date(task.start_date);
+          const isStartPast = isPast(startDate);
+          return (
+            <div className={`min-w-30 ${isStartPast ? "text-primary" : "text-muted-foreground"}`}>
+              {formatDistance(startDate, new Date(), { addSuffix: true })}
+            </div>
           );
         },
         enableSorting: true,
@@ -231,10 +236,15 @@ export const ProjectTasksTableView = ({
         },
         cell: ({ row }) => {
           const task = row.original;
-          return task.due_date ? (
-            formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })
-          ) : (
-            <span className="text-muted-foreground">—</span>
+          if (!task.due_date) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          const dueDate = new Date(task.due_date);
+          const isDuePast = isPast(dueDate);
+          return (
+            <div className={`min-w-30 ${isDuePast ? "text-destructive" : ""}`}>
+              {formatDistance(dueDate, new Date(), { addSuffix: true })}
+            </div>
           );
         },
         enableSorting: true,

@@ -32,7 +32,7 @@ import type {
   TaskPriority,
   TaskStatusCategory,
 } from "@/types/api";
-import { formatDistance } from "date-fns";
+import { formatDistance, isPast } from "date-fns";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -551,12 +551,15 @@ export const MyTasksPage = () => {
       },
       cell: ({ row }) => {
         const task = row.original;
-        return task.start_date ? (
-          <div className="min-w-30">
-            {formatDistance(new Date(task.start_date), new Date(), { addSuffix: true })}
+        if (!task.start_date) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const startDate = new Date(task.start_date);
+        const isStartPast = isPast(startDate);
+        return (
+          <div className={`min-w-30 ${isStartPast ? "text-primary" : "text-muted-foreground"}`}>
+            {formatDistance(startDate, new Date(), { addSuffix: true })}
           </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
         );
       },
       sortingFn: dateSortingFn,
@@ -577,12 +580,15 @@ export const MyTasksPage = () => {
       },
       cell: ({ row }) => {
         const task = row.original;
-        return task.due_date ? (
-          <div className="min-w-30">
-            {formatDistance(new Date(task.due_date), new Date(), { addSuffix: true })}
+        if (!task.due_date) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const dueDate = new Date(task.due_date);
+        const isDuePast = isPast(dueDate);
+        return (
+          <div className={`min-w-30 ${isDuePast ? "text-destructive" : ""}`}>
+            {formatDistance(dueDate, new Date(), { addSuffix: true })}
           </div>
-        ) : (
-          <span className="text-muted-foreground">—</span>
         );
       },
       sortingFn: dateSortingFn,
