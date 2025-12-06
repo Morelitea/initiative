@@ -462,7 +462,7 @@ export const MyTasksPage = () => {
       accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
       header: () => <span className="sr-only">Date window</span>,
       cell: ({ getValue }) => (
-        <span className="text-sm font-medium">{getTaskDateStatusLabel(getValue<string>())}</span>
+        <span className="text-base font-medium">{getTaskDateStatusLabel(getValue<string>())}</span>
       ),
       enableHiding: true,
       enableSorting: true,

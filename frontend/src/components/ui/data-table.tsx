@@ -269,13 +269,35 @@ export function DataTable<TData, TValue>({
                   groupedCell && groupedCell.column.columnDef.cell
                     ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
                     : ((groupedCell?.getValue() ?? row.id) as ReactNode);
+                const rawGroupValue = groupedCell?.getValue();
+                const groupLabelText =
+                  typeof rawGroupValue === "string" ? rawGroupValue : "grouped rows";
+                const toggleExpandHandler = row.getToggleExpandedHandler?.();
+                const canToggle = typeof toggleExpandHandler === "function";
+                const isExpanded = row.getIsExpanded();
                 return (
                   <TableRow key={row.id} className="bg-muted/30" data-state="grouped">
                     <TableCell
                       colSpan={table.getVisibleLeafColumns().length || columns.length}
                       className="font-medium"
                     >
-                      {groupContent}
+                      <div className="flex items-center gap-2">
+                        {canToggle ? (
+                          <button
+                            type="button"
+                            onClick={toggleExpandHandler}
+                            className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md"
+                            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${groupLabelText}`}
+                          >
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${
+                                isExpanded ? "" : "-rotate-90"
+                              }`}
+                            />
+                          </button>
+                        ) : null}
+                        <span>{groupContent}</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
