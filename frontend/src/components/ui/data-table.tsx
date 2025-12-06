@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useRef, useState } from "react";
 import {
   ColumnDef,
   Row,
@@ -43,6 +43,7 @@ interface DataTableProps<TData, TValue> {
   enableColumnVisibilityDropdown?: boolean;
   enablePagination?: boolean;
   enableResetSorting?: boolean;
+  initialSorting?: SortingState;
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -60,8 +61,10 @@ export function DataTable<TData, TValue>({
   enableColumnVisibilityDropdown = false,
   enablePagination = false,
   enableResetSorting: enableClearSorting = false,
+  initialSorting,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
+  const [sorting, setSorting] = useState<SortingState>(() => initialSortingRef.current);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const table = useReactTable({
@@ -74,6 +77,9 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    initialState: {
+      sorting: initialSortingRef.current,
+    },
     state: {
       sorting,
       columnFilters,

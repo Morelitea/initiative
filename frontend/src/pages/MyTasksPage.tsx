@@ -889,6 +889,7 @@ export const MyTasksPage = () => {
       <DataTable
         columns={columns}
         data={filteredTasks}
+        initialSorting={[{ id: "due date", desc: false }]}
         enableFilterInput
         filterInputColumnKey="title"
         filterInputPlaceholder="Filter tasks..."
