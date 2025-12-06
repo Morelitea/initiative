@@ -34,6 +34,7 @@ import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -135,6 +136,17 @@ export const ProjectTasksTableView = ({
         enableSorting: false,
         size: 40,
         enableHiding: false,
+      },
+      {
+        id: "status_group",
+        accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
+        header: () => <span className="sr-only">Date window</span>,
+        cell: ({ getValue }) => (
+          <span className="text-sm font-medium">{getTaskDateStatusLabel(getValue<string>())}</span>
+        ),
+        enableHiding: true,
+        enableSorting: true,
+        sortingFn: "alphanumeric",
       },
       {
         id: "completed",
@@ -341,6 +353,16 @@ export const ProjectTasksTableView = ({
         strategy={verticalListSortingStrategy}
       >
         <DataTable
+          // enableGrouping
+          // initialState={{
+          //   grouping: ["status_group"],
+          //   expanded: true,
+          //   columnVisibility: { status_group: false },
+          // }}
+          // initialSorting={[
+          //   { id: "status_group", desc: false },
+          //   { id: "due date", desc: false },
+          // ]}
           columns={columns}
           data={tasks}
           rowWrapper={({ row, children }) => (

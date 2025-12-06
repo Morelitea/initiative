@@ -37,6 +37,7 @@ import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -456,6 +457,17 @@ export const MyTasksPage = () => {
   }, [myTasks, statusFilter, priorityFilter, initiativeFilter, guildFilter, projectsById]);
 
   const columns: ColumnDef<Task>[] = [
+    {
+      id: "status_group",
+      accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
+      header: () => <span className="sr-only">Date window</span>,
+      cell: ({ getValue }) => (
+        <span className="text-sm font-medium">{getTaskDateStatusLabel(getValue<string>())}</span>
+      ),
+      enableHiding: true,
+      enableSorting: true,
+      sortingFn: "alphanumeric",
+    },
     {
       id: "completed",
       header: () => <span className="font-medium">Done</span>,
@@ -895,7 +907,16 @@ export const MyTasksPage = () => {
       <DataTable
         columns={columns}
         data={filteredTasks}
-        initialSorting={[{ id: "due date", desc: false }]}
+        enableGrouping
+        initialState={{
+          grouping: ["status_group"],
+          expanded: true,
+          columnVisibility: { status_group: false },
+        }}
+        initialSorting={[
+          { id: "status_group", desc: false },
+          { id: "due date", desc: false },
+        ]}
         enableFilterInput
         filterInputColumnKey="title"
         filterInputPlaceholder="Filter tasks..."
