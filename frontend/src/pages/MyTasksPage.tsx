@@ -53,6 +53,7 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   done: ["done", "in_progress", "todo", "backlog"],
 };
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const guild_DEFAULT_LABEL = "No Guild";
 
 const INITIATIVE_FILTER_ALL = "all";
 const GUILD_FILTER_ALL = "all";
@@ -120,6 +121,8 @@ const getGuildInitials = (name: string) => {
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
 };
+
+const getGuildGroupLabel = (task: Task) => task.guild?.name ?? guild_DEFAULT_LABEL;
 
 export const MyTasksPage = () => {
   const { user } = useAuth();
@@ -458,15 +461,45 @@ export const MyTasksPage = () => {
 
   const columns: ColumnDef<Task>[] = [
     {
-      id: "status_group",
+      id: "date group",
       accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
-      header: () => <span className="sr-only">Date window</span>,
+      header: ({ column }) => {
+        const isSorted = column.getIsSorted();
+        return (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+              Date window
+              <SortIcon isSorted={isSorted} />
+            </Button>
+          </div>
+        );
+      },
       cell: ({ getValue }) => (
         <span className="text-base font-medium">{getTaskDateStatusLabel(getValue<string>())}</span>
       ),
       enableHiding: true,
       enableSorting: true,
       sortingFn: "alphanumeric",
+    },
+    {
+      id: "guild",
+      accessorFn: (task) => getGuildGroupLabel(task),
+      header: ({ column }) => {
+        const isSorted = column.getIsSorted();
+        return (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+              Guild
+              <SortIcon isSorted={isSorted} />
+            </Button>
+          </div>
+        );
+      },
+      cell: ({ getValue }) => <span className="text-sm font-medium">{getValue<string>()}</span>,
+      enableHiding: true,
+      enableSorting: true,
+      sortingFn: "alphanumeric",
+      enableMultiSort: false,
     },
     {
       id: "completed",
@@ -746,6 +779,13 @@ export const MyTasksPage = () => {
       },
     },
   ];
+  const groupingOptions = useMemo(
+    () => [
+      { id: "date group", label: "Date" },
+      { id: "guild", label: "Guild" },
+    ],
+    []
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -907,14 +947,14 @@ export const MyTasksPage = () => {
       <DataTable
         columns={columns}
         data={filteredTasks}
-        enableGrouping
+        groupingOptions={groupingOptions}
         initialState={{
-          grouping: ["status_group"],
+          grouping: ["date group"],
           expanded: true,
-          columnVisibility: { status_group: false },
+          columnVisibility: { "date group": false, guild: false },
         }}
         initialSorting={[
-          { id: "status_group", desc: false },
+          { id: "date group", desc: false },
           { id: "due date", desc: false },
         ]}
         enableFilterInput

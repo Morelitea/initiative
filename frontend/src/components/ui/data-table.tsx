@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode, useMemo, useRef, useState, useEffect, useId } from "react";
+import { Fragment, type ReactNode, useMemo, useRef, useState, useId, useEffect } from "react";
 import {
   ColumnDef,
   Row,
@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -46,6 +45,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+interface GroupingOption {
+  id: string;
+  label: string;
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -58,9 +62,9 @@ interface DataTableProps<TData, TValue> {
   enablePagination?: boolean;
   enableResetSorting?: boolean;
   initialSorting?: SortingState;
-  enableGrouping?: boolean;
   initialState?: Partial<TableState>;
   pageSizeOptions?: number[];
+  groupingOptions?: GroupingOption[];
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -70,6 +74,7 @@ export interface DataTableRowWrapperProps<TData> {
 
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const GROUPING_NONE_VALUE = "__none__";
 
 export function DataTable<TData, TValue>({
   columns,
@@ -82,18 +87,18 @@ export function DataTable<TData, TValue>({
   enablePagination = false,
   enableResetSorting: enableClearSorting = false,
   initialSorting,
-  enableGrouping = false,
   initialState,
   pageSizeOptions,
+  groupingOptions,
 }: DataTableProps<TData, TValue>) {
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
+  const groupingEnabled = Boolean(groupingOptions && groupingOptions.length > 0);
   const initialGroupingRef = useRef<GroupingState>(
-    Array.isArray(initialStateRef.current?.grouping)
+    groupingEnabled && Array.isArray(initialStateRef.current?.grouping)
       ? [...(initialStateRef.current?.grouping as GroupingState)]
       : []
   );
-  const lastNonEmptyGroupingRef = useRef<GroupingState>(initialGroupingRef.current);
   const resolveInitialPagination = (): PaginationState => {
     const paginationState = initialStateRef.current?.pagination as PaginationState | undefined;
     return {
@@ -109,19 +114,16 @@ export function DataTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
     () => initialStateRef.current?.columnVisibility ?? {}
   );
-  const [grouping, setGrouping] = useState<GroupingState>(() => initialGroupingRef.current);
+  const [grouping, setGrouping] = useState<GroupingState>(() =>
+    groupingEnabled ? initialGroupingRef.current : []
+  );
   const [pagination, setPagination] = useState<PaginationState>(() => initialPaginationRef.current);
-  useEffect(() => {
-    if (grouping.length > 0) {
-      lastNonEmptyGroupingRef.current = grouping;
-    }
-  }, [grouping]);
-  const groupingToggleId = useId();
+  const groupingSelectId = useId();
   const computedInitialState: Partial<TableState> = {
     sorting: initialSortingRef.current,
     ...(initialStateRef.current ?? {}),
   };
-  if (enableGrouping && computedInitialState.expanded === undefined) {
+  if (groupingEnabled && computedInitialState.expanded === undefined) {
     computedInitialState.expanded = true;
   }
   if (enablePagination) {
@@ -142,19 +144,19 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onGroupingChange: enableGrouping ? setGrouping : undefined,
+    onGroupingChange: groupingEnabled ? setGrouping : undefined,
     onPaginationChange: enablePagination ? setPagination : undefined,
     getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getGroupedRowModel: enableGrouping ? getGroupedRowModel() : undefined,
-    getExpandedRowModel: enableGrouping ? getExpandedRowModel() : undefined,
+    getGroupedRowModel: groupingEnabled ? getGroupedRowModel() : undefined,
+    getExpandedRowModel: groupingEnabled ? getExpandedRowModel() : undefined,
     initialState: computedInitialState,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
-      ...(enableGrouping ? { grouping } : {}),
+      ...(groupingEnabled ? { grouping } : {}),
       ...(enablePagination ? { pagination } : {}),
     },
   });
@@ -165,6 +167,102 @@ export function DataTable<TData, TValue>({
       : [...resolvedPageSizeOptions, pageSize];
     return [...options].sort((a, b) => a - b);
   }, [resolvedPageSizeOptions, pageSize]);
+  const normalizedGroupingOptions = useMemo<GroupingOption[]>(() => {
+    if (!groupingOptions || groupingOptions.length === 0) {
+      return [];
+    }
+    return groupingOptions.map((option) => ({ ...option }));
+  }, [groupingOptions]);
+  const groupingChoices = useMemo(() => {
+    if (normalizedGroupingOptions.length === 0) {
+      return grouping.length > 0 ? grouping.map((id) => ({ id, label: id })) : [];
+    }
+    const missing = grouping.filter(
+      (id) => !normalizedGroupingOptions.some((option) => option.id === id)
+    );
+    if (missing.length === 0) {
+      return normalizedGroupingOptions;
+    }
+    return [...normalizedGroupingOptions, ...missing.map((id) => ({ id, label: id }))];
+  }, [normalizedGroupingOptions, grouping]);
+  const hasGroupingOptions = groupingChoices.length > 0;
+  const groupingColumnIdSet = useMemo(
+    () => new Set(groupingChoices.map((option) => option.id)),
+    [groupingChoices]
+  );
+  const groupingSelectValue = grouping.length > 0 ? grouping[0] : GROUPING_NONE_VALUE;
+  useEffect(() => {
+    if (!groupingEnabled && grouping.length > 0) {
+      setGrouping([]);
+    }
+  }, [groupingEnabled, grouping, groupingColumnIdSet]);
+  useEffect(() => {
+    if (!groupingEnabled || grouping.length > 0) {
+      return;
+    }
+    setSorting((previousSorting) => {
+      const filtered = previousSorting.filter((sort) => !groupingColumnIdSet.has(sort.id));
+      if (
+        filtered.length === previousSorting.length ||
+        filtered.every(
+          (sort, index) =>
+            sort.id === previousSorting[index].id && sort.desc === previousSorting[index].desc
+        )
+      ) {
+        return previousSorting;
+      }
+      return filtered;
+    });
+  }, [groupingEnabled, grouping, groupingColumnIdSet]);
+  useEffect(() => {
+    if (!groupingEnabled || grouping.length === 0) {
+      return;
+    }
+    setSorting((previousSorting) => {
+      const groupingSet = new Set(grouping);
+      const previousSortMap = new Map(previousSorting.map((sort) => [sort.id, sort]));
+      let changed = false;
+      const rest = previousSorting.filter((sort) => {
+        if (groupingSet.has(sort.id)) {
+          if (sort.desc) {
+            changed = true;
+          }
+          return false;
+        }
+        if (groupingColumnIdSet.has(sort.id)) {
+          changed = true;
+          return false;
+        }
+        return true;
+      });
+      const groupingSorting = grouping.map((groupId, index) => {
+        const existing = previousSortMap.get(groupId);
+        if (!existing) {
+          changed = true;
+          return { id: groupId, desc: false };
+        }
+        if (existing.desc) {
+          changed = true;
+        }
+        if (previousSorting.indexOf(existing) !== index) {
+          changed = true;
+        }
+        return existing.desc ? { ...existing, desc: false } : existing;
+      });
+      const newSorting = [...groupingSorting, ...rest];
+      if (
+        !changed &&
+        newSorting.length === previousSorting.length &&
+        newSorting.every(
+          (sort, idx) =>
+            sort.id === previousSorting[idx].id && sort.desc === previousSorting[idx].desc
+        )
+      ) {
+        return previousSorting;
+      }
+      return newSorting;
+    });
+  }, [groupingEnabled, grouping, groupingColumnIdSet]);
 
   return (
     <div className="overflow-hidden rounded-md border">
@@ -188,30 +286,38 @@ export function DataTable<TData, TValue>({
                 <span className="text-muted-foreground">Reset Sorting</span>
               </Button>
             )}
-            {enableGrouping && (
+            {groupingEnabled && hasGroupingOptions ? (
               <div className="flex items-center gap-2">
-                <Checkbox
-                  id={groupingToggleId}
-                  checked={grouping.length > 0}
-                  onCheckedChange={(value) => {
-                    if (value === true) {
-                      const fallback =
-                        lastNonEmptyGroupingRef.current.length > 0
-                          ? lastNonEmptyGroupingRef.current
-                          : initialGroupingRef.current;
-                      if (fallback.length > 0) {
-                        setGrouping(fallback);
-                      }
-                    } else {
+                <Label
+                  htmlFor={groupingSelectId}
+                  className="text-muted-foreground text-sm font-medium"
+                >
+                  Group by
+                </Label>
+                <Select
+                  value={groupingSelectValue}
+                  onValueChange={(value) => {
+                    if (value === GROUPING_NONE_VALUE) {
                       setGrouping([]);
+                    } else {
+                      setGrouping([value]);
                     }
                   }}
-                />
-                <Label htmlFor={groupingToggleId} className="text-sm font-medium">
-                  Group rows
-                </Label>
+                >
+                  <SelectTrigger id={groupingSelectId} className="w-40">
+                    <SelectValue placeholder="Choose grouping" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={GROUPING_NONE_VALUE}>None</SelectItem>
+                    {groupingChoices.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+            ) : null}
             {enableColumnVisibilityDropdown && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -261,7 +367,7 @@ export function DataTable<TData, TValue>({
         <TableBody>
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => {
-              if (enableGrouping && row.getIsGrouped()) {
+              if (groupingEnabled && row.getIsGrouped()) {
                 const groupedCell = row
                   .getAllCells()
                   .find((cell) => cell.getIsGrouped && cell.getIsGrouped());
