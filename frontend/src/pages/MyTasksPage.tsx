@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ChevronDown, Filter, Loader2, TextAlignStart } from "lucide-react";
+import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
+import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
 import type {
@@ -551,7 +552,7 @@ export const MyTasksPage = () => {
           : null;
         return (
           <div className="flex min-w-60 flex-col text-left">
-            <div className="flex items-center gap-2">
+            <div className="flex">
               <Link
                 to={`/tasks/${task.id}`}
                 className="text-foreground flex w-full items-center gap-2 font-medium hover:underline"
@@ -561,8 +562,8 @@ export const MyTasksPage = () => {
                 }}
               >
                 {task.title}
-                {task.description && <TextAlignStart className="h-4 w-4 min-w-4" />}
               </Link>
+              <TaskDescriptionHoverCard task={task} />
               {switchingTaskId === task.id ? (
                 <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" aria-hidden />
               ) : null}

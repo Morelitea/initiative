@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, MessageSquare, TextAlignStart } from "lucide-react";
+import { GripVertical, MessageSquare } from "lucide-react";
 import { formatDistance, isPast } from "date-fns";
 
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
@@ -31,6 +31,7 @@ import { SortIcon } from "@/components/SortIcon";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
+import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { cn } from "@/lib/utils";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
@@ -454,27 +455,27 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
 
   return (
-    <button
-      type="button"
-      className="flex w-full min-w-60 flex-col items-start text-left"
-      onClick={() => {
-        if (!canOpenTask) {
-          return;
-        }
-        onTaskClick(task.id);
-      }}
-      disabled={!canOpenTask}
-    >
-      <p className="flex items-center gap-2 font-medium">
-        {task.title}
-        {task.description && <TextAlignStart className="h-4 w-4 min-w-4" />}
-      </p>
-      <div className="text-muted-foreground space-y-1 text-xs">
-        {task.assignees.length > 0 ? (
-          <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-        ) : null}
-        {recurrenceText ? <p>{recurrenceText}</p> : null}
-      </div>
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        className="flex w-full min-w-60 flex-col items-start text-left"
+        onClick={() => {
+          if (!canOpenTask) {
+            return;
+          }
+          onTaskClick(task.id);
+        }}
+        disabled={!canOpenTask}
+      >
+        <p className="flex items-center gap-2 font-medium">{task.title}</p>
+        <div className="text-muted-foreground space-y-1 text-xs">
+          {task.assignees.length > 0 ? (
+            <TaskAssigneeList assignees={task.assignees} className="text-xs" />
+          ) : null}
+          {recurrenceText ? <p>{recurrenceText}</p> : null}
+        </div>
+      </button>
+      <TaskDescriptionHoverCard task={task} />
+    </div>
   );
 };
