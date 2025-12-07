@@ -18,6 +18,7 @@ import {
   type GroupingState,
   type TableState,
   type PaginationState,
+  type Table as TableType,
 } from "@tanstack/react-table";
 import { ChevronDown } from "lucide-react";
 
@@ -65,6 +66,7 @@ interface DataTableProps<TData, TValue> {
   initialState?: Partial<TableState>;
   pageSizeOptions?: number[];
   groupingOptions?: GroupingOption[];
+  helpText?: ReactNode | ((table: TableType<TData>) => ReactNode);
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -90,6 +92,7 @@ export function DataTable<TData, TValue>({
   initialState,
   pageSizeOptions,
   groupingOptions,
+  helpText,
 }: DataTableProps<TData, TValue>) {
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
@@ -265,229 +268,232 @@ export function DataTable<TData, TValue>({
   }, [groupingEnabled, grouping, groupingColumnIdSet]);
 
   return (
-    <div className="overflow-hidden rounded-md border">
-      {enableFilterInput || enableClearSorting || enableColumnVisibilityDropdown ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 p-4">
-          <div className="flex items-center gap-2">
-            {enableFilterInput && (
-              <Input
-                placeholder={filterInputPlaceholder}
-                value={(table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? ""}
-                onChange={(event) =>
-                  table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
-                }
-                className="max-w-sm min-w-16"
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {enableClearSorting && (
-              <Button variant="ghost" onClick={() => table.resetSorting()}>
-                <span className="text-muted-foreground">Reset Sorting</span>
-              </Button>
-            )}
-            {groupingEnabled && hasGroupingOptions ? (
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor={groupingSelectId}
-                  className="text-muted-foreground text-sm font-medium"
-                >
-                  Group by
-                </Label>
-                <Select
-                  value={groupingSelectValue}
-                  onValueChange={(value) => {
-                    if (value === GROUPING_NONE_VALUE) {
-                      setGrouping([]);
-                    } else {
-                      setGrouping([value]);
-                    }
-                  }}
-                >
-                  <SelectTrigger id={groupingSelectId} className="w-40">
-                    <SelectValue placeholder="Choose grouping" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={GROUPING_NONE_VALUE}>None</SelectItem>
-                    {groupingChoices.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-            {enableColumnVisibilityDropdown && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-auto">
-                    Columns <ChevronDown />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {table
-                    .getAllColumns()
-                    .filter((column) => column.getCanHide())
-                    .map((column) => {
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={column.id}
-                          className="capitalize"
-                          checked={column.getIsVisible()}
-                          onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                        >
-                          {column.id}
-                        </DropdownMenuCheckboxItem>
-                      );
-                    })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => {
-              if (groupingEnabled && row.getIsGrouped()) {
-                const groupedCell = row
-                  .getAllCells()
-                  .find((cell) => cell.getIsGrouped && cell.getIsGrouped());
-                const groupContent =
-                  groupedCell && groupedCell.column.columnDef.cell
-                    ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
-                    : ((groupedCell?.getValue() ?? row.id) as ReactNode);
-                const rawGroupValue = groupedCell?.getValue();
-                const groupLabelText =
-                  typeof rawGroupValue === "string" ? rawGroupValue : "grouped rows";
-                const toggleExpandHandler = row.getToggleExpandedHandler?.();
-                const canToggle = typeof toggleExpandHandler === "function";
-                const isExpanded = row.getIsExpanded();
-                return (
-                  <TableRow key={row.id} className="bg-muted/30" data-state="grouped">
-                    <TableCell
-                      colSpan={table.getVisibleLeafColumns().length || columns.length}
-                      className="font-medium"
-                    >
-                      <div className="flex items-center gap-2">
-                        {canToggle ? (
-                          <button
-                            type="button"
-                            onClick={toggleExpandHandler}
-                            className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md"
-                            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${groupLabelText}`}
+    <div className="space-y-4">
+      {helpText && typeof helpText === "function" ? helpText(table) : helpText}
+      <div className="overflow-hidden rounded-md border">
+        {enableFilterInput || enableClearSorting || enableColumnVisibilityDropdown ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-4">
+            <div className="flex items-center gap-2">
+              {enableFilterInput && (
+                <Input
+                  placeholder={filterInputPlaceholder}
+                  value={(table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? ""}
+                  onChange={(event) =>
+                    table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
+                  }
+                  className="max-w-sm min-w-16"
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {enableClearSorting && (
+                <Button variant="ghost" onClick={() => table.resetSorting()}>
+                  <span className="text-muted-foreground">Reset Sorting</span>
+                </Button>
+              )}
+              {groupingEnabled && hasGroupingOptions ? (
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={groupingSelectId}
+                    className="text-muted-foreground text-sm font-medium"
+                  >
+                    Group by
+                  </Label>
+                  <Select
+                    value={groupingSelectValue}
+                    onValueChange={(value) => {
+                      if (value === GROUPING_NONE_VALUE) {
+                        setGrouping([]);
+                      } else {
+                        setGrouping([value]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger id={groupingSelectId} className="w-40">
+                      <SelectValue placeholder="Choose grouping" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={GROUPING_NONE_VALUE}>None</SelectItem>
+                      {groupingChoices.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              {enableColumnVisibilityDropdown && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="ml-auto">
+                      Columns <ChevronDown />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {table
+                      .getAllColumns()
+                      .filter((column) => column.getCanHide())
+                      .map((column) => {
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={column.id}
+                            className="capitalize"
+                            checked={column.getIsVisible()}
+                            onCheckedChange={(value) => column.toggleVisibility(!!value)}
                           >
-                            <ChevronDown
-                              className={`h-4 w-4 transition-transform ${
-                                isExpanded ? "" : "-rotate-90"
-                              }`}
-                            />
-                          </button>
-                        ) : null}
-                        <span>{groupContent}</span>
-                      </div>
+                            {column.id}
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => {
+                if (groupingEnabled && row.getIsGrouped()) {
+                  const groupedCell = row
+                    .getAllCells()
+                    .find((cell) => cell.getIsGrouped && cell.getIsGrouped());
+                  const groupContent =
+                    groupedCell && groupedCell.column.columnDef.cell
+                      ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
+                      : ((groupedCell?.getValue() ?? row.id) as ReactNode);
+                  const rawGroupValue = groupedCell?.getValue();
+                  const groupLabelText =
+                    typeof rawGroupValue === "string" ? rawGroupValue : "grouped rows";
+                  const toggleExpandHandler = row.getToggleExpandedHandler?.();
+                  const canToggle = typeof toggleExpandHandler === "function";
+                  const isExpanded = row.getIsExpanded();
+                  return (
+                    <TableRow key={row.id} className="bg-muted/30" data-state="grouped">
+                      <TableCell
+                        colSpan={table.getVisibleLeafColumns().length || columns.length}
+                        className="font-medium"
+                      >
+                        <div className="flex items-center gap-2">
+                          {canToggle ? (
+                            <button
+                              type="button"
+                              onClick={toggleExpandHandler}
+                              className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md"
+                              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${groupLabelText}`}
+                            >
+                              <ChevronDown
+                                className={`h-4 w-4 transition-transform ${
+                                  isExpanded ? "" : "-rotate-90"
+                                }`}
+                              />
+                            </button>
+                          ) : null}
+                          <span>{groupContent}</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                }
+                const cells = row
+                  .getVisibleCells()
+                  .map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
+                  ));
+                if (rowWrapper) {
+                  return (
+                    <Fragment key={row.id}>
+                      {rowWrapper({
+                        row,
+                        children: cells,
+                      })}
+                    </Fragment>
+                  );
+                }
+                return (
+                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                    {cells}
                   </TableRow>
                 );
-              }
-              const cells = row
-                .getVisibleCells()
-                .map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ));
-              if (rowWrapper) {
-                return (
-                  <Fragment key={row.id}>
-                    {rowWrapper({
-                      row,
-                      children: cells,
-                    })}
-                  </Fragment>
-                );
-              }
-              return (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                  {cells}
-                </TableRow>
-              );
-            })
-          ) : (
-            <TableRow>
-              <TableCell
-                colSpan={table.getVisibleLeafColumns().length || columns.length}
-                className="h-24 text-center"
+              })
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={table.getVisibleLeafColumns().length || columns.length}
+                  className="h-24 text-center"
+                >
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        {enablePagination && (
+          <div className="pp4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-sm">Rows per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(value) => {
+                  const nextSize = Number(value);
+                  if (Number.isFinite(nextSize) && nextSize > 0) {
+                    table.setPageSize(nextSize);
+                  }
+                }}
               >
-                No results.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-      {enablePagination && (
-        <div className="pp4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">Rows per page:</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => {
-                const nextSize = Number(value);
-                if (Number.isFinite(nextSize) && nextSize > 0) {
-                  table.setPageSize(nextSize);
-                }
-              }}
-            >
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {pageSizeChoices.map((option) => (
-                  <SelectItem key={option} value={String(option)}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {pageSizeChoices.map((option) => (
+                    <SelectItem key={option} value={String(option)}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
