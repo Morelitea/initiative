@@ -231,6 +231,7 @@ async def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot change the super user's role",
         )
+    updated_role_value = update_data.get("role")
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
     if "avatar_base64" in update_data:
@@ -261,6 +262,16 @@ async def update_user(
             await notifications_service.clear_task_assignment_queue_for_user(session, user.id)
         setattr(user, field, value)
     user.updated_at = datetime.now(timezone.utc)
+
+    if updated_role_value is not None:
+        guild_role = GuildRole.admin if updated_role_value == UserRole.admin else GuildRole.member
+        await guilds_service.ensure_membership(
+            session,
+            guild_id=guild_context.guild_id,
+            user_id=user.id,
+            role=guild_role,
+            force_role=True,
+        )
 
     session.add(user)
     await session.commit()
