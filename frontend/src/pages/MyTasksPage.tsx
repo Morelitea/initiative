@@ -499,7 +499,6 @@ export const MyTasksPage = () => {
       enableHiding: true,
       enableSorting: true,
       sortingFn: "alphanumeric",
-      enableMultiSort: false,
     },
     {
       id: "completed",

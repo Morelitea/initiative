@@ -34,6 +34,7 @@ import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -131,10 +132,38 @@ export const ProjectTasksTableView = ({
       {
         id: "drag",
         header: () => <span className="sr-only">Reorder</span>,
-        cell: () => <DragHandleCell />,
+        cell: ({ table }) => {
+          const sorting = table.getState().sorting;
+          const grouping = table.getState().grouping;
+          const disableDnd = sorting.length > 0 || grouping.length > 0;
+          return !disableDnd ? <DragHandleCell /> : null;
+        },
         enableSorting: false,
         size: 40,
         enableHiding: false,
+      },
+      {
+        id: "date group",
+        accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                Date window
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ getValue }) => (
+          <span className="text-base font-medium">
+            {getTaskDateStatusLabel(getValue<string>())}
+          </span>
+        ),
+        enableHiding: true,
+        enableSorting: true,
+        sortingFn: "alphanumeric",
       },
       {
         id: "completed",
@@ -193,6 +222,7 @@ export const ProjectTasksTableView = ({
         enableHiding: false,
       },
       {
+        id: "start date",
         accessorKey: "start_date",
         header: ({ column }) => {
           const isSorted = column.getIsSorted();
@@ -222,6 +252,7 @@ export const ProjectTasksTableView = ({
         sortingFn: dateSortingFn,
       },
       {
+        id: "due date",
         accessorKey: "due_date",
         header: ({ column }) => {
           const isSorted = column.getIsSorted();
@@ -327,6 +358,7 @@ export const ProjectTasksTableView = ({
     ],
     [canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled, taskStatuses]
   );
+  const groupingOptions = useMemo(() => [{ id: "date group", label: "Date" }], []);
 
   return (
     <DndContext
@@ -343,6 +375,33 @@ export const ProjectTasksTableView = ({
         <DataTable
           columns={columns}
           data={tasks}
+          groupingOptions={groupingOptions}
+          helpText={(table) => {
+            const sorting = table.getState().sorting;
+            const grouping = table.getState().grouping;
+            const disableDnd = sorting.length > 0 || grouping.length > 0;
+            return disableDnd ? (
+              <div className="text-muted-foreground">
+                Manual sorting disabled,{" "}
+                <Button
+                  variant="link"
+                  className="text-foreground px-0 text-base"
+                  onClick={() => {
+                    table.resetSorting();
+                    table.resetGrouping();
+                  }}
+                >
+                  reset column sorting and row grouping
+                </Button>{" "}
+                to reorder.
+              </div>
+            ) : null;
+          }}
+          initialState={{
+            // grouping: ["date group"],
+            expanded: true,
+            columnVisibility: { "date group": false },
+          }}
           rowWrapper={({ row, children }) => (
             <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
               {children}
