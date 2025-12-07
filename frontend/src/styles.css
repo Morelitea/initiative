@@ -160,3 +160,92 @@
   border: 1px solid var(--border);
   background-color: var(--card);
 }
+
+[data-document-editor] .document-editor__content .document-editor__checklist {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+[data-document-editor] .document-editor__content .document-editor__checklist > li {
+  position: relative;
+  padding-left: 2rem;
+  margin-left: 0;
+  min-height: 1.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+[data-document-editor] .document-editor__content .document-editor__checklist > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.35rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0.35rem;
+  border: 1.5px solid var(--border);
+  background-color: var(--card);
+  box-shadow: inset 0 1px 1px rgb(15 15 15 / 0.12);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  > li[aria-checked="true"]::before {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 2px var(--primary-foreground);
+}
+
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  > li[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0.32rem;
+  top: 0.7rem;
+  width: 0.58rem;
+  height: 0.35rem;
+  border: 2.5px solid var(--primary-foreground);
+  border-top: none;
+  border-right: none;
+  transform: rotate(-45deg);
+}
+
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  > li:focus-visible::before,
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  > li:focus-within::before {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+[data-document-editor] .document-editor__content .document-editor__checklist > li:focus-visible,
+[data-document-editor] .document-editor__content .document-editor__checklist > li:focus-within {
+  outline: none;
+}
+
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  ul[data-lexical-list-type="check"],
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  ul[data-lexical-list-type="bullet"],
+[data-document-editor]
+  .document-editor__content
+  .document-editor__checklist
+  ul[data-lexical-list-type="number"] {
+  margin-top: 0.5rem;
+}

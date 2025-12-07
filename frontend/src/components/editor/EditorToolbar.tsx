@@ -37,6 +37,7 @@ import {
 import {
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
+  INSERT_CHECK_LIST_COMMAND,
   REMOVE_LIST_COMMAND,
   $isListNode,
 } from "@lexical/list";
@@ -68,6 +69,7 @@ import {
   Italic,
   Link as LinkIcon,
   List,
+  ListChecks,
   ListOrdered,
   MoreHorizontal,
 } from "lucide-react";
@@ -79,7 +81,7 @@ import { insertEmbedNode } from "@/components/editor/nodes/EmbedNode";
 
 type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote" | "code";
 type Alignment = "left" | "right" | "center" | "justify";
-type ListType = "bullet" | "number" | "none";
+type ListType = "bullet" | "number" | "check" | "none";
 
 const BLOCK_OPTIONS: { label: string; value: BlockType }[] = [
   { label: "Normal", value: "paragraph" },
@@ -193,6 +195,8 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           setListType("number");
         } else if (type === "bullet") {
           setListType("bullet");
+        } else if (type === "check") {
+          setListType("check");
         } else {
           setListType("none");
         }
@@ -301,13 +305,17 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     applyBlockType(isCodeBlock ? "paragraph" : "code");
   };
 
-  const toggleList = (type: Extract<ListType, "bullet" | "number">) => {
+  const toggleList = (type: Extract<ListType, "bullet" | "number" | "check">) => {
     if (listType === type) {
       editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
       return;
     }
     editor.dispatchCommand(
-      type === "bullet" ? INSERT_UNORDERED_LIST_COMMAND : INSERT_ORDERED_LIST_COMMAND,
+      type === "bullet"
+        ? INSERT_UNORDERED_LIST_COMMAND
+        : type === "number"
+          ? INSERT_ORDERED_LIST_COMMAND
+          : INSERT_CHECK_LIST_COMMAND,
       undefined
     );
   };
@@ -535,6 +543,15 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             onClick={() => toggleList("number")}
           >
             <ListOrdered className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={listType === "check" ? "secondary" : "ghost"}
+            aria-label="Checklist"
+            onClick={() => toggleList("check")}
+          >
+            <ListChecks className="h-4 w-4" />
           </Button>
           <Button
             type="button"
@@ -787,6 +804,15 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         onClick={() => toggleList("number")}
       >
         <ListOrdered className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={listType === "check" ? "secondary" : "ghost"}
+        aria-label="Checklist"
+        onClick={() => toggleList("check")}
+      >
+        <ListChecks className="h-4 w-4" />
       </Button>
       <Button
         type="button"

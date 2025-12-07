@@ -3,6 +3,7 @@ import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalC
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
+import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
@@ -128,6 +129,7 @@ const editorTheme: EditorThemeClasses = {
     listitem: "ml-5",
     listitemChecked: "ml-5 line-through text-muted-foreground",
     listitemUnchecked: "ml-5",
+    checklist: "document-editor__checklist",
     nested: {
       listitem: "ml-3",
     },
@@ -226,6 +228,7 @@ export const DocumentEditor = ({
           />
           <HistoryPlugin />
           <ListPlugin />
+          <CheckListPlugin />
           <LinkPlugin />
           <HorizontalRulePlugin />
           <AltClickLinkPlugin />

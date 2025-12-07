@@ -284,12 +284,7 @@ export const summarizeRecurrence = (
   }
 
   const parts = [`Repeats ${everyLabel}`];
-  const strategyLabel =
-    options?.strategy === "rolling"
-      ? "after completion"
-      : options?.strategy === "fixed"
-        ? "on schedule"
-        : null;
+  const strategyLabel = options?.strategy === "rolling" ? "after completion" : null;
   if (strategyLabel) {
     parts.push(`(${strategyLabel})`);
   }
