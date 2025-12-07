@@ -73,7 +73,7 @@ export const ProjectTasksFilters = ({
         </SelectContent>
       </Select>
     </div>
-    {viewMode === "table" ? (
+    {viewMode === "table" || viewMode === "calendar" || viewMode === "gantt" ? (
       <div className="w-full sm:w-44">
         <Label htmlFor="status-filter" className="text-muted-foreground text-xs font-medium">
           Filter by status

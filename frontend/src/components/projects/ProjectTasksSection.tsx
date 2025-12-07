@@ -419,7 +419,7 @@ export const ProjectTasksSection = ({
     return groups;
   }, [filteredTasks, sortedTaskStatuses]);
 
-  const tableTasks = useMemo(() => {
+  const statusFilteredTasks = useMemo(() => {
     if (listStatusFilter === "all") {
       return filteredTasks;
     }
@@ -754,7 +754,7 @@ export const ProjectTasksSection = ({
 
         <TabsContent value="table">
           <ProjectTasksTableView
-            tasks={tableTasks}
+            tasks={statusFilteredTasks}
             taskStatuses={sortedTaskStatuses}
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
@@ -776,14 +776,14 @@ export const ProjectTasksSection = ({
         </TabsContent>
         <TabsContent value="calendar">
           <ProjectCalendarView
-            tasks={filteredTasks}
+            tasks={statusFilteredTasks}
             canOpenTask={canViewTaskDetails}
             onTaskClick={onTaskClick}
           />
         </TabsContent>
         <TabsContent value="gantt">
           <ProjectGanttView
-            tasks={filteredTasks}
+            tasks={statusFilteredTasks}
             canOpenTask={canViewTaskDetails}
             onTaskClick={onTaskClick}
           />
