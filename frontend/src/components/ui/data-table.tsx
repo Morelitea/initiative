@@ -281,11 +281,11 @@ export function DataTable<TData, TValue>({
                   onChange={(event) =>
                     table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
                   }
-                  className="max-w-sm min-w-16"
+                  className="min-w-16"
                 />
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {enableClearSorting && (
                 <Button variant="ghost" onClick={() => table.resetSorting()}>
                   <span className="text-muted-foreground">Reset Sorting</span>
