@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Markdown } from "@/components/Markdown";
-import { ChevronDown, Filter, Loader2 } from "lucide-react";
+import { ChevronDown, Filter, Loader2, TextAlignStart } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -555,21 +554,19 @@ export const MyTasksPage = () => {
             <div className="flex items-center gap-2">
               <Link
                 to={`/tasks/${task.id}`}
-                className="text-foreground font-medium hover:underline"
+                className="text-foreground flex w-full items-center gap-2 font-medium hover:underline"
                 onClick={(event) => {
                   event.preventDefault();
                   void handleCrossGuildNavigation(task, `/tasks/${task.id}`);
                 }}
               >
                 {task.title}
+                {task.description && <TextAlignStart className="h-4 w-4 min-w-4" />}
               </Link>
               {switchingTaskId === task.id ? (
                 <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" aria-hidden />
               ) : null}
             </div>
-            {task.description ? (
-              <Markdown content={task.description} className="line-clamp-2" />
-            ) : null}
             <div className="text-muted-foreground space-y-1 text-xs">
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
             </div>

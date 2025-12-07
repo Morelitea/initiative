@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, MessageSquare } from "lucide-react";
+import { GripVertical, MessageSquare, TextAlignStart } from "lucide-react";
 import { formatDistance, isPast } from "date-fns";
 
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
@@ -27,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Markdown } from "@/components/Markdown";
 import { SortIcon } from "@/components/SortIcon";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
@@ -466,8 +465,10 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
       }}
       disabled={!canOpenTask}
     >
-      <p className="font-medium">{task.title}</p>
-      {task.description ? <Markdown content={task.description} className="line-clamp-2" /> : null}
+      <p className="flex items-center gap-2 font-medium">
+        {task.title}
+        {task.description && <TextAlignStart className="h-4 w-4 min-w-4" />}
+      </p>
       <div className="text-muted-foreground space-y-1 text-xs">
         {task.assignees.length > 0 ? (
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />
