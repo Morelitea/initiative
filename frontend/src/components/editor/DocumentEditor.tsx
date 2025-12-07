@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
@@ -9,7 +9,7 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { ListNode, ListItemNode } from "@lexical/list";
+import { ListNode, ListItemNode, $isListItemNode } from "@lexical/list";
 import { LinkNode } from "@lexical/link";
 import { CodeNode } from "@lexical/code";
 import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
@@ -18,14 +18,18 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import type { EditorThemeClasses, SerializedEditorState, SerializedLexicalNode } from "lexical";
 import {
   CLICK_COMMAND,
+  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   INDENT_CONTENT_COMMAND,
   KEY_DOWN_COMMAND,
   KEY_TAB_COMMAND,
   OUTDENT_CONTENT_COMMAND,
   SELECT_ALL_COMMAND,
+  $getSelection,
+  $isRangeSelection,
 } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $findMatchingParent } from "@lexical/utils";
 
 import { cn } from "@/lib/utils";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
@@ -64,8 +68,29 @@ const AltClickLinkPlugin = () => {
 
 const DocumentShortcutsPlugin = () => {
   const [editor] = useLexicalComposerContext();
+  const shouldBypassListFocusRef = useRef(false);
 
   useEffect(() => {
+    const unregisterSpaceGuard = editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key === " " && document.activeElement?.tagName === "LI") {
+          let inserted = false;
+          event.preventDefault();
+          editor.update(() => {
+            const selection = $getSelection();
+            if ($isRangeSelection(selection)) {
+              selection.insertText(" ");
+              inserted = true;
+            }
+          });
+          return inserted;
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_HIGH
+    );
+
     const unregisterSelectAll = editor.registerCommand(
       KEY_DOWN_COMMAND,
       (event) => {
@@ -95,9 +120,83 @@ const DocumentShortcutsPlugin = () => {
       COMMAND_PRIORITY_LOW
     );
 
+    const isCheckboxHitArea = (event: PointerEvent, listItem: HTMLLIElement) => {
+      const rect = listItem.getBoundingClientRect();
+      const relativeX = event.clientX - rect.left;
+      const hitWidth = Math.min(32, rect.width / 2);
+      return relativeX <= hitWidth;
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        shouldBypassListFocusRef.current = false;
+        return;
+      }
+      const closestListItem = target.closest("li[role='checkbox']") as HTMLLIElement | null;
+      if (!closestListItem) {
+        shouldBypassListFocusRef.current = false;
+        return;
+      }
+      if (target === closestListItem) {
+        shouldBypassListFocusRef.current = !isCheckboxHitArea(event, closestListItem);
+        return;
+      }
+      shouldBypassListFocusRef.current = true;
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLLIElement)) {
+        return;
+      }
+      if (target.getAttribute("role") !== "checkbox" || !shouldBypassListFocusRef.current) {
+        return;
+      }
+      const rootElement = editor.getRootElement();
+      shouldBypassListFocusRef.current = false;
+      if (!rootElement || rootElement === target) {
+        return;
+      }
+      requestAnimationFrame(() => {
+        if (document.activeElement === target) {
+          rootElement?.focus({ preventScroll: true });
+        }
+      });
+    };
+
+    const detachRootListener = editor.registerRootListener((nextRoot, prevRoot) => {
+      prevRoot?.removeEventListener("pointerdown", handlePointerDown, true);
+      prevRoot?.removeEventListener("focusin", handleFocusIn, true);
+      nextRoot?.addEventListener("pointerdown", handlePointerDown, true);
+      nextRoot?.addEventListener("focusin", handleFocusIn, true);
+    });
+
+    const unregisterIndentGuard = editor.registerCommand(
+      INDENT_CONTENT_COMMAND,
+      () => {
+        return editor.getEditorState().read(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) {
+            return false;
+          }
+          const anchorNode = selection.anchor.getNode();
+          const listItemNode = $findMatchingParent(anchorNode, (node) => $isListItemNode(node));
+          if (!listItemNode) {
+            return false;
+          }
+          return listItemNode.getPreviousSibling() == null;
+        });
+      },
+      COMMAND_PRIORITY_HIGH
+    );
+
     return () => {
+      unregisterSpaceGuard();
       unregisterSelectAll();
       unregisterTab();
+      unregisterIndentGuard();
+      detachRootListener();
     };
   }, [editor]);
 
