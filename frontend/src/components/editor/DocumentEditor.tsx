@@ -16,7 +16,15 @@ import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import type { EditorThemeClasses, SerializedEditorState, SerializedLexicalNode } from "lexical";
-import { CLICK_COMMAND, COMMAND_PRIORITY_LOW, KEY_DOWN_COMMAND, SELECT_ALL_COMMAND } from "lexical";
+import {
+  CLICK_COMMAND,
+  COMMAND_PRIORITY_LOW,
+  INDENT_CONTENT_COMMAND,
+  KEY_DOWN_COMMAND,
+  KEY_TAB_COMMAND,
+  OUTDENT_CONTENT_COMMAND,
+  SELECT_ALL_COMMAND,
+} from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
 import { cn } from "@/lib/utils";
@@ -58,7 +66,7 @@ const DocumentShortcutsPlugin = () => {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    return editor.registerCommand(
+    const unregisterSelectAll = editor.registerCommand(
       KEY_DOWN_COMMAND,
       (event) => {
         if (event.key.toLowerCase() === "a" && (event.ctrlKey || event.metaKey)) {
@@ -70,6 +78,27 @@ const DocumentShortcutsPlugin = () => {
       },
       COMMAND_PRIORITY_LOW
     );
+
+    const unregisterTab = editor.registerCommand(
+      KEY_TAB_COMMAND,
+      (event) => {
+        if (!editor.isEditable()) {
+          return false;
+        }
+        event?.preventDefault?.();
+        editor.dispatchCommand(
+          event?.shiftKey ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND,
+          undefined as never
+        );
+        return true;
+      },
+      COMMAND_PRIORITY_LOW
+    );
+
+    return () => {
+      unregisterSelectAll();
+      unregisterTab();
+    };
   }, [editor]);
 
   return null;
@@ -130,11 +159,11 @@ const editorTheme: EditorThemeClasses = {
     listitemChecked: "ml-5 line-through text-muted-foreground",
     listitemUnchecked: "ml-5",
     checklist: "document-editor__checklist",
+    ul: "list-disc pl-2",
+    ol: "list-decimal pl-2",
     nested: {
-      listitem: "ml-3",
+      listitem: "ml-2 list-none",
     },
-    ul: "list-disc pl-6",
-    ol: "list-decimal pl-6",
   },
   quote: "border-l-4 border-border pl-4 italic text-muted-foreground",
   code: "bg-muted/70 font-mono px-1 py-0.5 rounded text-sm p-1",

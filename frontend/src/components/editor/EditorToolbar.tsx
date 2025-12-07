@@ -10,8 +10,10 @@ import {
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_LOW,
+  INDENT_CONTENT_COMMAND,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
+  OUTDENT_CONTENT_COMMAND,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
@@ -71,6 +73,8 @@ import {
   List,
   ListChecks,
   ListOrdered,
+  IndentDecrease,
+  IndentIncrease,
   MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -320,6 +324,14 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     );
   };
 
+  const indentSelection = () => {
+    editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+  };
+
+  const outdentSelection = () => {
+    editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+  };
+
   const insertLink = () => {
     const savedSelection = cloneCurrentSelection();
     const previousUrl = window.prompt("Enter a URL", "https://");
@@ -552,6 +564,24 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             onClick={() => toggleList("check")}
           >
             <ListChecks className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Indent"
+            onClick={indentSelection}
+          >
+            <IndentIncrease className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Outdent"
+            onClick={outdentSelection}
+          >
+            <IndentDecrease className="h-4 w-4" />
           </Button>
           <Button
             type="button"
@@ -813,6 +843,24 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         onClick={() => toggleList("check")}
       >
         <ListChecks className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Indent"
+        onClick={indentSelection}
+      >
+        <IndentIncrease className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Outdent"
+        onClick={outdentSelection}
+      >
+        <IndentDecrease className="h-4 w-4" />
       </Button>
       <Button
         type="button"

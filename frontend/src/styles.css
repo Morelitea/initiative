@@ -161,13 +161,18 @@
   background-color: var(--card);
 }
 
-[data-document-editor] .document-editor__content .document-editor__checklist {
+[data-document-editor] .document-editor__content .document-editor__checklist,
+[data-document-editor] .document-editor__content .document-editor__checklist ul {
   list-style: none;
   padding-left: 0;
   margin: 0;
 }
 
-[data-document-editor] .document-editor__content .document-editor__checklist > li {
+[data-document-editor] .document-editor__content .document-editor__checklist ul {
+  margin-left: 1.5rem;
+}
+
+[data-document-editor] .document-editor__content .document-editor__checklist li {
   position: relative;
   padding-left: 2rem;
   margin-left: 0;
@@ -177,7 +182,7 @@
   gap: 0.5rem;
 }
 
-[data-document-editor] .document-editor__content .document-editor__checklist > li::before {
+[data-document-editor] .document-editor__content .document-editor__checklist li::before {
   content: "";
   position: absolute;
   left: 0;
@@ -197,7 +202,7 @@
 [data-document-editor]
   .document-editor__content
   .document-editor__checklist
-  > li[aria-checked="true"]::before {
+  li[aria-checked="true"]::before {
   background-color: var(--primary);
   border-color: var(--primary);
   box-shadow: inset 0 0 0 2px var(--primary-foreground);
@@ -206,7 +211,7 @@
 [data-document-editor]
   .document-editor__content
   .document-editor__checklist
-  > li[aria-checked="true"]::after {
+  li[aria-checked="true"]::after {
   content: "";
   position: absolute;
   left: 0.32rem;
@@ -222,17 +227,27 @@
 [data-document-editor]
   .document-editor__content
   .document-editor__checklist
-  > li:focus-visible::before,
+  li:focus-visible::before,
 [data-document-editor]
   .document-editor__content
   .document-editor__checklist
-  > li:focus-within::before {
+  li:focus-within::before {
   box-shadow: 0 0 0 2px var(--ring);
 }
 
-[data-document-editor] .document-editor__content .document-editor__checklist > li:focus-visible,
-[data-document-editor] .document-editor__content .document-editor__checklist > li:focus-within {
+[data-document-editor] .document-editor__content .document-editor__checklist li:focus-visible,
+[data-document-editor] .document-editor__content .document-editor__checklist li:focus-within {
   outline: none;
+}
+
+[data-document-editor] .document-editor__content .document-editor__checklist li.list-none {
+  padding-left: 0;
+  min-height: 0;
+}
+
+[data-document-editor] .document-editor__content .document-editor__checklist li.list-none::before,
+[data-document-editor] .document-editor__content .document-editor__checklist li.list-none::after {
+  content: none;
 }
 
 [data-document-editor]
