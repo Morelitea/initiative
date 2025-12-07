@@ -113,6 +113,10 @@ class TaskUpdate(BaseModel):
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
 
 
+class TaskMoveRequest(BaseModel):
+    target_project_id: int = Field(gt=0)
+
+
 class TaskProjectInitiativeSummary(BaseModel):
     id: int
     name: str

@@ -20,7 +20,7 @@ from app.models.guild import GuildRole, GuildMembership
 from app.models.comment import Comment
 from pydantic import ValidationError
 
-from app.schemas.task import TaskCreate, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
+from app.schemas.task import TaskCreate, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
@@ -593,6 +593,57 @@ async def update_task(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
     await broadcast_event("task", "updated", _task_payload(task))
     return task
+
+
+@router.post("/{task_id}/move", response_model=TaskRead)
+async def move_task(
+    task_id: int,
+    move_in: TaskMoveRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Task:
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.project_id == move_in.target_project_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task already belongs to this project")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    target_project = await _get_project_with_access(
+        session,
+        move_in.target_project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
+    if target_project.is_template:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot move task to a template project")
+
+    default_status = await task_statuses_service.get_default_status(session, target_project.id)
+    now = datetime.now(timezone.utc)
+    task.project_id = target_project.id
+    task.task_status_id = default_status.id
+    task.task_status = default_status
+    task.sort_order = 0
+    task.updated_at = now
+    session.add(task)
+    await session.commit()
+
+    updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
+    if updated_task is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after move")
+    await broadcast_event("task", "updated", _task_payload(updated_task))
+    return updated_task
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

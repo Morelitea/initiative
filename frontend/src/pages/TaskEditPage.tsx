@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { isAxiosError } from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { CommentSection } from "@/components/comments/CommentSection";
+import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -48,6 +50,12 @@ const toLocalInputValue = (value?: string | null) => {
   }
   const pad = (segment: number) => segment.toString().padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+type MoveTaskVariables = {
+  targetProjectId: number;
+  targetProjectName?: string;
+  previousProjectId: number | null;
 };
 
 export const TaskEditPage = () => {
@@ -68,6 +76,7 @@ export const TaskEditPage = () => {
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
 
   const taskQuery = useQuery({
     queryKey: ["task", parsedTaskId],
@@ -183,12 +192,65 @@ export const TaskEditPage = () => {
     },
   });
 
+  const moveTask = useMutation<Task, unknown, MoveTaskVariables>({
+    mutationFn: async ({ targetProjectId }) => {
+      const response = await apiClient.post<Task>(`/tasks/${parsedTaskId}/move`, {
+        target_project_id: targetProjectId,
+      });
+      return response.data;
+    },
+    onSuccess: (updatedTask, variables) => {
+      queryClient.setQueryData<Task>(["task", parsedTaskId], updatedTask);
+      const previousProjectId = variables?.previousProjectId;
+      if (typeof previousProjectId === "number") {
+        queryClient.setQueryData<Task[] | undefined>(["tasks", previousProjectId], (previous) => {
+          if (!previous) {
+            return previous;
+          }
+          return previous.filter((taskItem) => taskItem.id !== updatedTask.id);
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["projects", previousProjectId, "task-statuses"],
+        });
+        void queryClient.invalidateQueries({ queryKey: ["project", previousProjectId] });
+      }
+      if (typeof variables?.targetProjectId === "number") {
+        void queryClient.invalidateQueries({ queryKey: ["tasks", variables.targetProjectId] });
+        void queryClient.invalidateQueries({
+          queryKey: ["projects", variables.targetProjectId, "task-statuses"],
+        });
+        void queryClient.invalidateQueries({ queryKey: ["project", variables.targetProjectId] });
+      }
+      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
+      setIsMoveDialogOpen(false);
+      toast.success(`Task moved to ${variables?.targetProjectName ?? "the selected project"}.`);
+    },
+    onError: (error) => {
+      const message = isAxiosError(error)
+        ? (error.response?.data?.detail ?? "Unable to move task")
+        : "Unable to move task";
+      toast.error(message);
+    },
+  });
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isReadOnly) {
       return;
     }
     updateTask.mutate();
+  };
+
+  const handleMoveTask = (targetProjectId: number) => {
+    if (moveTask.isPending || !task) {
+      return;
+    }
+    const targetProject = writableProjects.find((project) => project.id === targetProjectId);
+    moveTask.mutate({
+      targetProjectId,
+      targetProjectName: targetProject?.name,
+      previousProjectId: task.project_id ?? null,
+    });
   };
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
@@ -237,6 +299,17 @@ export const TaskEditPage = () => {
       ? "This project is archived. Unarchive it from project settings to edit tasks."
       : null;
   const canModerateComments = user?.role === "admin" || isInitiativePm;
+
+  const writableProjectsQuery = useQuery<Project[]>({
+    queryKey: ["projects", "writable"],
+    queryFn: async () => {
+      const response = await apiClient.get<Project[]>("/projects/writable");
+      return response.data;
+    },
+    enabled: Boolean(canWriteProject && !projectIsArchived),
+    staleTime: 60 * 1000,
+  });
+  const writableProjects = writableProjectsQuery.data ?? [];
 
   const handleCommentCreated = (comment: Comment) => {
     queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
@@ -498,18 +571,35 @@ export const TaskEditPage = () => {
                   Cancel
                 </Button>
                 {!isReadOnly ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => {
-                      if (window.confirm("Delete this task? This cannot be undone.")) {
-                        deleteTask.mutate();
+                  <>
+                    <MoveTaskDialog
+                      trigger={
+                        <Button type="button" variant="secondary" disabled={moveTask.isPending}>
+                          Move to project
+                        </Button>
                       }
-                    }}
-                    disabled={deleteTask.isPending}
-                  >
-                    {deleteTask.isPending ? "Deleting…" : "Delete task"}
-                  </Button>
+                      open={isMoveDialogOpen}
+                      onOpenChange={setIsMoveDialogOpen}
+                      projects={writableProjects}
+                      currentProjectId={task?.project_id ?? null}
+                      isLoading={writableProjectsQuery.isLoading}
+                      hasError={Boolean(writableProjectsQuery.isError)}
+                      isSaving={moveTask.isPending}
+                      onConfirm={handleMoveTask}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => {
+                        if (window.confirm("Delete this task? This cannot be undone.")) {
+                          deleteTask.mutate();
+                        }
+                      }}
+                      disabled={deleteTask.isPending}
+                    >
+                      {deleteTask.isPending ? "Deleting…" : "Delete task"}
+                    </Button>
+                  </>
                 ) : null}
               </div>
             </form>

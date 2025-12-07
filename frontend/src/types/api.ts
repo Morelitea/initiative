@@ -304,6 +304,10 @@ export interface TaskReorderPayload {
   }[];
 }
 
+export interface TaskMovePayload {
+  target_project_id: number;
+}
+
 export interface ProjectReorderPayload {
   project_ids: number[];
 }

@@ -590,6 +590,28 @@ async def _require_project_membership(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
 
 
+def _has_project_write_access(
+    project: Project,
+    current_user: User,
+    *,
+    guild_role: GuildRole | None = None,
+) -> bool:
+    if guild_role == GuildRole.admin:
+        return True
+
+    membership = _membership_from_project(project, current_user.id)
+    permission = _permission_from_project(project, current_user.id)
+    is_owner = project.owner_id == current_user.id
+    is_initiative_pm = membership and membership.role == InitiativeRole.project_manager
+
+    return bool(
+        is_owner
+        or is_initiative_pm
+        or permission is not None
+        or (project.members_can_write and membership)
+    )
+
+
 @router.get("/", response_model=List[ProjectRead])
 async def list_projects(
     session: SessionDep,
@@ -607,6 +629,28 @@ async def list_projects(
         is_guild_admin=guild_context.role == GuildRole.admin,
     )
     return await _project_reads_with_order(session, current_user, projects)
+
+
+@router.get("/writable", response_model=List[ProjectRead])
+async def list_writable_projects(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[ProjectRead]:
+    projects = await _visible_projects(
+        session,
+        current_user,
+        guild_id=guild_context.guild_id,
+        archived=None,
+        template=None,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
+    writable_projects = [
+        project
+        for project in projects
+        if _has_project_write_access(project, current_user, guild_role=guild_context.role)
+    ]
+    return await _project_reads_with_order(session, current_user, writable_projects)
 
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
