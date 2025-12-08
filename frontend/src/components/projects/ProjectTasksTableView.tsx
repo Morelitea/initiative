@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo, memo } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   DndContext,
@@ -111,7 +111,7 @@ const SortableRowWrapper = ({
   );
 };
 
-export const ProjectTasksTableView = ({
+const ProjectTasksTableViewComponent = ({
   tasks,
   taskStatuses,
   sensors,
@@ -126,7 +126,19 @@ export const ProjectTasksTableView = ({
   onStatusChange,
   onTaskClick,
 }: ProjectTasksListViewProps) => {
+  console.log("table render");
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
+
+  // Memoize status lookups to avoid repeated array searches
+  const statusLookup = useMemo(() => {
+    const doneStatus = taskStatuses.find((status) => status.category === "done");
+    const inProgressStatus =
+      taskStatuses.find((status) => status.category === "in_progress") ??
+      taskStatuses.find((status) => status.category === "todo") ??
+      taskStatuses.find((status) => status.category === "backlog");
+    return { doneStatus, inProgressStatus };
+  }, [taskStatuses]);
+
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
       {
@@ -171,11 +183,6 @@ export const ProjectTasksTableView = ({
         cell: ({ row }) => {
           const task = row.original;
           const isDone = task.task_status.category === "done";
-          const doneStatus = taskStatuses.find((status) => status.category === "done");
-          const inProgressStatus =
-            taskStatuses.find((status) => status.category === "in_progress") ??
-            taskStatuses.find((status) => status.category === "todo") ??
-            taskStatuses.find((status) => status.category === "backlog");
           return (
             <Checkbox
               checked={isDone}
@@ -184,8 +191,8 @@ export const ProjectTasksTableView = ({
                   return;
                 }
                 const targetStatusId = value
-                  ? (doneStatus?.id ?? task.task_status_id)
-                  : (inProgressStatus?.id ?? task.task_status_id);
+                  ? (statusLookup.doneStatus?.id ?? task.task_status_id)
+                  : (statusLookup.inProgressStatus?.id ?? task.task_status_id);
                 if (targetStatusId && targetStatusId !== task.task_status_id) {
                   onStatusChange(task.id, targetStatusId);
                 }
@@ -215,7 +222,11 @@ export const ProjectTasksTableView = ({
           );
         },
         cell: ({ row }) => (
-          <TaskCell task={row.original} canOpenTask={canOpenTask} onTaskClick={onTaskClick} />
+          <MemoizedTaskCell
+            task={row.original}
+            canOpenTask={canOpenTask}
+            onTaskClick={onTaskClick}
+          />
         ),
         enableSorting: true,
         sortingFn: "alphanumeric",
@@ -235,19 +246,7 @@ export const ProjectTasksTableView = ({
             </div>
           );
         },
-        cell: ({ row }) => {
-          const task = row.original;
-          if (!task.start_date) {
-            return <span className="text-muted-foreground">—</span>;
-          }
-          const startDate = new Date(task.start_date);
-          const isStartPast = isPast(startDate);
-          return (
-            <div className={`min-w-30 ${isStartPast ? "text-primary" : "text-muted-foreground"}`}>
-              {formatDistance(startDate, new Date(), { addSuffix: true })}
-            </div>
-          );
-        },
+        cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
         enableSorting: true,
         sortingFn: dateSortingFn,
       },
@@ -265,19 +264,7 @@ export const ProjectTasksTableView = ({
             </div>
           );
         },
-        cell: ({ row }) => {
-          const task = row.original;
-          if (!task.due_date) {
-            return <span className="text-muted-foreground">—</span>;
-          }
-          const dueDate = new Date(task.due_date);
-          const isDuePast = isPast(dueDate);
-          return (
-            <div className={`min-w-30 ${isDuePast ? "text-destructive" : ""}`}>
-              {formatDistance(dueDate, new Date(), { addSuffix: true })}
-            </div>
-          );
-        },
+        cell: ({ row }) => <DateCell date={row.original.due_date} isPastVariant="destructive" />,
         enableSorting: true,
         sortingFn: dateSortingFn,
       },
@@ -356,7 +343,15 @@ export const ProjectTasksTableView = ({
         enableHiding: false,
       },
     ],
-    [canOpenTask, onStatusChange, onTaskClick, priorityVariant, statusDisabled, taskStatuses]
+    [
+      canOpenTask,
+      onStatusChange,
+      onTaskClick,
+      priorityVariant,
+      statusDisabled,
+      taskStatuses,
+      statusLookup,
+    ]
   );
   const groupingOptions = useMemo(() => [{ id: "date group", label: "Date" }], []);
 
@@ -418,6 +413,26 @@ export const ProjectTasksTableView = ({
   );
 };
 
+// Memoize the entire table view to prevent re-renders when parent state changes (like composer input)
+// Custom comparison focuses on data, not callback references
+export const ProjectTasksTableView = memo(
+  ProjectTasksTableViewComponent,
+  (prevProps, nextProps) => {
+    // Only re-render if the data or key flags actually change
+    return (
+      prevProps.tasks === nextProps.tasks &&
+      prevProps.taskStatuses === nextProps.taskStatuses &&
+      prevProps.sensors === nextProps.sensors &&
+      prevProps.canReorderTasks === nextProps.canReorderTasks &&
+      prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
+      prevProps.canOpenTask === nextProps.canOpenTask &&
+      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
+      prevProps.priorityVariant === nextProps.priorityVariant
+      // Note: Intentionally ignoring callback prop changes as they're functionally the same
+    );
+  }
+);
+
 const DragHandleCell = () => {
   const sortable = useSortableRowContext();
   if (!sortable) {
@@ -439,6 +454,34 @@ const DragHandleCell = () => {
   );
 };
 
+// Memoized date cell to avoid re-computing formatDistance on every render
+type DateCellProps = {
+  date: string | null | undefined;
+  isPastVariant?: "primary" | "destructive";
+};
+
+const DateCell = memo(({ date, isPastVariant }: DateCellProps) => {
+  const dateObj = useMemo(() => (date ? new Date(date) : null), [date]);
+  const isPastDate = useMemo(() => (dateObj ? isPast(dateObj) : false), [dateObj]);
+  const formattedDate = useMemo(
+    () => (dateObj ? formatDistance(dateObj, new Date(), { addSuffix: true }) : null),
+    [dateObj]
+  );
+
+  if (!formattedDate) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const className =
+    isPastDate && isPastVariant
+      ? `min-w-30 ${isPastVariant === "destructive" ? "text-destructive" : "text-primary"}`
+      : "min-w-30 text-muted-foreground";
+
+  return <div className={className}>{formattedDate}</div>;
+});
+
+DateCell.displayName = "DateCell";
+
 type TaskCellProps = {
   task: Task;
   canOpenTask: boolean;
@@ -446,13 +489,15 @@ type TaskCellProps = {
 };
 
 const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
-  const recurrenceSummary = task.recurrence
-    ? summarizeRecurrence(task.recurrence, {
-        referenceDate: task.start_date || task.due_date,
-        strategy: task.recurrence_strategy,
-      })
-    : null;
-  const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
+  // Memoize expensive recurrence computation
+  const recurrenceText = useMemo(() => {
+    if (!task.recurrence) return null;
+    const summary = summarizeRecurrence(task.recurrence, {
+      referenceDate: task.start_date || task.due_date,
+      strategy: task.recurrence_strategy,
+    });
+    return summary ? truncateText(summary, 100) : null;
+  }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy]);
 
   return (
     <div className="flex items-center gap-2">
@@ -479,3 +524,20 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
     </div>
   );
 };
+
+// Memoize the entire TaskCell to prevent unnecessary re-renders
+const MemoizedTaskCell = memo(TaskCell, (prevProps, nextProps) => {
+  return (
+    prevProps.task.id === nextProps.task.id &&
+    prevProps.task.title === nextProps.task.title &&
+    prevProps.task.recurrence === nextProps.task.recurrence &&
+    prevProps.task.recurrence_strategy === nextProps.task.recurrence_strategy &&
+    prevProps.task.start_date === nextProps.task.start_date &&
+    prevProps.task.due_date === nextProps.task.due_date &&
+    prevProps.task.assignees.length === nextProps.task.assignees.length &&
+    prevProps.canOpenTask === nextProps.canOpenTask &&
+    prevProps.onTaskClick === nextProps.onTaskClick
+  );
+});
+
+MemoizedTaskCell.displayName = "MemoizedTaskCell";

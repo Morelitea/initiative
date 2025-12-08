@@ -357,8 +357,14 @@ export const ProjectTasksSection = ({
   const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
 
   const fetchedTasks = useMemo(() => projectTasks ?? [], [projectTasks]);
-  const tasks = orderedTasks.length > 0 ? orderedTasks : fetchedTasks;
-  const activeTask = orderedTasks.find((task) => task.id === activeTaskId) ?? null;
+  const tasks = useMemo(
+    () => (orderedTasks.length > 0 ? orderedTasks : fetchedTasks),
+    [orderedTasks, fetchedTasks]
+  );
+  const activeTask = useMemo(
+    () => orderedTasks.find((task) => task.id === activeTaskId) ?? null,
+    [orderedTasks, activeTaskId]
+  );
 
   const filteredTasks = useMemo(() => {
     if (assigneeFilter === "all" && dueFilter === "all") {
@@ -543,23 +549,19 @@ export const ProjectTasksSection = ({
     [persistOrder]
   );
 
+  const mouseSensorConfig = useMemo(() => ({ activationConstraint: { distance: 4 } }), []);
+  const touchSensorConfig = useMemo(
+    () => ({ activationConstraint: { delay: 200, tolerance: 8 } }),
+    []
+  );
+
   const kanbanSensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200,
-        tolerance: 8,
-      },
-    })
+    useSensor(MouseSensor, mouseSensorConfig),
+    useSensor(TouchSensor, touchSensorConfig)
   );
   const listSensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200,
-        tolerance: 8,
-      },
-    })
+    useSensor(MouseSensor, mouseSensorConfig),
+    useSensor(TouchSensor, touchSensorConfig)
   );
 
   const handleTaskDragStart = (event: DragStartEvent) => {
