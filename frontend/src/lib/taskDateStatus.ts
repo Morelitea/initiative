@@ -1,10 +1,10 @@
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
-type TaskDateStatusKey = "0_overdue" | "1_do_now" | "2_this_week" | "3_this_month" | "4_later";
+type TaskDateStatusKey = "0_overdue" | "1_today" | "2_this_week" | "3_this_month" | "4_later";
 
 const TASK_DATE_STATUS_LABELS: Record<TaskDateStatusKey, string> = {
   "0_overdue": "Overdue",
-  "1_do_now": "Do Now",
+  "1_today": "Today",
   "2_this_week": "This Week",
   "3_this_month": "This Month",
   "4_later": "Later",
@@ -36,8 +36,9 @@ export const getTaskDateStatus = (
     return "0_overdue";
   }
 
-  if (start && isOnOrBefore(start, now)) {
-    return "1_do_now";
+  const today = createFutureDate(now, 1);
+  if ((start && isOnOrBefore(start, today)) || (due && isOnOrBefore(due, today))) {
+    return "1_today";
   }
 
   const thisWeek = createFutureDate(now, 7);
