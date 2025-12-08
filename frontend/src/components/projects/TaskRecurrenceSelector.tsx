@@ -515,7 +515,9 @@ export const TaskRecurrenceSelector = ({
 };
 
 const anchorDateToWeekday = (date: Date): TaskWeekday => {
-  const weekday = date.getDay();
+  // Normalize to midnight local time to get the date's weekday regardless of time
+  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const weekday = normalized.getDay();
   const match = WEEKDAYS.find((item) => item.dateIndex === weekday);
   return match?.value ?? "monday";
 };

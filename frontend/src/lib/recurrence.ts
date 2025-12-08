@@ -81,7 +81,9 @@ const getReferenceDate = (value?: string | null): Date => {
 };
 
 const getWeekdayFromDate = (date: Date): TaskWeekday => {
-  const day = date.getDay(); // 0 (Sun) - 6 (Sat)
+  // Normalize to midnight local time to get the date's weekday regardless of time
+  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = normalized.getDay(); // 0 (Sun) - 6 (Sat)
   const match = WEEKDAYS.find((weekday) => weekday.dateIndex === day);
   return match ? match.value : "monday";
 };

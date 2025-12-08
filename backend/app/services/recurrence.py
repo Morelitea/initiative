@@ -70,11 +70,22 @@ def _nth_weekday_of_month(year: int, month: int, weekday: int, position: str) ->
 def _next_weekly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
     weekdays = recurrence.weekdays or [WEEKDAY_NAMES[base.weekday()]]
     weekday_indexes = sorted(WEEKDAY_TO_INDEX.get(day, base.weekday()) for day in weekdays)
+
+    # For weekly recurrence, we assume the base date is already on one of the target weekdays
+    # (as determined by the frontend in the user's timezone). We simply add the interval in weeks.
+    # This avoids timezone-related weekday mismatches.
+    if len(weekdays) == 1:
+        # Simple case: single weekday, just add interval weeks
+        return base + timedelta(weeks=max(1, recurrence.interval))
+
+    # Multiple weekdays: find the next one in the current week, or wrap to next interval
     current = base.weekday()
     for target in weekday_indexes:
         if target > current:
             delta = target - current
             return base + timedelta(days=delta)
+
+    # No weekday found in current week, wrap to first weekday of next interval
     weeks_to_add = max(1, recurrence.interval)
     days_until_first = (7 - current + weekday_indexes[0]) % 7
     if days_until_first == 0:
@@ -86,30 +97,48 @@ def _next_weekly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
 def _next_monthly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
     months_to_add = max(1, recurrence.interval)
     year, month = _add_months(base, months_to_add)
+
     if recurrence.monthly_mode == "weekday":
         weekday_position = recurrence.weekday_position or "first"
         weekday_value = recurrence.weekday or "monday"
         weekday_index = WEEKDAY_TO_INDEX.get(weekday_value, 0)
-        day = _nth_weekday_of_month(year, month, weekday_index, weekday_position)
+        target_day = _nth_weekday_of_month(year, month, weekday_index, weekday_position)
     else:
-        target_day = recurrence.day_of_month or base.day
-        day = _clamp_day(year, month, target_day)
-    return base.replace(year=year, month=month, day=day)
+        # If day_of_month is specified, use it and account for timezone offset
+        if recurrence.day_of_month:
+            # Calculate the offset between stored day (local) and actual day (UTC)
+            # This handles cases where time causes date to roll over in UTC
+            day_offset = base.day - recurrence.day_of_month
+            target_day = recurrence.day_of_month + day_offset
+        else:
+            target_day = base.day
+        target_day = _clamp_day(year, month, target_day)
+
+    return base.replace(year=year, month=month, day=target_day)
 
 
 def _next_yearly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
     years_to_add = max(1, recurrence.interval)
     target_year = base.year + years_to_add
-    month = recurrence.month or base.month
+    target_month = recurrence.month or base.month
+
     if recurrence.monthly_mode == "weekday":
         weekday_position = recurrence.weekday_position or "first"
         weekday_value = recurrence.weekday or "monday"
         weekday_index = WEEKDAY_TO_INDEX.get(weekday_value, 0)
-        day = _nth_weekday_of_month(target_year, month, weekday_index, weekday_position)
+        target_day = _nth_weekday_of_month(target_year, target_month, weekday_index, weekday_position)
     else:
-        target_day = recurrence.day_of_month or base.day
-        day = _clamp_day(target_year, month, target_day)
-    return base.replace(year=target_year, month=month, day=day)
+        # If day_of_month is specified, use it and account for timezone offset
+        if recurrence.day_of_month:
+            # Calculate the offset between stored day (local) and actual day (UTC)
+            # This handles cases where time causes date to roll over in UTC
+            day_offset = base.day - recurrence.day_of_month
+            target_day = recurrence.day_of_month + day_offset
+        else:
+            target_day = base.day
+        target_day = _clamp_day(target_year, target_month, target_day)
+
+    return base.replace(year=target_year, month=target_month, day=target_day)
 
 
 def get_next_due_date(
