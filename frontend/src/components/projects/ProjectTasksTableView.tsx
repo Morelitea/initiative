@@ -126,7 +126,6 @@ const ProjectTasksTableViewComponent = ({
   onStatusChange,
   onTaskClick,
 }: ProjectTasksListViewProps) => {
-  console.log("table render");
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
 
   // Memoize status lookups to avoid repeated array searches
