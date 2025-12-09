@@ -462,6 +462,16 @@ async def create_task(
         selected_status = await task_statuses_service.get_default_status(session, project.id)
 
     task_data = task_in.dict(exclude={"assignee_ids", "task_status_id"})
+
+    # Serialize recurrence to JSON if present
+    if task_data.get("recurrence") is not None:
+        if isinstance(task_data["recurrence"], TaskRecurrence):
+            task_data["recurrence"] = task_data["recurrence"].model_dump(mode="json")
+        elif isinstance(task_data["recurrence"], dict):
+            # Already a dict, convert to model and back to ensure proper serialization
+            recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
+            task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
+
     task = Task(**task_data, sort_order=sort_order, task_status_id=selected_status.id)
     session.add(task)
     await session.flush()
@@ -554,6 +564,10 @@ async def update_task(
                 continue
             if isinstance(value, TaskRecurrence):
                 value = value.model_dump(mode="json")
+            elif isinstance(value, dict):
+                # Already a dict, convert to model and back to ensure proper serialization
+                recurrence_obj = TaskRecurrence.model_validate(value)
+                value = recurrence_obj.model_dump(mode="json")
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)

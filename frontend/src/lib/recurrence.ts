@@ -219,7 +219,11 @@ const formatWeekdayList = (weekdays: TaskWeekday[]) => {
 
 const formatEnding = (rule: TaskRecurrence) => {
   if (rule.ends === "on_date" && rule.end_date) {
-    const date = new Date(rule.end_date);
+    // Parse date-only string as local date to avoid timezone issues
+    const match = rule.end_date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const date = match
+      ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      : new Date(rule.end_date);
     if (!Number.isNaN(date.getTime())) {
       return `until ${date.toLocaleDateString()}`;
     }

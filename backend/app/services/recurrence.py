@@ -169,7 +169,21 @@ def get_next_due_date(
 
     if recurrence.ends == "on_date" and recurrence.end_date is not None:
         end_date = _ensure_timezone(recurrence.end_date)
-        if end_date is not None and next_date > end_date:
-            return None
+        if end_date is not None:
+            # To handle timezone differences: We want "ends on Dec 10" to mean
+            # "create all occurrences that fall on Dec 10 in the user's timezone".
+            # Since we store dates in UTC but don't know the user's timezone, we need to
+            # be lenient. We compare using a 12-hour window to cover most common timezones.
+            # This means: allow if (next_date - 12 hours) is still on the end_date.
+            #
+            # Example: end_date = Dec 10 midnight UTC, next_date = Dec 11 6am UTC
+            # In PST (UTC-8): Dec 11 6am UTC = Dec 10 10pm PST (should allow)
+            # After subtracting 12h: Dec 10 6pm UTC, which is still Dec 10 (allows it)
+            #
+            # Example: next_date = Dec 11 2pm UTC
+            # After subtracting 12h: Dec 11 2am UTC, which is Dec 11 (blocks it)
+            next_date_adjusted = next_date - timedelta(hours=12)
+            if next_date_adjusted.date() > end_date.date():
+                return None
 
     return next_date

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { cn } from "@/lib/utils";
 import {
   WEEKDAYS,
@@ -456,18 +457,16 @@ export const TaskRecurrenceSelector = ({
               </SelectContent>
             </Select>
             {recurrence.ends === "on_date" ? (
-              <Input
-                type="date"
+              <DateTimePicker
                 value={recurrence.end_date ? recurrence.end_date.slice(0, 10) : ""}
-                onChange={(event) =>
+                onChange={(value) =>
                   onChange({
                     ...recurrence,
-                    end_date: event.target.value
-                      ? new Date(event.target.value).toISOString()
-                      : null,
+                    end_date: value || null,
                   })
                 }
                 disabled={disabled}
+                includeTime={false}
               />
             ) : null}
             {recurrence.ends === "after_occurrences" ? (

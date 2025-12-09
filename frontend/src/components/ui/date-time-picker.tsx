@@ -16,9 +16,11 @@ interface DateTimePickerProps {
   placeholder?: string;
   clearLabel?: string;
   calendarProps?: React.ComponentProps<typeof Calendar>;
+  includeTime?: boolean;
 }
 
-const formatForStorage = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm");
+const formatForStorage = (date: Date, includeTime: boolean) =>
+  includeTime ? format(date, "yyyy-MM-dd'T'HH:mm") : format(date, "yyyy-MM-dd");
 
 const applyTimeToDate = (date: Date, time: string) => {
   const [hours, minutes] = time.split(":").map((segment) => Number.parseInt(segment, 10));
@@ -35,13 +37,26 @@ export const DateTimePicker = ({
   value,
   onChange,
   disabled = false,
-  placeholder = "Pick a date and time",
+  placeholder,
   clearLabel = "Clear",
   calendarProps,
+  includeTime = true,
 }: DateTimePickerProps) => {
   const { user } = useAuth();
-  const selectedDate = value ? new Date(value) : undefined;
+  const selectedDate = value
+    ? includeTime
+      ? new Date(value)
+      : (() => {
+          // Parse date-only string as local date to avoid timezone issues
+          const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (match) {
+            return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+          }
+          return new Date(value);
+        })()
+    : undefined;
   const timeValue = selectedDate ? format(selectedDate, "HH:mm") : "";
+  const defaultPlaceholder = includeTime ? "Pick a date and time" : "Pick a date";
   const resolvedWeekStartsOn = (calendarProps?.weekStartsOn ?? user?.week_starts_on ?? 0) as
     | 0
     | 1
@@ -60,9 +75,13 @@ export const DateTimePicker = ({
       onChange("");
       return;
     }
-    const baseTime = selectedDate ? format(selectedDate, "HH:mm") : format(new Date(), "HH:mm");
-    const next = applyTimeToDate(date, baseTime);
-    onChange(formatForStorage(next));
+    if (includeTime) {
+      const baseTime = selectedDate ? format(selectedDate, "HH:mm") : format(new Date(), "HH:mm");
+      const next = applyTimeToDate(date, baseTime);
+      onChange(formatForStorage(next, includeTime));
+    } else {
+      onChange(formatForStorage(date, includeTime));
+    }
   };
 
   const handleTimeChange = (nextTime: string) => {
@@ -70,7 +89,7 @@ export const DateTimePicker = ({
       return;
     }
     const next = applyTimeToDate(selectedDate, nextTime);
-    onChange(formatForStorage(next));
+    onChange(formatForStorage(next, includeTime));
   };
 
   const handleClear = () => {
@@ -92,7 +111,11 @@ export const DateTimePicker = ({
           )}
         >
           <CalendarIcon className="h-4 w-4" />
-          {selectedDate ? format(selectedDate, "PP p") : <span>{placeholder}</span>}
+          {selectedDate ? (
+            format(selectedDate, includeTime ? "PP p" : "PP")
+          ) : (
+            <span>{placeholder ?? defaultPlaceholder}</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -105,22 +128,24 @@ export const DateTimePicker = ({
           className="w-75 p-3"
         />
         <div className="bg-muted/30 flex items-end gap-3 border-t p-3">
-          <div className="flex flex-1 flex-col gap-1">
-            <label
-              htmlFor={`${id ?? "datetime"}-time`}
-              className="text-muted-foreground text-xs font-medium"
-            >
-              Time
-            </label>
-            <Input
-              id={`${id ?? "datetime"}-time`}
-              type="time"
-              step={300}
-              value={timeValue}
-              onChange={(event) => handleTimeChange(event.target.value)}
-              disabled={!selectedDate || disabled}
-            />
-          </div>
+          {includeTime && (
+            <div className="flex flex-1 flex-col gap-1">
+              <label
+                htmlFor={`${id ?? "datetime"}-time`}
+                className="text-muted-foreground text-xs font-medium"
+              >
+                Time
+              </label>
+              <Input
+                id={`${id ?? "datetime"}-time`}
+                type="time"
+                step={300}
+                value={timeValue}
+                onChange={(event) => handleTimeChange(event.target.value)}
+                disabled={!selectedDate || disabled}
+              />
+            </div>
+          )}
           <Button
             type="button"
             variant="ghost"
