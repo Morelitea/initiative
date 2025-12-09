@@ -62,7 +62,7 @@ export const KanbanColumn = ({
       <div
         ref={setNodeRef}
         className={cn(
-          "max-h-[70vh] min-h-[70vh] w-full transition-colors",
+          "h-full w-full transition-colors",
           collapsed
             ? "flex flex-1 items-center justify-center px-2"
             : "flex-1 space-y-3 overflow-y-auto p-3 pr-2",
