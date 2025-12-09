@@ -23,6 +23,18 @@ const isOnOrBefore = (date: Date, compareTo: Date) => date.getTime() <= compareT
 
 const createFutureDate = (base: Date, days: number) => new Date(base.getTime() + days * DAY_IN_MS);
 
+const isSameCalendarDate = (date1: Date, date2: Date) => {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+};
+
+const getCalendarDate = (date: Date) => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
 export const getTaskDateStatus = (
   startDate?: string | null,
   dueDate?: string | null,
@@ -31,13 +43,22 @@ export const getTaskDateStatus = (
   const start = parseDate(startDate);
   const due = parseDate(dueDate);
   const now = referenceDate;
+  const todayCalendar = getCalendarDate(now);
 
   if (due && isBefore(due, now)) {
     return "0_overdue";
   }
 
-  const today = createFutureDate(now, 1);
-  if ((start && isOnOrBefore(start, today)) || (due && isOnOrBefore(due, today))) {
+  // Return "today" if:
+  // - Start date has passed (before today's calendar date), OR
+  // - Start or due date is on the same calendar date as today
+  if (start) {
+    const startCalendar = getCalendarDate(start);
+    if (startCalendar < todayCalendar || isSameCalendarDate(start, now)) {
+      return "1_today";
+    }
+  }
+  if (due && isSameCalendarDate(due, now)) {
     return "1_today";
   }
 
