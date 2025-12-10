@@ -43,6 +43,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [newContent, setNewContent] = useState("");
   const [contentDrafts, setContentDrafts] = useState<Record<number, string>>({});
+  const [shouldRefocusAddInput, setShouldRefocusAddInput] = useState(false);
 
   const subtasksQueryKey = useMemo(() => ["tasks", taskId, "subtasks"], [taskId]);
 
@@ -103,7 +104,6 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
     },
     onSuccess: () => {
       setNewContent("");
-      inputRef.current?.focus();
       invalidateRelatedData();
       toast.success("Checklist item added");
     },
@@ -173,6 +173,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
     if (!trimmed) {
       return;
     }
+    setShouldRefocusAddInput(true);
     createSubtask.mutate(trimmed);
   };
 
@@ -255,6 +256,13 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
   );
 
   const reorderDisabled = !canEdit || reorderSubtasks.isPending;
+
+  useEffect(() => {
+    if (shouldRefocusAddInput && !createSubtask.isPending) {
+      inputRef.current?.focus();
+      setShouldRefocusAddInput(false);
+    }
+  }, [shouldRefocusAddInput, createSubtask.isPending]);
 
   return (
     <Card className="shadow-sm">
