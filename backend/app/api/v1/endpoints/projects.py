@@ -16,7 +16,7 @@ from app.api.deps import (
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
-from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
+from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory, Subtask
 from app.models.comment import Comment
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
@@ -223,7 +223,11 @@ async def _duplicate_template_tasks(
 ) -> None:
     task_stmt = (
         select(Task)
-        .options(selectinload(Task.assignees), selectinload(Task.task_status))
+        .options(
+            selectinload(Task.assignees),
+            selectinload(Task.task_status),
+            selectinload(Task.subtasks),
+        )
         .where(Task.project_id == template.id)
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
@@ -259,6 +263,18 @@ async def _duplicate_template_tasks(
                 [
                     TaskAssignee(task_id=new_task.id, user_id=assignee.id)
                     for assignee in template_task.assignees
+                ]
+            )
+        if template_task.subtasks:
+            session.add_all(
+                [
+                    Subtask(
+                        task_id=new_task.id,
+                        content=subtask.content,
+                        is_completed=subtask.is_completed,
+                        position=subtask.position,
+                    )
+                    for subtask in template_task.subtasks
                 ]
             )
 
