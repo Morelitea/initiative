@@ -8,6 +8,7 @@ import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import type { Comment } from "@/types/api";
 
@@ -143,97 +144,100 @@ export const CommentSection = ({
   const isSubmitting = createComment.isPending;
 
   return (
-    <section className="border-border bg-card space-y-4 rounded-lg border p-4">
-      <div className="flex items-center gap-2">
-        <MessageSquarePlus className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-        <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">
-          {title}
-        </h3>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MessageSquarePlus className="text-muted-foreground h-4 w-4" aria-hidden="true" />
+          <h3>{title}</h3>
+        </CardTitle>
+      </CardHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <Textarea
-          value={content}
-          onChange={(event) => {
-            setContent(event.target.value);
-            if (error) {
-              setError(null);
-            }
-          }}
-          placeholder="Share feedback or ask a question..."
-          rows={4}
-          disabled={isSubmitting}
-        />
-        {error && <p className="text-destructive text-sm">{error}</p>}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting || content.trim().length === 0}>
-            {isSubmitting ? "Posting..." : "Post Comment"}
-          </Button>
-        </div>
-      </form>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-2">
+          <Textarea
+            value={content}
+            onChange={(event) => {
+              setContent(event.target.value);
+              if (error) {
+                setError(null);
+              }
+            }}
+            placeholder="Share feedback or ask a question..."
+            rows={4}
+            disabled={isSubmitting}
+          />
+          {error && <p className="text-destructive text-sm">{error}</p>}
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isSubmitting || content.trim().length === 0}>
+              {isSubmitting ? "Posting..." : "Post Comment"}
+            </Button>
+          </div>
+        </form>
 
-      <div className="space-y-3">
-        {isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading comments…</p>
-        ) : hasComments ? (
-          <ul className="space-y-3">
-            {comments.map((comment) => {
-              const displayName = getDisplayName(comment);
-              const avatarSrc = getAvatarSrc(comment);
-              const initials = getInitials(displayName);
-              const canDelete = user?.id === comment.author_id || canModerate;
-              const isDeleting = deleteComment.isPending && deleteComment.variables === comment.id;
+        <div className="space-y-3">
+          {isLoading ? (
+            <p className="text-muted-foreground text-sm">Loading comments…</p>
+          ) : hasComments ? (
+            <ul className="space-y-3">
+              {comments.map((comment) => {
+                const displayName = getDisplayName(comment);
+                const avatarSrc = getAvatarSrc(comment);
+                const initials = getInitials(displayName);
+                const canDelete = user?.id === comment.author_id || canModerate;
+                const isDeleting =
+                  deleteComment.isPending && deleteComment.variables === comment.id;
 
-              return (
-                <li key={comment.id} className="border-border rounded-md border p-3">
-                  <div className="flex gap-3">
-                    <Avatar className="bg-background h-9 w-9 border">
-                      {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-                      <AvatarFallback>{initials}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <span className="text-foreground font-medium">{displayName}</span>
-                        <div className="flex items-center gap-2">
-                          <span>
-                            {formatDistanceToNow(new Date(comment.created_at), {
-                              addSuffix: true,
-                            })}
-                          </span>
-                          {canDelete ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive h-8 px-2 text-xs"
-                              disabled={isDeleting}
-                              onClick={() => deleteComment.mutate(comment.id)}
-                            >
-                              {isDeleting ? (
-                                "Deleting…"
-                              ) : (
-                                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                              )}
-                            </Button>
-                          ) : null}
+                return (
+                  <li key={comment.id} className="border-border rounded-md border p-3">
+                    <div className="flex gap-3">
+                      <Avatar className="bg-background h-9 w-9 border">
+                        {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
+                        <AvatarFallback>{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="text-foreground font-medium">{displayName}</span>
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {formatDistanceToNow(new Date(comment.created_at), {
+                                addSuffix: true,
+                              })}
+                            </span>
+                            {canDelete ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-8 px-2 text-xs"
+                                disabled={isDeleting}
+                                onClick={() => deleteComment.mutate(comment.id)}
+                              >
+                                {isDeleting ? (
+                                  "Deleting…"
+                                ) : (
+                                  <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                                )}
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
+                        <p className="text-foreground mt-2 text-sm whitespace-pre-wrap">
+                          {comment.content}
+                        </p>
                       </div>
-                      <p className="text-foreground mt-2 text-sm whitespace-pre-wrap">
-                        {comment.content}
-                      </p>
                     </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            No comments yet. Be the first to contribute.
-          </p>
-        )}
-        {deleteError && <p className="text-destructive text-sm">{deleteError}</p>}
-      </div>
-    </section>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              No comments yet. Be the first to contribute.
+            </p>
+          )}
+          {deleteError && <p className="text-destructive text-sm">{deleteError}</p>}
+        </div>
+      </CardContent>
+    </Card>
   );
 };

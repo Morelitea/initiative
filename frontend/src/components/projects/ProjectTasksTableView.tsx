@@ -35,6 +35,7 @@ import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionH
 import { cn } from "@/lib/utils";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
+import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -448,7 +449,7 @@ const DragHandleCell = () => {
       disabled={dragDisabled}
       aria-label="Reorder task"
     >
-      <GripVertical className="h-4 w-4" />
+      <GripVertical className="mt-1 h-4 w-4" />
     </button>
   );
 };
@@ -518,6 +519,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
           ) : null}
           {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
+        <TaskChecklistProgress progress={task.subtask_progress} className="mt-2 max-w-[200px]" />
       </button>
       <TaskDescriptionHoverCard task={task} />
     </div>

@@ -38,6 +38,7 @@ import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
+import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -571,6 +572,10 @@ export const MyTasksPage = () => {
             <div className="text-muted-foreground space-y-1 text-xs">
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
             </div>
+            <TaskChecklistProgress
+              progress={task.subtask_progress}
+              className="mt-2 max-w-[200px]"
+            />
           </div>
         );
       },

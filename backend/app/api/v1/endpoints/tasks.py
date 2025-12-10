@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlmodel import select, delete
 
 from app.api.deps import (
@@ -14,19 +14,27 @@ from app.api.deps import (
 )
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
-from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
+from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory, Subtask
 from app.models.user import User
 from app.models.guild import GuildRole, GuildMembership
 from app.models.comment import Comment
 from pydantic import ValidationError
 
 from app.schemas.task import TaskCreate, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
+from app.schemas.subtask import (
+    SubtaskCreate,
+    SubtaskRead,
+    SubtaskReorderRequest,
+    SubtaskUpdate,
+    TaskSubtaskProgress,
+)
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
 
 router = APIRouter()
+subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
@@ -51,12 +59,89 @@ async def _annotate_task_comment_counts(session: SessionDep, tasks: list[Task]) 
         object.__setattr__(task, "comment_count", counts.get(task.id, 0))
 
 
+async def _annotate_task_subtask_progress(session: SessionDep, tasks: list[Task]) -> None:
+    task_ids = [task.id for task in tasks if task.id is not None]
+    if not task_ids:
+        return
+    stmt = (
+        select(
+            Subtask.task_id,
+            func.count(Subtask.id).label("total"),
+            func.sum(
+                case(
+                    (Subtask.is_completed.is_(True), 1),
+                    else_=0,
+                )
+            ).label("completed"),
+        )
+        .where(Subtask.task_id.in_(tuple(task_ids)))
+        .group_by(Subtask.task_id)
+    )
+    result = await session.exec(stmt)
+    counts = {task_id: {"total": total, "completed": completed or 0} for task_id, total, completed in result.all()}
+    for task in tasks:
+        progress_data = counts.get(task.id)
+        if not progress_data:
+            object.__setattr__(task, "subtask_progress", None)
+            continue
+        progress = TaskSubtaskProgress(
+            completed=int(progress_data["completed"]),
+            total=int(progress_data["total"]),
+        )
+        object.__setattr__(task, "subtask_progress", progress)
+
+
 def _annotate_task_guild(tasks: list[Task]) -> None:
     for task in tasks:
         project = getattr(task, "project", None)
         initiative = getattr(project, "initiative", None) if project else None
         guild = getattr(initiative, "guild", None) if initiative else None
         object.__setattr__(task, "guild", guild)
+
+
+async def _list_subtasks_for_task(session: SessionDep, task_id: int) -> list[Subtask]:
+    stmt = (
+        select(Subtask)
+        .where(Subtask.task_id == task_id)
+        .order_by(Subtask.position.asc(), Subtask.id.asc())
+    )
+    result = await session.exec(stmt)
+    return result.all()
+
+
+async def _clone_subtasks(session: SessionDep, source_task_id: int, target_task_id: int) -> None:
+    subtasks = await _list_subtasks_for_task(session, source_task_id)
+    if not subtasks:
+        return
+    clones = [
+        Subtask(
+            task_id=target_task_id,
+            content=subtask.content,
+            position=subtask.position,
+            is_completed=False,
+        )
+        for subtask in subtasks
+    ]
+    session.add_all(clones)
+
+
+async def _next_subtask_position(session: SessionDep, task_id: int) -> int:
+    result = await session.exec(select(func.max(Subtask.position)).where(Subtask.task_id == task_id))
+    max_value = result.one_or_none()
+    return (max_value or 0) + 1
+
+
+def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
+    now = timestamp or datetime.now(timezone.utc)
+    task.updated_at = now
+    return now
+
+
+async def _broadcast_task_refresh(session: SessionDep, task_id: int, guild_id: int) -> None:
+    task = await _fetch_task(session, task_id, guild_id)
+    if task is None:
+        return
+    await broadcast_event("task", "updated", _task_payload(task))
 
 
 def _task_payload(task: Task) -> dict:
@@ -84,6 +169,7 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
     task = result.one_or_none()
     if task:
         await _annotate_task_comment_counts(session, [task])
+        await _annotate_task_subtask_progress(session, [task])
         _annotate_task_guild([task])
     return task
 
@@ -185,6 +271,7 @@ async def _advance_recurrence_if_needed(
     )
     session.add(new_task)
     await session.flush()
+    await _clone_subtasks(session, task.id, new_task.id)
     assignee_ids = [assignee.id for assignee in task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
     await session.refresh(new_task, attribute_names=["assignees"])
@@ -392,6 +479,7 @@ async def list_tasks(
             project_id=project_id,
         )
         await _annotate_task_comment_counts(session, tasks)
+        await _annotate_task_subtask_progress(session, tasks)
         _annotate_task_guild(tasks)
         return tasks
 
@@ -427,6 +515,7 @@ async def list_tasks(
     result = await session.exec(statement)
     tasks = result.all()
     await _annotate_task_comment_counts(session, tasks)
+    await _annotate_task_subtask_progress(session, tasks)
     _annotate_task_guild(tasks)
     return tasks
 
@@ -783,6 +872,196 @@ async def reorder_tasks(
     refreshed_result = await session.exec(refreshed_stmt)
     tasks = refreshed_result.all()
     await _annotate_task_comment_counts(session, tasks)
+    await _annotate_task_subtask_progress(session, tasks)
     _annotate_task_guild(tasks)
     await broadcast_event("task", "reordered", {"project_id": reorder_in.project_id})
     return tasks
+
+
+@router.get("/{task_id}/subtasks", response_model=List[SubtaskRead])
+async def list_subtasks(
+    task_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[Subtask]:
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="read",
+        guild_role=guild_context.role,
+    )
+    return await _list_subtasks_for_task(session, task.id)
+
+
+@router.post("/{task_id}/subtasks", response_model=SubtaskRead, status_code=status.HTTP_201_CREATED)
+async def create_subtask(
+    task_id: int,
+    subtask_in: SubtaskCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Subtask:
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    content = subtask_in.content.strip()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content cannot be empty")
+
+    position = await _next_subtask_position(session, task.id)
+    subtask = Subtask(
+        task_id=task.id,
+        content=content,
+        position=position,
+    )
+    now = datetime.now(timezone.utc)
+    subtask.updated_at = now
+    _touch_task(task, timestamp=now)
+    session.add(subtask)
+    session.add(task)
+    await session.commit()
+    await session.refresh(subtask)
+    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
+    return subtask
+
+
+@router.put("/{task_id}/subtasks/order", response_model=List[SubtaskRead])
+async def reorder_subtasks(
+    task_id: int,
+    reorder_in: SubtaskReorderRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[Subtask]:
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    if not reorder_in.items:
+        return await _list_subtasks_for_task(session, task.id)
+
+    subtask_ids = [item.id for item in reorder_in.items]
+    stmt = select(Subtask).where(
+        Subtask.task_id == task.id,
+        Subtask.id.in_(tuple(subtask_ids)),
+    )
+    result = await session.exec(stmt)
+    subtasks = result.all()
+    subtask_map = {subtask.id: subtask for subtask in subtasks}
+    if len(subtask_map) != len(subtask_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtask not found for this task")
+
+    now = datetime.now(timezone.utc)
+    for item in reorder_in.items:
+        subtask = subtask_map[item.id]
+        subtask.position = item.position
+        subtask.updated_at = now
+        session.add(subtask)
+    _touch_task(task, timestamp=now)
+    session.add(task)
+    await session.commit()
+    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
+    return await _list_subtasks_for_task(session, task.id)
+
+
+@subtasks_router.patch("/subtasks/{subtask_id}", response_model=SubtaskRead)
+async def update_subtask(
+    subtask_id: int,
+    subtask_in: SubtaskUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Subtask:
+    subtask = await session.get(Subtask, subtask_id)
+    if not subtask:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtask not found")
+
+    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    update_data = subtask_in.model_dump(exclude_unset=True)
+    if not update_data:
+        return subtask
+
+    if "content" in update_data and update_data["content"] is not None:
+        content_value = update_data["content"].strip()
+        if not content_value:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content cannot be empty")
+        subtask.content = content_value
+
+    if "is_completed" in update_data and update_data["is_completed"] is not None:
+        subtask.is_completed = bool(update_data["is_completed"])
+
+    now = datetime.now(timezone.utc)
+    subtask.updated_at = now
+    _touch_task(task, timestamp=now)
+    session.add(subtask)
+    session.add(task)
+    await session.commit()
+    await session.refresh(subtask)
+    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
+    return subtask
+
+
+@subtasks_router.delete("/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_subtask(
+    subtask_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    subtask = await session.get(Subtask, subtask_id)
+    if not subtask:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtask not found")
+
+    task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    await session.delete(subtask)
+    _touch_task(task)
+    session.add(task)
+    await session.commit()
+    await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
+    return None

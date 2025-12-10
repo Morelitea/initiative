@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, JSON, String
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, JSON, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -55,6 +55,32 @@ class TaskAssignee(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", primary_key=True)
 
 
+class Subtask(SQLModel, table=True):
+    __tablename__ = "subtasks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="tasks.id", nullable=False)
+    content: str = Field(sa_column=Column(Text, nullable=False))
+    is_completed: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    position: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    task: Optional["Task"] = Relationship(back_populates="subtasks")
+
+
 class Task(SQLModel, table=True):
     __tablename__ = "tasks"
 
@@ -94,3 +120,7 @@ class Task(SQLModel, table=True):
     project: Optional["Project"] = Relationship(back_populates="tasks")
     task_status: Optional[TaskStatus] = Relationship(back_populates="tasks")
     assignees: List["User"] = Relationship(back_populates="tasks_assigned", link_model=TaskAssignee)
+    subtasks: List["Subtask"] = Relationship(
+        back_populates="task",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )

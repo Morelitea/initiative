@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import { TaskAssigneeList } from "./TaskAssigneeList";
+import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 
 type ProjectTasksKanbanViewProps = {
   taskStatuses: ProjectTaskStatus[];
@@ -158,6 +159,7 @@ const TaskDragOverlay = ({
       ) : null}
       {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
     </div>
+    <TaskChecklistProgress progress={task.subtask_progress} />
     <Badge variant={priorityVariant[task.priority]}>
       Priority: {task.priority.replace("_", " ")}
     </Badge>

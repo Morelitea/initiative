@@ -4,7 +4,7 @@ from app.models.app_setting import AppSetting
 from app.models.guild import Guild, GuildMembership, GuildInvite
 from app.models.guild_setting import GuildSetting
 from app.models.project import Project, ProjectPermission
-from app.models.task import Task, TaskAssignee
+from app.models.task import Task, TaskAssignee, Subtask
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.models.api_key import AdminApiKey
@@ -16,6 +16,7 @@ __all__ = [
     "Project",
     "Task",
     "TaskAssignee",
+    "Subtask",
     "ProjectPermission",
     "AppSetting",
     "Guild",

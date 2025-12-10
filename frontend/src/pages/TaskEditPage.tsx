@@ -37,6 +37,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
+import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -403,7 +404,7 @@ export const TaskEditPage = () => {
       </div>
 
       <div className="flex flex-wrap gap-6">
-        <Card className="flex-1 shadow-sm md:min-w-100">
+        <Card className="flex-1 shadow-sm sm:min-w-100">
           <CardHeader>
             <CardTitle>Task details</CardTitle>
             <CardDescription>Update the fields below and save your changes.</CardDescription>
@@ -606,7 +607,12 @@ export const TaskEditPage = () => {
           </CardContent>
         </Card>
 
-        <div className="w-full max-w-md space-y-2">
+        <div className="flex-1 space-y-4 sm:min-w-100">
+          <TaskChecklist
+            taskId={parsedTaskId}
+            projectId={task?.project_id ?? null}
+            canEdit={!isReadOnly}
+          />
           {commentsQuery.isError ? (
             <p className="text-destructive text-sm">Unable to load comments right now.</p>
           ) : null}

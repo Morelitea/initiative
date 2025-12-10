@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.user import UserRead
 from app.schemas.task_status import TaskStatusRead
 from app.schemas.guild import GuildSummary
+from app.schemas.subtask import TaskSubtaskProgress
 
 from app.models.task import TaskPriority, TaskStatusCategory
 
@@ -152,6 +153,7 @@ class TaskRead(TaskBase):
     comment_count: int = 0
     guild: Optional[GuildSummary] = None
     project: Optional[TaskProjectSummary] = None
+    subtask_progress: Optional[TaskSubtaskProgress] = None
 
     class Config:
         from_attributes = True

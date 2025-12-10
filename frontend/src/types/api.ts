@@ -239,6 +239,21 @@ export interface TaskGuildSummary {
   icon_base64?: string | null;
 }
 
+export interface TaskSubtaskProgress {
+  completed: number;
+  total: number;
+}
+
+export interface TaskSubtask {
+  id: number;
+  task_id: number;
+  content: string;
+  is_completed: boolean;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Task {
   id: number;
   title: string;
@@ -259,6 +274,7 @@ export interface Task {
   comment_count?: number;
   guild?: TaskGuildSummary | null;
   project?: TaskProjectSummary | null;
+  subtask_progress?: TaskSubtaskProgress | null;
 }
 
 export interface CommentAuthor {

@@ -15,6 +15,7 @@ import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
+import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 
 interface SortableTaskRowProps {
   task: Task;
@@ -141,6 +142,10 @@ export const SortableTaskRow = ({
                 </p>
               ) : null}
             </div>
+            <TaskChecklistProgress
+              progress={task.subtask_progress}
+              className="mt-2 max-w-[200px]"
+            />
           </button>
         </div>
       </td>
