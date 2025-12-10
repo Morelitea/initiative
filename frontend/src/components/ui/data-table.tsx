@@ -20,7 +20,7 @@ import {
   type PaginationState,
   type Table as TableType,
 } from "@tanstack/react-table";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, MoreVertical } from "lucide-react";
 
 import {
   Table,
@@ -35,6 +35,12 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -273,7 +279,7 @@ export function DataTable<TData, TValue>({
       <div className="overflow-hidden rounded-md border">
         {enableFilterInput || enableClearSorting || enableColumnVisibilityDropdown ? (
           <div className="flex flex-wrap items-center justify-between gap-2 p-4">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-1 items-center gap-2">
               {enableFilterInput && (
                 <Input
                   placeholder={filterInputPlaceholder}
@@ -281,74 +287,154 @@ export function DataTable<TData, TValue>({
                   onChange={(event) =>
                     table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
                   }
-                  className="min-w-16"
+                  className="min-w-16 flex-1"
                 />
               )}
             </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {enableClearSorting && (
-                <Button variant="ghost" onClick={() => table.resetSorting()}>
-                  <span className="text-muted-foreground">Reset Sorting</span>
-                </Button>
-              )}
-              {groupingEnabled && hasGroupingOptions ? (
-                <div className="flex items-center gap-2">
-                  <Label
-                    htmlFor={groupingSelectId}
-                    className="text-muted-foreground text-sm font-medium"
-                  >
-                    Group by
-                  </Label>
-                  <Select
-                    value={groupingSelectValue}
-                    onValueChange={(value) => {
-                      if (value === GROUPING_NONE_VALUE) {
-                        setGrouping([]);
-                      } else {
-                        setGrouping([value]);
-                      }
-                    }}
-                  >
-                    <SelectTrigger id={groupingSelectId} className="w-40">
-                      <SelectValue placeholder="Choose grouping" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={GROUPING_NONE_VALUE}>None</SelectItem>
-                      {groupingChoices.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-              {enableColumnVisibilityDropdown && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="ml-auto">
-                      Columns <ChevronDown />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {table
-                      .getAllColumns()
-                      .filter((column) => column.getCanHide())
-                      .map((column) => {
-                        return (
+            <div className="ml-auto flex items-center justify-end gap-2">
+              {/* Desktop: Show controls inline */}
+              <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">
+                {enableClearSorting && (
+                  <Button variant="ghost" onClick={() => table.resetSorting()}>
+                    <span className="text-muted-foreground">Reset Sorting</span>
+                  </Button>
+                )}
+                {groupingEnabled && hasGroupingOptions ? (
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor={groupingSelectId}
+                      className="text-muted-foreground text-sm font-medium"
+                    >
+                      Group by
+                    </Label>
+                    <Select
+                      value={groupingSelectValue}
+                      onValueChange={(value) => {
+                        if (value === GROUPING_NONE_VALUE) {
+                          setGrouping([]);
+                        } else {
+                          setGrouping([value]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger id={groupingSelectId} className="w-40">
+                        <SelectValue placeholder="Choose grouping" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={GROUPING_NONE_VALUE}>None</SelectItem>
+                        {groupingChoices.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                {enableColumnVisibilityDropdown && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="ml-auto">
+                        Columns <ChevronDown />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {table
+                        .getAllColumns()
+                        .filter((column) => column.getCanHide())
+                        .map((column) => {
+                          return (
+                            <DropdownMenuCheckboxItem
+                              key={column.id}
+                              className="capitalize"
+                              checked={column.getIsVisible()}
+                              onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                            >
+                              {column.id}
+                            </DropdownMenuCheckboxItem>
+                          );
+                        })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+
+              {/* Mobile: Show overflow menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="md:hidden">
+                    <MoreVertical className="h-4 w-4" />
+                    <span className="sr-only">Table options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Table Options</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+
+                  {enableClearSorting && (
+                    <>
+                      <DropdownMenuItem
+                        onSelect={() => table.resetSorting()}
+                        className="cursor-pointer"
+                      >
+                        Reset Sorting
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
+                  {groupingEnabled && hasGroupingOptions && (
+                    <>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>Group by</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
                           <DropdownMenuCheckboxItem
-                            key={column.id}
-                            className="capitalize"
-                            checked={column.getIsVisible()}
-                            onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                            checked={groupingSelectValue === GROUPING_NONE_VALUE}
+                            onCheckedChange={() => setGrouping([])}
                           >
-                            {column.id}
+                            None
                           </DropdownMenuCheckboxItem>
-                        );
-                      })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                          {groupingChoices.map((option) => (
+                            <DropdownMenuCheckboxItem
+                              key={option.id}
+                              checked={groupingSelectValue === option.id}
+                              onCheckedChange={() => setGrouping([option.id])}
+                            >
+                              {option.label}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
+                  {enableColumnVisibilityDropdown && (
+                    <>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>Columns</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {table
+                            .getAllColumns()
+                            .filter((column) => column.getCanHide())
+                            .map((column) => {
+                              return (
+                                <DropdownMenuCheckboxItem
+                                  key={column.id}
+                                  className="capitalize"
+                                  checked={column.getIsVisible()}
+                                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                                >
+                                  {column.id}
+                                </DropdownMenuCheckboxItem>
+                              );
+                            })}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         ) : null}
