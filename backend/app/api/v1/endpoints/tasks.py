@@ -749,6 +749,86 @@ async def move_task(
     return updated_task
 
 
+@router.post("/{task_id}/duplicate", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
+async def duplicate_task(
+    task_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Task:
+    # Fetch the original task with its subtasks
+    task_stmt = (
+        select(Task)
+        .options(selectinload(Task.assignees))
+        .join(Task.project)
+        .join(Project.initiative)
+        .where(
+            Task.id == task_id,
+            Initiative.guild_id == guild_context.guild_id,
+        )
+    )
+    task_result = await session.exec(task_stmt)
+    original_task = task_result.one_or_none()
+    if not original_task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        original_task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    # Fetch subtasks
+    subtasks_stmt = select(Subtask).where(Subtask.task_id == task_id).order_by(Subtask.position)
+    subtasks_result = await session.exec(subtasks_stmt)
+    original_subtasks = list(subtasks_result.all())
+
+    # Get next sort order for the new task
+    sort_order = await _next_sort_order(session, original_task.project_id)
+
+    # Create the new task with the same properties
+    new_task = Task(
+        title=f"{original_task.title} (copy)",
+        description=original_task.description,
+        project_id=original_task.project_id,
+        task_status_id=original_task.task_status_id,
+        priority=original_task.priority,
+        start_date=original_task.start_date,
+        due_date=original_task.due_date,
+        recurrence=original_task.recurrence,
+        recurrence_strategy=original_task.recurrence_strategy,
+        sort_order=sort_order,
+    )
+    session.add(new_task)
+    await session.flush()
+
+    # Copy assignees
+    assignee_ids = [assignee.id for assignee in original_task.assignees]
+    await _set_task_assignees(session, new_task, assignee_ids)
+
+    # Copy subtasks
+    for original_subtask in original_subtasks:
+        new_subtask = Subtask(
+            task_id=new_task.id,
+            content=original_subtask.content,
+            is_completed=False,  # Reset completion status
+            position=original_subtask.position,
+        )
+        session.add(new_subtask)
+
+    await session.commit()
+    await session.refresh(new_task)
+
+    # Annotate and return the task
+    task_with_relations = await _fetch_task(session, new_task.id, guild_context.guild_id)
+    if not task_with_relations:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duplicated task not found")
+
+    return task_with_relations
+
+
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: int,

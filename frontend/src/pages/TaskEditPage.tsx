@@ -181,6 +181,19 @@ export const TaskEditPage = () => {
     },
   });
 
+  const duplicateTask = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<Task>(`/tasks/${parsedTaskId}/duplicate`);
+      return response.data;
+    },
+    onSuccess: (newTask) => {
+      toast.success("Task duplicated");
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      navigate(`/tasks/${newTask.id}`);
+    },
+  });
+
   const deleteTask = useMutation({
     mutationFn: async () => {
       await apiClient.delete(`/tasks/${parsedTaskId}`);
@@ -579,6 +592,16 @@ export const TaskEditPage = () => {
                       isSaving={moveTask.isPending}
                       onConfirm={handleMoveTask}
                     />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        duplicateTask.mutate();
+                      }}
+                      disabled={duplicateTask.isPending}
+                    >
+                      {duplicateTask.isPending ? "Duplicating…" : "Duplicate task"}
+                    </Button>
                     <Button
                       type="button"
                       variant="destructive"
