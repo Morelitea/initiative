@@ -10,6 +10,7 @@ import {
   type SortingState,
   type ColumnFiltersState,
   type VisibilityState,
+  type RowSelectionState,
   getPaginationRowModel,
   getFilteredRowModel,
   getSortedRowModel,
@@ -45,6 +46,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -52,6 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface GroupingOption {
   id: string;
@@ -73,6 +76,9 @@ interface DataTableProps<TData, TValue> {
   pageSizeOptions?: number[];
   groupingOptions?: GroupingOption[];
   helpText?: ReactNode | ((table: TableType<TData>) => ReactNode);
+  enableRowSelection?: boolean;
+  onRowSelectionChange?: (selectedRows: TData[]) => void;
+  getRowId?: (row: TData) => string;
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -99,6 +105,9 @@ export function DataTable<TData, TValue>({
   pageSizeOptions,
   groupingOptions,
   helpText,
+  enableRowSelection = false,
+  onRowSelectionChange,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
@@ -127,6 +136,8 @@ export function DataTable<TData, TValue>({
     groupingEnabled ? initialGroupingRef.current : []
   );
   const [pagination, setPagination] = useState<PaginationState>(() => initialPaginationRef.current);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [selectionModeActive, setSelectionModeActive] = useState(false);
   const groupingSelectId = useId();
   const computedInitialState: Partial<TableState> = {
     sorting: initialSortingRef.current,
@@ -146,15 +157,50 @@ export function DataTable<TData, TValue>({
     );
     return sanitized.length > 0 ? sanitized : [DEFAULT_PAGE_SIZE];
   }, [pageSizeOptions]);
+
+  const columnsWithSelection = useMemo(() => {
+    if (!enableRowSelection || !selectionModeActive) {
+      return columns;
+    }
+
+    const selectionColumn: ColumnDef<TData, TValue> = {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    };
+
+    return [selectionColumn, ...columns];
+  }, [enableRowSelection, selectionModeActive, columns]);
+
   const table = useReactTable({
     data,
-    columns,
+    columns: columnsWithSelection,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGroupingChange: groupingEnabled ? setGrouping : undefined,
     onPaginationChange: enablePagination ? setPagination : undefined,
+    onRowSelectionChange: enableRowSelection ? setRowSelection : undefined,
+    enableRowSelection: enableRowSelection,
+    getRowId: getRowId,
     getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -167,6 +213,7 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       ...(groupingEnabled ? { grouping } : {}),
       ...(enablePagination ? { pagination } : {}),
+      ...(enableRowSelection ? { rowSelection } : {}),
     },
   });
   const pageSize = table.getState().pagination?.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -273,13 +320,51 @@ export function DataTable<TData, TValue>({
     });
   }, [groupingEnabled, grouping, groupingColumnIdSet]);
 
+  useEffect(() => {
+    if (enableRowSelection && selectionModeActive && onRowSelectionChange) {
+      const selectedRows = table.getFilteredSelectedRowModel().rows.map((row) => row.original);
+      onRowSelectionChange(selectedRows);
+    }
+  }, [rowSelection, enableRowSelection, selectionModeActive, onRowSelectionChange, table]);
+
+  useEffect(() => {
+    if (!selectionModeActive && Object.keys(rowSelection).length > 0) {
+      setRowSelection({});
+    }
+  }, [selectionModeActive, rowSelection]);
+
   return (
     <div className="space-y-4">
       {helpText && typeof helpText === "function" ? helpText(table) : helpText}
-      <div className="overflow-hidden rounded-md border">
-        {enableFilterInput || enableClearSorting || enableColumnVisibilityDropdown ? (
+      {enableRowSelection &&
+        selectionModeActive &&
+        table.getFilteredSelectedRowModel().rows.length > 0 && (
+          <div className="text-muted-foreground text-sm">
+            {table.getFilteredSelectedRowModel().rows.length} of{" "}
+            {table.getFilteredRowModel().rows.length} row(s) selected
+          </div>
+        )}
+      <div
+        className={cn(
+          "overflow-hidden rounded-md border",
+          selectionModeActive && "border-primary ring-primary/20 ring-2"
+        )}
+      >
+        {enableFilterInput ||
+        enableClearSorting ||
+        enableColumnVisibilityDropdown ||
+        enableRowSelection ? (
           <div className="flex flex-wrap items-center justify-between gap-2 p-4">
             <div className="flex flex-1 items-center gap-2">
+              {enableRowSelection && (
+                <Button
+                  variant={selectionModeActive ? "default" : "outline"}
+                  onClick={() => setSelectionModeActive(!selectionModeActive)}
+                  className="shrink-0"
+                >
+                  {selectionModeActive ? "Exit Selection" : "Select"}
+                </Button>
+              )}
               {enableFilterInput && (
                 <Input
                   placeholder={filterInputPlaceholder}
@@ -370,6 +455,18 @@ export function DataTable<TData, TValue>({
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>Table Options</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+
+                  {enableRowSelection && (
+                    <>
+                      <DropdownMenuItem
+                        onSelect={() => setSelectionModeActive(!selectionModeActive)}
+                        className="cursor-pointer"
+                      >
+                        {selectionModeActive ? "Exit Selection Mode" : "Enable Selection Mode"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
 
                   {enableClearSorting && (
                     <>
