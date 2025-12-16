@@ -855,7 +855,24 @@ async def duplicate_project(
         )
     )
 
-    await _duplicate_template_tasks(session, source_project, new_project)
+    # Clone task statuses from source project to new project
+    status_mapping = await task_statuses_service.clone_statuses(
+        session,
+        source_project_id=source_project.id,
+        target_project_id=new_project.id,
+    )
+
+    # Ensure default statuses exist and create fallback mapping
+    statuses = await task_statuses_service.ensure_default_statuses(session, new_project.id)
+    fallback_status_ids = {status.category: status.id for status in statuses}
+
+    await _duplicate_template_tasks(
+        session,
+        source_project,
+        new_project,
+        status_mapping=status_mapping,
+        fallback_status_ids=fallback_status_ids,
+    )
     await session.commit()
 
     new_project = await _get_project_or_404(new_project.id, session, guild_context.guild_id)
