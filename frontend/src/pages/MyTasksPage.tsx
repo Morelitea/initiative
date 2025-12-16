@@ -666,7 +666,7 @@ export const MyTasksPage = () => {
           </div>
         );
       },
-      cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="destructive" />,
+      cell: ({ row }) => <DateCell date={row.original.due_date} isPastVariant="destructive" />,
       sortingFn: dateSortingFn,
     },
     {
