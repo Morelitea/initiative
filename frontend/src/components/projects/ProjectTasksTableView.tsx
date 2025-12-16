@@ -12,7 +12,6 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
-import { formatDistance, isPast } from "date-fns";
 
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
@@ -32,6 +31,7 @@ import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
+import { DateCell } from "@/components/tasks/TaskDateCell";
 import { cn } from "@/lib/utils";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
@@ -461,34 +461,6 @@ const DragHandleCell = () => {
     </button>
   );
 };
-
-// Memoized date cell to avoid re-computing formatDistance on every render
-type DateCellProps = {
-  date: string | null | undefined;
-  isPastVariant?: "primary" | "destructive";
-};
-
-const DateCell = memo(({ date, isPastVariant }: DateCellProps) => {
-  const dateObj = useMemo(() => (date ? new Date(date) : null), [date]);
-  const isPastDate = useMemo(() => (dateObj ? isPast(dateObj) : false), [dateObj]);
-  const formattedDate = useMemo(
-    () => (dateObj ? formatDistance(dateObj, new Date(), { addSuffix: true }) : null),
-    [dateObj]
-  );
-
-  if (!formattedDate) {
-    return <span className="text-muted-foreground">—</span>;
-  }
-
-  const className =
-    isPastDate && isPastVariant
-      ? `min-w-30 ${isPastVariant === "destructive" ? "text-destructive" : "text-primary"}`
-      : "min-w-30 text-muted-foreground";
-
-  return <div className={className}>{formattedDate}</div>;
-});
-
-DateCell.displayName = "DateCell";
 
 type TaskCellProps = {
   task: Task;

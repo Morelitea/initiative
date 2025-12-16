@@ -32,13 +32,13 @@ import type {
   TaskPriority,
   TaskStatusCategory,
 } from "@/types/api";
-import { formatDistance, isPast } from "date-fns";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
+import { DateCell } from "@/components/tasks/TaskDateCell";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -124,6 +124,73 @@ const getGuildInitials = (name: string) => {
 };
 
 const getGuildGroupLabel = (task: Task) => task.guild?.name ?? guild_DEFAULT_LABEL;
+
+// Component for task status selector that manages its own state
+const TaskStatusSelector = ({
+  task,
+  activeGuildId,
+  isUpdatingTaskStatus,
+  changeTaskStatusById,
+  fetchProjectStatuses,
+  projectStatusCache,
+}: {
+  task: Task;
+  activeGuildId: number | null;
+  isUpdatingTaskStatus: boolean;
+  changeTaskStatusById: (task: Task, statusId: number) => Promise<void>;
+  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<ProjectTaskStatus[]>;
+  projectStatusCache: React.MutableRefObject<
+    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
+  >;
+}) => {
+  const [statuses, setStatuses] = useState<ProjectTaskStatus[]>(() => {
+    const cached = projectStatusCache.current.get(task.project_id);
+    return cached?.statuses ?? [task.task_status];
+  });
+
+  const handleOpenChange = useCallback(
+    async (open: boolean) => {
+      if (open) {
+        const guildId = task.guild?.id ?? activeGuildId ?? null;
+        const fetchedStatuses = await fetchProjectStatuses(task.project_id, guildId);
+        setStatuses(fetchedStatuses);
+      }
+    },
+    [task, activeGuildId, fetchProjectStatuses]
+  );
+
+  const sortedStatuses = useMemo(
+    () => [...statuses].sort((a, b) => a.position - b.position),
+    [statuses]
+  );
+
+  return (
+    <Select
+      value={String(task.task_status.id)}
+      onValueChange={(value) => {
+        const targetId = Number(value);
+        if (Number.isNaN(targetId)) {
+          toast.error("Invalid status selected.");
+          return;
+        }
+        void changeTaskStatusById(task, targetId);
+      }}
+      onOpenChange={handleOpenChange}
+      disabled={isUpdatingTaskStatus}
+    >
+      <SelectTrigger className="w-40">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {sortedStatuses.map((status) => (
+          <SelectItem key={status.id} value={String(status.id)}>
+            {status.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
 
 export const MyTasksPage = () => {
   const { user } = useAuth();
@@ -216,7 +283,6 @@ export const MyTasksPage = () => {
     () => readStoredFilters().initiativeFilter
   );
   const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
-  const [statusCacheVersion, setStatusCacheVersion] = useState(0);
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -240,25 +306,19 @@ export const MyTasksPage = () => {
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   useEffect(() => {
-    let updated = false;
     tasks.forEach((task) => {
       const cached = projectStatusCache.current.get(task.project_id);
       if (cached) {
         if (!cached.statuses.some((status) => status.id === task.task_status.id)) {
           cached.statuses.push(task.task_status);
-          updated = true;
         }
       } else {
         projectStatusCache.current.set(task.project_id, {
           statuses: [task.task_status],
           complete: false,
         });
-        updated = true;
       }
     });
-    if (updated) {
-      setStatusCacheVersion((prev) => prev + 1);
-    }
   }, [tasks]);
 
   useEffect(() => {
@@ -297,7 +357,6 @@ export const MyTasksPage = () => {
         ]
       : response.data;
     projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
-    setStatusCacheVersion((prev) => prev + 1);
     return merged;
   }, []);
 
@@ -314,12 +373,6 @@ export const MyTasksPage = () => {
       return null;
     },
     [fetchProjectStatuses]
-  );
-
-  const projectStatusesForTask = useCallback(
-    (task: Task) => projectStatusCache.current.get(task.project_id)?.statuses ?? [task.task_status],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [statusCacheVersion]
   );
 
   const ensureTaskGuildContext = useCallback(
@@ -596,19 +649,7 @@ export const MyTasksPage = () => {
           </div>
         );
       },
-      cell: ({ row }) => {
-        const task = row.original;
-        if (!task.start_date) {
-          return <span className="text-muted-foreground">—</span>;
-        }
-        const startDate = new Date(task.start_date);
-        const isStartPast = isPast(startDate);
-        return (
-          <div className={`min-w-30 ${isStartPast ? "text-primary" : "text-muted-foreground"}`}>
-            {formatDistance(startDate, new Date(), { addSuffix: true })}
-          </div>
-        );
-      },
+      cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
       sortingFn: dateSortingFn,
     },
     {
@@ -625,19 +666,7 @@ export const MyTasksPage = () => {
           </div>
         );
       },
-      cell: ({ row }) => {
-        const task = row.original;
-        if (!task.due_date) {
-          return <span className="text-muted-foreground">—</span>;
-        }
-        const dueDate = new Date(task.due_date);
-        const isDuePast = isPast(dueDate);
-        return (
-          <div className={`min-w-30 ${isDuePast ? "text-destructive" : ""}`}>
-            {formatDistance(dueDate, new Date(), { addSuffix: true })}
-          </div>
-        );
-      },
+      cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="destructive" />,
       sortingFn: dateSortingFn,
     },
     {
@@ -742,40 +771,16 @@ export const MyTasksPage = () => {
       header: () => <span className="font-medium">Status</span>,
       cell: ({ row }) => {
         const task = row.original;
-        const projectStatuses = projectStatusesForTask(task)
-          .slice()
-          .sort((a, b) => a.position - b.position);
         return (
           <div className="space-y-1">
-            <Select
-              value={String(task.task_status.id)}
-              onValueChange={(value) => {
-                const targetId = Number(value);
-                if (Number.isNaN(targetId)) {
-                  toast.error("Invalid status selected.");
-                  return;
-                }
-                void changeTaskStatusById(task, targetId);
-              }}
-              onOpenChange={(open) => {
-                if (open) {
-                  const guildId = task.guild?.id ?? activeGuildId ?? null;
-                  void fetchProjectStatuses(task.project_id, guildId);
-                }
-              }}
-              disabled={isUpdatingTaskStatus}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {projectStatuses.map((status) => (
-                  <SelectItem key={status.id} value={String(status.id)}>
-                    {status.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TaskStatusSelector
+              task={task}
+              activeGuildId={activeGuildId}
+              isUpdatingTaskStatus={isUpdatingTaskStatus}
+              changeTaskStatusById={changeTaskStatusById}
+              fetchProjectStatuses={fetchProjectStatuses}
+              projectStatusCache={projectStatusCache}
+            />
           </div>
         );
       },
