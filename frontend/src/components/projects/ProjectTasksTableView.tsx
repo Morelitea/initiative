@@ -51,6 +51,8 @@ type ProjectTasksListViewProps = {
   onDragCancel: () => void;
   onStatusChange: (taskId: number, taskStatusId: number) => void;
   onTaskClick: (taskId: number) => void;
+  onTaskSelectionChange?: (selectedTasks: Task[]) => void;
+  onExitSelection?: () => void;
 };
 
 type SortableRowContextValue = {
@@ -126,6 +128,8 @@ const ProjectTasksTableViewComponent = ({
   onDragCancel,
   onStatusChange,
   onTaskClick,
+  onTaskSelectionChange,
+  onExitSelection,
 }: ProjectTasksListViewProps) => {
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
 
@@ -407,6 +411,10 @@ const ProjectTasksTableViewComponent = ({
           filterInputPlaceholder="Filter tasks..."
           enableColumnVisibilityDropdown
           enableResetSorting
+          enableRowSelection
+          onRowSelectionChange={onTaskSelectionChange}
+          getRowId={(row) => String(row.id)}
+          onExitSelection={onExitSelection}
         />
       </SortableContext>
     </DndContext>

@@ -1,6 +1,15 @@
 "use client";
 
-import { Fragment, type ReactNode, useMemo, useRef, useState, useId, useEffect } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useMemo,
+  useRef,
+  useState,
+  useId,
+  useEffect,
+  useCallback,
+} from "react";
 import {
   ColumnDef,
   Row,
@@ -79,6 +88,7 @@ interface DataTableProps<TData, TValue> {
   enableRowSelection?: boolean;
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   getRowId?: (row: TData) => string;
+  onExitSelection?: () => void;
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -108,6 +118,7 @@ export function DataTable<TData, TValue>({
   enableRowSelection = false,
   onRowSelectionChange,
   getRowId,
+  onExitSelection,
 }: DataTableProps<TData, TValue>) {
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
@@ -333,6 +344,14 @@ export function DataTable<TData, TValue>({
     }
   }, [selectionModeActive, rowSelection]);
 
+  const handleExitSelection = useCallback(() => {
+    setSelectionModeActive(false);
+    setRowSelection({});
+    if (onExitSelection) {
+      onExitSelection();
+    }
+  }, [onExitSelection]);
+
   return (
     <div className="space-y-4">
       {helpText && typeof helpText === "function" ? helpText(table) : helpText}
@@ -359,7 +378,13 @@ export function DataTable<TData, TValue>({
               {enableRowSelection && (
                 <Button
                   variant={selectionModeActive ? "default" : "outline"}
-                  onClick={() => setSelectionModeActive(!selectionModeActive)}
+                  onClick={() => {
+                    if (selectionModeActive) {
+                      handleExitSelection();
+                    } else {
+                      setSelectionModeActive(true);
+                    }
+                  }}
                   className="shrink-0"
                 >
                   {selectionModeActive ? "Exit Selection" : "Select"}
@@ -459,7 +484,13 @@ export function DataTable<TData, TValue>({
                   {enableRowSelection && (
                     <>
                       <DropdownMenuItem
-                        onSelect={() => setSelectionModeActive(!selectionModeActive)}
+                        onSelect={() => {
+                          if (selectionModeActive) {
+                            handleExitSelection();
+                          } else {
+                            setSelectionModeActive(true);
+                          }
+                        }}
                         className="cursor-pointer"
                       >
                         {selectionModeActive ? "Exit Selection Mode" : "Enable Selection Mode"}

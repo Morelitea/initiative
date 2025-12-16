@@ -3,7 +3,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
+import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table, Copy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -542,7 +542,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         duplicateDocuments.mutate(selectedDocuments);
@@ -555,7 +555,10 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                           Duplicating…
                         </>
                       ) : (
-                        "Duplicate"
+                        <>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Duplicate
+                        </>
                       )}
                     </Button>
                     <Button
@@ -578,7 +581,10 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                           Deleting…
                         </>
                       ) : (
-                        "Delete"
+                        <>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </>
                       )}
                     </Button>
                   </div>
@@ -596,6 +602,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                 enableRowSelection
                 onRowSelectionChange={setSelectedDocuments}
                 getRowId={(row) => String(row.id)}
+                onExitSelection={() => setSelectedDocuments([])}
               />
             </>
           )

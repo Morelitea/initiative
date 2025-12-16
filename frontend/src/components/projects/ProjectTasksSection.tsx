@@ -38,6 +38,8 @@ import {
 } from "@/components/projects/projectTasksConfig";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
+import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
+import { TaskBulkEditDialog, type TaskBulkUpdate } from "@/components/tasks/TaskBulkEditDialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -122,6 +124,8 @@ export const ProjectTasksSection = ({
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
+  const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
   const collapsedStorageKey = useMemo(
     () => (Number.isFinite(projectId) ? `project:${projectId}:kanban-collapsed` : null),
@@ -337,6 +341,52 @@ export const ProjectTasksSection = ({
         queryKey: ["tasks", projectId],
       });
       toast.success("Task updated");
+    },
+  });
+
+  const bulkUpdateTasks = useMutation({
+    mutationFn: async ({
+      taskIds,
+      changes,
+    }: {
+      taskIds: number[];
+      changes: Partial<TaskBulkUpdate>;
+    }) => {
+      const results = await Promise.all(
+        taskIds.map((taskId) => apiClient.patch<Task>(`/tasks/${taskId}`, changes))
+      );
+      return results.map((r) => r.data);
+    },
+    onSuccess: (updatedTasks) => {
+      const count = updatedTasks.length;
+      toast.success(`${count} task${count === 1 ? "" : "s"} updated`);
+      setSelectedTasks([]);
+      setIsBulkEditDialogOpen(false);
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", projectId],
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to update tasks right now.";
+      toast.error(message);
+    },
+  });
+
+  const bulkDeleteTasks = useMutation({
+    mutationFn: async (taskIds: number[]) => {
+      await Promise.all(taskIds.map((taskId) => apiClient.delete(`/tasks/${taskId}`)));
+    },
+    onSuccess: (_data, taskIds) => {
+      const count = taskIds.length;
+      toast.success(`${count} task${count === 1 ? "" : "s"} deleted`);
+      setSelectedTasks([]);
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", projectId],
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to delete tasks right now.";
+      toast.error(message);
     },
   });
 
@@ -754,7 +804,22 @@ export const ProjectTasksSection = ({
           />
         </TabsContent>
 
-        <TabsContent value="table">
+        <TabsContent value="table" className="space-y-4">
+          {selectedTasks.length > 0 && canEditTaskDetails && (
+            <TaskBulkEditPanel
+              selectedTasks={selectedTasks}
+              onEdit={() => setIsBulkEditDialogOpen(true)}
+              onDelete={() => {
+                if (
+                  confirm(
+                    `Delete ${selectedTasks.length} task${selectedTasks.length === 1 ? "" : "s"}?`
+                  )
+                ) {
+                  bulkDeleteTasks.mutate(selectedTasks.map((t) => t.id));
+                }
+              }}
+            />
+          )}
           <ProjectTasksTableView
             tasks={statusFilteredTasks}
             taskStatuses={sortedTaskStatuses}
@@ -774,6 +839,8 @@ export const ProjectTasksSection = ({
               })
             }
             onTaskClick={onTaskClick}
+            onTaskSelectionChange={setSelectedTasks}
+            onExitSelection={() => setSelectedTasks([])}
           />
         </TabsContent>
         <TabsContent value="calendar">
@@ -836,6 +903,21 @@ export const ProjectTasksSection = ({
               onSubmit={() => createTask.mutate()}
               onCancel={() => setIsComposerOpen(false)}
               autoFocusTitle
+            />
+          </Dialog>
+          <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
+            <TaskBulkEditDialog
+              selectedTasks={selectedTasks}
+              taskStatuses={sortedTaskStatuses}
+              userOptions={userOptions}
+              isSubmitting={bulkUpdateTasks.isPending}
+              onApply={(changes) => {
+                bulkUpdateTasks.mutate({
+                  taskIds: selectedTasks.map((t) => t.id),
+                  changes,
+                });
+              }}
+              onCancel={() => setIsBulkEditDialogOpen(false)}
             />
           </Dialog>
         </>
