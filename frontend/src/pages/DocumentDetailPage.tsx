@@ -94,7 +94,7 @@ export const DocumentDetailPage = () => {
   }, [document, user]);
   const isDirty =
     canEditDocument &&
-    ((document && title.trim() !== document.title.trim()) ||
+    ((document && title?.trim() !== document?.title?.trim()) ||
       documentContentJson !== currentContentJson ||
       normalizedDocumentFeatured !== featuredImageUrl);
 
@@ -146,7 +146,7 @@ export const DocumentDetailPage = () => {
       if (!document) {
         throw new Error("Document is not loaded yet.");
       }
-      const trimmedTitle = title.trim();
+      const trimmedTitle = title?.trim();
       if (!trimmedTitle) {
         throw new Error("Document title is required");
       }
