@@ -44,14 +44,6 @@ class User(SQLModel, table=True):
         sa_column=Column(Text, nullable=True),
     )
     avatar_url: Optional[str] = Field(default=None, nullable=True)
-    show_project_sidebar: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    show_project_tabs: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
     week_starts_on: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),

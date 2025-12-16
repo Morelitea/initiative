@@ -120,7 +120,7 @@ export const ProjectDetailPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Invalid project id.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/">← Back to projects</Link>
+          <Link to="/projects">← Back to projects</Link>
         </Button>
       </div>
     );
@@ -135,7 +135,7 @@ export const ProjectDetailPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/">← Back to projects</Link>
+          <Link to="/projects">← Back to projects</Link>
         </Button>
       </div>
     );
@@ -169,7 +169,7 @@ export const ProjectDetailPage = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="link" className="px-0">
-          <Link to="/">← Back to projects</Link>
+          <Link to="/projects">← Back to projects</Link>
         </Button>
         {canManageSettings ? (
           <Button asChild variant="outline" size="sm" aria-label="Open project settings">

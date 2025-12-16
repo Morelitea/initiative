@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table } from "lucide-react";
@@ -132,10 +132,23 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
   );
+  const lastConsumedParams = useRef<string>("");
+
+  // Check for query params to filter by initiative (consume once)
+  useEffect(() => {
+    const urlInitiativeId = searchParams.get("initiativeId");
+    const paramKey = urlInitiativeId || "";
+
+    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedParams.current) {
+      lastConsumedParams.current = paramKey;
+      setInitiativeFilter(urlInitiativeId);
+    }
+  }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
   const [viewMode, setViewMode] = useState<"grid" | "table">(() => {
@@ -201,6 +214,23 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   const canCreateDocuments = lockedInitiativeId
     ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
     : manageableInitiatives.length > 0;
+
+  const lastConsumedCreateParams = useRef<string>("");
+
+  // Check for query params to open create dialog (consume once)
+  useEffect(() => {
+    const shouldCreate = searchParams.get("create") === "true";
+    const urlInitiativeId = searchParams.get("initiativeId");
+    const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
+
+    if (shouldCreate && paramKey !== lastConsumedCreateParams.current) {
+      lastConsumedCreateParams.current = paramKey;
+      setCreateDialogOpen(true);
+      if (urlInitiativeId && !lockedInitiativeId) {
+        setNewInitiativeId(urlInitiativeId);
+      }
+    }
+  }, [searchParams, lockedInitiativeId]);
 
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", "templates"],

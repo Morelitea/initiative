@@ -2,19 +2,18 @@ import { Suspense, lazy } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { AppHeader } from "@/components/AppHeader";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { ProjectShortcutsSidebar } from "@/components/projects/ProjectShortcutsSidebar";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
-import { GuildSidebar } from "@/components/guilds/GuildSidebar";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { apiClient } from "@/api/client";
 import type { Project } from "@/types/api";
 import { PageRoutes } from "@/PageRoutes";
+import { AppSidebar } from "./components/AppSidebar";
+import { Menu } from "lucide-react";
 
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((module) => ({ default: module.LoginPage }))
@@ -56,30 +55,12 @@ const NavigatePage = lazy(() =>
 );
 
 const AppLayout = () => {
-  const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   useRealtimeUpdates();
 
   const location = useLocation();
   const queryClient = useQueryClient();
-  const showSidebarPref = !!user && (user.show_project_sidebar ?? true);
-  const showTabsPref = !!user && (user.show_project_tabs ?? false);
-  const shouldFetchFavorites = Boolean(user && showSidebarPref);
-  const shouldFetchRecents = Boolean(user && (showSidebarPref || showTabsPref));
-  const favoritesEnabled = shouldFetchFavorites && activeGuildId !== null;
-  const recentsEnabled = shouldFetchRecents && activeGuildId !== null;
-  const favoritesQueryKey = ["projects", activeGuildId, "favorites"] as const;
   const recentQueryKey = ["projects", activeGuildId, "recent"] as const;
-
-  const favoritesQuery = useQuery<Project[]>({
-    queryKey: favoritesQueryKey,
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/favorites");
-      return response.data;
-    },
-    enabled: favoritesEnabled,
-    staleTime: 60_000,
-  });
 
   const recentQuery = useQuery<Project[]>({
     queryKey: recentQueryKey,
@@ -87,7 +68,7 @@ const AppLayout = () => {
       const response = await apiClient.get<Project[]>("/projects/recent");
       return response.data;
     },
-    enabled: recentsEnabled,
+    enabled: activeGuildId !== null,
     staleTime: 30_000,
   });
 
@@ -116,32 +97,39 @@ const AppLayout = () => {
   return (
     <div className="bg-background flex min-h-screen flex-col">
       <div className="flex flex-1">
-        <GuildSidebar />
-        {showSidebarPref ? (
-          <ProjectShortcutsSidebar
-            favorites={favoritesQuery.data}
-            recent={recentQuery.data}
-            loading={favoritesQuery.isLoading || recentQuery.isLoading}
-            onClearRecent={handleClearRecent}
-          />
-        ) : null}
-        <div className="bg-muted/50 min-w-0 flex-1">
-          <AppHeader />
-          {showTabsPref ? (
-            <ProjectTabsBar
-              projects={recentQuery.data}
-              loading={recentQuery.isLoading}
-              activeProjectId={activeProjectId}
-              onClose={handleClearRecent}
-            />
-          ) : null}
-          <div className="flex justify-between">
-            <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
-              <PageRoutes />
-            </main>
+        <SidebarProvider
+          defaultOpen={true}
+          style={
+            {
+              "--sidebar-width": "20rem",
+              "--sidebar-width-mobile": "80vw",
+            } as React.CSSProperties
+          }
+        >
+          <AppSidebar />
+          <div className="bg-muted/50 min-w-0 flex-1 md:pl-0">
+            <div className="flex">
+              <SidebarTrigger
+                icon={<Menu />}
+                className="h-12 w-12 shrink-0 rounded-none border-r border-b lg:hidden"
+              />
+              <div className="min-w-0 flex-1">
+                <ProjectTabsBar
+                  projects={recentQuery.data}
+                  loading={recentQuery.isLoading}
+                  activeProjectId={activeProjectId}
+                  onClose={handleClearRecent}
+                />
+              </div>
+            </div>
+            <div className="flex justify-between">
+              <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
+                <PageRoutes />
+              </main>
+            </div>
           </div>
-        </div>
-        <ProjectActivitySidebar projectId={activeProjectId} />
+          <ProjectActivitySidebar projectId={activeProjectId} />
+        </SidebarProvider>
       </div>
     </div>
   );

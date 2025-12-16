@@ -1,5 +1,5 @@
-import { FormEvent, HTMLAttributes, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, HTMLAttributes, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DndContext,
@@ -79,6 +79,7 @@ const getDefaultFiltersVisibility = () => {
 
 export const ProjectsPage = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const claimedManagedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
@@ -90,6 +91,22 @@ export const ProjectsPage = () => {
   const [icon, setIcon] = useState("");
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const lastConsumedParams = useRef<string>("");
+
+  // Check for query params to open create dialog (consume once)
+  useEffect(() => {
+    const shouldCreate = searchParams.get("create") === "true";
+    const urlInitiativeId = searchParams.get("initiativeId");
+    const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
+
+    if (shouldCreate && paramKey !== lastConsumedParams.current) {
+      lastConsumedParams.current = paramKey;
+      setIsComposerOpen(true);
+      if (urlInitiativeId) {
+        setInitiativeId(urlInitiativeId);
+      }
+    }
+  }, [searchParams]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
@@ -131,6 +148,20 @@ export const ProjectsPage = () => {
 
   const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const lastConsumedFilterParams = useRef<string>("");
+
+  // Check for query params to filter by initiative (consume once)
+  useEffect(() => {
+    const urlInitiativeId = searchParams.get("initiativeId");
+    const paramKey = urlInitiativeId || "";
+
+    if (urlInitiativeId && paramKey !== lastConsumedFilterParams.current) {
+      lastConsumedFilterParams.current = paramKey;
+      setInitiativeFilter(urlInitiativeId);
+      // Also set as default for create dialog
+      setInitiativeId(urlInitiativeId);
+    }
+  }, [searchParams]);
   const unarchiveProject = useMutation({
     mutationFn: async (projectId: number) => {
       await apiClient.post(`/projects/${projectId}/unarchive`, {});
@@ -208,14 +239,16 @@ export const ProjectsPage = () => {
       setInitiativeId(null);
       return;
     }
-    if (initiativeId) {
+    // Don't override if we're opening from URL params
+    const urlInitiativeId = searchParams.get("initiativeId");
+    if (initiativeId || urlInitiativeId) {
       return;
     }
     const data = initiativesQuery.data;
     if (data && data.length > 0) {
       setInitiativeId(String(data[0].id));
     }
-  }, [canManageProjects, initiativeId, initiativesQuery.data]);
+  }, [canManageProjects, initiativeId, initiativesQuery.data, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -340,14 +373,8 @@ export const ProjectsPage = () => {
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
   const availableInitiatives = useMemo(() => {
-    const map = new Map<number, Initiative>();
-    projects.forEach((project) => {
-      if (project.initiative) {
-        map.set(project.initiative.id, project.initiative);
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [projects]);
+    return (initiativesQuery.data ?? []).sort((a, b) => a.name.localeCompare(b.name));
+  }, [initiativesQuery.data]);
 
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

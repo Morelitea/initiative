@@ -4,7 +4,6 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -33,13 +32,9 @@ export const UserSettingsInterfacePage = ({
   user,
   refreshUser,
 }: UserSettingsInterfacePageProps) => {
-  const [showSidebar, setShowSidebar] = useState(user.show_project_sidebar ?? true);
-  const [showTabs, setShowTabs] = useState(user.show_project_tabs ?? false);
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
 
   useEffect(() => {
-    setShowSidebar(user.show_project_sidebar ?? true);
-    setShowTabs(user.show_project_tabs ?? false);
     setWeekStartsOn(user.week_starts_on ?? 0);
   }, [user]);
 
@@ -48,12 +43,6 @@ export const UserSettingsInterfacePage = ({
       await apiClient.patch<User>("/users/me", payload);
     },
     onSuccess: async (_, variables) => {
-      if (variables.show_project_sidebar !== undefined) {
-        setShowSidebar(Boolean(variables.show_project_sidebar));
-      }
-      if (variables.show_project_tabs !== undefined) {
-        setShowTabs(Boolean(variables.show_project_tabs));
-      }
       if (variables.week_starts_on !== undefined) {
         setWeekStartsOn(Number(variables.week_starts_on));
       }
@@ -62,8 +51,6 @@ export const UserSettingsInterfacePage = ({
     },
     onError: () => {
       toast.error("Unable to update interface preferences");
-      setShowSidebar(user.show_project_sidebar ?? true);
-      setShowTabs(user.show_project_tabs ?? false);
       setWeekStartsOn(user.week_starts_on ?? 0);
     },
   });
@@ -72,42 +59,10 @@ export const UserSettingsInterfacePage = ({
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle>Interface settings</CardTitle>
-        <CardDescription>Choose how project shortcuts appear across the app.</CardDescription>
+        <CardDescription>Customize your interface preferences.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="font-medium">Sidebar shortcuts</p>
-            <p className="text-muted-foreground text-sm">
-              Show favorite and recent projects in the left sidebar.
-            </p>
-          </div>
-          <Switch
-            checked={showSidebar}
-            onCheckedChange={(checked) => {
-              setShowSidebar(checked);
-              updateInterfacePrefs.mutate({ show_project_sidebar: checked });
-            }}
-            disabled={updateInterfacePrefs.isPending}
-          />
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="font-medium">Project tabs</p>
-            <p className="text-muted-foreground text-sm">
-              Show recently opened projects as tabs below the header.
-            </p>
-          </div>
-          <Switch
-            checked={showTabs}
-            onCheckedChange={(checked) => {
-              setShowTabs(checked);
-              updateInterfacePrefs.mutate({ show_project_tabs: checked });
-            }}
-            disabled={updateInterfacePrefs.isPending}
-          />
-        </div>
-        <div className="flex flex-col gap-4 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-medium">Week starts on</p>
             <p className="text-muted-foreground text-sm">

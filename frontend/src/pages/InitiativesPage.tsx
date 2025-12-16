@@ -1,5 +1,5 @@
-import { FormEvent, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +42,7 @@ export const InitiativesPage = () => {
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
 
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
@@ -113,6 +114,18 @@ export const InitiativesPage = () => {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_INITIATIVE_COLOR);
+  const lastConsumedParams = useRef<string>("");
+
+  // Check for query params to open create dialog (consume once)
+  useEffect(() => {
+    const shouldCreate = searchParams.get("create") === "true";
+    const paramKey = `${shouldCreate}`;
+
+    if (shouldCreate && paramKey !== lastConsumedParams.current) {
+      lastConsumedParams.current = paramKey;
+      setCreateDialogOpen(true);
+    }
+  }, [searchParams]);
 
   const createInitiative = useMutation({
     mutationFn: async (payload: { name: string; description?: string; color?: string }) => {

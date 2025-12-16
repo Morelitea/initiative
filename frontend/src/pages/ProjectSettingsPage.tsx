@@ -307,7 +307,7 @@ export const ProjectSettingsPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/">← Back to projects</Link>
+          <Link to="/projects">← Back to projects</Link>
         </Button>
       </div>
     );

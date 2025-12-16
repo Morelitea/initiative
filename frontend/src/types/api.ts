@@ -18,8 +18,6 @@ export interface User {
   updated_at: string;
   avatar_base64?: string | null;
   avatar_url?: string | null;
-  show_project_sidebar?: boolean;
-  show_project_tabs?: boolean;
   week_starts_on?: number;
   timezone?: string;
   overdue_notification_time?: string;

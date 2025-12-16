@@ -165,10 +165,11 @@ export const PageRoutes = () => {
       )}
     >
       <Routes location={displayLocation} key={displayKey}>
-        <Route path="/" element={<ProjectsPage />} />
+        <Route path="/" element={<MyTasksPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
-        <Route path="/tasks" element={<MyTasksPage />} />
+        <Route path="/tasks" element={<Navigate to="/" replace />} />
         <Route path="/tasks/:taskId" element={<TaskEditPage />} />
         <Route path="/initiatives" element={<InitiativesPage />} />
         <Route path="/initiatives/:initiativeId" element={<InitiativeDetailPage />} />

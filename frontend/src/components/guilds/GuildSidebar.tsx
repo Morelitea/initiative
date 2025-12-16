@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import {
   DndContext,
@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Guild } from "@/types/api";
+import { LogoIcon } from "../LogoIcon";
 
 const CreateGuildButton = () => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
@@ -78,16 +79,23 @@ const CreateGuildButton = () => {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !submitting && setOpen(next)}>
-      <DialogTrigger asChild>
-        <Button
-          variant="secondary"
-          size="icon"
-          className="border-muted-foreground/40 text-muted-foreground hover:bg-muted h-12 w-12 rounded-2xl border border-dashed bg-transparent"
-          aria-label="Create guild"
-        >
-          <Plus className="h-5 w-5" />
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger>
+          <DialogTrigger asChild>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="border-muted-foreground/40 text-muted-foreground hover:bg-muted h-12 w-12 rounded-2xl border border-dashed bg-transparent"
+              aria-label="Create guild"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>
+          <p>Create Guild</p>
+        </TooltipContent>
+      </Tooltip>
       <DialogContent className="bg-card max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create a new guild</DialogTitle>
@@ -233,10 +241,10 @@ export const GuildSidebar = () => {
 
     // Determine where to go based on current page
     const currentPath = location.pathname;
-    let targetPath = "/"; // Default to Project Dashboard
-    if (currentPath.startsWith("/tasks")) {
-      // My Tasks is safe to persist across guilds, is global, don't refresh
-      targetPath = "/tasks";
+    let targetPath = "/"; // Default to My Tasks
+    if (currentPath.startsWith("/projects")) {
+      // Projects are guild-scoped, so return to the list.
+      targetPath = "/projects";
     } else if (currentPath.startsWith("/initiatives")) {
       // Initiative detail IDs are guild-scoped, so return to the list.
       targetPath = "/initiatives";
@@ -254,7 +262,7 @@ export const GuildSidebar = () => {
 
     await switchGuild(guildId);
 
-    if (targetPath !== "/tasks") {
+    if (targetPath !== "/") {
       // My tasks is global, don't navigate/refresh
       navigate(targetPath);
     }
@@ -295,10 +303,20 @@ export const GuildSidebar = () => {
   }, []);
 
   return (
-    <aside className="bg-card/80 sticky top-0 hidden max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4 sm:flex">
-      <span className="text-muted-foreground text-center text-xs">Guilds</span>
-      <div className="flex flex-1 flex-col items-center gap-3 overflow-y-auto">
-        <TooltipProvider delayDuration={200}>
+    <aside className="bg-card/80 sticky top-0 flex max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4">
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link to="/" className="flex flex-col items-center">
+              <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+              <span className="text-primary text-s text-center">initiative</span>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={12}>
+            <p>My Tasks</p>
+          </TooltipContent>
+        </Tooltip>
+        <div className="flex flex-col items-center gap-3 overflow-y-auto border-t pt-3">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -331,14 +349,13 @@ export const GuildSidebar = () => {
               ) : null}
             </DragOverlay>
           </DndContext>
-        </TooltipProvider>
-      </div>
-      {canCreateGuilds ? (
-        <div className="border-border flex flex-col items-center gap-2 border-t pt-2">
-          <span className="text-muted-foreground text-center text-xs">Create Guild</span>
-          <CreateGuildButton />
         </div>
-      ) : null}
+        {canCreateGuilds ? (
+          <div className="flex flex-col items-center gap-2 border-t pt-3">
+            <CreateGuildButton />
+          </div>
+        ) : null}
+      </TooltipProvider>
     </aside>
   );
 };
