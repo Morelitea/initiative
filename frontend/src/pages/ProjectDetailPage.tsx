@@ -87,7 +87,7 @@ export const ProjectDetailPage = () => {
 
     const allowed = new Set<number>();
     allowed.add(project.owner_id);
-    project.permissions.forEach((permission) => allowed.add(permission.user_id));
+    project?.permissions?.forEach((permission) => allowed.add(permission.user_id));
     project.initiative?.members?.forEach((member) => {
       if (member.user) {
         allowed.add(member.user.id);
@@ -146,7 +146,7 @@ export const ProjectDetailPage = () => {
   );
   const isOwner = project.owner_id === user?.id;
   const isInitiativePm = initiativeMembership?.role === "project_manager";
-  const hasExplicitWrite = project.permissions.some(
+  const hasExplicitWrite = project?.permissions?.some(
     (permission) => permission.user_id === user?.id
   );
   const hasImplicitWrite = Boolean(project.members_can_write && initiativeMembership);
