@@ -211,6 +211,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   );
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
   const canCreateDocuments = lockedInitiativeId
     ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
     : manageableInitiatives.length > 0;
@@ -359,6 +360,49 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     },
   });
 
+  const deleteDocuments = useMutation({
+    mutationFn: async (documentIds: number[]) => {
+      await Promise.all(documentIds.map((id) => apiClient.delete(`/documents/${id}`)));
+    },
+    onSuccess: (_data, documentIds) => {
+      const count = documentIds.length;
+      toast.success(`${count} document${count === 1 ? "" : "s"} deleted`);
+      setSelectedDocuments([]);
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Unable to delete documents right now.";
+      toast.error(message);
+    },
+  });
+
+  const duplicateDocuments = useMutation({
+    mutationFn: async (documentsToClone: DocumentSummary[]) => {
+      const results = await Promise.all(
+        documentsToClone.map((doc) => {
+          const payload = {
+            target_initiative_id: doc.initiative?.id,
+            title: `${doc.title} (copy)`,
+          };
+          return apiClient.post<DocumentRead>(`/documents/${doc.id}/copy`, payload);
+        })
+      );
+      return results.map((r) => r.data);
+    },
+    onSuccess: (data) => {
+      const count = data.length;
+      toast.success(`${count} document${count === 1 ? "" : "s"} duplicated`);
+      setSelectedDocuments([]);
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Unable to duplicate documents right now.";
+      toast.error(message);
+    },
+  });
+
   const initiatives = initiativesQuery.data ?? [];
   const lockedInitiative = lockedInitiativeId
     ? (initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null)
@@ -489,16 +533,71 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
               ))}
             </div>
           ) : (
-            <DataTable
-              columns={documentColumns}
-              data={documents}
-              enableFilterInput
-              filterInputColumnKey="title"
-              filterInputPlaceholder="Filter by title..."
-              enableColumnVisibilityDropdown
-              enablePagination
-              enableResetSorting
-            />
+            <>
+              {selectedDocuments.length > 0 && (
+                <div className="border-primary bg-primary/5 flex items-center justify-between rounded-md border p-4">
+                  <div className="text-sm font-medium">
+                    {selectedDocuments.length} document{selectedDocuments.length === 1 ? "" : "s"}{" "}
+                    selected
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        duplicateDocuments.mutate(selectedDocuments);
+                      }}
+                      disabled={duplicateDocuments.isPending}
+                    >
+                      {duplicateDocuments.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Duplicating…
+                        </>
+                      ) : (
+                        "Duplicate"
+                      )}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Delete ${selectedDocuments.length} document${selectedDocuments.length === 1 ? "" : "s"}?`
+                          )
+                        ) {
+                          deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
+                        }
+                      }}
+                      disabled={deleteDocuments.isPending}
+                    >
+                      {deleteDocuments.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Deleting…
+                        </>
+                      ) : (
+                        "Delete"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <DataTable
+                columns={documentColumns}
+                data={documents}
+                enableFilterInput
+                filterInputColumnKey="title"
+                filterInputPlaceholder="Filter by title..."
+                enableColumnVisibilityDropdown
+                enablePagination
+                enableResetSorting
+                enableRowSelection
+                onRowSelectionChange={setSelectedDocuments}
+                getRowId={(row) => String(row.id)}
+              />
+            </>
           )
         ) : (
           <Card>
