@@ -77,9 +77,14 @@ const getDefaultFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
-export const ProjectsPage = () => {
+type ProjectsViewProps = {
+  fixedInitiativeId?: number;
+};
+
+export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const claimedManagedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
@@ -146,7 +151,9 @@ export const ProjectsPage = () => {
     },
   });
 
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(INITIATIVE_FILTER_ALL);
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(
+    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
+  );
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const lastConsumedFilterParams = useRef<string>("");
 
@@ -155,13 +162,22 @@ export const ProjectsPage = () => {
     const urlInitiativeId = searchParams.get("initiativeId");
     const paramKey = urlInitiativeId || "";
 
-    if (urlInitiativeId && paramKey !== lastConsumedFilterParams.current) {
+    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedFilterParams.current) {
       lastConsumedFilterParams.current = paramKey;
       setInitiativeFilter(urlInitiativeId);
       // Also set as default for create dialog
       setInitiativeId(urlInitiativeId);
     }
-  }, [searchParams]);
+  }, [searchParams, lockedInitiativeId]);
+
+  useEffect(() => {
+    if (lockedInitiativeId) {
+      const lockedValue = String(lockedInitiativeId);
+      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
+      // Also set as default for create dialog
+      setInitiativeId(lockedValue);
+    }
+  }, [lockedInitiativeId]);
   const unarchiveProject = useMutation({
     mutationFn: async (projectId: number) => {
       await apiClient.post(`/projects/${projectId}/unarchive`, {});
@@ -376,6 +392,10 @@ export const ProjectsPage = () => {
     return (initiativesQuery.data ?? []).sort((a, b) => a.name.localeCompare(b.name));
   }, [initiativesQuery.data]);
 
+  const lockedInitiative = lockedInitiativeId
+    ? (availableInitiatives.find((init) => init.id === lockedInitiativeId) ?? null)
+    : null;
+
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return projects.filter((project) => {
@@ -564,18 +584,22 @@ export const ProjectsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-baseline gap-4">
-          <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
-          {isProjectManager && (
-            <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Add Project
-            </Button>
-          )}
+      {!lockedInitiativeId && (
+        <div>
+          <div className="flex items-baseline gap-4">
+            <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
+            {isProjectManager && (
+              <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add Project
+              </Button>
+            )}
+          </div>
+          <p className="text-muted-foreground">
+            Track initiatives and collaborate with your guild.
+          </p>
         </div>
-        <p className="text-muted-foreground">Track initiatives and collaborate with your guild.</p>
-      </div>
+      )}
 
       <Tabs
         value={tabValue}
@@ -599,6 +623,12 @@ export const ProjectsPage = () => {
 
         <TabsContent value="active" className="space-y-4">
           <div className="flex flex-wrap items-center justify-end gap-3">
+            {isProjectManager && lockedInitiativeId && (
+              <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add Project
+              </Button>
+            )}
             <Tabs
               value={viewMode}
               onValueChange={(value) => setViewMode(value as "grid" | "list")}
@@ -650,27 +680,36 @@ export const ProjectsPage = () => {
                     className="min-w-60"
                   />
                 </div>
-                <div className="w-full sm:w-60">
-                  <Label
-                    htmlFor="project-initiative-filter"
-                    className="text-muted-foreground text-xs font-medium"
-                  >
-                    Filter by initiative
-                  </Label>
-                  <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-                    <SelectTrigger id="project-initiative-filter">
-                      <SelectValue placeholder="All initiatives" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                      {availableInitiatives.map((initiative) => (
-                        <SelectItem key={initiative.id} value={initiative.id.toString()}>
-                          {initiative.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {lockedInitiativeId ? (
+                  <div className="w-full sm:w-60">
+                    <Label className="text-muted-foreground text-xs font-medium">Initiative</Label>
+                    <p className="text-sm font-medium">
+                      {lockedInitiative?.name ?? "Selected initiative"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="w-full sm:w-60">
+                    <Label
+                      htmlFor="project-initiative-filter"
+                      className="text-muted-foreground text-xs font-medium"
+                    >
+                      Filter by initiative
+                    </Label>
+                    <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
+                      <SelectTrigger id="project-initiative-filter">
+                        <SelectValue placeholder="All initiatives" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                        {availableInitiatives.map((initiative) => (
+                          <SelectItem key={initiative.id} value={initiative.id.toString()}>
+                            {initiative.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="w-full sm:w-60">
                   <Label
                     htmlFor="project-sort"
@@ -846,154 +885,161 @@ export const ProjectsPage = () => {
         </TabsContent>
       </Tabs>
 
-      {isProjectManager ? (
-        <>
-          <Button
-            className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
-            onClick={() => setIsComposerOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            Add Project
-          </Button>
-          <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
-            <DialogContent className="bg-card max-h-screen overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create project</DialogTitle>
-                <DialogDescription>
-                  Give the project a name, optional description, and owning initiative.
-                </DialogDescription>
-              </DialogHeader>
-              <form className="w-full max-w-lg" onSubmit={handleSubmit}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="project-icon">Icon (optional)</Label>
-                    <EmojiPicker
-                      id="project-icon"
-                      value={icon || undefined}
-                      onChange={(emoji) => setIcon(emoji ?? "")}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-name">Name</Label>
-                    <Input
-                      id="project-name"
-                      placeholder="Foundation refresh"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-description">Description (Markdown supported)</Label>
-                    <Textarea
-                      id="project-description"
-                      placeholder="Share context to help the initiative prioritize."
-                      rows={3}
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Initiative</Label>
-                    {initiativesQuery.isLoading ? (
-                      <p className="text-muted-foreground text-sm">Loading initiatives…</p>
-                    ) : initiativesQuery.isError ? (
-                      <p className="text-destructive text-sm">Unable to load initiatives.</p>
-                    ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
-                      <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select initiative" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {initiativesQuery.data.map((initiative) => (
-                            <SelectItem key={initiative.id} value={String(initiative.id)}>
-                              {initiative.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">No initiatives available.</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-template">Template (optional)</Label>
-                    {templatesQuery.isLoading ? (
-                      <p className="text-muted-foreground text-sm">Loading templates…</p>
-                    ) : templatesQuery.isError ? (
-                      <p className="text-destructive text-sm">Unable to load templates.</p>
-                    ) : (
-                      <Select
-                        value={selectedTemplateId}
-                        onValueChange={setSelectedTemplateId}
-                        disabled={isTemplateProject}
-                      >
-                        <SelectTrigger id="project-template">
-                          <SelectValue placeholder="No template" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
-                          {templatesQuery.data?.map((template) => (
-                            <SelectItem key={template.id} value={String(template.id)}>
-                              {template.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {isTemplateProject ? (
-                      <p className="text-muted-foreground text-xs">
-                        Disable &ldquo;Save as template&rdquo; to pick a template.
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <Label htmlFor="create-as-template" className="text-base">
-                        Save as template
-                      </Label>
-                      <p className="text-muted-foreground text-xs">
-                        Template projects live under the Templates tab and can be reused to spin up
-                        new work.
-                      </p>
-                    </div>
-                    <Switch
-                      id="create-as-template"
-                      checked={isTemplateProject}
-                      onCheckedChange={(checked) => {
-                        const nextStatus = Boolean(checked);
-                        setIsTemplateProject(nextStatus);
-                        if (nextStatus) {
-                          setSelectedTemplateId(NO_TEMPLATE_VALUE);
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={createProject.isPending}>
-                      {createProject.isPending ? "Creating…" : "Create project"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={createProject.isPending}
-                      onClick={() => setIsComposerOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    {createProject.isError ? (
-                      <p className="text-destructive text-sm">Unable to create project.</p>
-                    ) : null}
-                  </div>
+      {isProjectManager && (
+        <Button
+          className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
+          onClick={() => setIsComposerOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Add Project
+        </Button>
+      )}
+
+      {isProjectManager && (
+        <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+          <DialogContent className="bg-card max-h-screen overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create project</DialogTitle>
+              <DialogDescription>
+                Give the project a name, optional description, and owning initiative.
+              </DialogDescription>
+            </DialogHeader>
+            <form className="w-full max-w-lg" onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="project-icon">Icon (optional)</Label>
+                  <EmojiPicker
+                    id="project-icon"
+                    value={icon || undefined}
+                    onChange={(emoji) => setIcon(emoji ?? "")}
+                  />
                 </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </>
-      ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="project-name">Name</Label>
+                  <Input
+                    id="project-name"
+                    placeholder="Foundation refresh"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="project-description">Description (Markdown supported)</Label>
+                  <Textarea
+                    id="project-description"
+                    placeholder="Share context to help the initiative prioritize."
+                    rows={3}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Initiative</Label>
+                  {lockedInitiativeId ? (
+                    <div className="rounded-md border px-3 py-2 text-sm">
+                      {lockedInitiative?.name ?? "Selected initiative"}
+                    </div>
+                  ) : initiativesQuery.isLoading ? (
+                    <p className="text-muted-foreground text-sm">Loading initiatives…</p>
+                  ) : initiativesQuery.isError ? (
+                    <p className="text-destructive text-sm">Unable to load initiatives.</p>
+                  ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
+                    <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select initiative" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {initiativesQuery.data.map((initiative) => (
+                          <SelectItem key={initiative.id} value={String(initiative.id)}>
+                            {initiative.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No initiatives available.</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="project-template">Template (optional)</Label>
+                  {templatesQuery.isLoading ? (
+                    <p className="text-muted-foreground text-sm">Loading templates…</p>
+                  ) : templatesQuery.isError ? (
+                    <p className="text-destructive text-sm">Unable to load templates.</p>
+                  ) : (
+                    <Select
+                      value={selectedTemplateId}
+                      onValueChange={setSelectedTemplateId}
+                      disabled={isTemplateProject}
+                    >
+                      <SelectTrigger id="project-template">
+                        <SelectValue placeholder="No template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
+                        {templatesQuery.data?.map((template) => (
+                          <SelectItem key={template.id} value={String(template.id)}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {isTemplateProject ? (
+                    <p className="text-muted-foreground text-xs">
+                      Disable &ldquo;Save as template&rdquo; to pick a template.
+                    </p>
+                  ) : null}
+                </div>
+                <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label htmlFor="create-as-template" className="text-base">
+                      Save as template
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      Template projects live under the Templates tab and can be reused to spin up
+                      new work.
+                    </p>
+                  </div>
+                  <Switch
+                    id="create-as-template"
+                    checked={isTemplateProject}
+                    onCheckedChange={(checked) => {
+                      const nextStatus = Boolean(checked);
+                      setIsTemplateProject(nextStatus);
+                      if (nextStatus) {
+                        setSelectedTemplateId(NO_TEMPLATE_VALUE);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={createProject.isPending}>
+                    {createProject.isPending ? "Creating…" : "Create project"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={createProject.isPending}
+                    onClick={() => setIsComposerOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  {createProject.isError ? (
+                    <p className="text-destructive text-sm">Unable to create project.</p>
+                  ) : null}
+                </div>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
+
+export const ProjectsPage = () => <ProjectsView />;
 
 const SortableProjectCardLink = ({
   project,

@@ -411,38 +411,68 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-baseline gap-4">
-            <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-            {canCreateDocuments ? (
-              <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4" />
-                New document
-              </Button>
-            ) : null}
+      {!lockedInitiativeId && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-baseline gap-4">
+              <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
+              {canCreateDocuments ? (
+                <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  New document
+                </Button>
+              ) : null}
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Keep initiative knowledge organized and attach docs to projects.
+            </p>
           </div>
-          <p className="text-muted-foreground text-sm">
-            Keep initiative knowledge organized and attach docs to projects.
-          </p>
+          <Tabs
+            value={viewMode}
+            onValueChange={(value) => setViewMode(value as "grid" | "table")}
+            className="w-auto"
+          >
+            <TabsList className="grid grid-cols-2">
+              <TabsTrigger value="grid" className="inline-flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Grid
+              </TabsTrigger>
+              <TabsTrigger value="list" className="inline-flex items-center gap-2">
+                <Table className="h-4 w-4" />
+                Table
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-        <Tabs
-          value={viewMode}
-          onValueChange={(value) => setViewMode(value as "grid" | "table")}
-          className="w-auto"
-        >
-          <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4" />
-              Grid
-            </TabsTrigger>
-            <TabsTrigger value="list" className="inline-flex items-center gap-2">
-              <Table className="h-4 w-4" />
-              Table
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      )}
+
+      {lockedInitiativeId && (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {canCreateDocuments && (
+            <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New document
+            </Button>
+          )}
+          <Tabs
+            value={viewMode}
+            onValueChange={(value) => setViewMode(value as "grid" | "table")}
+            className="w-auto"
+          >
+            <TabsList className="grid grid-cols-2">
+              <TabsTrigger value="grid" className="inline-flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Grid
+              </TabsTrigger>
+              <TabsTrigger value="list" className="inline-flex items-center gap-2">
+                <Table className="h-4 w-4" />
+                Table
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
+
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
         <div className="flex items-center justify-between sm:hidden">
           <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">

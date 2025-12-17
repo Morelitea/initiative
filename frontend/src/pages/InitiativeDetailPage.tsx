@@ -1,22 +1,20 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutGrid, List, Loader2, Settings } from "lucide-react";
+import { Loader2, Settings } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { DocumentsView } from "./DocumentsPage";
-import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
+import { ProjectsView } from "./ProjectsPage";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { Markdown } from "@/components/Markdown";
-import type { Initiative, Project } from "@/types/api";
+import type { Initiative } from "@/types/api";
 
 export const InitiativeDetailPage = () => {
   const { initiativeId: initiativeIdParam } = useParams();
@@ -39,15 +37,6 @@ export const InitiativeDetailPage = () => {
     enabled: hasValidInitiativeId,
   });
 
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
-    enabled: hasValidInitiativeId,
-  });
-
   const initiative =
     hasValidInitiativeId && initiativesQuery.data
       ? (initiativesQuery.data.find((item) => item.id === initiativeId) ?? null)
@@ -56,39 +45,10 @@ export const InitiativeDetailPage = () => {
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
   const isInitiativeManager = membership?.role === "project_manager";
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
-  const canPinProjects = Boolean(user?.role === "admin" || isInitiativeManager);
 
   const [activeTab, setActiveTab] = useState<"documents" | "projects">("documents");
-  const [projectSearch, setProjectSearch] = useState("");
-  const [projectView, setProjectView] = useState<"grid" | "list">("grid");
-
-  const filteredProjects = useMemo(() => {
-    if (!hasValidInitiativeId || !projectsQuery.data) {
-      return [];
-    }
-    return projectsQuery.data.filter(
-      (project) =>
-        project.initiative_id === initiativeId && !project.is_archived && !project.is_template
-    );
-  }, [projectsQuery.data, initiativeId, hasValidInitiativeId]);
-
-  const visibleProjects = useMemo(() => {
-    const normalizedSearch = projectSearch.trim().toLowerCase();
-    const byUpdated = filteredProjects
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(Boolean(b.pinned_at)) - Number(Boolean(a.pinned_at)) ||
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
-    if (!normalizedSearch) {
-      return byUpdated;
-    }
-    return byUpdated.filter((project) => project.name.toLowerCase().includes(normalizedSearch));
-  }, [filteredProjects, projectSearch]);
 
   const memberCount = initiative?.members.length ?? 0;
-  const projectCount = filteredProjects.length;
 
   const roleBadgeLabel = membership
     ? membership.role === "project_manager"
@@ -149,9 +109,6 @@ export const InitiativeDetailPage = () => {
             <span>
               {memberCount} {memberCount === 1 ? "member" : "members"}
             </span>
-            <span>
-              {projectCount} {projectCount === 1 ? "project" : "projects"}
-            </span>
             <span>Updated {new Date(initiative.updated_at).toLocaleDateString()}</span>
           </div>
         </div>
@@ -178,77 +135,8 @@ export const InitiativeDetailPage = () => {
         <TabsContent value="documents" className="mt-6">
           <DocumentsView key={`documents-${initiative.id}`} fixedInitiativeId={initiative.id} />
         </TabsContent>
-        <TabsContent value="projects" className="mt-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-[220px] flex-1 space-y-1">
-              <Label htmlFor="initiative-project-search" className="text-muted-foreground text-xs">
-                Search projects
-              </Label>
-              <Input
-                id="initiative-project-search"
-                value={projectSearch}
-                onChange={(event) => setProjectSearch(event.target.value)}
-                placeholder="Search by name"
-              />
-            </div>
-            <Tabs
-              value={projectView}
-              onValueChange={(value) => setProjectView(value as "grid" | "list")}
-              className="w-auto"
-            >
-              <TabsList className="grid grid-cols-2">
-                <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4" />
-                  Grid
-                </TabsTrigger>
-                <TabsTrigger value="list" className="inline-flex items-center gap-2">
-                  <List className="h-4 w-4" />
-                  List
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          {projectsQuery.isLoading ? (
-            <div className="text-muted-foreground flex items-center gap-2 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading projects…
-            </div>
-          ) : null}
-          {projectsQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load projects right now.</p>
-          ) : null}
-          {!projectsQuery.isLoading && !projectsQuery.isError ? (
-            visibleProjects.length > 0 ? (
-              projectView === "grid" ? (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {visibleProjects.map((project) => (
-                    <ProjectCardLink
-                      key={project.id}
-                      project={project}
-                      canPinProjects={canPinProjects}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {visibleProjects.map((project) => (
-                    <ProjectRowLink
-                      key={project.id}
-                      project={project}
-                      canPinProjects={canPinProjects}
-                    />
-                  ))}
-                </div>
-              )
-            ) : (
-              <div className="rounded-lg border p-6 text-center">
-                <p className="font-medium">No projects yet</p>
-                <p className="text-muted-foreground text-sm">
-                  Projects tied to this initiative will appear here.
-                </p>
-              </div>
-            )
-          ) : null}
+        <TabsContent value="projects" className="mt-6">
+          <ProjectsView key={`projects-${initiative.id}`} fixedInitiativeId={initiative.id} />
         </TabsContent>
       </Tabs>
     </div>
