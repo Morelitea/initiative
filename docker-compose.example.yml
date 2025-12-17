@@ -16,12 +16,12 @@ services:
       retries: 5
 
   initiative:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api/v1
+    # Use the published Docker image from Docker Hub
+    # Available tags: latest, 0.1, 0.1.1, etc.
+    # See: https://hub.docker.com/r/morelitea/initiative
+    image: morelitea/initiative:latest
     container_name: initiative
+    restart: unless-stopped
     volumes:
       - ./uploads:/app/uploads
     environment:
@@ -29,6 +29,13 @@ services:
       SECRET_KEY: super-secret-key
       ACCESS_TOKEN_EXPIRE_MINUTES: 10080
       APP_URL: ${APP_URL:-http://localhost:8173}
+      # Optional: Enable OIDC authentication
+      # OIDC_ENABLED: true
+      # OIDC_DISCOVERY_URL: https://your-oidc-provider/.well-known/openid-configuration
+      # OIDC_CLIENT_ID: your-client-id
+      # OIDC_CLIENT_SECRET: your-client-secret
+      # OIDC_PROVIDER_NAME: Your Provider Name
+      # OIDC_SCOPES: openid,profile,email
     depends_on:
       db:
         condition: service_healthy

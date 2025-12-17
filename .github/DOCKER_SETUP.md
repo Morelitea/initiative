@@ -84,14 +84,44 @@ Once published, pull and run the image:
 
 ```bash
 # Pull the latest version
-docker pull username/initiative:latest
+docker pull morelitea/initiative:latest
 
-# Or use docker-compose
-services:
-  initiative:
-    image: username/initiative:latest
-    # ... rest of your config
+# Or pull a specific version
+docker pull morelitea/initiative:0.1.1
 ```
+
+### Quick Start with Docker Compose
+
+The easiest way to run Initiative is using the provided docker-compose configuration:
+
+```bash
+# Copy the example compose file
+cp docker-compose.example.yml docker-compose.yml
+
+# Start the application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f initiative
+```
+
+The example configuration includes:
+- PostgreSQL 17 database
+- Initiative application (latest version from Docker Hub)
+- Automatic health checks and restart policies
+- Volume mounting for persistent uploads
+- Sensible defaults for quick setup
+
+**Important**: Update the `SECRET_KEY` in docker-compose.yml for production use!
+
+### Custom Configuration
+
+Edit docker-compose.yml to customize:
+- Database credentials
+- Port mappings
+- OIDC authentication settings
+- API token expiration
+- Application URL
 
 ## Troubleshooting
 

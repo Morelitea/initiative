@@ -288,15 +288,29 @@ The GitHub Actions workflow will:
 
 ### Using Published Images
 
-Pull and run the latest version:
+The easiest way to get started is with docker-compose:
+
 ```bash
-docker pull username/initiative:latest
-docker-compose up
+# Copy the example configuration
+cp docker-compose.example.yml docker-compose.yml
+
+# Update SECRET_KEY and other settings as needed
+nano docker-compose.yml
+
+# Start the application
+docker-compose up -d
 ```
 
-Or use a specific version:
+This will:
+- Pull the latest image from Docker Hub (`morelitea/initiative:latest`)
+- Start PostgreSQL 17 database
+- Configure automatic restarts and health checks
+- Mount persistent volumes for uploads
+
+Or pull and run manually:
 ```bash
-docker pull username/initiative:0.1.1
+docker pull morelitea/initiative:latest
+docker pull morelitea/initiative:0.1.1  # specific version
 ```
 
 ### Manual Deployment
