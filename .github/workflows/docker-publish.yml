@@ -26,6 +26,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check for required secrets
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error::Required secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set"
+            echo "::error::Please configure these secrets in your repository settings"
+            echo "::error::See .github/DOCKER_SETUP.md for instructions"
+            exit 1
+          fi
+          echo "✓ Required secrets are configured"
+
       - name: Extract version from tag
         id: version
         run: |

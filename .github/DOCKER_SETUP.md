@@ -18,6 +18,8 @@ This document explains how to configure Docker Hub deployment for the Initiative
 
 ## Step 2: Configure GitHub Secrets
 
+**IMPORTANT**: These secrets are required for the workflow to run. The build will fail with a clear error if they are not configured.
+
 1. Go to your GitHub repository
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
@@ -27,6 +29,8 @@ This document explains how to configure Docker Hub deployment for the Initiative
    |------|-------|-------------|
    | `DOCKERHUB_USERNAME` | Your Docker Hub username | Used to log in to Docker Hub |
    | `DOCKERHUB_TOKEN` | The access token from Step 1 | Used for authentication |
+
+**Note**: Until these secrets are configured, version tags will trigger the workflow but it will fail early with an error message directing you to this documentation.
 
 ## Step 3: Verify Setup
 
