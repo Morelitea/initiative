@@ -79,6 +79,21 @@ export const ProjectTaskStatusesManager = ({
   canManage,
 }: ProjectTaskStatusesManagerProps) => {
   const getErrorMessage = (error: unknown, fallback: string) => {
+    // Check for axios error with response data
+    if (
+      error &&
+      typeof error === "object" &&
+      "response" in error &&
+      error.response &&
+      typeof error.response === "object" &&
+      "data" in error.response
+    ) {
+      const data = error.response.data as Record<string, unknown>;
+      if (data.detail && typeof data.detail === "string") {
+        return data.detail;
+      }
+    }
+    // Check for standard Error object
     if (error instanceof Error && error.message) {
       return error.message;
     }
@@ -249,8 +264,9 @@ export const ProjectTaskStatusesManager = ({
     }));
   };
 
-  const handleSaveAll = () => {
-    const updates: Array<{ statusId: number; data: Record<string, unknown> }> = [];
+  const handleSaveAll = async () => {
+    const updates: Array<{ statusId: number; data: Record<string, unknown>; statusName: string }> =
+      [];
 
     orderedStatuses.forEach((status) => {
       const draft = drafts[status.id];
@@ -266,7 +282,7 @@ export const ProjectTaskStatusesManager = ({
         payload.category = draft.category;
       }
       if (Object.keys(payload).length > 0) {
-        updates.push({ statusId: status.id, data: payload });
+        updates.push({ statusId: status.id, data: payload, statusName: status.name });
       }
     });
 
@@ -275,19 +291,39 @@ export const ProjectTaskStatusesManager = ({
       return;
     }
 
-    // Execute all updates in parallel
-    Promise.all(
+    // Execute all updates with individual error handling
+    const results = await Promise.allSettled(
       updates.map(({ statusId, data }) =>
         apiClient.patch<ProjectTaskStatus>(`${basePath}/${statusId}`, data)
       )
-    )
-      .then(() => {
-        toast.success(`${updates.length} status${updates.length === 1 ? "" : "es"} updated`);
-        invalidateStatuses();
-      })
-      .catch((error) => {
-        toast.error(getErrorMessage(error, "Unable to update statuses"));
+    );
+
+    const succeeded: string[] = [];
+    const failed: Array<{ statusName: string; error: string }> = [];
+
+    results.forEach((result, index) => {
+      const update = updates[index];
+      if (result.status === "fulfilled") {
+        succeeded.push(update.statusName);
+      } else {
+        failed.push({
+          statusName: update.statusName,
+          error: getErrorMessage(result.reason, "Unknown error"),
+        });
+      }
+    });
+
+    if (succeeded.length > 0) {
+      toast.success(`${succeeded.length} status${succeeded.length === 1 ? "" : "es"} updated`);
+    }
+
+    if (failed.length > 0) {
+      failed.forEach(({ statusName, error }) => {
+        toast.error(`Failed to update "${statusName}": ${error}`);
       });
+    }
+
+    invalidateStatuses();
   };
 
   const hasChanges = useMemo(() => {

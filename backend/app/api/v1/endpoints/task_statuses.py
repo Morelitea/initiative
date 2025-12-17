@@ -88,7 +88,7 @@ async def _ensure_category_not_last(
         .where(TaskStatus.project_id == project_id, TaskStatus.category == target.category)
     )
     result = await session.exec(stmt)
-    count = result.scalar_one()
+    count = result.one()
     if count <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
