@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import attachments, auth, comments, documents, events, guilds, initiatives, notifications, projects, settings, task_statuses, tasks, users
+from app.api.v1.endpoints import attachments, auth, comments, documents, events, guilds, initiatives, notifications, projects, settings, task_statuses, tasks, users, version
 
 api_router = APIRouter()
+api_router.include_router(version.router, tags=["version"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

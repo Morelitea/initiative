@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.version import __version__
 from app.db.session import AsyncSessionLocal, run_migrations
 from app.services import app_settings as app_settings_service
 from app.services import notifications as notifications_service
@@ -28,6 +29,7 @@ reserved_prefixes = [
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    version=__version__,
     docs_url=f"{settings.API_V1_STR}/docs",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     redoc_url=None,
