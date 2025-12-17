@@ -249,25 +249,60 @@ export const ProjectTaskStatusesManager = ({
     }));
   };
 
-  const handleSave = (status: ProjectTaskStatus) => {
-    const draft = drafts[status.id];
-    if (!draft) {
-      return;
-    }
-    const payload: Record<string, unknown> = {};
-    const trimmedName = draft.name.trim();
-    if (trimmedName && trimmedName !== status.name) {
-      payload.name = trimmedName;
-    }
-    if (draft.category && draft.category !== status.category) {
-      payload.category = draft.category;
-    }
-    if (Object.keys(payload).length === 0) {
+  const handleSaveAll = () => {
+    const updates: Array<{ statusId: number; data: Record<string, unknown> }> = [];
+
+    orderedStatuses.forEach((status) => {
+      const draft = drafts[status.id];
+      if (!draft) {
+        return;
+      }
+      const payload: Record<string, unknown> = {};
+      const trimmedName = draft.name.trim();
+      if (trimmedName && trimmedName !== status.name) {
+        payload.name = trimmedName;
+      }
+      if (draft.category && draft.category !== status.category) {
+        payload.category = draft.category;
+      }
+      if (Object.keys(payload).length > 0) {
+        updates.push({ statusId: status.id, data: payload });
+      }
+    });
+
+    if (updates.length === 0) {
       toast.info("No changes to save");
       return;
     }
-    updateStatus.mutate({ statusId: status.id, data: payload });
+
+    // Execute all updates in parallel
+    Promise.all(
+      updates.map(({ statusId, data }) =>
+        apiClient.patch<ProjectTaskStatus>(`${basePath}/${statusId}`, data)
+      )
+    )
+      .then(() => {
+        toast.success(`${updates.length} status${updates.length === 1 ? "" : "es"} updated`);
+        invalidateStatuses();
+      })
+      .catch((error) => {
+        toast.error(getErrorMessage(error, "Unable to update statuses"));
+      });
   };
+
+  const hasChanges = useMemo(() => {
+    return orderedStatuses.some((status) => {
+      const draft = drafts[status.id];
+      if (!draft) {
+        return false;
+      }
+      const trimmedName = draft.name.trim();
+      return (
+        (trimmedName && trimmedName !== status.name) ||
+        (draft.category && draft.category !== status.category)
+      );
+    });
+  }, [orderedStatuses, drafts]);
 
   const handleDefaultChange = (statusId: number) => {
     if (statusId === defaultStatusId) {
@@ -354,7 +389,22 @@ export const ProjectTaskStatusesManager = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold">Existing statuses</h4>
-            {isLoading ? <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" /> : null}
+            <div className="flex items-center gap-2">
+              {isLoading ? (
+                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+              ) : null}
+              {canManage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveAll}
+                  disabled={!hasChanges || updateStatus.isPending}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Save changes
+                </Button>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto rounded-md border">
             <Table>
@@ -364,7 +414,7 @@ export const ProjectTaskStatusesManager = ({
                   <TableHead className="min-w-40">Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead className="w-24 text-center">Default</TableHead>
-                  <TableHead className="w-32 text-right">Actions</TableHead>
+                  <TableHead className="w-20 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -381,7 +431,6 @@ export const ProjectTaskStatusesManager = ({
                         disabled={!canManage}
                         isDefault={status.id === defaultStatusId}
                         onFieldChange={handleFieldChange}
-                        onSave={handleSave}
                         onSetDefault={handleDefaultChange}
                         onDelete={() => {
                           setDeleteTarget(status);
@@ -462,7 +511,6 @@ interface SortableStatusRowProps {
   disabled: boolean;
   isDefault: boolean;
   onFieldChange: (statusId: number, field: "name" | "category", value: string) => void;
-  onSave: (status: ProjectTaskStatus) => void;
   onSetDefault: (statusId: number) => void;
   onDelete: () => void;
 }
@@ -473,7 +521,6 @@ const SortableStatusRow = ({
   disabled,
   isDefault,
   onFieldChange,
-  onSave,
   onSetDefault,
   onDelete,
 }: SortableStatusRowProps) => {
@@ -539,20 +586,15 @@ const SortableStatusRow = ({
         />
       </TableCell>
       <TableCell className="text-right">
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => onSave(status)} disabled={disabled}>
-            <Save className="mr-1 h-4 w-4" /> Save
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={onDelete}
-            disabled={disabled}
-          >
-            <Trash2 className="mr-1 h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={onDelete}
+          disabled={disabled}
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+        </Button>
       </TableCell>
     </TableRow>
   );
