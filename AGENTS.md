@@ -157,6 +157,68 @@ For more details, see README.md and QUICKSTART.md.
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters.
 
+## Versioning
+
+This project uses **semantic versioning** (semver) with a single source of truth: the `VERSION` file at the project root.
+
+### How Versioning Works
+
+- **Single source**: The `VERSION` file contains the current version (e.g., `0.1.0`)
+- **Backend**: Reads VERSION file and exposes via `/api/v1/version` endpoint and OpenAPI schema
+- **Frontend**: Vite injects VERSION as `__APP_VERSION__` constant, displayed in the sidebar footer
+- **Docker**: VERSION is copied into the image and set as OCI labels
+
+### Bumping the Version
+
+Use the provided script to bump versions:
+
+```bash
+./scripts/bump-version.sh
+```
+
+This interactive script will:
+1. Show the current version
+2. Offer bump options: patch, minor, major, or custom
+3. Update the VERSION file
+4. Create a git commit with message `bump version to X.Y.Z`
+5. Create a git tag `vX.Y.Z`
+
+After running the script, push changes:
+```bash
+git push && git push --tags
+```
+
+### Manual Version Bump
+
+If you prefer to bump manually:
+
+```bash
+# Update VERSION file
+echo "0.2.0" > VERSION
+
+# Commit and tag
+git add VERSION
+git commit -m "bump version to 0.2.0"
+git tag v0.2.0
+git push && git push --tags
+```
+
+### Semantic Versioning Guidelines
+
+- **MAJOR** (1.0.0): Breaking changes, incompatible API changes
+- **MINOR** (0.2.0): New features, backward-compatible additions
+- **PATCH** (0.1.1): Bug fixes, backward-compatible fixes
+
+### Docker Builds with Specific Versions
+
+Build Docker images with version labels:
+```bash
+export VERSION=$(cat VERSION)
+docker-compose build --build-arg VERSION=$VERSION
+```
+
+The version will be included as OCI image labels and available in the container.
+
 ## Coding Style & Naming Conventions
 
 Python uses 4-space indentation, full type hints, `snake_case` modules/functions, and `PascalCase` SQLModel or schema classes; keep routing thin and push validation to `schemas` and `services`. React components are `PascalCase` files, hooks follow the `useThing` convention, and shared helpers live in `frontend/src/lib` or `api`. Ruff and ESLint must pass before opening a PR.
