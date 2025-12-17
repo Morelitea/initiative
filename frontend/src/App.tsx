@@ -9,6 +9,7 @@ import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySid
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
+import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { apiClient } from "@/api/client";
 import type { Project } from "@/types/api";
 import { PageRoutes } from "@/PageRoutes";
@@ -57,6 +58,7 @@ const NavigatePage = lazy(() =>
 const AppLayout = () => {
   const { activeGuildId } = useGuilds();
   useRealtimeUpdates();
+  useVersionCheck();
 
   const location = useLocation();
   const queryClient = useQueryClient();
