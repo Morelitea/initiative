@@ -241,7 +241,77 @@ Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EM
 - Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project configuration, and can delete their guild; they cannot delete users from the entire app. Keep server-side checks scoped to guild roles, not legacy global roles.
 - The bootstrap super user (ID `1`) is the only account allowed to change app-wide configuration (OIDC, SMTP email, branding accents, role labels). Those routes live under `/settings/admin` in the SPA and corresponding `/api/v1/settings/*` endpoints check for that ID explicitly.
 - `.env` supports `DISABLE_GUILD_CREATION`. When set to `true`, POST `/guilds/` must return 403 and the frontend should hide “Create guild” affordances, forcing new users to redeem invites issued by guild admins.
-- Every new guild automatically seeds a “Default Initiative” and makes the creator a guild admin. Be mindful when writing migrations or services so this invariant remains intact, especially when cascading deletes (guild deletion must clean up initiatives, projects, tasks, memberships, and settings).
+- Every new guild automatically seeds a "Default Initiative" and makes the creator a guild admin. Be mindful when writing migrations or services so this invariant remains intact, especially when cascading deletes (guild deletion must clean up initiatives, projects, tasks, memberships, and settings).
+
+## Docker Deployment
+
+This project uses GitHub Actions to automatically build and publish Docker images to Docker Hub.
+
+### How It Works
+
+- **Automatic builds**: Triggered when you push version tags (e.g., `v0.1.1`)
+- **Multi-arch support**: Builds for both `linux/amd64` and `linux/arm64` (Apple Silicon)
+- **Multiple tags**: Creates `latest`, `1`, `1.2`, and `1.2.3` tags for flexibility
+- **Version injection**: Builds Docker images with the correct VERSION from tags
+
+### Setup Requirements
+
+**First-time setup** (see `.github/DOCKER_SETUP.md` for details):
+1. Create a Docker Hub access token with Read & Write permissions
+2. Add GitHub secrets:
+   - `DOCKERHUB_USERNAME` - Your Docker Hub username
+   - `DOCKERHUB_TOKEN` - Your Docker Hub access token
+
+### Deployment Workflow
+
+The typical deployment process:
+
+```bash
+# 1. Bump version and create tag
+./scripts/bump-version.sh
+
+# 2. Push to trigger Docker build
+git push && git push --tags
+
+# 3. Monitor build progress
+# Go to: GitHub → Actions → "Build and Push Docker Image"
+
+# 4. Verify on Docker Hub
+# Check: https://hub.docker.com/r/USERNAME/initiative/tags
+```
+
+The GitHub Actions workflow will:
+- Build the Docker image with the new version
+- Tag it appropriately (e.g., `latest`, `0.1`, `0.1.1`)
+- Push to Docker Hub
+- Support both x86_64 and ARM architectures
+
+### Using Published Images
+
+Pull and run the latest version:
+```bash
+docker pull username/initiative:latest
+docker-compose up
+```
+
+Or use a specific version:
+```bash
+docker pull username/initiative:0.1.1
+```
+
+### Manual Deployment
+
+To trigger a build without a version tag:
+1. Go to GitHub Actions → "Build and Push Docker Image"
+2. Click "Run workflow"
+3. Optionally specify a custom tag
+
+### Important Notes
+
+- Images include the VERSION file and expose version via `/api/v1/version`
+- Frontend version checking will detect new deployments automatically
+- Builds use GitHub Actions cache for faster subsequent builds
+- Both backend and frontend are bundled in a single image
 
 ## Landing the Plane (Session Completion)
 
