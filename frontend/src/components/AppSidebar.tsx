@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+
+import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import {
   Settings,
   Plus,
@@ -54,6 +56,9 @@ export const AppSidebar = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
   const location = useLocation();
+
+  // Auto-close sidebar on mobile after navigation
+  useAutoCloseSidebar();
 
   const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
   const isSuperUser = user?.id === 1;

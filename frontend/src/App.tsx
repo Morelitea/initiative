@@ -104,16 +104,16 @@ const AppLayout = () => {
           style={
             {
               "--sidebar-width": "20rem",
-              "--sidebar-width-mobile": "80vw",
+              "--sidebar-width-mobile": "90vw",
             } as React.CSSProperties
           }
         >
           <AppSidebar />
           <div className="bg-muted/50 min-w-0 flex-1 md:pl-0">
-            <div className="flex">
+            <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-10 flex border-b backdrop-blur">
               <SidebarTrigger
                 icon={<Menu />}
-                className="h-12 w-12 shrink-0 rounded-none border-r border-b lg:hidden"
+                className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
               />
               <div className="min-w-0 flex-1">
                 <ProjectTabsBar
