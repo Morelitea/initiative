@@ -78,6 +78,11 @@ const SettingsUsersPage = lazy(() =>
     default: module.SettingsUsersPage,
   }))
 );
+const SettingsPlatformUsersPage = lazy(() =>
+  import("./pages/SettingsPlatformUsersPage").then((module) => ({
+    default: module.SettingsPlatformUsersPage,
+  }))
+);
 const SettingsAuthPage = lazy(() =>
   import("./pages/SettingsAuthPage").then((module) => ({
     default: module.SettingsAuthPage,
@@ -206,6 +211,7 @@ export const PageRoutes = () => {
           <Route path="auth" element={<SettingsAuthPage />} />
           <Route path="branding" element={<SettingsBrandingPage />} />
           <Route path="email" element={<SettingsEmailPage />} />
+          <Route path="users" element={<SettingsPlatformUsersPage />} />
         </Route>
       </Routes>
     </div>

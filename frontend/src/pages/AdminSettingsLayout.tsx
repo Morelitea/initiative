@@ -7,6 +7,7 @@ const adminTabs = [
   { value: "auth", label: "Auth", path: "/settings/admin/auth" },
   { value: "branding", label: "Branding", path: "/settings/admin/branding" },
   { value: "email", label: "Email", path: "/settings/admin/email" },
+  { value: "users", label: "Users", path: "/settings/admin/users" },
 ];
 
 export const AdminSettingsLayout = () => {
@@ -32,7 +33,7 @@ export const AdminSettingsLayout = () => {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Platform settings</h1>
         <p className="text-muted-foreground">
-          Manage authentication, branding, and SMTP for the entire app.
+          Manage authentication, branding, SMTP, and users for the entire platform.
         </p>
       </div>
       <Tabs
