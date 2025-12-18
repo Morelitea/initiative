@@ -29,6 +29,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -88,6 +89,10 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setError(null);
     setInfoMessage(null);
     try {
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
       if (inviteCode && inviteStatus && !inviteStatus.is_valid) {
         setError(inviteStatus.reason ?? "Invite code is no longer valid.");
         return;
@@ -99,9 +104,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       } else if (createdUser.is_active && !createdUser.email_verified) {
         setInfoMessage("Thanks! Check your inbox to verify your email before signing in.");
         setPassword("");
+        setConfirmPassword("");
       } else {
         setInfoMessage("Thanks! Your account is pending approval from an administrator.");
         setPassword("");
+        setConfirmPassword("");
       }
     } catch (err) {
       console.error(err);
@@ -165,6 +172,16 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                   required
                 />
               </div>
