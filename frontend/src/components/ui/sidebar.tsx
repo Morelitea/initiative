@@ -205,31 +205,40 @@ const Sidebar = React.forwardRef<
 
     if (isMobile) {
       return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-          <SheetContent
-            data-sidebar="sidebar"
-            data-mobile="true"
-            className="bg-sidebar text-sidebar-foreground p-0 [&>button]:hidden"
-            style={{
-              width: sidebarWidthMobile,
-              maxWidth: sidebarWidthMobile,
-              height: "100vh",
-              maxHeight: "100vh",
-              transform: `translateX(${translateX}px)`,
-              transition: translateX === 0 ? "transform 0.3s ease-out" : "none",
-            }}
-            side={side}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            <SheetHeader className="sr-only">
-              <SheetTitle>Sidebar</SheetTitle>
-              <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-            </SheetHeader>
-            <div className="flex h-full w-full flex-col">{children}</div>
-          </SheetContent>
-        </Sheet>
+        <>
+          {openMobile && (
+            <div
+              className="animate-in fade-in-0 fixed inset-0 z-40 bg-black/80"
+              onClick={() => setOpenMobile(false)}
+              aria-hidden="true"
+            />
+          )}
+          <Sheet open={openMobile} onOpenChange={setOpenMobile} modal={false} {...props}>
+            <SheetContent
+              data-sidebar="sidebar"
+              data-mobile="true"
+              className="bg-sidebar text-sidebar-foreground p-0 [&>button]:hidden"
+              style={{
+                width: sidebarWidthMobile,
+                maxWidth: sidebarWidthMobile,
+                height: "100vh",
+                maxHeight: "100vh",
+                transform: `translateX(${translateX}px)`,
+                transition: translateX === 0 ? "transform 0.3s ease-out" : "none",
+              }}
+              side={side}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Sidebar</SheetTitle>
+                <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+              </SheetHeader>
+              <div className="flex h-full w-full flex-col">{children}</div>
+            </SheetContent>
+          </Sheet>
+        </>
       );
     }
 

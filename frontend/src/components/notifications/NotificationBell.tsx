@@ -207,7 +207,7 @@ export const NotificationBell = () => {
         <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 ? (
-            <Badge className="absolute -top-1 -right-1 h-5 min-w-[20px] justify-center rounded-full px-1 py-0 text-[11px]">
+            <Badge className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           ) : null}
