@@ -75,7 +75,7 @@ export const LoginPage = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await login({ email, password });
+      await login({ email: email.toLowerCase().trim(), password });
       if (inviteCodeParam) {
         navigate(`/invite/${encodeURIComponent(inviteCodeParam)}`, { replace: true });
       } else {
@@ -134,6 +134,7 @@ export const LoginPage = () => {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   autoComplete="username"
+                  autoCapitalize="none"
                   required
                 />
               </div>

@@ -58,7 +58,8 @@ async def register_user(
             app_settings = await app_settings_service.get_app_settings(session)
             smtp_configured = bool(app_settings.smtp_host and app_settings.smtp_from_address)
 
-            statement = select(User).where(User.email == user_in.email)
+            normalized_email = user_in.email.lower().strip()
+            statement = select(User).where(func.lower(User.email) == normalized_email)
             existing = await session.exec(statement)
             if existing.one_or_none():
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -76,7 +77,7 @@ async def register_user(
                 user_role = UserRole.admin if is_first_user else UserRole.member
 
             user = User(
-                email=user_in.email,
+                email=normalized_email,
                 full_name=user_in.full_name,
                 hashed_password=get_password_hash(user_in.password),
                 role=user_role,
@@ -153,7 +154,8 @@ async def login_access_token(
     session: SessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
-    statement = select(User).where(User.email == form_data.username)
+    normalized_email = form_data.username.lower().strip()
+    statement = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -311,16 +313,17 @@ async def oidc_callback(
         if not sub:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC profile missing subject")
         email = f"{sub}@oidc.local"
-    full_name = profile.get("name") or profile.get("preferred_username") or email
+    normalized_email = email.lower().strip()
+    full_name = profile.get("name") or profile.get("preferred_username") or normalized_email
     avatar_url = profile.get("picture")
 
-    statement = select(User).where(User.email == email)
+    statement = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user:
         random_password = secrets.token_urlsafe(32)
         user = User(
-            email=email,
+            email=normalized_email,
             full_name=full_name,
             hashed_password=get_password_hash(random_password),
             role=UserRole.member,
@@ -406,7 +409,8 @@ async def confirm_verification(payload: VerificationConfirmRequest, session: Ses
 
 @router.post("/password/forgot", response_model=VerificationSendResponse)
 async def request_password_reset(payload: PasswordResetRequest, session: SessionDep) -> VerificationSendResponse:
-    stmt = select(User).where(User.email == payload.email)
+    normalized_email = payload.email.lower().strip()
+    stmt = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user or not user.is_active:

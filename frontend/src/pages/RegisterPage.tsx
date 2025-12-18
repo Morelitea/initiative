@@ -97,9 +97,14 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         setError(inviteStatus.reason ?? "Invite code is no longer valid.");
         return;
       }
-      const createdUser = await register({ email, password, full_name: fullName, inviteCode });
+      const createdUser = await register({
+        email: email.toLowerCase().trim(),
+        password,
+        full_name: fullName,
+        inviteCode,
+      });
       if (createdUser.is_active && createdUser.email_verified) {
-        await login({ email, password });
+        await login({ email: email.toLowerCase().trim(), password });
         navigate("/", { replace: true });
       } else if (createdUser.is_active && !createdUser.email_verified) {
         setInfoMessage("Thanks! Check your inbox to verify your email before signing in.");
@@ -162,6 +167,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  autoCapitalize="none"
                   required
                 />
               </div>

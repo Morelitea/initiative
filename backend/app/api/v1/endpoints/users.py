@@ -4,6 +4,7 @@ import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlmodel import select, delete
 
 from app.api.deps import (
@@ -104,7 +105,8 @@ async def create_user(
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
-    statement = select(User).where(User.email == user_in.email)
+    normalized_email = user_in.email.lower().strip()
+    statement = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(statement)
     if result.one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -112,7 +114,7 @@ async def create_user(
     guild_id = guild_context.guild_id
 
     user = User(
-        email=user_in.email,
+        email=normalized_email,
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
         role=user_in.role,

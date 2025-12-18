@@ -25,7 +25,7 @@ export const ForgotPasswordPage = () => {
     setStatus("sending");
     setError(null);
     try {
-      await apiClient.post("/auth/password/forgot", { email });
+      await apiClient.post("/auth/password/forgot", { email: email.toLowerCase().trim() });
       setStatus("sent");
     } catch (err) {
       console.error(err);
@@ -68,6 +68,7 @@ export const ForgotPasswordPage = () => {
                   onChange={(event) => setEmail(event.target.value)}
                   required
                   autoComplete="email"
+                  autoCapitalize="none"
                 />
               </div>
               <Button className="w-full" type="submit" disabled={status === "sending"}>
