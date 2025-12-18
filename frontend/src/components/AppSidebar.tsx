@@ -108,7 +108,8 @@ export const AppSidebar = () => {
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, Project[]>();
-    (projectsQuery.data ?? []).forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    projects.forEach((project) => {
       if (!project.is_archived) {
         const existing = map.get(project.initiative_id) ?? [];
         map.set(project.initiative_id, [...existing, project]);
@@ -119,7 +120,8 @@ export const AppSidebar = () => {
 
   const documentCountsByInitiative = useMemo(() => {
     const map = new Map<number, number>();
-    (documentsQuery.data ?? []).forEach((doc) => {
+    const documents = Array.isArray(documentsQuery.data) ? documentsQuery.data : [];
+    documents.forEach((doc) => {
       const count = map.get(doc.initiative_id) ?? 0;
       map.set(doc.initiative_id, count + 1);
     });

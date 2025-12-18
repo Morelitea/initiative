@@ -364,7 +364,8 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
   useEffect(() => {
-    const reorderableProjects = (projectsQuery.data ?? []).filter((project) => !project.pinned_at);
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const reorderableProjects = projects.filter((project) => !project.pinned_at);
     if (reorderableProjects.length === 0) {
       setCustomOrder((prev) => (prev.length ? [] : prev));
       return;
@@ -389,7 +390,8 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
   const availableInitiatives = useMemo(() => {
-    return (initiativesQuery.data ?? []).sort((a, b) => a.name.localeCompare(b.name));
+    const initiatives = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
+    return initiatives.sort((a, b) => a.name.localeCompare(b.name));
   }, [initiativesQuery.data]);
 
   const lockedInitiative = lockedInitiativeId

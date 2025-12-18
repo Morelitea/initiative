@@ -67,7 +67,8 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
   const [localSubtasks, setLocalSubtasks] = useState<TaskSubtask[]>([]);
 
   useEffect(() => {
-    const sorted = (subtasksQuery.data ?? []).slice().sort((a, b) => {
+    const subtasks = Array.isArray(subtasksQuery.data) ? subtasksQuery.data : [];
+    const sorted = subtasks.slice().sort((a, b) => {
       if (a.position === b.position) {
         return a.id - b.id;
       }
