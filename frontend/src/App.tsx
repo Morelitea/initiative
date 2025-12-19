@@ -54,6 +54,11 @@ const NavigatePage = lazy(() =>
     default: module.NavigatePage,
   }))
 );
+const LandingPage = lazy(() =>
+  import("./pages/LandingPage").then((module) => ({
+    default: module.LandingPage,
+  }))
+);
 
 const AppLayout = () => {
   const { activeGuildId } = useGuilds();
@@ -145,6 +150,7 @@ export const App = () => {
         fallback={<div className="text-muted-foreground py-10 text-center">Loading...</div>}
       >
         <Routes>
+          <Route path="/welcome" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

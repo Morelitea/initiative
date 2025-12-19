@@ -133,6 +133,45 @@
   }
 }
 
+@keyframes aurora {
+  0%,
+  100% {
+    background-position:
+      50% 50%,
+      50% 50%;
+  }
+  25% {
+    background-position:
+      0% 50%,
+      100% 50%;
+  }
+  50% {
+    background-position:
+      50% 100%,
+      50% 0%;
+  }
+  75% {
+    background-position:
+      100% 50%,
+      0% 50%;
+  }
+}
+
+.aurora-bg {
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -10%, oklch(0.7 0.18 280 / 0.25), transparent),
+    radial-gradient(ellipse 80% 50% at 80% 110%, oklch(0.65 0.15 220 / 0.2), transparent),
+    radial-gradient(ellipse 60% 40% at 10% 60%, oklch(0.6 0.12 300 / 0.15), transparent);
+  animation: aurora 15s ease-in-out infinite;
+}
+
+.dark .aurora-bg {
+  background-image:
+    radial-gradient(ellipse 100% 60% at 50% -10%, oklch(0.5 0.25 280 / 0.35), transparent),
+    radial-gradient(ellipse 80% 50% at 80% 110%, oklch(0.45 0.2 220 / 0.3), transparent),
+    radial-gradient(ellipse 60% 40% at 10% 60%, oklch(0.4 0.18 300 / 0.25), transparent);
+}
+
 [data-document-editor] .document-editor__content table {
   width: 100%;
   border-collapse: collapse;
