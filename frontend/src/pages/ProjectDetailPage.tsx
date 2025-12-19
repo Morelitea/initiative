@@ -154,6 +154,8 @@ export const ProjectDetailPage = () => {
   const canManageSettings = user?.role === "admin" || isOwner || isInitiativePm;
   const canWriteProject =
     user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
+  const canCreateDocuments = user?.role === "admin" || isOwner || isInitiativePm;
+  const canAttachDocuments = canWriteProject;
   const canViewTaskDetails = Boolean(project && (canWriteProject || initiativeMembership));
   const projectIsArchived = project.is_archived ?? false;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
@@ -184,7 +186,8 @@ export const ProjectDetailPage = () => {
         projectId={project.id}
         initiativeId={project.initiative_id}
         documents={project.documents ?? []}
-        canEdit={Boolean(canWriteProject && !projectIsArchived)}
+        canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
+        canAttach={Boolean(canAttachDocuments && !projectIsArchived)}
       />
       <ProjectTasksSection
         projectId={project.id}
