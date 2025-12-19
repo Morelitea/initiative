@@ -142,6 +142,19 @@ export const AppSidebar = () => {
     return membershipFiltered.sort((a, b) => a.name.localeCompare(b.name));
   }, [initiativesQuery.data, user, isGuildAdmin]);
 
+  // Check if user can manage a specific initiative
+  const canManageInitiative = (initiative: Initiative): boolean => {
+    if (isGuildAdmin) {
+      return true;
+    }
+    if (!user) {
+      return false;
+    }
+    return initiative.members.some(
+      (member) => member.user.id === user.id && member.role === "project_manager"
+    );
+  };
+
   const userDisplayName = user?.full_name ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
   const userInitials =
@@ -234,7 +247,7 @@ export const AppSidebar = () => {
                           initiative={initiative}
                           projects={projectsByInitiative.get(initiative.id) ?? []}
                           documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
-                          isGuildAdmin={isGuildAdmin}
+                          canManage={canManageInitiative(initiative)}
                           activeProjectId={activeProjectId}
                         />
                       ))}
@@ -320,7 +333,7 @@ interface InitiativeSectionProps {
   initiative: Initiative;
   projects: Project[];
   documentCount: number;
-  isGuildAdmin: boolean;
+  canManage: boolean;
   activeProjectId: number | null;
 }
 
@@ -328,7 +341,7 @@ const InitiativeSection = ({
   initiative,
   projects,
   documentCount,
-  isGuildAdmin,
+  canManage,
   activeProjectId,
 }: InitiativeSectionProps) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -358,10 +371,10 @@ const InitiativeSection = ({
             </Button>
           </CollapsibleTrigger>
         </div>
-        {isGuildAdmin && (
+        {canManage && (
           <>
             {/* Desktop: Show hover-reveal settings button */}
-            <Tooltip>
+            <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
@@ -433,8 +446,8 @@ const InitiativeSection = ({
                   <span className="text-muted-foreground text-xs">{documentCount}</span>
                 </Link>
               </SidebarMenuButton>
-              {isGuildAdmin && (
-                <Tooltip>
+              {canManage && (
+                <Tooltip delayDuration={300}>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
@@ -468,8 +481,8 @@ const InitiativeSection = ({
                   <span className="text-muted-foreground text-xs">{projects.length}</span>
                 </Link>
               </SidebarMenuButton>
-              {isGuildAdmin && (
-                <Tooltip>
+              {canManage && (
+                <Tooltip delayDuration={300}>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
@@ -507,46 +520,50 @@ const InitiativeSection = ({
                     <span className="min-w-0 flex-1 truncate">{project.name}</span>
                   </Link>
                 </SidebarMenuButton>
-                {/* Desktop: Show hover-reveal settings button */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
-                      asChild
-                    >
-                      <Link to={`/projects/${project.id}/settings`}>
-                        <Settings className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>Project Settings</p>
-                  </TooltipContent>
-                </Tooltip>
+                {canManage && (
+                  <>
+                    {/* Desktop: Show hover-reveal settings button */}
+                    <Tooltip delayDuration={300}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
+                          asChild
+                        >
+                          <Link to={`/projects/${project.id}/settings`}>
+                            <Settings className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>Project Settings</p>
+                      </TooltipContent>
+                    </Tooltip>
 
-                {/* Mobile: Show three-dot menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 lg:hidden"
-                      aria-label="Project actions"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link to={`/projects/${project.id}/settings`}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Project Settings
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    {/* Mobile: Show three-dot menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 lg:hidden"
+                          aria-label="Project actions"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem asChild>
+                          <Link to={`/projects/${project.id}/settings`}>
+                            <Settings className="mr-2 h-4 w-4" />
+                            Project Settings
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                )}
               </div>
             </SidebarMenuItem>
           ))}
