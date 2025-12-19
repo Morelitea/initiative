@@ -8,7 +8,7 @@ import {
   Plus,
   FileText,
   Star,
-  ChevronRight,
+  CircleChevronRight,
   Users,
   ListTodo,
   MoreVertical,
@@ -46,7 +46,6 @@ import { ModeToggle } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { Initiative, Project } from "@/types/api";
@@ -350,26 +349,28 @@ const InitiativeSection = ({
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="group/initiative flex min-w-0 items-center gap-1">
         <div className="flex min-w-0 flex-1 items-center">
-          <Button
-            variant="ghost"
-            className="hover:bg-accent min-w-0 flex-1 justify-start gap-2 px-2 py-1.5 text-sm font-medium"
-            asChild
-          >
-            <Link to={`/initiatives/${initiative.id}`} className="flex min-w-0 items-center gap-2">
-              <InitiativeColorDot color={initiative.color} className="h-2 w-2 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
-            </Link>
-          </Button>
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-              <ChevronRight
-                className={cn(
-                  "text-muted-foreground h-4 w-4 transition-transform",
-                  isOpen && "rotate-90"
-                )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              aria-label={isOpen ? "Collapse initiative" : "Expand initiative"}
+            >
+              <CircleChevronRight
+                className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
+                style={{ color: initiative.color || undefined }}
               />
             </Button>
           </CollapsibleTrigger>
+          <Button
+            variant="ghost"
+            className="hover:bg-accent min-w-0 flex-1 justify-start px-0 py-1.5 text-sm font-medium"
+            asChild
+          >
+            <Link to={`/initiatives/${initiative.id}`} className="flex min-w-0 items-center">
+              <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
+            </Link>
+          </Button>
         </div>
         {canManage && (
           <>
