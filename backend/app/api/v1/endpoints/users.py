@@ -18,7 +18,7 @@ from app.core.security import get_password_hash
 from app.models.task import TaskAssignee
 from app.models.guild import GuildRole, GuildMembership
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreate, UserRead, UserSelfUpdate, UserUpdate
+from app.schemas.user import UserCreate, UserPublic, UserRead, UserSelfUpdate, UserUpdate
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
@@ -80,7 +80,7 @@ async def read_users_me(session: SessionDep, current_user: Annotated[User, Depen
     return current_user
 
 
-@router.get("/", response_model=List[UserRead])
+@router.get("/", response_model=List[UserPublic])
 async def list_users(
     session: SessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
@@ -94,7 +94,6 @@ async def list_users(
     )
     result = await session.exec(stmt)
     users = result.all()
-    await initiatives_service.load_user_initiative_roles(session, users)
     return users
 
 

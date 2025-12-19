@@ -4,7 +4,7 @@ from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 from app.models.initiative import InitiativeRole
-from app.schemas.user import UserRead
+from app.schemas.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
@@ -43,7 +43,7 @@ class InitiativeMemberUpdate(BaseModel):
 
 
 class InitiativeMemberRead(BaseModel):
-    user: UserRead
+    user: UserPublic
     role: InitiativeRole
     joined_at: datetime
 
@@ -70,7 +70,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
             continue
         members.append(
             InitiativeMemberRead(
-                user=UserRead.model_validate(membership.user),
+                user=UserPublic.model_validate(membership.user),
                 role=membership.role,
                 joined_at=membership.joined_at,
             )

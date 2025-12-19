@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from app.models.project import ProjectPermissionLevel
 from app.schemas.initiative import InitiativeRead
 from app.schemas.document import ProjectDocumentSummary
-from app.schemas.user import UserRead
+from app.schemas.user import UserPublic
 from app.schemas.comment import CommentAuthor
 
 
@@ -69,7 +69,7 @@ class ProjectRead(ProjectBase):
     is_template: bool
     archived_at: Optional[datetime] = None
     pinned_at: Optional[datetime] = None
-    owner: Optional[UserRead] = None
+    owner: Optional[UserPublic] = None
     initiative: Optional[InitiativeRead] = None
     permissions: List[ProjectPermissionRead] = Field(default_factory=list)
     sort_order: Optional[float] = None

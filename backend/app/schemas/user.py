@@ -34,6 +34,18 @@ class UserUpdate(BaseModel):
     notify_overdue_tasks: Optional[bool] = None
 
 
+class UserPublic(BaseModel):
+    """Public user information exposed to other users"""
+    id: int
+    email: EmailStr
+    full_name: Optional[str] = None
+    avatar_base64: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class UserRead(UserBase):
     id: int
     active_guild_id: Optional[int] = None

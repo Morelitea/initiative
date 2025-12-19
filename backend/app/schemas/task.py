@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.schemas.user import UserRead
+from app.schemas.user import UserPublic
 from app.schemas.task_status import TaskStatusRead
 from app.schemas.guild import GuildSummary
 from app.schemas.subtask import TaskSubtaskProgress
@@ -148,7 +148,7 @@ class TaskRead(TaskBase):
     created_at: datetime
     updated_at: datetime
     sort_order: float
-    assignees: List[UserRead] = []
+    assignees: List[UserPublic] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0
     guild: Optional[GuildSummary] = None
