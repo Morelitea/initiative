@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, FilePlus, Unlink, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -16,6 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import {
@@ -25,7 +27,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import type { DocumentSummary, ProjectDocumentLink } from "@/types/api";
+import type { DocumentRead, DocumentSummary, ProjectDocumentLink } from "@/types/api";
 
 type ProjectDocumentsSectionProps = {
   projectId: number;
@@ -42,7 +44,9 @@ export const ProjectDocumentsSection = ({
 }: ProjectDocumentsSectionProps) => {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
+  const [newDocumentTitle, setNewDocumentTitle] = useState("");
   const storageKey = `project:${projectId}:documentsCollapsed`;
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
@@ -104,6 +108,40 @@ export const ProjectDocumentsSection = ({
     },
     onError: () => {
       toast.error("Unable to detach document.");
+    },
+  });
+
+  const createDocumentMutation = useMutation({
+    mutationFn: async () => {
+      const trimmedTitle = newDocumentTitle.trim();
+      if (!trimmedTitle) {
+        throw new Error("Document title is required");
+      }
+
+      // Create the document
+      const createResponse = await apiClient.post<DocumentRead>("/documents/", {
+        title: trimmedTitle,
+        initiative_id: initiativeId,
+        is_template: false,
+      });
+      const newDocument = createResponse.data;
+
+      // Attach it to the project
+      await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
+
+      return newDocument;
+    },
+    onSuccess: () => {
+      toast.success("Document created and attached.");
+      setCreateDialogOpen(false);
+      setNewDocumentTitle("");
+      void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to create document.";
+      toast.error(message);
     },
   });
 
@@ -174,64 +212,110 @@ export const ProjectDocumentsSection = ({
           </p>
         </div>
         {canEdit ? (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button type="button" size="sm" variant="outline">
-                <FilePlus className="mr-2 h-4 w-4" />
-                Attach document
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
-              <DialogHeader>
-                <DialogTitle>Attach document</DialogTitle>
-                <DialogDescription>
-                  Only documents created under this initiative are available.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <SearchableCombobox
-                    items={comboboxItems}
-                    value={selectedDocumentId}
-                    onValueChange={(value) => setSelectedDocumentId(value)}
-                    placeholder={
-                      initiativeDocsQuery.isLoading ? "Loading documents…" : "Choose document"
-                    }
-                    emptyMessage={
-                      availableDocs.length === 0
-                        ? "All initiative documents are already attached."
-                        : "No matches found."
-                    }
-                    buttonClassName="justify-between"
-                  />
-                  <p className="text-muted-foreground text-xs">
-                    Need a new one? Open My Initiatives and use the initiative&apos;s Documents tab
-                    to create it, then return here to attach it.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  onClick={() => attachMutation.mutate()}
-                  disabled={
-                    attachMutation.isPending || !selectedDocumentId || availableDocs.length === 0
-                  }
-                >
-                  {attachMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Attaching…
-                    </>
-                  ) : (
-                    "Attach"
-                  )}
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
+              <FilePlus className="mr-2 h-4 w-4" />
+              New document
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button type="button" size="sm" variant="outline">
+                  <Link className="mr-2 h-4 w-4" />
+                  Attach existing
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
+                <DialogHeader>
+                  <DialogTitle>Attach document</DialogTitle>
+                  <DialogDescription>
+                    Only documents created under this initiative are available.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <SearchableCombobox
+                      items={comboboxItems}
+                      value={selectedDocumentId}
+                      onValueChange={(value) => setSelectedDocumentId(value)}
+                      placeholder={
+                        initiativeDocsQuery.isLoading ? "Loading documents…" : "Choose document"
+                      }
+                      emptyMessage={
+                        availableDocs.length === 0
+                          ? "All initiative documents are already attached."
+                          : "No matches found."
+                      }
+                      buttonClassName="justify-between"
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      Need a new one? Open My Initiatives and use the initiative&apos;s Documents
+                      tab to create it, then return here to attach it.
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    onClick={() => attachMutation.mutate()}
+                    disabled={
+                      attachMutation.isPending || !selectedDocumentId || availableDocs.length === 0
+                    }
+                  >
+                    {attachMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Attaching…
+                      </>
+                    ) : (
+                      "Attach"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         ) : null}
       </div>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle>New document</DialogTitle>
+            <DialogDescription>
+              Create a new document in the project&apos;s initiative and automatically attach it to
+              this project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="new-project-document-title">Title</Label>
+              <Input
+                id="new-project-document-title"
+                value={newDocumentTitle}
+                onChange={(event) => setNewDocumentTitle(event.target.value)}
+                placeholder="Project requirements"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => createDocumentMutation.mutate()}
+              disabled={createDocumentMutation.isPending || !newDocumentTitle.trim()}
+            >
+              {createDocumentMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create document"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CollapsibleContent className="space-y-4 data-[state=closed]:hidden">
         {documents.length === 0 ? (
           <p className="text-muted-foreground text-sm">
