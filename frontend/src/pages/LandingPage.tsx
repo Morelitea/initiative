@@ -80,7 +80,7 @@ export const LandingPage = () => {
         backgroundImage: `url(${isDark ? "/images/gridWhite.svg" : "/images/gridBlack.svg"})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
-        backgroundSize: "72px 72px",
+        backgroundSize: "96px 96px",
       }}
     >
       <div className="aurora-bg bg-muted/60">

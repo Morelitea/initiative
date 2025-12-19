@@ -93,7 +93,7 @@ export const GuildInvitePage = () => {
         backgroundImage: `url(${isDark ? "/images/gridWhite.svg" : "/images/gridBlack.svg"})`,
         backgroundPosition: "center",
         backgroundBlendMode: "screen",
-        backgroundSize: "72px 72px",
+        backgroundSize: "96px 96px",
       }}
     >
       <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
