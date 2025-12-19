@@ -128,10 +128,15 @@ const UserSettingsNotificationsPage = lazy(() =>
     default: module.UserSettingsNotificationsPage,
   }))
 );
+const UserSettingsDangerZonePage = lazy(() =>
+  import("./pages/UserSettingsDangerZonePage").then((module) => ({
+    default: module.UserSettingsDangerZonePage,
+  }))
+);
 
 export const PageRoutes = () => {
   const location = useLocation();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   // Keep rendering the previous route until the fade-out completes.
   const [displayLocation, setDisplayLocation] = useState(location);
   const [transitionStage, setTransitionStage] = useState<TransitionStage>("fadeIn");
@@ -196,6 +201,10 @@ export const PageRoutes = () => {
               <Route
                 path="notifications"
                 element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
+              />
+              <Route
+                path="danger"
+                element={<UserSettingsDangerZonePage user={user} logout={logout} />}
               />
             </>
           )}

@@ -14,14 +14,26 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 from app.models.task import TaskAssignee
 from app.models.guild import GuildRole, GuildMembership
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreate, UserPublic, UserRead, UserSelfUpdate, UserUpdate
+from app.schemas.user import (
+    UserCreate,
+    UserGuildMember,
+    UserPublic,
+    UserRead,
+    UserSelfUpdate,
+    UserUpdate,
+    AccountDeletionRequest,
+    AccountDeletionResponse,
+    DeletionEligibilityResponse,
+    ProjectBasic,
+)
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
+from app.services import users as users_service
 
 router = APIRouter()
 
@@ -80,7 +92,7 @@ async def read_users_me(session: SessionDep, current_user: Annotated[User, Depen
     return current_user
 
 
-@router.get("/", response_model=List[UserPublic])
+@router.get("/", response_model=List[UserGuildMember])
 async def list_users(
     session: SessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
@@ -94,6 +106,7 @@ async def list_users(
     )
     result = await session.exec(stmt)
     users = result.all()
+    await initiatives_service.load_user_initiative_roles(session, users)
     return users
 
 
@@ -305,6 +318,111 @@ async def approve_user(
         await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
+
+
+@router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
+async def check_deletion_eligibility(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DeletionEligibilityResponse:
+    """Check if the current user can be deleted and what blockers exist."""
+    can_delete, blockers, warnings, owned_projects = await users_service.check_deletion_eligibility(
+        session, current_user.id
+    )
+
+    project_basics = [
+        ProjectBasic(id=project.id, name=project.name, initiative_id=project.initiative_id)
+        for project in owned_projects
+    ]
+
+    last_admin_guilds = await users_service.is_last_guild_admin(session, current_user.id)
+
+    return DeletionEligibilityResponse(
+        can_delete=can_delete,
+        blockers=blockers,
+        warnings=warnings,
+        owned_projects=project_basics,
+        last_admin_guilds=last_admin_guilds,
+    )
+
+
+@router.post("/me/delete-account", response_model=AccountDeletionResponse)
+async def delete_own_account(
+    request: AccountDeletionRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> AccountDeletionResponse:
+    """Delete or deactivate the current user's account."""
+    # Prevent super user deletion
+    if current_user.id == SUPER_USER_ID:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete super user account",
+        )
+
+    # Verify password
+    if not verify_password(request.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password",
+        )
+
+    # Check confirmation text
+    if request.confirmation_text != "DELETE MY ACCOUNT":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation text must be 'DELETE MY ACCOUNT'",
+        )
+
+    # Check deletion eligibility (includes last admin and sole PM checks)
+    can_delete, blockers, _, owned_projects = await users_service.check_deletion_eligibility(
+        session, current_user.id
+    )
+
+    if not can_delete:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete account: {'; '.join(blockers)}",
+        )
+
+    # Perform deletion based on type
+    if request.deletion_type == "soft":
+        await users_service.soft_delete_user(session, current_user.id)
+        return AccountDeletionResponse(
+            success=True,
+            deletion_type="soft",
+            message="Your account has been deactivated. Contact an administrator to reactivate.",
+        )
+    else:  # hard delete
+        # Validate project transfers
+        if owned_projects:
+            if not request.project_transfers:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="You must specify transfer recipients for all owned projects",
+                )
+
+            owned_project_ids = {project.id for project in owned_projects}
+            transfer_ids = set(request.project_transfers.keys())
+
+            if owned_project_ids != transfer_ids:
+                missing = owned_project_ids - transfer_ids
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Missing transfer recipients for projects: {missing}",
+                )
+
+        await users_service.hard_delete_user(
+            session,
+            current_user.id,
+            request.project_transfers or {},
+        )
+
+        return AccountDeletionResponse(
+            success=True,
+            deletion_type="hard",
+            message="Your account has been permanently deleted.",
+        )
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

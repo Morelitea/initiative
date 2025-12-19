@@ -221,7 +221,7 @@ export const SettingsUsersPage = () => {
                 onClick={() => approveUser.mutate(workspaceUser.id)}
                 disabled={approveUser.isPending}
               >
-                Approve
+                Reactivate
               </Button>
             ) : null}
             <Button

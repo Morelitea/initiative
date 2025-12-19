@@ -56,7 +56,7 @@ export const ProjectSettingsPage = () => {
   const memberLabel = getRoleLabel("member", roleLabels);
 
   const projectQuery = useQuery<Project>({
-    queryKey: ["projects", parsedProjectId],
+    queryKey: ["project", parsedProjectId],
     queryFn: async () => {
       const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
       return response.data;
@@ -103,7 +103,7 @@ export const ProjectSettingsPage = () => {
       setInitiativeMessage("Project initiative updated");
       setSelectedInitiativeId(String(data.initiative_id));
       void queryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId],
+        queryKey: ["project", parsedProjectId],
       });
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
@@ -126,7 +126,7 @@ export const ProjectSettingsPage = () => {
       setNameText(data.name);
       setIconText(data.icon ?? "");
       void queryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId],
+        queryKey: ["project", parsedProjectId],
       });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({
@@ -141,7 +141,7 @@ export const ProjectSettingsPage = () => {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId],
+        queryKey: ["project", parsedProjectId],
       });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({
@@ -156,7 +156,7 @@ export const ProjectSettingsPage = () => {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId],
+        queryKey: ["project", parsedProjectId],
       });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({
@@ -176,7 +176,7 @@ export const ProjectSettingsPage = () => {
       setDescriptionMessage("Description updated");
       setDescriptionText(data.description ?? "");
       void queryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId],
+        queryKey: ["project", parsedProjectId],
       });
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
@@ -194,7 +194,7 @@ export const ProjectSettingsPage = () => {
     onSuccess: (data) => {
       setDuplicateMessage("Project duplicated");
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({ queryKey: ["projects", data.id] });
+      void queryClient.invalidateQueries({ queryKey: ["project", data.id] });
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
       });
@@ -214,7 +214,7 @@ export const ProjectSettingsPage = () => {
         nextStatus ? "Project marked as template" : "Project removed from templates"
       );
       void queryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId],
+        queryKey: ["project", parsedProjectId],
       });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({
@@ -247,7 +247,7 @@ export const ProjectSettingsPage = () => {
       setWriterMessage("Write access granted");
       setWriterError(null);
       setSelectedWriterId("");
-      void queryClient.invalidateQueries({ queryKey: ["projects", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setWriterMessage(null);
@@ -262,7 +262,7 @@ export const ProjectSettingsPage = () => {
     onSuccess: () => {
       setWriterMessage("Write access removed");
       setWriterError(null);
-      void queryClient.invalidateQueries({ queryKey: ["projects", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setWriterMessage(null);
@@ -284,7 +284,7 @@ export const ProjectSettingsPage = () => {
           : `Write access limited to selected ${memberLabel} role holders.`
       );
       setMembersWriteError(null);
-      void queryClient.invalidateQueries({ queryKey: ["projects", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setMembersWriteMessage(null);

@@ -8,6 +8,7 @@ const userSettingsTabs = [
   { value: "profile", label: "Profile", path: "/profile" },
   { value: "interface", label: "Interface", path: "/profile/interface" },
   { value: "notifications", label: "Notifications", path: "/profile/notifications" },
+  { value: "danger", label: "Danger Zone", path: "/profile/danger" },
 ];
 
 export const UserSettingsLayout = () => {

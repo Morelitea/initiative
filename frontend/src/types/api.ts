@@ -5,19 +5,30 @@ export type GuildRole = "admin" | "member";
 
 export type InitiativeRole = "project_manager" | "member";
 
-export interface User {
+export interface UserPublic {
   id: number;
-  active_guild_id?: number | null;
   email: string;
   full_name?: string;
+  avatar_base64?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface UserGuildMember extends UserPublic {
+  role: UserRole;
+  is_active: boolean;
+  email_verified: boolean;
+  created_at: string;
+  initiative_roles?: UserInitiativeRole[];
+}
+
+export interface User extends UserPublic {
+  active_guild_id?: number | null;
   role: UserRole;
   can_create_guilds?: boolean;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
   updated_at: string;
-  avatar_base64?: string | null;
-  avatar_url?: string | null;
   week_starts_on?: number;
   timezone?: string;
   overdue_notification_time?: string;
@@ -57,7 +68,7 @@ export interface Initiative {
 }
 
 export interface InitiativeMember {
-  user: User;
+  user: UserPublic;
   role: InitiativeRole;
   joined_at: string;
 }
@@ -154,7 +165,7 @@ export interface Project {
   is_template: boolean;
   archived_at?: string | null;
   pinned_at?: string | null;
-  owner?: User;
+  owner?: UserPublic;
   initiative?: Initiative | null;
   permissions: ProjectPermission[];
   sort_order?: number | null;
@@ -260,7 +271,7 @@ export interface Task {
   task_status: ProjectTaskStatus;
   priority: TaskPriority;
   project_id: number;
-  assignees: User[];
+  assignees: UserPublic[];
   start_date?: string;
   due_date?: string;
   recurrence?: TaskRecurrence | null;

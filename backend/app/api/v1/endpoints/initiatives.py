@@ -16,7 +16,7 @@ from app.models.project import Project
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.initiative import (
     InitiativeCreate,
     InitiativeMemberAdd,
@@ -25,6 +25,7 @@ from app.schemas.initiative import (
     InitiativeUpdate,
     serialize_initiative,
 )
+from app.schemas.user import UserPublic
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
@@ -197,6 +198,36 @@ async def delete_initiative(
         await session.delete(project)
     await session.delete(initiative)
     await session.commit()
+
+
+@router.get("/{initiative_id}/members", response_model=List[UserPublic])
+async def get_initiative_members(
+    initiative_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> List[User]:
+    """Get all members of an initiative."""
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+
+    # Check that user has access to this initiative
+    membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=initiative_id,
+        user_id=current_user.id,
+    )
+    if not membership and current_user.role != UserRole.admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this initiative")
+
+    # Get all initiative members
+    stmt = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .where(InitiativeMember.initiative_id == initiative_id)
+        .order_by(User.full_name, User.email)
+    )
+    result = await session.exec(stmt)
+    return result.all()
 
 
 @router.post("/{initiative_id}/members", response_model=InitiativeRead, status_code=status.HTTP_200_OK)

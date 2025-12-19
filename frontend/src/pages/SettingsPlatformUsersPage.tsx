@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Mail } from "lucide-react";
+import { Mail, UserCheck } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,24 @@ export const SettingsPlatformUsersPage = () => {
         "Failed to send password reset email";
       toast.error(message);
       setResettingUserId(null);
+    },
+  });
+
+  const reactivateUser = useMutation({
+    mutationFn: async (userId: number) => {
+      await apiClient.post(`/admin/users/${userId}/reactivate`, {});
+    },
+    onSuccess: (_data, userId) => {
+      const targetUser = usersQuery.data?.find((u) => u.id === userId);
+      const userEmail = targetUser?.email || "user";
+      toast.success(`User ${userEmail} has been reactivated`);
+      void usersQuery.refetch();
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        "Failed to reactivate user";
+      toast.error(message);
     },
   });
 
@@ -109,6 +127,24 @@ export const SettingsPlatformUsersPage = () => {
       enableSorting: true,
     },
     {
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const platformUser = row.original;
+        return (
+          <span
+            className={
+              platformUser.is_active
+                ? "text-sm text-green-600 dark:text-green-400"
+                : "text-muted-foreground text-sm"
+            }
+          >
+            {platformUser.is_active ? "Active" : "Deactivated"}
+          </span>
+        );
+      },
+    },
+    {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
@@ -116,16 +152,29 @@ export const SettingsPlatformUsersPage = () => {
         const isResetting = resettingUserId === platformUser.id;
         return (
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleResetPassword(platformUser.id, platformUser.email)}
-              disabled={isResetting || resetPassword.isPending || !platformUser.is_active}
-            >
-              <Mail className="mr-2 h-4 w-4" />
-              {isResetting ? "Sending..." : "Send password reset"}
-            </Button>
+            {!platformUser.is_active ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => reactivateUser.mutate(platformUser.id)}
+                disabled={reactivateUser.isPending}
+              >
+                <UserCheck className="h-4 w-4" />
+                Reactivate
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleResetPassword(platformUser.id, platformUser.email)}
+                disabled={isResetting || resetPassword.isPending}
+              >
+                <Mail className="h-4 w-4" />
+                {isResetting ? "Sending..." : "Send password reset"}
+              </Button>
+            )}
           </div>
         );
       },

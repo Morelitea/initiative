@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, computed_field
 
@@ -41,6 +41,18 @@ class UserPublic(BaseModel):
     full_name: Optional[str] = None
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserGuildMember(UserPublic):
+    """User information for guild member management (includes role/status but not personal settings)"""
+    role: UserRole
+    is_active: bool
+    email_verified: bool
+    created_at: datetime
+    initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -97,3 +109,37 @@ class UserSelfUpdate(BaseModel):
     notify_task_assignment: Optional[bool] = None
     notify_project_added: Optional[bool] = None
     notify_overdue_tasks: Optional[bool] = None
+
+
+class ProjectBasic(BaseModel):
+    """Basic project information for deletion flow"""
+    id: int
+    name: str
+    initiative_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class AccountDeletionRequest(BaseModel):
+    """Request to delete or deactivate a user account"""
+    deletion_type: Literal["soft", "hard"]
+    password: str
+    confirmation_text: str
+    project_transfers: Optional[Dict[int, int]] = None  # {project_id: new_owner_id}
+
+
+class DeletionEligibilityResponse(BaseModel):
+    """Response indicating whether user can be deleted and any blockers"""
+    can_delete: bool
+    blockers: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    owned_projects: List[ProjectBasic] = Field(default_factory=list)
+    last_admin_guilds: List[str] = Field(default_factory=list)
+
+
+class AccountDeletionResponse(BaseModel):
+    """Response after account deletion attempt"""
+    success: bool
+    deletion_type: str
+    message: str

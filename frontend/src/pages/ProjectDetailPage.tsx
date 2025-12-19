@@ -21,7 +21,7 @@ export const ProjectDetailPage = () => {
   const parsedProjectId = Number(projectId);
 
   const projectQuery = useQuery<Project>({
-    queryKey: ["projects", parsedProjectId],
+    queryKey: ["project", parsedProjectId],
     queryFn: async () => {
       const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
       return response.data;

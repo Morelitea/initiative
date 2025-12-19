@@ -1,9 +1,9 @@
-import type { User } from "@/types/api";
+import type { UserPublic } from "@/types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface TaskAssigneeListProps {
-  assignees: User[];
+  assignees: UserPublic[];
   size?: "sm" | "md";
   className?: string;
 }
@@ -19,7 +19,7 @@ const sizeStyles = {
   },
 };
 
-const getDisplayName = (user: User) => user.full_name?.trim() || user.email;
+const getDisplayName = (user: UserPublic) => user.full_name?.trim() || user.email;
 
 const getInitials = (value: string) => {
   if (!value) {

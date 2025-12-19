@@ -1,4 +1,5 @@
 from typing import Annotated, List
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
@@ -23,7 +24,9 @@ async def list_all_users(
     _current_user: AdminUserDep,
 ) -> List[User]:
     """List all users in the platform (admin only)."""
-    stmt = select(User).order_by(User.created_at.asc())
+    from app.services.users import SYSTEM_USER_EMAIL
+
+    stmt = select(User).where(User.email != SYSTEM_USER_EMAIL).order_by(User.created_at.asc())
     result = await session.exec(stmt)
     users = result.all()
     await initiatives_service.load_user_initiative_roles(session, users)
@@ -65,3 +68,28 @@ async def trigger_password_reset(
             detail=str(exc)
         ) from exc
     return VerificationSendResponse(status="sent")
+
+
+@router.post("/users/{user_id}/reactivate", response_model=UserRead)
+async def reactivate_user(
+    user_id: int,
+    session: SessionDep,
+    _current_user: AdminUserDep,
+) -> User:
+    """Reactivate a deactivated user account (admin only)."""
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already active")
+
+    user.is_active = True
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
+    return user
