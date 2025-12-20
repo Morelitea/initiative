@@ -1,0 +1,309 @@
+"""
+Test data factories for creating database models.
+
+This module provides factory functions for creating test instances of database models
+with sensible defaults. Each factory function can accept overrides for any field.
+"""
+
+from datetime import datetime, timezone
+from typing import Any
+
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.security import create_access_token, get_password_hash
+from app.models.guild import Guild, GuildMembership, GuildRole
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.project import Project
+from app.models.user import User, UserRole
+
+
+async def create_user(
+    session: AsyncSession,
+    commit: bool = True,
+    **overrides: Any,
+) -> User:
+    """
+    Create a test user with sensible defaults.
+
+    Args:
+        session: Database session
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created User instance
+
+    Example:
+        user = await create_user(
+            session,
+            email="test@example.com",
+            role=UserRole.admin
+        )
+    """
+    defaults = {
+        "email": f"user-{datetime.now(timezone.utc).timestamp()}@example.com",
+        "full_name": "Test User",
+        "hashed_password": get_password_hash("testpassword123"),
+        "role": UserRole.member,
+        "is_active": True,
+        "email_verified": True,
+        "week_starts_on": 0,
+        "timezone": "UTC",
+        "overdue_notification_time": "21:00",
+        "notify_initiative_addition": True,
+        "notify_task_assignment": True,
+        "notify_project_added": True,
+        "notify_overdue_tasks": True,
+    }
+
+    user_data = {**defaults, **overrides}
+    user = User(**user_data)
+    session.add(user)
+
+    if commit:
+        await session.commit()
+        await session.refresh(user)
+
+    return user
+
+
+async def create_guild(
+    session: AsyncSession,
+    creator: User | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Guild:
+    """
+    Create a test guild with sensible defaults.
+
+    Args:
+        session: Database session
+        creator: User who creates the guild (will be created if not provided)
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created Guild instance
+
+    Example:
+        guild = await create_guild(session, name="Test Guild")
+    """
+    if creator is None:
+        creator = await create_user(session, commit=commit)
+
+    defaults = {
+        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
+        "description": "A test guild for integration testing",
+        "created_by_user_id": creator.id,
+    }
+
+    guild_data = {**defaults, **overrides}
+    guild = Guild(**guild_data)
+    session.add(guild)
+
+    if commit:
+        await session.commit()
+        await session.refresh(guild)
+
+    return guild
+
+
+async def create_guild_membership(
+    session: AsyncSession,
+    user: User | None = None,
+    guild: Guild | None = None,
+    role: GuildRole = GuildRole.member,
+    commit: bool = True,
+    **overrides: Any,
+) -> GuildMembership:
+    """
+    Create a guild membership (linking a user to a guild).
+
+    Args:
+        session: Database session
+        user: User to add to guild (will be created if not provided)
+        guild: Guild to add user to (will be created if not provided)
+        role: Guild role for the user (default: member)
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created GuildMembership instance
+
+    Example:
+        membership = await create_guild_membership(
+            session,
+            user=test_user,
+            guild=test_guild,
+            role=GuildRole.admin
+        )
+    """
+    if user is None:
+        user = await create_user(session, commit=commit)
+
+    if guild is None:
+        guild = await create_guild(session, commit=commit)
+
+    defaults = {
+        "user_id": user.id,
+        "guild_id": guild.id,
+        "role": role,
+        "position": 0,
+    }
+
+    membership_data = {**defaults, **overrides}
+    membership = GuildMembership(**membership_data)
+    session.add(membership)
+
+    if commit:
+        await session.commit()
+        await session.refresh(membership)
+
+    return membership
+
+
+def get_auth_token(user: User) -> str:
+    """
+    Generate a valid JWT access token for a user.
+
+    Args:
+        user: User to generate token for
+
+    Returns:
+        JWT access token string
+
+    Example:
+        token = get_auth_token(test_user)
+        headers = {"Authorization": f"Bearer {token}"}
+        response = await client.get("/api/v1/users/me", headers=headers)
+    """
+    return create_access_token(subject=str(user.id))
+
+
+def get_auth_headers(user: User) -> dict[str, str]:
+    """
+    Get authorization headers for API requests.
+
+    Args:
+        user: User to authenticate as
+
+    Returns:
+        Dictionary with Authorization header
+
+    Example:
+        headers = get_auth_headers(test_user)
+        response = await client.get("/api/v1/users/me", headers=headers)
+    """
+    token = get_auth_token(user)
+    return {"Authorization": f"Bearer {token}"}
+
+
+def get_guild_headers(guild: Guild, user: User | None = None) -> dict[str, str]:
+    """
+    Get headers for guild-scoped API requests.
+
+    Args:
+        guild: Guild context for the request
+        user: Optional user to authenticate as
+
+    Returns:
+        Dictionary with X-Guild-ID header (and Authorization if user provided)
+
+    Example:
+        headers = get_guild_headers(test_guild, test_user)
+        response = await client.get("/api/v1/initiatives", headers=headers)
+    """
+    headers = {"X-Guild-ID": str(guild.id)}
+    if user:
+        headers.update(get_auth_headers(user))
+    return headers
+
+
+async def create_initiative(
+    session: AsyncSession,
+    guild: Guild,
+    creator: User,
+    commit: bool = True,
+    **overrides: Any,
+) -> Initiative:
+    """
+    Create a test initiative with sensible defaults.
+
+    Args:
+        session: Database session
+        guild: Guild the initiative belongs to
+        creator: User who creates the initiative (will become project manager)
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created Initiative instance
+
+    Example:
+        initiative = await create_initiative(session, guild, user, name="Test Initiative")
+    """
+    defaults = {
+        "name": f"Test Initiative {datetime.now(timezone.utc).timestamp()}",
+        "description": "A test initiative",
+        "guild_id": guild.id,
+    }
+
+    initiative_data = {**defaults, **overrides}
+    initiative = Initiative(**initiative_data)
+    session.add(initiative)
+
+    if commit:
+        await session.commit()
+        await session.refresh(initiative)
+
+        # Add creator as project manager
+        membership = InitiativeMember(
+            initiative_id=initiative.id,
+            user_id=creator.id,
+            role=InitiativeRole.project_manager,
+        )
+        session.add(membership)
+        await session.commit()
+
+    return initiative
+
+
+async def create_project(
+    session: AsyncSession,
+    initiative: Initiative,
+    owner: User,
+    commit: bool = True,
+    **overrides: Any,
+) -> Project:
+    """
+    Create a test project with sensible defaults.
+
+    Args:
+        session: Database session
+        initiative: Initiative the project belongs to
+        owner: User who owns the project
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created Project instance
+
+    Example:
+        project = await create_project(session, initiative, user, name="Test Project")
+    """
+    defaults = {
+        "name": f"Test Project {datetime.now(timezone.utc).timestamp()}",
+        "description": "A test project",
+        "initiative_id": initiative.id,
+        "owner_id": owner.id,
+    }
+
+    project_data = {**defaults, **overrides}
+    project = Project(**project_data)
+    session.add(project)
+
+    if commit:
+        await session.commit()
+        await session.refresh(project)
+
+    return project
