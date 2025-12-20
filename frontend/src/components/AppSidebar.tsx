@@ -14,6 +14,7 @@ import {
   MoreVertical,
   Download,
   CheckCircle2,
+  Github,
 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
@@ -328,80 +329,100 @@ export const AppSidebar = () => {
                 <ModeToggle />
               </div>
             </div>
-            <HoverCard>
-              <HoverCardTrigger asChild>
-                <div
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground cursor-help border-t px-3 py-2 text-center text-xs transition-colors",
-                    hasUpdate && "text-blue-600 dark:text-blue-400"
-                  )}
-                >
-                  v{currentVersion}
-                  {hasUpdate && " •"}
-                </div>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="center" className="w-64">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold">Version Info</span>
-                    {hasUpdate && (
-                      <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                        <Download className="h-3 w-3" />
-                        Update available
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1.5 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Current:</span>
-                      <span className="font-mono font-medium">v{currentVersion}</span>
+            <div className="border-t">
+              <div className="flex items-center justify-between px-3 py-2">
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <div
+                      className={cn(
+                        "text-muted-foreground hover:text-foreground cursor-help text-xs transition-colors",
+                        hasUpdate && "text-blue-600 dark:text-blue-400"
+                      )}
+                    >
+                      v{currentVersion}
+                      {hasUpdate && " •"}
                     </div>
-                    {isLoadingVersion ? (
+                  </HoverCardTrigger>
+                  <HoverCardContent side="top" align="center" className="w-64">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Latest:</span>
-                        <span className="text-muted-foreground">Loading...</span>
+                        <span className="text-sm font-semibold">Version Info</span>
+                        {hasUpdate && (
+                          <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                            <Download className="h-3 w-3" />
+                            Update available
+                          </span>
+                        )}
                       </div>
-                    ) : latestVersion ? (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Latest:</span>
-                        <span
-                          className={cn(
-                            "font-mono font-medium",
-                            hasUpdate && "text-blue-600 dark:text-blue-400"
-                          )}
-                        >
-                          v{latestVersion}
-                        </span>
+                      <div className="space-y-1.5 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Current:</span>
+                          <span className="font-mono font-medium">v{currentVersion}</span>
+                        </div>
+                        {isLoadingVersion ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Latest:</span>
+                            <span className="text-muted-foreground">Loading...</span>
+                          </div>
+                        ) : latestVersion ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Latest:</span>
+                            <span
+                              className={cn(
+                                "font-mono font-medium",
+                                hasUpdate && "text-blue-600 dark:text-blue-400"
+                              )}
+                            >
+                              v{latestVersion}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Latest:</span>
+                            <span className="text-muted-foreground text-xs">Unavailable</span>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Latest:</span>
-                        <span className="text-muted-foreground text-xs">Unavailable</span>
-                      </div>
-                    )}
-                  </div>
-                  {!hasUpdate && latestVersion && (
-                    <div className="flex items-center gap-1.5 pt-2 text-xs text-green-600 dark:text-green-400">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Up to date</span>
+                      {!hasUpdate && latestVersion && (
+                        <div className="flex items-center gap-1.5 pt-2 text-xs text-green-600 dark:text-green-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Up to date</span>
+                        </div>
+                      )}
+                      {hasUpdate && (
+                        <p className="text-muted-foreground pt-2 text-xs">
+                          A new version is available on{" "}
+                          <a
+                            href="https://hub.docker.com/r/morelitea/initiative"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline dark:text-blue-400"
+                          >
+                            Docker Hub
+                          </a>
+                        </p>
+                      )}
                     </div>
-                  )}
-                  {hasUpdate && (
-                    <p className="text-muted-foreground pt-2 text-xs">
-                      A new version is available on{" "}
-                      <a
-                        href="https://hub.docker.com/r/morelitea/initiative"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline dark:text-blue-400"
-                      >
-                        Docker Hub
-                      </a>
-                    </p>
-                  )}
-                </div>
-              </HoverCardContent>
-            </HoverCard>
+                  </HoverCardContent>
+                </HoverCard>
+                <Tooltip delayDuration={300}>
+                  <TooltipTrigger asChild>
+                    <a
+                      href="https://github.com/Morelitea/initiative"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="View on GitHub"
+                    >
+                      <Github className="h-4 w-4" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>View on GitHub</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
           </div>
         </SidebarFooter>
       </div>
