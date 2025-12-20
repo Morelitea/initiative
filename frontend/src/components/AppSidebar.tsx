@@ -12,6 +12,8 @@ import {
   Users,
   ListTodo,
   MoreVertical,
+  Download,
+  CheckCircle2,
 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
@@ -26,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import {
   Sidebar,
   SidebarContent,
@@ -46,6 +49,7 @@ import { ModeToggle } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { Initiative, Project } from "@/types/api";
@@ -163,6 +167,12 @@ export const AppSidebar = () => {
       .join("")
       .slice(0, 2) || "U";
   const avatarSrc = user?.avatar_url || user?.avatar_base64 || null;
+
+  // Fetch latest DockerHub version
+  const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
+  const currentVersion = __APP_VERSION__;
+  const hasUpdate =
+    latestVersion && currentVersion && compareVersions(latestVersion, currentVersion) > 0;
 
   return (
     <Sidebar
@@ -318,9 +328,80 @@ export const AppSidebar = () => {
                 <ModeToggle />
               </div>
             </div>
-            <div className="text-muted-foreground border-t px-3 py-2 text-center text-xs">
-              v{__APP_VERSION__}
-            </div>
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <div
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground cursor-help border-t px-3 py-2 text-center text-xs transition-colors",
+                    hasUpdate && "text-blue-600 dark:text-blue-400"
+                  )}
+                >
+                  v{currentVersion}
+                  {hasUpdate && " •"}
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="center" className="w-64">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">Version Info</span>
+                    {hasUpdate && (
+                      <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                        <Download className="h-3 w-3" />
+                        Update available
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Current:</span>
+                      <span className="font-mono font-medium">v{currentVersion}</span>
+                    </div>
+                    {isLoadingVersion ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Latest:</span>
+                        <span className="text-muted-foreground">Loading...</span>
+                      </div>
+                    ) : latestVersion ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Latest:</span>
+                        <span
+                          className={cn(
+                            "font-mono font-medium",
+                            hasUpdate && "text-blue-600 dark:text-blue-400"
+                          )}
+                        >
+                          v{latestVersion}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Latest:</span>
+                        <span className="text-muted-foreground text-xs">Unavailable</span>
+                      </div>
+                    )}
+                  </div>
+                  {!hasUpdate && latestVersion && (
+                    <div className="flex items-center gap-1.5 pt-2 text-xs text-green-600 dark:text-green-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Up to date</span>
+                    </div>
+                  )}
+                  {hasUpdate && (
+                    <p className="text-muted-foreground pt-2 text-xs">
+                      A new version is available on{" "}
+                      <a
+                        href="https://hub.docker.com/r/morelitea/initiative"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        Docker Hub
+                      </a>
+                    </p>
+                  )}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
           </div>
         </SidebarFooter>
       </div>
