@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
@@ -12,6 +12,14 @@ import {
   createEmptyEditorState,
   normalizeEditorState,
 } from "@/components/editor/DocumentEditor";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,7 +34,6 @@ export const DocumentDetailPage = () => {
   const { documentId } = useParams();
   const parsedId = Number(documentId);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
@@ -203,10 +210,6 @@ export const DocumentDetailPage = () => {
     featuredImageInputRef.current?.click();
   };
 
-  const handleBackClick = () => {
-    navigate(-1);
-  };
-
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">Invalid document id.</p>;
   }
@@ -229,9 +232,25 @@ export const DocumentDetailPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="link" className="px-0" onClick={handleBackClick}>
-          ← Back
-        </Button>
+        <Breadcrumb>
+          <BreadcrumbList>
+            {document.initiative && (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link to={`/initiatives/${document.initiative.id}`}>
+                      {document.initiative.name}
+                    </Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+              </>
+            )}
+            <BreadcrumbItem>
+              <BreadcrumbPage>{document.title}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
         {canEditDocument ? (
           <Button asChild variant="outline" size="sm">
             <Link

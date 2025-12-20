@@ -6,6 +6,14 @@ import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -342,9 +350,19 @@ export const InitiativeSettingsPage = () => {
 
   return (
     <div className="space-y-6">
-      <Button variant="link" size="sm" asChild className="px-0">
-        <Link to={`/initiatives/${initiative.id}`}>← Back to {initiative.name}</Link>
-      </Button>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to={`/initiatives/${initiative.id}`}>{initiative.name}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Settings</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <div className="space-y-1">
         <h1 className="text-3xl font-semibold tracking-tight">Initiative settings</h1>
         <p className="text-muted-foreground text-sm">

@@ -7,6 +7,14 @@ import { apiClient } from "@/api/client";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -170,9 +178,25 @@ export const ProjectDetailPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button asChild variant="link" className="px-0">
-          <Link to="/projects">← Back to projects</Link>
-        </Button>
+        <Breadcrumb>
+          <BreadcrumbList>
+            {project.initiative && (
+              <>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link to={`/initiatives/${project.initiative.id}`}>
+                      {project.initiative.name}
+                    </Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+              </>
+            )}
+            <BreadcrumbItem>
+              <BreadcrumbPage>{project.name}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
         {canManageSettings ? (
           <Button asChild variant="outline" size="sm" aria-label="Open project settings">
             <Link to={`/projects/${project.id}/settings`}>

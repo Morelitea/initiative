@@ -6,6 +6,14 @@ import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -299,11 +307,33 @@ export const DocumentSettingsPage = () => {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb>
+        <BreadcrumbList>
+          {document.initiative && (
+            <>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to={`/initiatives/${document.initiative.id}`}>
+                    {document.initiative.name}
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+            </>
+          )}
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to={`/documents/${document.id}`}>{document.title}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Settings</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <Button asChild variant="link" className="px-0">
-            <Link to={`/documents/${document.id}`}>← Back to document</Link>
-          </Button>
           <h1 className="text-2xl font-semibold">Document settings</h1>
           <p className="text-muted-foreground text-sm">
             Manage template status, permissions, duplication, and deletion.
