@@ -19,6 +19,7 @@ import {
 
 import { apiClient } from "@/api/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -333,14 +334,15 @@ export const AppSidebar = () => {
               <div className="flex items-center justify-between px-3 py-2">
                 <HoverCard>
                   <HoverCardTrigger asChild>
-                    <div
-                      className={cn(
-                        "text-muted-foreground hover:text-foreground cursor-help text-xs transition-colors",
-                        hasUpdate && "text-blue-600 dark:text-blue-400"
+                    <div className="flex cursor-help items-center gap-1.5">
+                      <span className="text-muted-foreground hover:text-foreground text-xs transition-colors">
+                        v{currentVersion}
+                      </span>
+                      {hasUpdate && (
+                        <Badge variant="default" className="h-4 px-1.5 text-[10px]">
+                          NEW
+                        </Badge>
                       )}
-                    >
-                      v{currentVersion}
-                      {hasUpdate && " •"}
                     </div>
                   </HoverCardTrigger>
                   <HoverCardContent side="top" align="center" className="w-64">
@@ -348,7 +350,7 @@ export const AppSidebar = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold">Version Info</span>
                         {hasUpdate && (
-                          <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                          <span className="text-primary flex items-center gap-1 text-xs">
                             <Download className="h-3 w-3" />
                             Update available
                           </span>
@@ -368,10 +370,7 @@ export const AppSidebar = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-muted-foreground">Latest:</span>
                             <span
-                              className={cn(
-                                "font-mono font-medium",
-                                hasUpdate && "text-blue-600 dark:text-blue-400"
-                              )}
+                              className={cn("font-mono font-medium", hasUpdate && "text-primary")}
                             >
                               v{latestVersion}
                             </span>
@@ -396,7 +395,7 @@ export const AppSidebar = () => {
                             href="https://hub.docker.com/r/morelitea/initiative"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline dark:text-blue-400"
+                            className="text-primary hover:underline"
                           >
                             Docker Hub
                           </a>
