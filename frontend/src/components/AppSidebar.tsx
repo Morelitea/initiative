@@ -14,8 +14,8 @@ import {
   MoreVertical,
   Download,
   CheckCircle2,
-  Github,
 } from "lucide-react";
+import { SiGithub } from "@icons-pack/react-simple-icons";
 
 import { apiClient } from "@/api/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -413,7 +413,7 @@ export const AppSidebar = () => {
                       className="text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="View on GitHub"
                     >
-                      <Github className="h-4 w-4" />
+                      <SiGithub className="h-4 w-4" />
                     </a>
                   </TooltipTrigger>
                   <TooltipContent side="top">

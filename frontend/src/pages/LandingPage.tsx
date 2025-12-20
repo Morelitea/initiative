@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Users, ListTodo, FileText, Swords, Map, Calendar, Shield, Sparkles } from "lucide-react";
+import { SiDocker, SiGithub } from "@icons-pack/react-simple-icons";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { ModeToggle } from "@/components/ModeToggle";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 const features = [
   {
@@ -225,9 +228,45 @@ export const LandingPage = () => {
         <footer className="border-t">
           <div className="container mx-auto px-4 py-8">
             <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
-              <div className="text-primary flex items-center gap-2 font-semibold">
-                <LogoIcon className="h-6 w-6" aria-hidden="true" />
-                initiative
+              <div className="flex items-center gap-6">
+                <div className="text-primary flex items-center gap-2 font-semibold">
+                  <LogoIcon className="h-6 w-6" aria-hidden="true" />
+                  initiative
+                </div>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <a
+                        href="https://github.com/Morelitea/initiative"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="View on GitHub"
+                      >
+                        <SiGithub className="h-4 w-4" />
+                      </a>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>View on GitHub</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <a
+                        href="https://hub.docker.com/r/morelitea/initiative"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="View on Docker Hub"
+                      >
+                        <SiDocker className="h-4 w-4" />
+                      </a>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>View on Docker Hub</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <p className="text-muted-foreground text-sm">
                 &copy; {new Date().getFullYear()} Initiative. Roll high, stay organized.
