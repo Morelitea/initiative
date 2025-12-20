@@ -30,10 +30,16 @@ from app.schemas.user import (
     DeletionEligibilityResponse,
     ProjectBasic,
 )
+from app.schemas.api_key import (
+    ApiKeyCreateRequest,
+    ApiKeyCreateResponse,
+    ApiKeyListResponse,
+)
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services import users as users_service
+from app.services import api_keys as api_keys_service
 
 router = APIRouter()
 
@@ -423,6 +429,45 @@ async def delete_own_account(
             deletion_type="hard",
             message="Your account has been permanently deleted.",
         )
+
+
+@router.get("/me/api-keys", response_model=ApiKeyListResponse)
+async def list_my_api_keys(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ApiKeyListResponse:
+    """List all API keys for the current user."""
+    keys = await api_keys_service.list_api_keys(session, user=current_user)
+    return ApiKeyListResponse(keys=keys)
+
+
+@router.post("/me/api-keys", response_model=ApiKeyCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_my_api_key(
+    payload: ApiKeyCreateRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ApiKeyCreateResponse:
+    """Create a new API key for the current user."""
+    secret, api_key = await api_keys_service.create_api_key(
+        session,
+        user=current_user,
+        name=payload.name,
+        expires_at=payload.expires_at,
+    )
+    return ApiKeyCreateResponse(api_key=api_key, secret=secret)
+
+
+@router.delete("/me/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_api_key(
+    api_key_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> None:
+    """Delete an API key for the current user."""
+    deleted = await api_keys_service.delete_api_key(session, user=current_user, api_key_id=api_key_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

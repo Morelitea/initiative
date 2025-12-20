@@ -6,7 +6,6 @@ from app.core.config import settings as app_config
 from app.models.user import User
 from app.models.app_setting import AppSetting
 from app.models.guild import GuildRole
-from app.schemas.api_key import ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKeyListResponse
 from app.schemas.settings import (
     EmailSettingsResponse,
     EmailSettingsUpdate,
@@ -18,7 +17,6 @@ from app.schemas.settings import (
     RoleLabelsResponse,
     RoleLabelsUpdate,
 )
-from app.services import api_keys as api_keys_service
 from app.services import app_settings as app_settings_service
 from app.services import email as email_service
 
@@ -116,44 +114,6 @@ async def get_role_labels(
 ) -> RoleLabelsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return RoleLabelsResponse(**settings_obj.role_labels)
-
-
-@router.get("/api-keys", response_model=ApiKeyListResponse)
-async def list_api_keys(
-    session: SessionDep,
-    current_admin: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildAdminContext,
-) -> ApiKeyListResponse:
-    keys = await api_keys_service.list_api_keys(session, user=current_admin)
-    return ApiKeyListResponse(keys=keys)
-
-
-@router.post("/api-keys", response_model=ApiKeyCreateResponse, status_code=status.HTTP_201_CREATED)
-async def create_api_key(
-    payload: ApiKeyCreateRequest,
-    session: SessionDep,
-    current_admin: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildAdminContext,
-) -> ApiKeyCreateResponse:
-    secret, api_key = await api_keys_service.create_api_key(
-        session,
-        user=current_admin,
-        name=payload.name,
-        expires_at=payload.expires_at,
-    )
-    return ApiKeyCreateResponse(api_key=api_key, secret=secret)
-
-
-@router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_api_key(
-    api_key_id: int,
-    session: SessionDep,
-    current_admin: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildAdminContext,
-) -> None:
-    deleted = await api_keys_service.delete_api_key(session, user=current_admin, api_key_id=api_key_id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
 
 
 @router.put("/interface", response_model=InterfaceSettingsResponse)

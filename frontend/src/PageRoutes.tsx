@@ -202,6 +202,7 @@ export const PageRoutes = () => {
                 path="notifications"
                 element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
               />
+              <Route path="api-keys" element={<SettingsApiKeysPage />} />
               <Route
                 path="danger"
                 element={<UserSettingsDangerZonePage user={user} logout={logout} />}
@@ -213,7 +214,6 @@ export const PageRoutes = () => {
         <Route path="/settings/guild/*" element={<GuildSettingsLayout />}>
           <Route index element={<SettingsGuildPage />} />
           <Route path="users" element={<SettingsUsersPage />} />
-          <Route path="api-keys" element={<SettingsApiKeysPage />} />
         </Route>
         <Route path="/settings/admin/*" element={<AdminSettingsLayout />}>
           <Route index element={<SettingsAuthPage />} />

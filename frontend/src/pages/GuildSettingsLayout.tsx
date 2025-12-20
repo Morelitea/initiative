@@ -7,7 +7,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 const guildSettingsTabs = [
   { value: "guild", label: "Guild", path: "/settings/guild" },
   { value: "users", label: "Users", path: "/settings/guild/users" },
-  { value: "api-keys", label: "API Keys", path: "/settings/guild/api-keys" },
 ];
 
 export const GuildSettingsLayout = () => {

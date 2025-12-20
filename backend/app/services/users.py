@@ -18,7 +18,7 @@ from app.models.comment import Comment
 from app.models.notification import Notification
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
-from app.models.api_key import AdminApiKey
+from app.models.api_key import UserApiKey
 from app.models.user_token import UserToken
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
 
@@ -300,8 +300,8 @@ async def hard_delete_user(
     await session.exec(delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id))
     await session.exec(delete(RecentProjectView).where(RecentProjectView.user_id == user_id))
 
-    # Admin API keys
-    await session.exec(delete(AdminApiKey).where(AdminApiKey.user_id == user_id))
+    # User API keys
+    await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
 
     # User tokens (password reset, email verification)
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))

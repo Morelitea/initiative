@@ -5,8 +5,8 @@ from sqlalchemy import Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 
-class AdminApiKey(SQLModel, table=True):
-    __tablename__ = "admin_api_keys"
+class UserApiKey(SQLModel, table=True):
+    __tablename__ = "user_api_keys"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
@@ -31,3 +31,7 @@ class AdminApiKey(SQLModel, table=True):
 
 
 from app.models.user import User  # noqa: E402
+
+
+# Backwards compatibility alias
+AdminApiKey = UserApiKey

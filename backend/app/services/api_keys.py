@@ -8,8 +8,8 @@ from typing import Optional, Tuple
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.api_key import AdminApiKey
-from app.models.user import User, UserRole
+from app.models.api_key import UserApiKey
+from app.models.user import User
 
 API_KEY_PREFIX = "ppk_"
 API_KEY_DISPLAY_PREFIX_LENGTH = 12
@@ -23,8 +23,8 @@ def _generate_secret() -> str:
     return f"{API_KEY_PREFIX}{token_urlsafe(32)}"
 
 
-async def list_api_keys(session: AsyncSession, *, user: User) -> list[AdminApiKey]:
-    statement = select(AdminApiKey).where(AdminApiKey.user_id == user.id).order_by(AdminApiKey.created_at.desc())
+async def list_api_keys(session: AsyncSession, *, user: User) -> list[UserApiKey]:
+    statement = select(UserApiKey).where(UserApiKey.user_id == user.id).order_by(UserApiKey.created_at.desc())
     result = await session.exec(statement)
     return result.all()
 
@@ -35,12 +35,12 @@ async def create_api_key(
     user: User,
     name: str,
     expires_at: Optional[datetime] = None,
-) -> Tuple[str, AdminApiKey]:
+) -> Tuple[str, UserApiKey]:
     if not user.id:
         raise ValueError("User must be persisted before creating API keys")
 
     secret = _generate_secret()
-    api_key = AdminApiKey(
+    api_key = UserApiKey(
         user_id=user.id,
         name=name,
         token_prefix=secret[:API_KEY_DISPLAY_PREFIX_LENGTH],
@@ -54,7 +54,7 @@ async def create_api_key(
 
 
 async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) -> bool:
-    statement = select(AdminApiKey).where(AdminApiKey.id == api_key_id, AdminApiKey.user_id == user.id)
+    statement = select(UserApiKey).where(UserApiKey.id == api_key_id, UserApiKey.user_id == user.id)
     result = await session.exec(statement)
     api_key = result.one_or_none()
     if not api_key:
@@ -67,7 +67,7 @@ async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) 
 
 async def authenticate_api_key(session: AsyncSession, token: str) -> Optional[User]:
     token_hash = _hash_token(token)
-    statement = select(AdminApiKey).where(AdminApiKey.token_hash == token_hash, AdminApiKey.is_active.is_(True))
+    statement = select(UserApiKey).where(UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True))
     result = await session.exec(statement)
     api_key = result.one_or_none()
     if not api_key:
@@ -79,7 +79,7 @@ async def authenticate_api_key(session: AsyncSession, token: str) -> Optional[Us
 
     user_result = await session.exec(select(User).where(User.id == api_key.user_id))
     user = user_result.one_or_none()
-    if not user or not user.is_active or user.role != UserRole.admin:
+    if not user or not user.is_active:
         return None
 
     api_key.last_used_at = now

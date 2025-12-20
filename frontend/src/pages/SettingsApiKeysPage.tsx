@@ -47,14 +47,14 @@ export const SettingsApiKeysPage = () => {
   const apiKeysQuery = useQuery<ApiKeyListResponse>({
     queryKey: API_KEYS_QUERY_KEY,
     queryFn: async () => {
-      const response = await apiClient.get<ApiKeyListResponse>("/settings/api-keys");
+      const response = await apiClient.get<ApiKeyListResponse>("/users/me/api-keys");
       return response.data;
     },
   });
 
   const createKey = useMutation({
     mutationFn: async (payload: { name: string; expires_at?: string | null }) => {
-      const response = await apiClient.post<ApiKeyCreateResponse>("/settings/api-keys", payload);
+      const response = await apiClient.post<ApiKeyCreateResponse>("/users/me/api-keys", payload);
       return response.data;
     },
     onSuccess: (data) => {
@@ -71,7 +71,7 @@ export const SettingsApiKeysPage = () => {
 
   const deleteKey = useMutation({
     mutationFn: async (apiKeyId: number) => {
-      await apiClient.delete(`/settings/api-keys/${apiKeyId}`);
+      await apiClient.delete(`/users/me/api-keys/${apiKeyId}`);
     },
     onMutate: (keyId: number) => {
       setDeleteTarget(keyId);

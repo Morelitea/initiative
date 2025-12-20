@@ -102,7 +102,7 @@ class User(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     project_orders: List["ProjectOrder"] = Relationship(back_populates="user")
-    api_keys: List["AdminApiKey"] = Relationship(back_populates="user")
+    api_keys: List["UserApiKey"] = Relationship(back_populates="user")
     favorite_projects: List["ProjectFavorite"] = Relationship(back_populates="user")
     recent_project_views: List["RecentProjectView"] = Relationship(back_populates="user")
 
@@ -111,5 +111,5 @@ from app.models.project import Project  # noqa: E402  # isort:skip
 from app.models.project import ProjectPermission  # noqa: E402  # isort:skip
 from app.models.task import Task  # noqa: E402  # isort:skip
 from app.models.project_order import ProjectOrder  # noqa: E402  # isort:skip
-from app.models.api_key import AdminApiKey  # noqa: E402  # isort:skip
+from app.models.api_key import UserApiKey  # noqa: E402  # isort:skip
 from app.models.project_activity import ProjectFavorite, RecentProjectView  # noqa: E402  # isort:skip
