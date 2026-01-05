@@ -8,6 +8,12 @@
   "description": "Prioritize projects and tasks anywhere, even offline.",
   "icons": [
     {
+      "purpose": "any",
+      "sizes": "1024x1024",
+      "src": "icons/maskable_icon.png",
+      "type": "image/png"
+    },
+    {
       "purpose": "maskable",
       "sizes": "1024x1024",
       "src": "icons/maskable_icon.png",
