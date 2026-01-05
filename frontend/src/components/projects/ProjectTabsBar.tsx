@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { Project } from "@/types/api";
 import { Button } from "@/components/ui/button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 interface ProjectTabsBarProps {
   projects?: Project[];
@@ -24,7 +25,7 @@ export const ProjectTabsBar = ({
   }
 
   return (
-    <div className="h-12">
+    <ScrollArea className="h-12">
       <div className="container mx-auto flex h-full items-end gap-2 overflow-x-auto px-4">
         {loading ? (
           <p className="text-muted-foreground py-3 text-xs">Loading recent projects…</p>
@@ -48,7 +49,7 @@ export const ProjectTabsBar = ({
                   {project.icon ? (
                     <span className="text-base leading-none">{project.icon}</span>
                   ) : null}
-                  <span className="max-w-[160px] truncate">{project.name}</span>
+                  <span className="max-w-40 truncate">{project.name}</span>
                 </Link>
                 <Button
                   type="button"
@@ -68,6 +69,7 @@ export const ProjectTabsBar = ({
           })
         )}
       </div>
-    </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   );
 };
