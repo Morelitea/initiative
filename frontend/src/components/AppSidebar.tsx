@@ -316,6 +316,9 @@ export const AppSidebar = () => {
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
+                    <Link to="/user-stats">My Stats</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link to="/profile">User Settings</Link>
                   </DropdownMenuItem>
                   {isGuildAdmin && (

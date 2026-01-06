@@ -1,0 +1,91 @@
+import { parseISO } from "date-fns";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { HeatmapDayData } from "@/types/api";
+import { cn } from "@/lib/utils";
+
+interface HeatmapChartProps {
+  data: HeatmapDayData[];
+}
+
+export function HeatmapChart({ data }: HeatmapChartProps) {
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Activity Heatmap</CardTitle>
+          <CardDescription>Task activity over the past year</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-muted-foreground flex h-[200px] items-center justify-center text-sm">
+            No activity data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Find max activity for scaling
+  const maxActivity = Math.max(...data.map((d) => d.activity_count), 1);
+
+  // Get intensity level based on activity count
+  const getIntensity = (count: number): string => {
+    if (count === 0) return "bg-muted";
+    const ratio = count / maxActivity;
+    if (ratio < 0.25) return "bg-green-200 dark:bg-green-900/40";
+    if (ratio < 0.5) return "bg-green-400 dark:bg-green-700/60";
+    if (ratio < 0.75) return "bg-green-600 dark:bg-green-500/80";
+    return "bg-green-700 dark:bg-green-400";
+  };
+
+  // Group data by weeks (7 days per week)
+  const weeks: HeatmapDayData[][] = [];
+  for (let i = 0; i < data.length; i += 7) {
+    weeks.push(data.slice(i, i + 7));
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Activity Heatmap</CardTitle>
+        <CardDescription>Task activity over the past year</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <div className="inline-flex gap-1">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="flex flex-col gap-1">
+                {week.map((day, dayIndex) => {
+                  const date = parseISO(day.date);
+                  const dateStr = date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  });
+
+                  return (
+                    <div
+                      key={dayIndex}
+                      className={cn(
+                        "hover:ring-primary h-3 w-3 rounded-sm transition-colors hover:ring-2",
+                        getIntensity(day.activity_count)
+                      )}
+                      title={`${dateStr}: ${day.activity_count} ${day.activity_count === 1 ? "activity" : "activities"}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="text-muted-foreground mt-4 flex items-center gap-2 text-xs">
+          <span>Less</span>
+          <div className="bg-muted h-3 w-3 rounded-sm" />
+          <div className="h-3 w-3 rounded-sm bg-green-200 dark:bg-green-900/40" />
+          <div className="h-3 w-3 rounded-sm bg-green-400 dark:bg-green-700/60" />
+          <div className="h-3 w-3 rounded-sm bg-green-600 dark:bg-green-500/80" />
+          <div className="h-3 w-3 rounded-sm bg-green-700 dark:bg-green-400" />
+          <span>More</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

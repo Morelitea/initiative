@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlmodel import select, delete
 
@@ -35,11 +35,13 @@ from app.schemas.api_key import (
     ApiKeyCreateResponse,
     ApiKeyListResponse,
 )
+from app.schemas.stats import UserStatsResponse
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services import users as users_service
 from app.services import api_keys as api_keys_service
+from app.services import stats_service
 
 router = APIRouter()
 
@@ -96,6 +98,23 @@ def _normalize_week_starts_on(value: int | str | None) -> int | None:
 async def read_users_me(session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
     await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
+
+
+@router.get("/me/stats", response_model=UserStatsResponse)
+async def get_user_stats(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_id: Optional[int] = Query(default=None, description="Optional guild ID to filter stats"),
+    days: int = Query(default=90, ge=1, le=365, description="Number of days to analyze"),
+) -> UserStatsResponse:
+    """Get comprehensive statistics for the current user."""
+    stats = await stats_service.get_user_stats(
+        session,
+        user=current_user,
+        guild_id=guild_id,
+        days=days,
+    )
+    return stats
 
 
 @router.get("/", response_model=List[UserGuildMember])
