@@ -109,7 +109,5 @@ jobs:
 
             ### Docker Hub
             View on Docker Hub: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/initiative
-
-            ## What's Changed
           draft: false
           prerelease: false
