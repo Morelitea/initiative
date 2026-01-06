@@ -395,3 +395,32 @@ export interface NotificationListResponse {
 export interface NotificationCountResponse {
   unread_count: number;
 }
+
+export interface VelocityWeekData {
+  week_start: string;
+  assigned: number;
+  completed: number;
+}
+
+export interface HeatmapDayData {
+  date: string;
+  activity_count: number;
+}
+
+export interface GuildTaskBreakdown {
+  guild_id: number;
+  guild_name: string;
+  completed_count: number;
+}
+
+export interface UserStatsResponse {
+  streak: number;
+  on_time_rate: number;
+  avg_completion_days: number | null;
+  tasks_completed_total: number;
+  tasks_completed_this_week: number;
+  backlog_trend: "Growing" | "Shrinking";
+  velocity_data: VelocityWeekData[];
+  heatmap_data: HeatmapDayData[];
+  guild_breakdown: GuildTaskBreakdown[];
+}

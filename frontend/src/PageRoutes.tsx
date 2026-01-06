@@ -133,6 +133,11 @@ const UserSettingsDangerZonePage = lazy(() =>
     default: module.UserSettingsDangerZonePage,
   }))
 );
+const UserStatsPage = lazy(() =>
+  import("./pages/UserStatsPage").then((module) => ({
+    default: module.UserStatsPage,
+  }))
+);
 
 export const PageRoutes = () => {
   const location = useLocation();
@@ -210,6 +215,7 @@ export const PageRoutes = () => {
             </>
           )}
         </Route>
+        <Route path="/user-stats" element={<UserStatsPage />} />
         <Route path="/settings" element={<Navigate to="/settings/guild" replace />} />
         <Route path="/settings/guild/*" element={<GuildSettingsLayout />}>
           <Route index element={<SettingsGuildPage />} />
