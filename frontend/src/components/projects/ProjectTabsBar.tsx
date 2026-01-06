@@ -25,8 +25,8 @@ export const ProjectTabsBar = ({
   }
 
   return (
-    <ScrollArea className="h-12">
-      <div className="container mx-auto flex h-full items-end gap-2 overflow-x-auto px-4">
+    <ScrollArea className="h-12 pt-2.5">
+      <div className="flex h-full items-end gap-2 px-4">
         {loading ? (
           <p className="text-muted-foreground py-3 text-xs">Loading recent projects…</p>
         ) : (
