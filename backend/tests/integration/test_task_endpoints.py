@@ -129,7 +129,7 @@ async def test_create_task(client: AsyncClient, session: AsyncSession):
         "description": "Task description",
         "project_id": project.id,
         "task_status_id": status.id,
-        "priority": 2,
+        "priority": "high",
     }
 
     response = await client.post("/api/v1/tasks/", headers=headers, json=payload)
@@ -138,7 +138,7 @@ async def test_create_task(client: AsyncClient, session: AsyncSession):
     data = response.json()
     assert data["title"] == "New Task"
     assert data["description"] == "Task description"
-    assert data["priority"] == 2
+    assert data["priority"] == "high"
 
 
 @pytest.mark.integration
@@ -468,7 +468,12 @@ async def test_reorder_subtasks(client: AsyncClient, session: AsyncSession):
     await session.refresh(subtask2)
 
     headers = get_guild_headers(guild, user)
-    payload = {"subtask_ids": [subtask2.id, subtask1.id]}
+    payload = {
+        "items": [
+            {"id": subtask2.id, "position": 0},
+            {"id": subtask1.id, "position": 1},
+        ]
+    }
 
     response = await client.put(
         f"/api/v1/tasks/{task.id}/subtasks/order", headers=headers, json=payload
@@ -494,7 +499,14 @@ async def test_reorder_tasks(client: AsyncClient, session: AsyncSession):
     task3 = await _create_task(session, project, "Task 3")
 
     headers = get_guild_headers(guild, user)
-    payload = {"task_ids": [task3.id, task1.id, task2.id]}
+    payload = {
+        "project_id": project.id,
+        "items": [
+            {"id": task3.id, "task_status_id": task3.task_status_id, "sort_order": 0},
+            {"id": task1.id, "task_status_id": task1.task_status_id, "sort_order": 1},
+            {"id": task2.id, "task_status_id": task2.task_status_id, "sort_order": 2},
+        ]
+    }
 
     response = await client.post("/api/v1/tasks/reorder", headers=headers, json=payload)
 
