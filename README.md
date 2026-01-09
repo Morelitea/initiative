@@ -1,137 +1,314 @@
 # Initiative
 
-A full-stack project management application built with a FastAPI backend, PostgreSQL 17 storage, and a Vite + React frontend that communicates via React Query. The system ships with role-based permissions, JWT authentication, and a Docker-first story for self-hosting.
+A self-hosted, multi-tenant project management platform built for teams that need workspace isolation, granular permissions, and rich collaboration features.
 
-## Stack
+---
 
-- **Backend:** FastAPI, SQLModel, async SQLAlchemy engine (asyncpg), Alembic migrations, OAuth2 password flow (JWT), and PostgreSQL 17
-- **Frontend:** Vite, React 18, TypeScript, React Router, React Query, Axios
-- **Infrastructure:** Dockerfiles for backend/frontend + `docker-compose` with Postgres 17
+## What is Initiative?
 
-## Getting Started
+Initiative is a production-ready project management platform that goes beyond simple task tracking. It's designed for organizations that need:
+
+- **Multi-tenant workspaces (guilds)** with true data isolation between teams
+- **Hierarchical organization** through initiatives that group related projects and documents
+- **Flexible permissions** with 4-layer access control (Platform → Guild → Initiative → Project)
+- **Rich collaboration** combining Kanban-style task management with collaborative documents
+- **Self-hosted deployment** with Docker, giving you full control over your data
+
+Whether you're managing a single team or multiple client workspaces, Initiative provides the structure and security features to scale with your needs.
+
+---
+
+## Key Features
+
+### Multi-Tenant Workspaces (Guilds)
+
+- **Workspace isolation**: Each guild operates independently with its own teams, projects, and data
+- **Switch contexts seamlessly**: Join multiple guilds and move between them instantly
+- **Guild invitations**: Share invitation links with optional expiry dates and usage limits
+- **Per-guild administration**: Guild admins manage their workspace without platform-wide access
+- **Controlled creation**: Optionally restrict guild creation for hosted deployments
+
+### Organized Project Hierarchy
+
+- **Initiatives group related work**: Bundle projects and documents under a common initiative
+- **Shared team access**: Initiative membership automatically grants access to all projects within
+- **Custom project boards**: Drag-and-drop Kanban boards with customizable task statuses
+- **Color-coded organization**: Visual distinction with initiative-specific colors
+
+### Flexible Permission Model
+
+- **4-layer access control**: Granular permissions cascade from platform to guild to initiative to project
+- **Initiative project managers**: Designated team members control initiative access and project creation
+- **Project-level overrides**: Grant explicit write access to specific users beyond initiative membership
+- **Independent guild administration**: Guild admins manage their workspace without affecting other guilds
+
+### Rich Task Management
+
+- **Kanban boards**: Custom task statuses organized into backlog, todo, in-progress, and done categories
+- **Priority levels**: Low, medium, high, and urgent priorities with visual indicators
+- **Flexible scheduling**: Start dates, due dates, and recurring tasks
+- **Subtasks**: Break down complex work with completion tracking
+- **Multiple assignees**: Assign tasks to multiple team members
+- **My Tasks dashboard**: Personal view with filtering by status, priority, and date
+
+### Collaborative Documents
+
+- **Rich text editing**: Full-featured documents with JSONB storage for flexibility
+- **Link to projects**: Attach documents to multiple projects for cross-referencing
+- **Independent permissions**: Control document access separately from project permissions
+- **Document templates**: Create reusable document templates for common workflows
+- **Threaded comments**: Discuss documents with team members using nested comments
+
+### Authentication & Security
+
+- **JWT-based authentication**: Secure, stateless token-based auth
+- **OpenID Connect (OIDC) SSO**: Integrate with enterprise identity providers
+- **Email verification**: Confirm user email addresses before account activation
+- **API keys**: Secure headless integrations with service accounts
+
+### Notifications & Activity
+
+- **Real-time updates**: WebSocket-based live updates for collaborative work
+- **Task notifications**: Get notified when assigned to tasks or when tasks are updated
+- **Overdue task digests**: Configurable email digests for overdue tasks
+- **Notification preferences**: Control which notifications you receive and when
+- **Activity tracking**: Recently viewed projects and favorites for quick access
+
+### Production Features
+
+- **SMTP email**: Configurable email server for transactional emails and notifications
+- **Branding customization**: Customize colors, labels, and branding elements
+- **Timezone support**: Per-user timezone settings for accurate date/time display
+- **Project archiving**: Move completed projects to archive without deletion
+- **Comprehensive admin controls**: Platform-wide settings for superusers
+
+---
+
+## Quick Start
+
+### Using Docker Compose (Recommended)
+
+The fastest way to get Initiative running:
+
+```bash
+# 1. Copy the example configuration
+cp docker-compose.example.yml docker-compose.yml
+
+# 2. Edit configuration (set a secure SECRET_KEY)
+nano docker-compose.yml
+
+# 3. Start the application
+docker-compose up -d
+
+# 4. Access Initiative at http://localhost:8173
+```
+
+**What's included:**
+
+- PostgreSQL 17 database with persistent storage
+- FastAPI backend with automatic migrations
+- React frontend served via nginx
+- Health checks and automatic restarts
+- Volume mounts for persistent uploads
+
+**First-time setup:**
+
+- The first user to register will be prompted to create an account
+- Configure SMTP settings in the admin panel to enable email notifications
+- Create your first guild and start inviting team members
+
+---
+
+## Technology Stack
+
+**Backend:**
+
+- FastAPI (async Python web framework)
+- SQLModel + SQLAlchemy (ORM with async support)
+- PostgreSQL 17 (with JSONB for flexible document storage)
+- Alembic (database migrations)
+- asyncpg (high-performance Postgres driver)
+
+**Frontend:**
+
+- React 18 with TypeScript
+- Vite (fast build tool and dev server)
+- React Query (@tanstack/react-query) for data fetching and caching
+- Tailwind CSS for styling
+- Shadcn/ui for accessible components
+- dnd-kit for drag-and-drop interactions
+
+**Infrastructure:**
+
+- Docker and Docker Compose
+- GitHub Actions (automated multi-arch builds)
+
+---
+
+## Manual Development Setup
+
+For local development without Docker:
 
 ### Prerequisites
 
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL 17 (or run the provided Docker Compose stack)
+- PostgreSQL 17
 
-### Backend setup
+### Backend Setup
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # update secrets + Postgres DSN
-# Run the latest DB migrations (optional if you use init_db, but recommended)
-alembic upgrade head
 
-# Start the API
-# Optionally explore the API docs at http://localhost:8000/api/v1/docs
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and set DATABASE_URL, SECRET_KEY, and other variables
+
+# Run migrations and seed defaults
+alembic upgrade head
+# Or use: python -m app.db.init_db
+
+# Start the API server
 uvicorn app.main:app --reload
+# API available at http://localhost:8000
+# API docs at http://localhost:8000/api/v1/docs
 ```
 
-Key environment variables (see `.env.example`):
-
-- `DATABASE_URL` – e.g., `postgresql+asyncpg://initiative:initiative@localhost:5432/initiative`
-- `SECRET_KEY` – random string for JWT signing
-- `AUTO_APPROVED_EMAIL_DOMAINS` – comma-separated list of email domains that should be activated automatically on signup
-- `APP_URL` – public base URL for the app; used to derive OIDC callback URLs (e.g., `https://app.example.com`)
-- `FIRST_SUPERUSER_*` – optional bootstrap admin created via `python -m app.db.init_db`
-- `DISABLE_GUILD_CREATION` – when `true`, the API rejects new guilds and the SPA hides “Create guild” affordances so users must rely on invites from existing guild admins
-- `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_REJECT_UNAUTHORIZED` – SMTP server connection details used for transactional email
-- `SMTP_USERNAME` / `SMTP_PASSWORD` – credentials for the SMTP relay (leave blank for anonymous)
-- `SMTP_FROM_ADDRESS` – display + email address used as the `From` header, e.g. `Initiative <no-reply@example.com>`
-- `SMTP_TEST_RECIPIENT` – optional default inbox for the “Send test email” button in Settings → Email
-
-### Database migrations
-
-Alembic handles schema changes. Run these from `backend/`:
-
-- `alembic upgrade head` – apply migrations to the current database
-- `alembic revision --autogenerate -m "describe change"` – generate a migration from model diffs
-- `python -m app.db.init_db` – run migrations, ensure default app settings exist, and optionally create the superuser
-
-### Frontend setup
+### Frontend Setup
 
 ```bash
 cd frontend
-npm install
-npm run dev
+
+# Install dependencies
+pnpm install
+
+# Configure API URL (optional, defaults to http://localhost:8000/api/v1)
+echo "VITE_API_URL=http://localhost:8000/api/v1" > .env
+
+# Start development server
+pnpm dev
+# Frontend available at http://localhost:5173
 ```
 
-Expose the API URL to the frontend by setting `VITE_API_URL` (defaults to `http://localhost:8000/api/v1`).
+### Database Migrations
 
-### Docker Compose (recommended for local Postgres 17)
+When modifying SQLModel classes:
 
 ```bash
-docker-compose up --build
+cd backend
+
+# Generate migration from model changes
+alembic revision --autogenerate -m "Description of changes"
+
+# Apply pending migrations
+alembic upgrade head
 ```
 
-Services:
+For detailed development guidelines, coding standards, and workflow, see [AGENTS.md](AGENTS.md).
 
-- `db` – PostgreSQL 17 with a persistent volume
-- `backend` – FastAPI app served on `http://localhost:8000`
-- `frontend` – Static React build served via nginx on `http://localhost:5173`
+---
 
-## Application Features
+## Configuration
 
-### Authentication & Authorization
+### Key Environment Variables
 
-- User registration + OAuth2 password flow for login
-- Admin approval queue for new accounts, with optional email-domain allowlist for automatic activation
-- JWT-based `Authorization: Bearer ...` headers plus built-in Swagger UI at `/api/v1/docs` (supports JWTs or admin API keys)
-- Admin API keys that can be generated from Settings → API Keys and supplied via `Authorization: Bearer <key>` for headless integrations
-- Global roles are limited to `admin` and `member`, while initiative-scoped roles (`project_manager`, `member`) determine who can manage initiatives, invite teammates, and create projects. Admins automatically have full read/write access everywhere.
-- Initiative membership grants implicit read access to every project in that initiative. Initiative project managers can grant extra write overrides on specific projects via the `project_permissions` table, so access flows Admin → Initiative PM → explicit project write override → initiative member read.
-- Initiative-owned projects restrict visibility/editing to members of the owning initiative (admins can override)
+| Variable                   | Description                                   | Example                                                    |
+| -------------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| `DATABASE_URL`             | PostgreSQL connection string                  | `postgresql+asyncpg://user:pass@localhost:5432/initiative` |
+| `SECRET_KEY`               | JWT signing key (use a secure random string)  | `your-secret-key-here`                                     |
+| `APP_URL`                  | Public base URL (required for OIDC callbacks) | `https://initiative.example.com`                           |
+| `DISABLE_GUILD_CREATION`   | Restrict guild creation to super admin only   | `true` or `false`                                          |
+| `FIRST_SUPERUSER_EMAIL`    | Bootstrap admin email                         | `admin@example.com`                                        |
+| `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password                      | `secure-password`                                          |
+| `SMTP_HOST`                | SMTP server hostname                          | `smtp.gmail.com`                                           |
+| `SMTP_PORT`                | SMTP server port                              | `587`                                                      |
+| `SMTP_USERNAME`            | SMTP authentication username                  | `your-email@gmail.com`                                     |
+| `SMTP_PASSWORD`            | SMTP authentication password                  | `your-app-password`                                        |
+| `SMTP_FROM_ADDRESS`        | Email sender address                          | `Initiative <noreply@example.com>`                         |
 
-### Backend Domain
+See `backend/.env.example` for a complete list of configuration options.
 
-- Users with hashed passwords, audit timestamps, and relationships to projects/tasks
-- Projects belong to initiatives and cascade deletes into related tasks/permissions
-- Explicit project write overrides live in the `project_permissions` table (levels `owner`/`write`), while initiative membership handles read access
-- Initiatives with many-to-many membership, plus initiative-owned projects that scope access to initiative members
-- Project archiving with dedicated Archive view; only users with write access can archive/unarchive projects, keeping active boards focused
-- Tasks tied to projects with status + priority enums for Kanban-style workflows
-- Async Postgres engine, session dependency injection, and startup hook that auto-creates tables
+---
 
-### Frontend Experience
+## Documentation & Resources
 
-- Auth context with persistent JWT tokens and guarded routes
-- React Query hooks for projects/tasks CRUD, with optimistic invalidations
-- Simple project board UI + task status transitions, plus gated project creation for managers/admins
-- Admin-only settings + user management screens for approval queues, allowlists, role changes, password resets, account deletion, initiative management, OIDC configuration, and API key management
+- **Development Guidelines**: [AGENTS.md](AGENTS.md) - Repository workflow, issue tracking with bd (beads), coding standards
+- **Docker Images**: [morelitea/initiative on Docker Hub](https://hub.docker.com/r/morelitea/initiative)
+- **API Documentation**: Available at `/api/v1/docs` when running (interactive Swagger UI)
+- **Version Management**: Uses semantic versioning with `VERSION` file as single source of truth
 
-### Guilds
+---
 
-- Every user belongs to one or more guilds (multi-tenant workspaces). Each request carries the active guild via the `X-Guild-ID` header (set automatically by the SPA) or falls back to the user's `active_guild_id`.
-- Guild membership has its own roles (`admin`, `member`). Guild admins can invite/kick members, manage initiative/project settings within that guild, and delete the guild (which cascades initiatives, projects, tasks, and memberships). Members can collaborate but cannot remove other users from the app.
-- Creating a guild promotes the creator to guild admin and automatically seeds a “Default Initiative” so projects always have a home. Switching guilds updates the user’s `active_guild_id` and the SPA re-navigates to the project list.
-- Use `/api/v1/guilds/{guild_id}/switch` (handled by the frontend) to change context. APIs that depend on guild context read the `X-Guild-ID` header or the user’s active guild, so the same token can operate across workspaces.
-- Invite links are guild-scoped, include optional expiry/max-uses, and must be redeemed before joining when `DISABLE_GUILD_CREATION=true`. Without an invite, the API blocks registration once at least one guild exists.
-- `DISABLE_GUILD_CREATION=true` (set in `.env`) is useful for hosted deployments where only the bootstrap super user should create guilds initially. When disabled, the SPA hides all “Create guild” UI and `/guilds/` POST calls return 403.
-- User payloads expose `can_create_guilds`, enabling the frontend to toggle UI affordances automatically.
+## Contributing
 
-### Initiatives
+This project uses **bd (beads)** for issue tracking:
 
-- Admins can create, edit, delete, and manage initiative membership from the Settings → Initiatives tab
-- Projects can be assigned to an initiative; only members of that initiative (plus admins/owners) can read or write the project, and role-based permissions still apply within the initiative
-- Initiative-owned projects automatically surface initiative membership details in the project view, and project assignment can be updated from the project detail page (admins only)
-- A non-deletable “Default Initiative” is created atomically when the first admin account is provisioned so that every project always belongs to an initiative.
-- Every initiative must retain at least one project manager—creators are promoted automatically, and the API blocks demotions/deletions that would remove the final PM until someone else is assigned.
-- Initiative members inherit read access to all initiative projects, while admins and initiative PMs control project creation plus per-project write overrides for specific members.
+```bash
+# Check for available issues
+bd ready --json
 
-### OIDC
+# Claim and start work
+bd update <issue-id> --status in_progress
 
-- Configure OpenID Connect providers via Settings → Auth (admins only); fields include discovery URL, client credentials, redirect URIs, and scopes
-- When enabled, the login screen shows a “Continue with Single Sign-On” button that starts the OIDC flow against the configured provider
-- Successful OIDC logins create/activate users automatically and redirect back to `${APP_URL}/oidc/callback` with a JWT token for the SPA to store
-- Redirect URIs are derived automatically from `APP_URL`: `${APP_URL}/api/v1/auth/oidc/callback` for the provider callback and `${APP_URL}/oidc/callback` for the frontend
+# Close when complete
+bd close <issue-id> --reason "Completed"
+```
 
-## Next Steps
+Development workflow:
 
-- Extend project membership management UI
-- Harden Docker images with multi-stage builds / non-root users and add CI workflows
-- Super-admin only controls (user ID `1`) live under Settings → Admin and manage app-wide OpenID Connect, SMTP email, branding accents, and role labels. Guild admins only see the guild-specific Settings routes (Guild, Users, Initiatives, API Keys) for the currently active guild.
+- Pre-commit hooks enforce linting (Ruff for Python, ESLint for TypeScript)
+- See [AGENTS.md](AGENTS.md) for detailed contribution guidelines
+- Commit messages should be concise and descriptive
+
+---
+
+## Deployment
+
+### Using Docker Hub Images
+
+Initiative is published to Docker Hub with automated builds:
+
+```bash
+# Pull latest version
+docker pull morelitea/initiative:latest
+
+# Pull specific version
+docker pull morelitea/initiative:0.6.3
+```
+
+Images support both `linux/amd64` and `linux/arm64` architectures.
+
+### Version Management
+
+Bump versions using the included script:
+
+```bash
+./scripts/bump-version.sh
+```
+
+This will:
+
+1. Update the VERSION file
+2. Create a git commit and tag
+3. Trigger automated Docker builds when pushed
+
+### Automated Builds
+
+Pushing version tags (e.g., `v0.6.3`) triggers GitHub Actions to:
+
+- Build multi-arch Docker images
+- Tag as `latest`, `0`, `0.6`, and `0.6.3`
+- Push to Docker Hub
+
+---
+
+## License
+
+See repository for license information.
