@@ -54,69 +54,69 @@ async def register_user(
 
     smtp_configured = False
     try:
-        async with session.begin():
-            app_settings = await app_settings_service.get_app_settings(session)
-            smtp_configured = bool(app_settings.smtp_host and app_settings.smtp_from_address)
+        app_settings = await app_settings_service.get_app_settings(session)
+        smtp_configured = bool(app_settings.smtp_host and app_settings.smtp_from_address)
 
-            normalized_email = user_in.email.lower().strip()
-            statement = select(User).where(func.lower(User.email) == normalized_email)
-            existing = await session.exec(statement)
-            if existing.one_or_none():
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        normalized_email = user_in.email.lower().strip()
+        statement = select(User).where(func.lower(User.email) == normalized_email)
+        existing = await session.exec(statement)
+        if existing.one_or_none():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
-            user_count_result = await session.exec(select(func.count(User.id)))
-            user_count = user_count_result.one()
-            is_first_user = user_count == 0
+        user_count_result = await session.exec(select(func.count(User.id)))
+        user_count = user_count_result.one()
+        is_first_user = user_count == 0
 
-            if settings.DISABLE_GUILD_CREATION and not normalized_invite and not is_first_user:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration requires an invite code")
+        if settings.DISABLE_GUILD_CREATION and not normalized_invite and not is_first_user:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration requires an invite code")
 
-            if normalized_invite:
-                user_role = UserRole.member
-            else:
-                user_role = UserRole.admin if is_first_user else UserRole.member
+        if normalized_invite:
+            user_role = UserRole.member
+        else:
+            user_role = UserRole.admin if is_first_user else UserRole.member
 
-            user = User(
-                email=normalized_email,
-                full_name=user_in.full_name,
-                hashed_password=get_password_hash(user_in.password),
-                role=user_role,
-                is_active=True,
-                email_verified=is_first_user or not smtp_configured,
-            )
-            session.add(user)
-            await session.flush()
+        user = User(
+            email=normalized_email,
+            full_name=user_in.full_name,
+            hashed_password=get_password_hash(user_in.password),
+            role=user_role,
+            is_active=True,
+            email_verified=is_first_user or not smtp_configured,
+        )
+        session.add(user)
+        await session.flush()
 
-            if normalized_invite:
-                try:
-                    guild = await guilds_service.redeem_invite_for_user(
-                        session,
-                        code=normalized_invite,
-                        user=user,
-                        promote_to_active=True,
-                    )
-                except guilds_service.GuildInviteError as exc:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-                guild_role = GuildRole.member
-            else:
-                guild_name_source = (user.full_name or user.email.split("@", 1)[0]).strip() or user.email
-                guild_name = guild_name_source if guild_name_source.lower().endswith("guild") else f"{guild_name_source}'s Guild"
-                guild = await guilds_service.create_guild(
+        if normalized_invite:
+            try:
+                guild = await guilds_service.redeem_invite_for_user(
                     session,
-                    name=guild_name,
-                    creator=user,
+                    code=normalized_invite,
+                    user=user,
+                    promote_to_active=True,
                 )
-                guild_role = GuildRole.admin
-                await initiatives_service.ensure_default_initiative(session, user, guild_id=guild.id)
-
-            user.active_guild_id = guild.id
-            session.add(user)
-            await guilds_service.ensure_membership(
+            except guilds_service.GuildInviteError as exc:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            guild_role = GuildRole.member
+        else:
+            guild_name_source = (user.full_name or user.email.split("@", 1)[0]).strip() or user.email
+            guild_name = guild_name_source if guild_name_source.lower().endswith("guild") else f"{guild_name_source}'s Guild"
+            guild = await guilds_service.create_guild(
                 session,
-                guild_id=guild.id,
-                user_id=user.id,
-                role=guild_role,
+                name=guild_name,
+                creator=user,
             )
+            guild_role = GuildRole.admin
+            await initiatives_service.ensure_default_initiative(session, user, guild_id=guild.id)
+
+        user.active_guild_id = guild.id
+        session.add(user)
+        await guilds_service.ensure_membership(
+            session,
+            guild_id=guild.id,
+            user_id=user.id,
+            role=guild_role,
+        )
+        await session.commit()
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register %s due to integrity error", user_in.email)

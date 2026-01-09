@@ -200,7 +200,7 @@ async def test_create_initiative_makes_creator_manager(
     assert response.status_code == 201
     data = response.json()
     assert len(data["members"]) == 1
-    assert data["members"][0]["user_id"] == admin.id
+    assert data["members"][0]["user"]["id"] == admin.id
     assert data["members"][0]["role"] == "project_manager"
 
 
@@ -461,7 +461,7 @@ async def test_add_initiative_member_as_manager(
 
     assert response.status_code == 200
     data = response.json()
-    member_ids = {m["user_id"] for m in data["members"]}
+    member_ids = {m["user"]["id"] for m in data["members"]}
     assert new_member.id in member_ids
 
 
@@ -559,7 +559,7 @@ async def test_update_initiative_member_role(
 
     assert response.status_code == 200
     data = response.json()
-    member_roles = {m["user_id"]: m["role"] for m in data["members"]}
+    member_roles = {m["user"]["id"]: m["role"] for m in data["members"]}
     assert member_roles[member.id] == "project_manager"
 
 
@@ -590,7 +590,7 @@ async def test_remove_initiative_member(client: AsyncClient, session: AsyncSessi
 
     assert response.status_code == 200
     data = response.json()
-    member_ids = {m["user_id"] for m in data["members"]}
+    member_ids = {m["user"]["id"] for m in data["members"]}
     assert member.id not in member_ids
 
 

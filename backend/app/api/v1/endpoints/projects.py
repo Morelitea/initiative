@@ -1448,9 +1448,18 @@ async def reorder_projects(
 async def delete_project(
     project_id: int,
     session: SessionDep,
-    guild_context: GuildAdminContext,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
 ) -> None:
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
     await session.delete(project)
     await session.commit()
     await broadcast_event("project", "deleted", {"id": project_id})

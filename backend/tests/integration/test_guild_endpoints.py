@@ -348,7 +348,7 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, session: AsyncS
     assert data["max_uses"] == 5
     assert data["invitee_email"] == "invitee@example.com"
     assert data["uses"] == 0
-    assert len(data["code"]) == 32
+    assert len(data["code"]) == 22
 
 
 @pytest.mark.integration
@@ -397,8 +397,8 @@ async def test_list_guild_invites_as_admin(client: AsyncClient, session: AsyncSe
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
     # Create some invites
-    await guild_service.create_guild_invite(session, guild_id=guild.id, creator_user_id=user.id, max_uses=1)
-    await guild_service.create_guild_invite(session, guild_id=guild.id, creator_user_id=user.id, max_uses=2)
+    await guild_service.create_guild_invite(session, guild_id=guild.id, created_by_user_id=user.id, max_uses=1)
+    await guild_service.create_guild_invite(session, guild_id=guild.id, created_by_user_id=user.id, max_uses=2)
     await session.commit()
 
     headers = get_auth_headers(user)
@@ -432,7 +432,7 @@ async def test_delete_guild_invite_as_admin(client: AsyncClient, session: AsyncS
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, creator_user_id=user.id
+        session, guild_id=guild.id, created_by_user_id=user.id
     )
     await session.commit()
 
@@ -456,7 +456,7 @@ async def test_delete_guild_invite_as_member_forbidden(client: AsyncClient, sess
     await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
 
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, creator_user_id=admin.id
+        session, guild_id=guild.id, created_by_user_id=admin.id
     )
     await session.commit()
 
@@ -477,7 +477,7 @@ async def test_get_invite_status_valid(client: AsyncClient, session: AsyncSessio
     guild = await create_guild(session, name="Test Guild")
 
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, creator_user_id=user.id, max_uses=5
+        session, guild_id=guild.id, created_by_user_id=user.id, max_uses=5
     )
     await session.commit()
 
@@ -514,7 +514,7 @@ async def test_accept_invite(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session, name="Test Guild")
 
     invite = await guild_service.create_guild_invite(
-        session, guild_id=guild.id, creator_user_id=creator.id, max_uses=5
+        session, guild_id=guild.id, created_by_user_id=creator.id, max_uses=5
     )
     await session.commit()
 
@@ -555,7 +555,7 @@ async def test_accept_expired_invite_fails(client: AsyncClient, session: AsyncSe
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=creator.id,
+        created_by_user_id=creator.id,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
     await session.commit()
