@@ -2,7 +2,7 @@
 
 A self-hosted, multi-tenant project management platform built for teams that need workspace isolation, granular permissions, and rich collaboration features.
 
-<img width="2264" height="1317" alt="initiative screenshot" src="https://github.com/user-attachments/assets/da060ad0-5562-44e7-8c52-3a5e1d696f96" />
+<img width="2264" height="1315" alt="initiative screenshot" src="https://github.com/user-attachments/assets/c2c6b9c8-3f6f-4d17-a1ba-9338c033674d" />
 
 ---
 
