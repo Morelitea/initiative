@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -538,7 +538,31 @@ const InitiativeSection = ({
   canManage,
   activeProjectId,
 }: InitiativeSectionProps) => {
-  const [isOpen, setIsOpen] = useState(true);
+  // Load initial state from localStorage, default to true if not found
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem("initiative-collapsed-states");
+      if (stored) {
+        const states = JSON.parse(stored) as Record<number, boolean>;
+        return states[initiative.id] ?? true;
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    return true;
+  });
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("initiative-collapsed-states");
+      const states = stored ? (JSON.parse(stored) as Record<number, boolean>) : {};
+      states[initiative.id] = isOpen;
+      localStorage.setItem("initiative-collapsed-states", JSON.stringify(states));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [isOpen, initiative.id]);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
