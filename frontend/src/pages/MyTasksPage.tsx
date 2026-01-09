@@ -286,7 +286,8 @@ export const MyTasksPage = () => {
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
-    projectsQuery.data?.forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    projects.forEach((project) => {
       result[project.id] = project;
     });
     return result;
@@ -294,7 +295,8 @@ export const MyTasksPage = () => {
 
   const initiativeOptions = useMemo(() => {
     const map = new Map<number, string>();
-    projectsQuery.data?.forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    projects.forEach((project) => {
       if (project.initiative_id && project.initiative?.name) {
         map.set(project.initiative_id, project.initiative.name);
       }
@@ -304,7 +306,10 @@ export const MyTasksPage = () => {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [projectsQuery.data]);
 
-  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const tasks = useMemo(
+    () => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []),
+    [tasksQuery.data]
+  );
   useEffect(() => {
     tasks.forEach((task) => {
       const cached = projectStatusCache.current.get(task.project_id);
@@ -453,13 +458,17 @@ export const MyTasksPage = () => {
   );
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
-    projectsQuery.data?.forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const templates = Array.isArray(templatesQuery.data) ? templatesQuery.data : [];
+    const archived = Array.isArray(archivedProjectsQuery.data) ? archivedProjectsQuery.data : [];
+
+    projects.forEach((project) => {
       if (project.is_archived || project.is_template) {
         ids.add(project.id);
       }
     });
-    templatesQuery.data?.forEach((project) => ids.add(project.id));
-    archivedProjectsQuery.data?.forEach((project) => ids.add(project.id));
+    templates.forEach((project) => ids.add(project.id));
+    archived.forEach((project) => ids.add(project.id));
     return ids;
   }, [projectsQuery.data, templatesQuery.data, archivedProjectsQuery.data]);
 
