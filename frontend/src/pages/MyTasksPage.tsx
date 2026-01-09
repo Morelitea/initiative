@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
@@ -180,7 +179,6 @@ const TaskStatusSelector = ({
 };
 
 export const MyTasksPage = () => {
-  const { user } = useAuth();
   const { guilds, activeGuildId, switchGuild } = useGuilds();
   const navigate = useNavigate();
   const projectStatusCache = useRef<
@@ -188,10 +186,37 @@ export const MyTasksPage = () => {
   >(new Map());
   const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
+    () => readStoredFilters().statusFilter
+  );
+  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>(
+    () => readStoredFilters().priorityFilter
+  );
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(
+    () => readStoredFilters().initiativeFilter
+  );
+  const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
+
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "global"],
+    queryKey: ["tasks", "global", statusFilter, priorityFilter, initiativeFilter, guildFilter],
     queryFn: async () => {
-      const response = await apiClient.get<Task[]>("/tasks/", { params: { scope: "global" } });
+      const params: Record<string, string> = { scope: "global" };
+
+      if (statusFilter !== "all") {
+        params.status_category = statusFilter;
+      }
+      if (priorityFilter !== "all") {
+        params.priority = priorityFilter;
+      }
+      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
+        params.initiative_id = initiativeFilter;
+      }
+      if (guildFilter !== GUILD_FILTER_ALL) {
+        params.guild_id = guildFilter;
+      }
+
+      const response = await apiClient.get<Task[]>("/tasks/", { params });
       return response.data;
     },
   });
@@ -246,30 +271,14 @@ export const MyTasksPage = () => {
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task[] | undefined>(["tasks", "global"], (prev) => {
-        if (!prev) {
-          return prev;
-        }
-        return prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
-      });
+      // Invalidate all tasks queries since the query key includes filter params
+      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
       }
     },
   });
-
-  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
-    () => readStoredFilters().statusFilter
-  );
-  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>(
-    () => readStoredFilters().priorityFilter
-  );
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    () => readStoredFilters().initiativeFilter
-  );
-  const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -459,52 +468,11 @@ export const MyTasksPage = () => {
     return ids;
   }, [projectsQuery.data, templatesQuery.data, archivedProjectsQuery.data]);
 
-  const myTasks = useMemo(() => {
-    if (!user) {
-      return [];
-    }
-    return tasks.filter((task) => {
-      if (excludedProjectIds.has(task.project_id)) {
-        return false;
-      }
-      return task.assignees.some((assignee) => assignee.id === user.id);
-    });
-  }, [tasks, user, excludedProjectIds]);
-
-  const filteredTasks = useMemo(() => {
-    const selectedInitiativeId =
-      initiativeFilter === INITIATIVE_FILTER_ALL ? null : Number(initiativeFilter);
-    const selectedGuildId = guildFilter === GUILD_FILTER_ALL ? null : Number(guildFilter);
-    return myTasks.filter((task) => {
-      if (statusFilter === "incomplete") {
-        if (task.task_status.category === "done") {
-          return false;
-        }
-      } else if (statusFilter !== "all" && task.task_status.category !== statusFilter) {
-        return false;
-      }
-
-      if (priorityFilter !== "all" && task.priority !== priorityFilter) {
-        return false;
-      }
-
-      if (selectedInitiativeId) {
-        const project = projectsById[task.project_id];
-        const fallbackInitiativeId = task.initiative_id ?? null;
-        const matchesProject = project?.initiative_id === selectedInitiativeId;
-        const matchesFallback = fallbackInitiativeId === selectedInitiativeId;
-        if (!matchesProject && !matchesFallback) {
-          return false;
-        }
-      }
-      if (selectedGuildId) {
-        if (task.guild_id !== selectedGuildId) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [myTasks, statusFilter, priorityFilter, initiativeFilter, guildFilter, projectsById]);
+  const displayTasks = useMemo(() => {
+    // Backend already filters by assignee, status, priority, initiative, and guild
+    // We only need to exclude archived and template projects on the frontend
+    return tasks.filter((task) => !excludedProjectIds.has(task.project_id));
+  }, [tasks, excludedProjectIds]);
 
   const columns: ColumnDef<Task>[] = [
     {
@@ -795,23 +763,20 @@ export const MyTasksPage = () => {
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
-  if (
-    tasksQuery.isLoading ||
-    projectsQuery.isLoading ||
-    templatesQuery.isLoading ||
-    archivedProjectsQuery.isLoading
-  ) {
-    return <p className="text-muted-foreground text-sm">Loading your tasks…</p>;
-  }
+  // Check if this is the true initial load (no data exists yet)
+  const isInitialLoad =
+    (tasksQuery.isLoading && !tasksQuery.data) ||
+    (projectsQuery.isLoading && !projectsQuery.data) ||
+    (templatesQuery.isLoading && !templatesQuery.data) ||
+    (archivedProjectsQuery.isLoading && !archivedProjectsQuery.data);
 
-  if (
+  const isRefetching = tasksQuery.isFetching && !isInitialLoad;
+
+  const hasError =
     tasksQuery.isError ||
     projectsQuery.isError ||
     templatesQuery.isError ||
-    archivedProjectsQuery.isError
-  ) {
-    return <p className="text-destructive text-sm">Unable to load your tasks.</p>;
-  }
+    archivedProjectsQuery.isError;
 
   return (
     <div className="space-y-6">
@@ -935,26 +900,44 @@ export const MyTasksPage = () => {
         </CollapsibleContent>
       </Collapsible>
 
-      <DataTable
-        columns={columns}
-        data={filteredTasks}
-        groupingOptions={groupingOptions}
-        initialState={{
-          grouping: ["date group"],
-          expanded: true,
-          columnVisibility: { "date group": false, guild: false },
-        }}
-        initialSorting={[
-          { id: "date group", desc: false },
-          { id: "due date", desc: false },
-        ]}
-        enableFilterInput
-        filterInputColumnKey="title"
-        filterInputPlaceholder="Filter tasks..."
-        enablePagination
-        enableResetSorting
-        enableColumnVisibilityDropdown
-      />
+      <div className="relative">
+        {isRefetching ? (
+          <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
+            <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-muted-foreground text-sm">Updating…</span>
+            </div>
+          </div>
+        ) : null}
+        {isInitialLoad ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : hasError ? (
+          <p className="text-destructive py-8 text-center text-sm">Unable to load your tasks.</p>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={displayTasks}
+            groupingOptions={groupingOptions}
+            initialState={{
+              grouping: ["date group"],
+              expanded: true,
+              columnVisibility: { "date group": false, guild: false },
+            }}
+            initialSorting={[
+              { id: "date group", desc: false },
+              { id: "due date", desc: false },
+            ]}
+            enableFilterInput
+            filterInputColumnKey="title"
+            filterInputPlaceholder="Filter tasks..."
+            enablePagination
+            enableResetSorting
+            enableColumnVisibilityDropdown
+          />
+        )}
+      </div>
     </div>
   );
 };

@@ -14,7 +14,7 @@ from app.api.deps import (
 )
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
-from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory, Subtask
+from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
 from app.models.user import User
 from app.models.guild import GuildRole, GuildMembership
 from app.models.comment import Comment
@@ -480,6 +480,10 @@ async def _list_global_tasks(
     current_user: User,
     *,
     project_id: Optional[int],
+    priority: Optional[TaskPriority],
+    status_category: Optional[TaskStatusCategory | Literal["incomplete"]],
+    initiative_id: Optional[int],
+    guild_id: Optional[int],
 ) -> list[Task]:
     statement = (
         select(Task)
@@ -506,6 +510,21 @@ async def _list_global_tasks(
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
 
+    if priority is not None:
+        statement = statement.where(Task.priority == priority)
+
+    if status_category is not None:
+        if status_category == "incomplete":
+            statement = statement.join(Task.task_status).where(TaskStatus.category != TaskStatusCategory.done)
+        else:
+            statement = statement.join(Task.task_status).where(TaskStatus.category == status_category)
+
+    if initiative_id is not None:
+        statement = statement.where(Project.initiative_id == initiative_id)
+
+    if guild_id is not None:
+        statement = statement.where(Initiative.guild_id == guild_id)
+
     result = await session.exec(statement)
     return result.all()
 
@@ -519,12 +538,20 @@ async def list_tasks(
     scope: Annotated[Literal["global"] | None, Query()] = None,
     assignee_id: Optional[str] = Query(default=None),
     task_status_id: Optional[int] = Query(default=None),
+    priority: Optional[TaskPriority] = Query(default=None),
+    status_category: Optional[Annotated[TaskStatusCategory | Literal["incomplete"], Query()]] = None,
+    initiative_id: Optional[int] = Query(default=None),
+    guild_id: Optional[int] = Query(default=None),
 ) -> List[TaskListRead]:
     if scope == "global":
         tasks = await _list_global_tasks(
             session,
             current_user,
             project_id=project_id,
+            priority=priority,
+            status_category=status_category,
+            initiative_id=initiative_id,
+            guild_id=guild_id,
         )
         await _annotate_task_comment_counts(session, tasks)
         await _annotate_task_subtask_progress(session, tasks)
@@ -575,6 +602,18 @@ async def list_tasks(
 
     if task_status_id is not None:
         statement = statement.where(Task.task_status_id == task_status_id)
+
+    if priority is not None:
+        statement = statement.where(Task.priority == priority)
+
+    if status_category is not None:
+        if status_category == "incomplete":
+            statement = statement.join(Task.task_status).where(TaskStatus.category != TaskStatusCategory.done)
+        else:
+            statement = statement.join(Task.task_status).where(TaskStatus.category == status_category)
+
+    if initiative_id is not None:
+        statement = statement.where(Project.initiative_id == initiative_id)
 
     result = await session.exec(statement)
     tasks = result.all()
