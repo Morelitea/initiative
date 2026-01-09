@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
@@ -35,7 +34,6 @@ import type {
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { DateCell } from "@/components/tasks/TaskDateCell";
@@ -111,19 +109,7 @@ const getDefaultFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
-const getGuildInitials = (name: string) => {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    return "G";
-  }
-  return trimmed
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-};
-
-const getGuildGroupLabel = (task: Task) => task.guild?.name ?? guild_DEFAULT_LABEL;
+const getGuildGroupLabel = (task: Task) => task.guild_name ?? guild_DEFAULT_LABEL;
 
 // Component for task status selector that manages its own state
 const TaskStatusSelector = ({
@@ -151,7 +137,7 @@ const TaskStatusSelector = ({
   const handleOpenChange = useCallback(
     async (open: boolean) => {
       if (open) {
-        const guildId = task.guild?.id ?? activeGuildId ?? null;
+        const guildId = task.guild_id ?? activeGuildId ?? null;
         const fetchedStatuses = await fetchProjectStatuses(task.project_id, guildId);
         setStatuses(fetchedStatuses);
       }
@@ -193,7 +179,6 @@ const TaskStatusSelector = ({
 };
 
 export const MyTasksPage = () => {
-  const { user } = useAuth();
   const { guilds, activeGuildId, switchGuild } = useGuilds();
   const navigate = useNavigate();
   const projectStatusCache = useRef<
@@ -201,10 +186,37 @@ export const MyTasksPage = () => {
   >(new Map());
   const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
+    () => readStoredFilters().statusFilter
+  );
+  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>(
+    () => readStoredFilters().priorityFilter
+  );
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [initiativeFilter, setInitiativeFilter] = useState<string>(
+    () => readStoredFilters().initiativeFilter
+  );
+  const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
+
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "global"],
+    queryKey: ["tasks", "global", statusFilter, priorityFilter, initiativeFilter, guildFilter],
     queryFn: async () => {
-      const response = await apiClient.get<Task[]>("/tasks/", { params: { scope: "global" } });
+      const params: Record<string, string> = { scope: "global" };
+
+      if (statusFilter !== "all") {
+        params.status_category = statusFilter;
+      }
+      if (priorityFilter !== "all") {
+        params.priority = priorityFilter;
+      }
+      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
+        params.initiative_id = initiativeFilter;
+      }
+      if (guildFilter !== GUILD_FILTER_ALL) {
+        params.guild_id = guildFilter;
+      }
+
+      const response = await apiClient.get<Task[]>("/tasks/", { params });
       return response.data;
     },
   });
@@ -259,12 +271,8 @@ export const MyTasksPage = () => {
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task[] | undefined>(["tasks", "global"], (prev) => {
-        if (!prev) {
-          return prev;
-        }
-        return prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
-      });
+      // Invalidate all tasks queries since the query key includes filter params
+      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
@@ -272,21 +280,10 @@ export const MyTasksPage = () => {
     },
   });
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
-    () => readStoredFilters().statusFilter
-  );
-  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>(
-    () => readStoredFilters().priorityFilter
-  );
-  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    () => readStoredFilters().initiativeFilter
-  );
-  const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
-
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
-    projectsQuery.data?.forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    projects.forEach((project) => {
       result[project.id] = project;
     });
     return result;
@@ -294,7 +291,8 @@ export const MyTasksPage = () => {
 
   const initiativeOptions = useMemo(() => {
     const map = new Map<number, string>();
-    projectsQuery.data?.forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    projects.forEach((project) => {
       if (project.initiative_id && project.initiative?.name) {
         map.set(project.initiative_id, project.initiative.name);
       }
@@ -304,7 +302,10 @@ export const MyTasksPage = () => {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [projectsQuery.data]);
 
-  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const tasks = useMemo(
+    () => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []),
+    [tasksQuery.data]
+  );
   useEffect(() => {
     tasks.forEach((task) => {
       const cached = projectStatusCache.current.get(task.project_id);
@@ -377,15 +378,15 @@ export const MyTasksPage = () => {
 
   const ensureTaskGuildContext = useCallback(
     async (task: Task) => {
-      if (!task.guild || task.guild.id === activeGuildId) {
+      if (!task.guild_id || task.guild_id === activeGuildId) {
         return true;
       }
 
       setSwitchingTaskId(task.id);
-      const toastId = toast.loading(`Switching to ${task.guild.name}...`);
+      const toastId = toast.loading(`Switching to ${task.guild_name}...`);
       try {
-        await switchGuild(task.guild.id);
-        toast.success(`Switched to ${task.guild.name}`, { id: toastId });
+        await switchGuild(task.guild_id);
+        toast.success(`Switched to ${task.guild_name}`, { id: toastId });
         return true;
       } catch (error) {
         console.error(error);
@@ -401,7 +402,7 @@ export const MyTasksPage = () => {
 
   const changeTaskStatusById = useCallback(
     async (task: Task, targetStatusId: number) => {
-      const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
+      const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error("Unable to determine guild context for this task.");
         return;
@@ -423,7 +424,7 @@ export const MyTasksPage = () => {
 
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
-      const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
+      const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error("Unable to determine guild context for this task.");
         return;
@@ -453,65 +454,25 @@ export const MyTasksPage = () => {
   );
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
-    projectsQuery.data?.forEach((project) => {
+    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const templates = Array.isArray(templatesQuery.data) ? templatesQuery.data : [];
+    const archived = Array.isArray(archivedProjectsQuery.data) ? archivedProjectsQuery.data : [];
+
+    projects.forEach((project) => {
       if (project.is_archived || project.is_template) {
         ids.add(project.id);
       }
     });
-    templatesQuery.data?.forEach((project) => ids.add(project.id));
-    archivedProjectsQuery.data?.forEach((project) => ids.add(project.id));
+    templates.forEach((project) => ids.add(project.id));
+    archived.forEach((project) => ids.add(project.id));
     return ids;
   }, [projectsQuery.data, templatesQuery.data, archivedProjectsQuery.data]);
 
-  const myTasks = useMemo(() => {
-    if (!user) {
-      return [];
-    }
-    return tasks.filter((task) => {
-      if (excludedProjectIds.has(task.project_id)) {
-        return false;
-      }
-      if (task.project?.is_archived || task.project?.is_template) {
-        return false;
-      }
-      return task.assignees.some((assignee) => assignee.id === user.id);
-    });
-  }, [tasks, user, excludedProjectIds]);
-
-  const filteredTasks = useMemo(() => {
-    const selectedInitiativeId =
-      initiativeFilter === INITIATIVE_FILTER_ALL ? null : Number(initiativeFilter);
-    const selectedGuildId = guildFilter === GUILD_FILTER_ALL ? null : Number(guildFilter);
-    return myTasks.filter((task) => {
-      if (statusFilter === "incomplete") {
-        if (task.task_status.category === "done") {
-          return false;
-        }
-      } else if (statusFilter !== "all" && task.task_status.category !== statusFilter) {
-        return false;
-      }
-
-      if (priorityFilter !== "all" && task.priority !== priorityFilter) {
-        return false;
-      }
-
-      if (selectedInitiativeId) {
-        const project = projectsById[task.project_id];
-        const fallbackInitiativeId = task.project?.initiative_id ?? null;
-        const matchesProject = project?.initiative_id === selectedInitiativeId;
-        const matchesFallback = fallbackInitiativeId === selectedInitiativeId;
-        if (!matchesProject && !matchesFallback) {
-          return false;
-        }
-      }
-      if (selectedGuildId) {
-        if (task.guild?.id !== selectedGuildId) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [myTasks, statusFilter, priorityFilter, initiativeFilter, guildFilter, projectsById]);
+  const displayTasks = useMemo(() => {
+    // Backend already filters by assignee, status, priority, initiative, and guild
+    // We only need to exclude archived and template projects on the frontend
+    return tasks.filter((task) => !excludedProjectIds.has(task.project_id));
+  }, [tasks, excludedProjectIds]);
 
   const columns: ColumnDef<Task>[] = [
     {
@@ -675,12 +636,13 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        const fallbackProject = task.project;
-        const initiative = project?.initiative ?? fallbackProject?.initiative ?? null;
-        if (!initiative) {
+        const initiativeId = task.initiative_id ?? project?.initiative_id;
+        const initiativeName = task.initiative_name ?? project?.initiative?.name;
+        const initiativeColor = task.initiative_color ?? project?.initiative?.color;
+        if (!initiativeId || !initiativeName) {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
-        const initiativePath = `/initiatives/${initiative.id}`;
+        const initiativePath = `/initiatives/${initiativeId}`;
         return (
           <div className="min-w-40">
             <Link
@@ -691,8 +653,8 @@ export const MyTasksPage = () => {
                 void handleCrossGuildNavigation(task, initiativePath);
               }}
             >
-              <InitiativeColorDot color={initiative.color} />
-              {initiative.name}
+              <InitiativeColorDot color={initiativeColor ?? undefined} />
+              {initiativeName}
             </Link>
           </div>
         );
@@ -704,26 +666,16 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        const fallbackProject = task.project;
-        const guild = task.guild;
-        const projectLabel =
-          project?.name ?? fallbackProject?.name ?? `Project #${task.project_id}`;
-        const projectIdentifier = project?.id ?? fallbackProject?.id ?? task.project_id;
+        const projectLabel = task.project_name ?? project?.name ?? `Project #${task.project_id}`;
+        const projectIdentifier = project?.id ?? task.project_id;
         const projectPath = `/projects/${projectIdentifier}`;
+        const guildName = task.guild_name;
         return (
           <div className="min-w-30">
             <div className="flex flex-wrap items-center gap-2">
-              {guild ? (
+              {guildName ? (
                 <>
-                  <Avatar className="border-border h-6 w-6 border">
-                    {guild.icon_base64 ? (
-                      <AvatarImage src={guild.icon_base64} alt={guild.name} />
-                    ) : null}
-                    <AvatarFallback className="text-[10px] font-medium">
-                      {getGuildInitials(guild.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-muted-foreground text-xs sm:text-sm">{guild.name}</span>
+                  <span className="text-muted-foreground text-xs sm:text-sm">{guildName}</span>
                   <span className="text-muted-foreground text-sm" aria-hidden>
                     {"\u00B7"}
                   </span>
@@ -811,23 +763,20 @@ export const MyTasksPage = () => {
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
-  if (
-    tasksQuery.isLoading ||
-    projectsQuery.isLoading ||
-    templatesQuery.isLoading ||
-    archivedProjectsQuery.isLoading
-  ) {
-    return <p className="text-muted-foreground text-sm">Loading your tasks…</p>;
-  }
+  // Check if this is the true initial load (no data exists yet)
+  const isInitialLoad =
+    (tasksQuery.isLoading && !tasksQuery.data) ||
+    (projectsQuery.isLoading && !projectsQuery.data) ||
+    (templatesQuery.isLoading && !templatesQuery.data) ||
+    (archivedProjectsQuery.isLoading && !archivedProjectsQuery.data);
 
-  if (
+  const isRefetching = tasksQuery.isFetching && !isInitialLoad;
+
+  const hasError =
     tasksQuery.isError ||
     projectsQuery.isError ||
     templatesQuery.isError ||
-    archivedProjectsQuery.isError
-  ) {
-    return <p className="text-destructive text-sm">Unable to load your tasks.</p>;
-  }
+    archivedProjectsQuery.isError;
 
   return (
     <div className="space-y-6">
@@ -951,26 +900,44 @@ export const MyTasksPage = () => {
         </CollapsibleContent>
       </Collapsible>
 
-      <DataTable
-        columns={columns}
-        data={filteredTasks}
-        groupingOptions={groupingOptions}
-        initialState={{
-          grouping: ["date group"],
-          expanded: true,
-          columnVisibility: { "date group": false, guild: false },
-        }}
-        initialSorting={[
-          { id: "date group", desc: false },
-          { id: "due date", desc: false },
-        ]}
-        enableFilterInput
-        filterInputColumnKey="title"
-        filterInputPlaceholder="Filter tasks..."
-        enablePagination
-        enableResetSorting
-        enableColumnVisibilityDropdown
-      />
+      <div className="relative">
+        {isRefetching ? (
+          <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
+            <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-muted-foreground text-sm">Updating…</span>
+            </div>
+          </div>
+        ) : null}
+        {isInitialLoad ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : hasError ? (
+          <p className="text-destructive py-8 text-center text-sm">Unable to load your tasks.</p>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={displayTasks}
+            groupingOptions={groupingOptions}
+            initialState={{
+              grouping: ["date group"],
+              expanded: true,
+              columnVisibility: { "date group": false, guild: false },
+            }}
+            initialSorting={[
+              { id: "date group", desc: false },
+              { id: "due date", desc: false },
+            ]}
+            enableFilterInput
+            filterInputColumnKey="title"
+            filterInputPlaceholder="Filter tasks..."
+            enablePagination
+            enableResetSorting
+            enableColumnVisibilityDropdown
+          />
+        )}
+      </div>
     </div>
   );
 };
