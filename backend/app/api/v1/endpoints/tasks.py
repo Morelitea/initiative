@@ -471,6 +471,8 @@ async def list_tasks(
     guild_context: GuildContextDep,
     project_id: Optional[int] = Query(default=None),
     scope: Annotated[Literal["global"] | None, Query()] = None,
+    assignee_id: Optional[str] = Query(default=None),
+    task_status_id: Optional[int] = Query(default=None),
 ) -> List[Task]:
     if scope == "global":
         tasks = await _list_global_tasks(
@@ -511,6 +513,23 @@ async def list_tasks(
 
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
+
+    if assignee_id is not None:
+        if assignee_id == "me":
+            statement = statement.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
+                TaskAssignee.user_id == current_user.id
+            )
+        else:
+            try:
+                user_id = int(assignee_id)
+                statement = statement.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
+                    TaskAssignee.user_id == user_id
+                )
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid assignee_id")
+
+    if task_status_id is not None:
+        statement = statement.where(Task.task_status_id == task_status_id)
 
     result = await session.exec(statement)
     tasks = result.all()
