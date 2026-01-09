@@ -455,7 +455,7 @@ async def test_add_project_favorite(client: AsyncClient, session: AsyncSession):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["is_favorite"] is True
+    assert data["is_favorited"] is True
 
 
 @pytest.mark.integration
@@ -480,7 +480,7 @@ async def test_remove_project_favorite(client: AsyncClient, session: AsyncSessio
 
     assert response.status_code == 200
     data = response.json()
-    assert data["is_favorite"] is False
+    assert data["is_favorited"] is False
 
 
 @pytest.mark.integration
