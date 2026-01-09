@@ -35,7 +35,6 @@ import type {
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { DateCell } from "@/components/tasks/TaskDateCell";
@@ -111,19 +110,7 @@ const getDefaultFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
-const getGuildInitials = (name: string) => {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    return "G";
-  }
-  return trimmed
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
-};
-
-const getGuildGroupLabel = (task: Task) => task.guild?.name ?? guild_DEFAULT_LABEL;
+const getGuildGroupLabel = (task: Task) => task.guild_name ?? guild_DEFAULT_LABEL;
 
 // Component for task status selector that manages its own state
 const TaskStatusSelector = ({
@@ -151,7 +138,7 @@ const TaskStatusSelector = ({
   const handleOpenChange = useCallback(
     async (open: boolean) => {
       if (open) {
-        const guildId = task.guild?.id ?? activeGuildId ?? null;
+        const guildId = task.guild_id ?? activeGuildId ?? null;
         const fetchedStatuses = await fetchProjectStatuses(task.project_id, guildId);
         setStatuses(fetchedStatuses);
       }
@@ -382,15 +369,15 @@ export const MyTasksPage = () => {
 
   const ensureTaskGuildContext = useCallback(
     async (task: Task) => {
-      if (!task.guild || task.guild.id === activeGuildId) {
+      if (!task.guild_id || task.guild_id === activeGuildId) {
         return true;
       }
 
       setSwitchingTaskId(task.id);
-      const toastId = toast.loading(`Switching to ${task.guild.name}...`);
+      const toastId = toast.loading(`Switching to ${task.guild_name}...`);
       try {
-        await switchGuild(task.guild.id);
-        toast.success(`Switched to ${task.guild.name}`, { id: toastId });
+        await switchGuild(task.guild_id);
+        toast.success(`Switched to ${task.guild_name}`, { id: toastId });
         return true;
       } catch (error) {
         console.error(error);
@@ -406,7 +393,7 @@ export const MyTasksPage = () => {
 
   const changeTaskStatusById = useCallback(
     async (task: Task, targetStatusId: number) => {
-      const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
+      const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error("Unable to determine guild context for this task.");
         return;
@@ -428,7 +415,7 @@ export const MyTasksPage = () => {
 
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
-      const targetGuildId = task.guild?.id ?? activeGuildId ?? null;
+      const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error("Unable to determine guild context for this task.");
         return;
@@ -480,9 +467,6 @@ export const MyTasksPage = () => {
       if (excludedProjectIds.has(task.project_id)) {
         return false;
       }
-      if (task.project?.is_archived || task.project?.is_template) {
-        return false;
-      }
       return task.assignees.some((assignee) => assignee.id === user.id);
     });
   }, [tasks, user, excludedProjectIds]);
@@ -506,7 +490,7 @@ export const MyTasksPage = () => {
 
       if (selectedInitiativeId) {
         const project = projectsById[task.project_id];
-        const fallbackInitiativeId = task.project?.initiative_id ?? null;
+        const fallbackInitiativeId = task.initiative_id ?? null;
         const matchesProject = project?.initiative_id === selectedInitiativeId;
         const matchesFallback = fallbackInitiativeId === selectedInitiativeId;
         if (!matchesProject && !matchesFallback) {
@@ -514,7 +498,7 @@ export const MyTasksPage = () => {
         }
       }
       if (selectedGuildId) {
-        if (task.guild?.id !== selectedGuildId) {
+        if (task.guild_id !== selectedGuildId) {
           return false;
         }
       }
@@ -684,12 +668,13 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        const fallbackProject = task.project;
-        const initiative = project?.initiative ?? fallbackProject?.initiative ?? null;
-        if (!initiative) {
+        const initiativeId = task.initiative_id ?? project?.initiative_id;
+        const initiativeName = task.initiative_name ?? project?.initiative?.name;
+        const initiativeColor = task.initiative_color ?? project?.initiative?.color;
+        if (!initiativeId || !initiativeName) {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
-        const initiativePath = `/initiatives/${initiative.id}`;
+        const initiativePath = `/initiatives/${initiativeId}`;
         return (
           <div className="min-w-40">
             <Link
@@ -700,8 +685,8 @@ export const MyTasksPage = () => {
                 void handleCrossGuildNavigation(task, initiativePath);
               }}
             >
-              <InitiativeColorDot color={initiative.color} />
-              {initiative.name}
+              <InitiativeColorDot color={initiativeColor ?? undefined} />
+              {initiativeName}
             </Link>
           </div>
         );
@@ -713,26 +698,16 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        const fallbackProject = task.project;
-        const guild = task.guild;
-        const projectLabel =
-          project?.name ?? fallbackProject?.name ?? `Project #${task.project_id}`;
-        const projectIdentifier = project?.id ?? fallbackProject?.id ?? task.project_id;
+        const projectLabel = task.project_name ?? project?.name ?? `Project #${task.project_id}`;
+        const projectIdentifier = project?.id ?? task.project_id;
         const projectPath = `/projects/${projectIdentifier}`;
+        const guildName = task.guild_name;
         return (
           <div className="min-w-30">
             <div className="flex flex-wrap items-center gap-2">
-              {guild ? (
+              {guildName ? (
                 <>
-                  <Avatar className="border-border h-6 w-6 border">
-                    {guild.icon_base64 ? (
-                      <AvatarImage src={guild.icon_base64} alt={guild.name} />
-                    ) : null}
-                    <AvatarFallback className="text-[10px] font-medium">
-                      {getGuildInitials(guild.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-muted-foreground text-xs sm:text-sm">{guild.name}</span>
+                  <span className="text-muted-foreground text-xs sm:text-sm">{guildName}</span>
                   <span className="text-muted-foreground text-sm" aria-hidden>
                     {"\u00B7"}
                   </span>

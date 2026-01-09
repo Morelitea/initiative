@@ -263,6 +263,13 @@ export interface TaskSubtask {
   updated_at: string;
 }
 
+export interface TaskAssignee {
+  id: number;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  avatar_base64?: string | null;
+}
+
 export interface Task {
   id: number;
   title: string;
@@ -271,7 +278,7 @@ export interface Task {
   task_status: ProjectTaskStatus;
   priority: TaskPriority;
   project_id: number;
-  assignees: UserPublic[];
+  assignees: TaskAssignee[];
   start_date?: string;
   due_date?: string;
   recurrence?: TaskRecurrence | null;
@@ -281,8 +288,12 @@ export interface Task {
   updated_at: string;
   sort_order: number;
   comment_count?: number;
-  guild?: TaskGuildSummary | null;
-  project?: TaskProjectSummary | null;
+  guild_id?: number | null;
+  guild_name?: string | null;
+  project_name?: string | null;
+  initiative_id?: number | null;
+  initiative_name?: string | null;
+  initiative_color?: string | null;
   subtask_progress?: TaskSubtaskProgress | null;
 }
 

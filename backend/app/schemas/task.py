@@ -11,6 +11,17 @@ from app.schemas.subtask import TaskSubtaskProgress
 from app.models.task import TaskPriority, TaskStatusCategory
 
 
+class TaskAssigneeSummary(BaseModel):
+    """Minimal assignee data for task lists"""
+    id: int
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    avatar_base64: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 WeekdayLiteral = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 MonthlyModeLiteral = Literal["day_of_month", "weekday"]
 WeekPositionLiteral = Literal["first", "second", "third", "fourth", "last"]
@@ -153,6 +164,30 @@ class TaskRead(TaskBase):
     comment_count: int = 0
     guild: Optional[GuildSummary] = None
     project: Optional[TaskProjectSummary] = None
+    subtask_progress: Optional[TaskSubtaskProgress] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TaskListRead(TaskBase):
+    """Lightweight schema for task list endpoints - excludes heavy nested data"""
+    id: int
+    project_id: int
+    task_status_id: int
+    task_status: TaskStatusRead
+    created_at: datetime
+    updated_at: datetime
+    sort_order: float
+    assignees: List[TaskAssigneeSummary] = []
+    recurrence_occurrence_count: int = 0
+    comment_count: int = 0
+    guild_id: Optional[int] = None
+    guild_name: Optional[str] = None
+    project_name: Optional[str] = None
+    initiative_id: Optional[int] = None
+    initiative_name: Optional[str] = None
+    initiative_color: Optional[str] = None
     subtask_progress: Optional[TaskSubtaskProgress] = None
 
     class Config:

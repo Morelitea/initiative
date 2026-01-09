@@ -20,7 +20,7 @@ from app.models.guild import GuildRole, GuildMembership
 from app.models.comment import Comment
 from pydantic import ValidationError
 
-from app.schemas.task import TaskCreate, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
+from app.schemas.task import TaskCreate, TaskListRead, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.schemas.subtask import (
     SubtaskCreate,
     SubtaskRead,
@@ -97,6 +97,52 @@ def _annotate_task_guild(tasks: list[Task]) -> None:
         initiative = getattr(project, "initiative", None) if project else None
         guild = getattr(initiative, "guild", None) if initiative else None
         object.__setattr__(task, "guild", guild)
+
+
+def _task_to_list_read(task: Task) -> TaskListRead:
+    """Convert Task model to lightweight TaskListRead schema"""
+    from app.schemas.task import TaskAssigneeSummary
+
+    project = getattr(task, "project", None)
+    initiative = getattr(project, "initiative", None) if project else None
+    guild = getattr(initiative, "guild", None) if initiative else None
+
+    assignees = [
+        TaskAssigneeSummary(
+            id=assignee.id,
+            full_name=assignee.full_name,
+            avatar_url=assignee.avatar_url,
+            avatar_base64=assignee.avatar_base64,
+        )
+        for assignee in task.assignees
+    ]
+
+    return TaskListRead(
+        id=task.id,
+        title=task.title,
+        description=task.description,
+        project_id=task.project_id,
+        task_status_id=task.task_status_id,
+        task_status=task.task_status,
+        priority=task.priority,
+        start_date=task.start_date,
+        due_date=task.due_date,
+        recurrence=task.recurrence,
+        recurrence_strategy=task.recurrence_strategy,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+        sort_order=task.sort_order,
+        assignees=assignees,
+        recurrence_occurrence_count=task.recurrence_occurrence_count,
+        comment_count=getattr(task, "comment_count", 0),
+        guild_id=guild.id if guild else None,
+        guild_name=guild.name if guild else None,
+        project_name=project.name if project else None,
+        initiative_id=initiative.id if initiative else None,
+        initiative_name=initiative.name if initiative else None,
+        initiative_color=initiative.color if initiative else None,
+        subtask_progress=getattr(task, "subtask_progress", None),
+    )
 
 
 async def _list_subtasks_for_task(session: SessionDep, task_id: int) -> list[Subtask]:
@@ -464,7 +510,7 @@ async def _list_global_tasks(
     return result.all()
 
 
-@router.get("/", response_model=List[TaskRead])
+@router.get("/", response_model=List[TaskListRead])
 async def list_tasks(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -473,7 +519,7 @@ async def list_tasks(
     scope: Annotated[Literal["global"] | None, Query()] = None,
     assignee_id: Optional[str] = Query(default=None),
     task_status_id: Optional[int] = Query(default=None),
-) -> List[Task]:
+) -> List[TaskListRead]:
     if scope == "global":
         tasks = await _list_global_tasks(
             session,
@@ -482,8 +528,7 @@ async def list_tasks(
         )
         await _annotate_task_comment_counts(session, tasks)
         await _annotate_task_subtask_progress(session, tasks)
-        _annotate_task_guild(tasks)
-        return tasks
+        return [_task_to_list_read(task) for task in tasks]
 
     statement = (
         select(Task)
@@ -535,8 +580,7 @@ async def list_tasks(
     tasks = result.all()
     await _annotate_task_comment_counts(session, tasks)
     await _annotate_task_subtask_progress(session, tasks)
-    _annotate_task_guild(tasks)
-    return tasks
+    return [_task_to_list_read(task) for task in tasks]
 
 
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
