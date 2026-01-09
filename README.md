@@ -109,7 +109,7 @@ docker-compose up -d
 
 - PostgreSQL 17 database with persistent storage
 - FastAPI backend with automatic migrations
-- React frontend served via nginx
+- React frontend served via FastAPI
 - Health checks and automatic restarts
 - Volume mounts for persistent uploads
 
