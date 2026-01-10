@@ -127,7 +127,7 @@ export const ProjectDocumentsSection = ({
       toast.success("Document attached.");
       setDialogOpen(false);
       setSelectedDocumentId("");
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
     },
@@ -143,7 +143,7 @@ export const ProjectDocumentsSection = ({
     },
     onSuccess: () => {
       toast.success("Document detached.");
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
     },
@@ -193,7 +193,7 @@ export const ProjectDocumentsSection = ({
       setNewDocumentTitle("");
       setIsTemplateDocument(false);
       setSelectedTemplateId("");
-      void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
     },
