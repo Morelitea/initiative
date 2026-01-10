@@ -3,7 +3,17 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Filter, LayoutGrid, Loader2, Plus, Table, Copy, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Filter,
+  LayoutGrid,
+  Loader2,
+  Plus,
+  Table,
+  Copy,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -697,7 +707,21 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-document-template-selector">Start from template</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="new-document-template-selector">Start from template</Label>
+                {selectedTemplateId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-2 py-1 text-xs"
+                    onClick={() => setSelectedTemplateId("")}
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    Clear
+                  </Button>
+                )}
+              </div>
               <Select
                 value={selectedTemplateId || undefined}
                 onValueChange={(value) => setSelectedTemplateId(value)}

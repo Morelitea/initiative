@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
+import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -18,6 +18,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import {
@@ -27,6 +35,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { useAuth } from "@/hooks/useAuth";
 import type { DocumentRead, DocumentSummary, ProjectDocumentLink } from "@/types/api";
 
 type ProjectDocumentsSectionProps = {
@@ -45,10 +54,13 @@ export const ProjectDocumentsSection = ({
   canAttach,
 }: ProjectDocumentsSectionProps) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
+  const [isTemplateDocument, setIsTemplateDocument] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const storageKey = `project:${projectId}:documentsCollapsed`;
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
@@ -67,6 +79,33 @@ export const ProjectDocumentsSection = ({
       return response.data;
     },
   });
+
+  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
+    queryKey: ["documents", "templates"],
+    queryFn: async () => {
+      const response = await apiClient.get<DocumentSummary[]>("/documents/");
+      return response.data;
+    },
+    enabled: canCreate,
+  });
+
+  const manageableTemplates = useMemo(() => {
+    if (!templateDocumentsQuery.data || !user) {
+      return [];
+    }
+    if (user.role === "admin") {
+      return templateDocumentsQuery.data.filter((document) => document.is_template);
+    }
+    return templateDocumentsQuery.data.filter((document) => {
+      if (!document.is_template) {
+        return false;
+      }
+      const initiativeMembers = document.initiative?.members ?? [];
+      return initiativeMembers.some(
+        (member) => member.user.id === user.id && member.role === "project_manager"
+      );
+    });
+  }, [templateDocumentsQuery.data, user]);
 
   const attachedDocumentIds = useMemo(
     () => new Set(documents.map((doc) => doc.document_id)),
@@ -120,13 +159,28 @@ export const ProjectDocumentsSection = ({
         throw new Error("Document title is required");
       }
 
-      // Create the document
-      const createResponse = await apiClient.post<DocumentRead>("/documents/", {
-        title: trimmedTitle,
-        initiative_id: initiativeId,
-        is_template: false,
-      });
-      const newDocument = createResponse.data;
+      let newDocument: DocumentRead;
+
+      // If copying from template
+      if (selectedTemplateId) {
+        const payload = {
+          target_initiative_id: initiativeId,
+          title: trimmedTitle,
+        };
+        const response = await apiClient.post<DocumentRead>(
+          `/documents/${selectedTemplateId}/copy`,
+          payload
+        );
+        newDocument = response.data;
+      } else {
+        // Create new document
+        const createResponse = await apiClient.post<DocumentRead>("/documents/", {
+          title: trimmedTitle,
+          initiative_id: initiativeId,
+          is_template: isTemplateDocument,
+        });
+        newDocument = createResponse.data;
+      }
 
       // Attach it to the project
       await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
@@ -137,6 +191,8 @@ export const ProjectDocumentsSection = ({
       toast.success("Document created and attached.");
       setCreateDialogOpen(false);
       setNewDocumentTitle("");
+      setIsTemplateDocument(false);
+      setSelectedTemplateId("");
       void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
@@ -170,6 +226,24 @@ export const ProjectDocumentsSection = ({
       })),
     [availableDocs]
   );
+
+  useEffect(() => {
+    if (isTemplateDocument && selectedTemplateId) {
+      setSelectedTemplateId("");
+    }
+  }, [isTemplateDocument, selectedTemplateId]);
+
+  useEffect(() => {
+    if (!selectedTemplateId) {
+      return;
+    }
+    const isValid = manageableTemplates.some(
+      (document) => String(document.id) === selectedTemplateId
+    );
+    if (!isValid) {
+      setSelectedTemplateId("");
+    }
+  }, [manageableTemplates, selectedTemplateId]);
 
   return (
     <Collapsible
@@ -302,6 +376,65 @@ export const ProjectDocumentsSection = ({
                 value={newDocumentTitle}
                 onChange={(event) => setNewDocumentTitle(event.target.value)}
                 placeholder="Project requirements"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="new-project-document-template-selector">Start from template</Label>
+                {selectedTemplateId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-2 py-1 text-xs"
+                    onClick={() => setSelectedTemplateId("")}
+                  >
+                    <X className="mr-1 h-3 w-3" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <Select
+                value={selectedTemplateId || undefined}
+                onValueChange={(value) => setSelectedTemplateId(value)}
+                disabled={
+                  templateDocumentsQuery.isLoading ||
+                  manageableTemplates.length === 0 ||
+                  isTemplateDocument
+                }
+              >
+                <SelectTrigger id="new-project-document-template-selector">
+                  <SelectValue
+                    placeholder={
+                      templateDocumentsQuery.isLoading
+                        ? "Loading templates…"
+                        : manageableTemplates.length > 0
+                          ? "Select template (optional)"
+                          : "No templates available"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {manageableTemplates.map((template) => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">Save as template</p>
+                <p className="text-muted-foreground text-xs">
+                  Template documents are best duplicated or copied into other initiatives.
+                </p>
+              </div>
+              <Switch
+                id="new-project-document-template"
+                checked={isTemplateDocument}
+                onCheckedChange={setIsTemplateDocument}
+                aria-label="Toggle template status for the new document"
               />
             </div>
           </div>
