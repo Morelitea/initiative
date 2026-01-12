@@ -127,7 +127,7 @@ export const ProjectTasksSection = ({
   const tasksQuery = useQuery<Task[]>({
     queryKey: ["tasks", projectId, assigneeFilters, statusFilters],
     queryFn: async () => {
-      const params: Record<string, number | string[]> = { project_id: projectId };
+      const params: Record<string, number | string[] | number[]> = { project_id: projectId };
 
       // Add assignee filters (array)
       if (assigneeFilters.length > 0) {
