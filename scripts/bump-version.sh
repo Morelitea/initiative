@@ -68,14 +68,37 @@ fi
 # Update VERSION file
 echo "$NEW_VERSION" > VERSION
 
+# Check if CHANGELOG.md has been updated
+CHANGELOG_UPDATED=false
+if [ -f CHANGELOG.md ]; then
+    if git diff --quiet CHANGELOG.md; then
+        echo -e "${YELLOW}Warning: CHANGELOG.md has no changes${NC}"
+        read -p "Continue without changelog update? [y/N]: " SKIP_CHANGELOG
+        if [[ ! $SKIP_CHANGELOG =~ ^[Yy]$ ]]; then
+            echo "Aborted. Please update CHANGELOG.md first."
+            git checkout VERSION
+            exit 1
+        fi
+    else
+        CHANGELOG_UPDATED=true
+    fi
+fi
+
 # Commit and tag
 git add VERSION
+if [ "$CHANGELOG_UPDATED" = true ]; then
+    git add CHANGELOG.md
+fi
 git commit -m "bump version to ${NEW_VERSION}"
 git tag "v${NEW_VERSION}"
 
 echo ""
 echo -e "${GREEN}✓ Version bumped to ${NEW_VERSION}${NC}"
-echo -e "${GREEN}✓ Commit created${NC}"
+if [ "$CHANGELOG_UPDATED" = true ]; then
+    echo -e "${GREEN}✓ Commit created (VERSION + CHANGELOG.md)${NC}"
+else
+    echo -e "${GREEN}✓ Commit created (VERSION only)${NC}"
+fi
 echo -e "${GREEN}✓ Tag v${NEW_VERSION} created${NC}"
 echo ""
 echo "Push changes with:"
