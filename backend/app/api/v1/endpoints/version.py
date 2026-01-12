@@ -77,7 +77,7 @@ def get_changelog(version: Optional[str] = None) -> dict[str, list[dict]]:
     """
     try:
         # Try Docker path first: /app/app/api/v1/endpoints/version.py -> /app/CHANGELOG.md
-        changelog_path = Path(__file__).parent.parent.parent.parent / "CHANGELOG.md"
+        changelog_path = Path(__file__).parent.parent.parent.parent.parent / "CHANGELOG.md"
 
         if not changelog_path.exists():
             # Fall back to development path: backend/app/api/v1/endpoints/version.py -> ../../../../../CHANGELOG.md

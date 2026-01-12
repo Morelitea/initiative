@@ -19,5 +19,6 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY VERSION ./VERSION
+COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8173"]
