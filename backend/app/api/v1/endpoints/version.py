@@ -80,8 +80,8 @@ def get_changelog(version: Optional[str] = None) -> dict[str, list[dict]]:
         changelog_path = Path(__file__).parent.parent.parent.parent / "CHANGELOG.md"
 
         if not changelog_path.exists():
-            # Fall back to development path: backend/app/api/v1/endpoints/version.py -> ../../../../CHANGELOG.md
-            changelog_path = Path(__file__).parent.parent.parent.parent.parent / "CHANGELOG.md"
+            # Fall back to development path: backend/app/api/v1/endpoints/version.py -> ../../../../../CHANGELOG.md
+            changelog_path = Path(__file__).parent.parent.parent.parent.parent.parent / "CHANGELOG.md"
 
         if not changelog_path.exists():
             return {"entries": []}
