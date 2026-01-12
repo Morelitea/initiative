@@ -480,10 +480,10 @@ async def _list_global_tasks(
     current_user: User,
     *,
     project_id: Optional[int],
-    priority: Optional[TaskPriority],
-    status_category: Optional[TaskStatusCategory | Literal["incomplete"]],
-    initiative_id: Optional[int],
-    guild_id: Optional[int],
+    priorities: Optional[List[TaskPriority]],
+    status_category: Optional[List[TaskStatusCategory]],
+    initiative_ids: Optional[List[int]],
+    guild_ids: Optional[List[int]],
 ) -> list[Task]:
     statement = (
         select(Task)
@@ -510,20 +510,17 @@ async def _list_global_tasks(
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
 
-    if priority is not None:
-        statement = statement.where(Task.priority == priority)
+    if priorities:
+        statement = statement.where(Task.priority.in_(tuple(priorities)))
 
-    if status_category is not None:
-        if status_category == "incomplete":
-            statement = statement.join(Task.task_status).where(TaskStatus.category != TaskStatusCategory.done)
-        else:
-            statement = statement.join(Task.task_status).where(TaskStatus.category == status_category)
+    if status_category:
+        statement = statement.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(TaskStatus.category.in_(tuple(status_category)))
 
-    if initiative_id is not None:
-        statement = statement.where(Project.initiative_id == initiative_id)
+    if initiative_ids:
+        statement = statement.where(Project.initiative_id.in_(tuple(initiative_ids)))
 
-    if guild_id is not None:
-        statement = statement.where(Initiative.guild_id == guild_id)
+    if guild_ids:
+        statement = statement.where(Initiative.guild_id.in_(tuple(guild_ids)))
 
     result = await session.exec(statement)
     return result.all()
@@ -536,22 +533,22 @@ async def list_tasks(
     guild_context: GuildContextDep,
     project_id: Optional[int] = Query(default=None),
     scope: Annotated[Literal["global"] | None, Query()] = None,
-    assignee_id: Optional[str] = Query(default=None),
-    task_status_id: Optional[int] = Query(default=None),
-    priority: Optional[TaskPriority] = Query(default=None),
-    status_category: Optional[Annotated[TaskStatusCategory | Literal["incomplete"], Query()]] = None,
-    initiative_id: Optional[int] = Query(default=None),
-    guild_id: Optional[int] = Query(default=None),
+    assignee_ids: Optional[List[str]] = Query(default=None),
+    task_status_ids: Optional[List[int]] = Query(default=None),
+    priorities: Optional[List[TaskPriority]] = Query(default=None),
+    status_category: Optional[List[TaskStatusCategory]] = Query(default=None),
+    initiative_ids: Optional[List[int]] = Query(default=None),
+    guild_ids: Optional[List[int]] = Query(default=None),
 ) -> List[TaskListRead]:
     if scope == "global":
         tasks = await _list_global_tasks(
             session,
             current_user,
             project_id=project_id,
-            priority=priority,
+            priorities=priorities,
             status_category=status_category,
-            initiative_id=initiative_id,
-            guild_id=guild_id,
+            initiative_ids=initiative_ids,
+            guild_ids=guild_ids,
         )
         await _annotate_task_comment_counts(session, tasks)
         await _annotate_task_subtask_progress(session, tasks)
@@ -586,34 +583,35 @@ async def list_tasks(
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
 
-    if assignee_id is not None:
-        if assignee_id == "me":
+    if assignee_ids:
+        user_ids = []
+        for assignee_id in assignee_ids:
+            if assignee_id == "me":
+                user_ids.append(current_user.id)
+            else:
+                try:
+                    user_ids.append(int(assignee_id))
+                except ValueError:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid assignee_id: {assignee_id}")
+        if user_ids:
             statement = statement.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
-                TaskAssignee.user_id == current_user.id
+                TaskAssignee.user_id.in_(tuple(user_ids))
             )
-        else:
-            try:
-                user_id = int(assignee_id)
-                statement = statement.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
-                    TaskAssignee.user_id == user_id
-                )
-            except ValueError:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid assignee_id")
 
-    if task_status_id is not None:
-        statement = statement.where(Task.task_status_id == task_status_id)
+    if task_status_ids:
+        statement = statement.where(Task.task_status_id.in_(tuple(task_status_ids)))
 
-    if priority is not None:
-        statement = statement.where(Task.priority == priority)
+    if priorities:
+        statement = statement.where(Task.priority.in_(tuple(priorities)))
 
-    if status_category is not None:
-        if status_category == "incomplete":
-            statement = statement.join(Task.task_status).where(TaskStatus.category != TaskStatusCategory.done)
-        else:
-            statement = statement.join(Task.task_status).where(TaskStatus.category == status_category)
+    if status_category:
+        statement = statement.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(TaskStatus.category.in_(tuple(status_category)))
 
-    if initiative_id is not None:
-        statement = statement.where(Project.initiative_id == initiative_id)
+    if initiative_ids:
+        statement = statement.where(Project.initiative_id.in_(tuple(initiative_ids)))
+
+    if guild_ids:
+        statement = statement.where(Initiative.guild_id.in_(tuple(guild_ids)))
 
     result = await session.exec(statement)
     tasks = result.all()
