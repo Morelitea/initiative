@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/api/client";
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -11,6 +10,10 @@ interface VersionResponse {
 
 export const useVersionCheck = () => {
   const hasShownNotification = useRef(false);
+  const [updateAvailable, setUpdateAvailable] = useState<{
+    show: boolean;
+    version: string;
+  }>({ show: false, version: "" });
 
   useEffect(() => {
     const checkVersion = async () => {
@@ -20,14 +23,7 @@ export const useVersionCheck = () => {
 
         if (serverVersion !== CURRENT_VERSION && !hasShownNotification.current) {
           hasShownNotification.current = true;
-          toast.info("New version available", {
-            description: `Version ${serverVersion} is now available. Please reload to update.`,
-            duration: Infinity,
-            action: {
-              label: "Reload",
-              onClick: () => window.location.reload(),
-            },
-          });
+          setUpdateAvailable({ show: true, version: serverVersion });
         }
       } catch (error) {
         // Silently fail - version check is not critical
@@ -45,4 +41,10 @@ export const useVersionCheck = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  const closeDialog = () => {
+    setUpdateAvailable({ show: false, version: "" });
+  };
+
+  return { updateAvailable, closeDialog };
 };

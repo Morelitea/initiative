@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
+import { UpdateDialog } from "@/components/UpdateDialog";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
@@ -63,7 +64,7 @@ const LandingPage = lazy(() =>
 const AppLayout = () => {
   const { activeGuildId } = useGuilds();
   useRealtimeUpdates();
-  useVersionCheck();
+  const { updateAvailable, closeDialog } = useVersionCheck();
 
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -138,6 +139,11 @@ const AppLayout = () => {
           <ProjectActivitySidebar projectId={activeProjectId} />
         </SidebarProvider>
       </div>
+      <UpdateDialog
+        open={updateAvailable.show}
+        newVersion={updateAvailable.version}
+        onClose={closeDialog}
+      />
     </div>
   );
 };
