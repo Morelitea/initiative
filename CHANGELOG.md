@@ -1,0 +1,104 @@
+# Changelog
+
+All notable changes to Initiative will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.7.0] - 2026-01-12
+
+### Added
+- Multiselect filters for task pages
+- Users can now select multiple assignees, statuses, priorities, guilds, and initiatives simultaneously
+- "Select all" and "Clear all" options in filter dropdowns
+- Dropdown shows selected count (e.g., "3 selected")
+- Backend now supports array parameters for all task filters using OR logic
+
+### Changed
+- Default My Tasks status filter now shows backlog, todo, and in_progress (excludes done by default)
+- Task filtering moved to server-side for better performance
+- Filters use OR logic within each filter type, AND logic between filter types
+
+### Fixed
+- Task filters now correctly apply on backend instead of returning all tasks
+- TypeScript type error in task query params
+
+## [0.6.4] - 2026-01-11
+
+### Added
+- Template selection dropdown for document creation
+- "Save as template" toggle when creating documents
+
+### Fixed
+- Project documents section now updates properly after attaching/detaching documents
+- Cache invalidation issue causing stale document lists
+
+## [0.6.3] - 2026-01-10
+
+### Added
+- Initiative collapsed state persistence to localStorage
+- Single localStorage key for all initiative states to reduce clutter
+
+### Changed
+- Frontend now served by FastAPI instead of nginx for simpler deployment
+
+### Fixed
+- TaskAssigneeList component to work with correct TaskAssignee type
+- My Tasks page crash from non-array query data
+
+## [0.6.2] - 2026-01-09
+
+### Changed
+- Optimized task list endpoints to reduce payload size
+- Moved task filtering to backend for better performance
+
+### Fixed
+- Backend test suite - 136/142 tests passing (95.8%)
+- Task endpoint validation issues
+- Test schema mismatches
+
+## [0.6.1] - 2026-01-08
+
+### Fixed
+- Double scrollbar issue on ProjectTabsBar
+- Improved scrolling aesthetics on Chromium browsers
+
+## [0.6.0] - 2026-01-07
+
+### Added
+- User statistics page with metrics and visualizations
+- Chart components for data visualization
+- Activity tracking and reporting
+
+## [0.5.3] - 2026-01-06
+
+### Fixed
+- PWA manifest for Chrome install prompt
+- ScrollArea component on tabs bar for better UX
+
+### Added
+- Automated release CI workflow
+
+## [Unreleased]
+
+### Changed
+- README rewritten to better describe the project
+- Updated screenshots and feature descriptions
+
+---
+
+## Version Format
+
+Version numbers follow semantic versioning (MAJOR.MINOR.PATCH):
+- **MAJOR**: Breaking changes, incompatible API changes
+- **MINOR**: New features, backward-compatible additions
+- **PATCH**: Bug fixes, backward-compatible fixes
+
+## Categories
+
+- **Added**: New features
+- **Changed**: Changes to existing functionality
+- **Deprecated**: Soon-to-be-removed features
+- **Removed**: Removed features
+- **Fixed**: Bug fixes
+- **Security**: Security fixes
