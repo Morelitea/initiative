@@ -12,8 +12,6 @@ import {
   Users,
   ListTodo,
   MoreVertical,
-  Download,
-  CheckCircle2,
 } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
@@ -23,14 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -38,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { VersionDialog } from "@/components/VersionDialog";
 import {
   Sidebar,
   SidebarContent,
@@ -343,160 +333,23 @@ export const AppSidebar = () => {
             </div>
             <div className="border-t">
               <div className="flex items-center justify-between px-3 py-2">
-                {/* Desktop: Use HoverCard */}
-                {!isMobile && (
-                  <HoverCard>
-                    <HoverCardTrigger asChild>
-                      <div className="flex cursor-help items-center gap-1.5">
-                        <span className="text-muted-foreground hover:text-foreground text-xs transition-colors">
-                          v{currentVersion}
-                        </span>
-                        {hasUpdate && (
-                          <Badge variant="default" className="h-4 px-1.5 text-[10px]">
-                            NEW
-                          </Badge>
-                        )}
-                      </div>
-                    </HoverCardTrigger>
-                    <HoverCardContent side="top" align="center" className="w-64">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold">Version Info</span>
-                          {hasUpdate && (
-                            <span className="text-primary flex items-center gap-1 text-xs">
-                              <Download className="h-3 w-3" />
-                              Update available
-                            </span>
-                          )}
-                        </div>
-                        <div className="space-y-1.5 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Current:</span>
-                            <span className="font-mono font-medium">v{currentVersion}</span>
-                          </div>
-                          {isLoadingVersion ? (
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Latest:</span>
-                              <span className="text-muted-foreground">Loading...</span>
-                            </div>
-                          ) : latestVersion ? (
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Latest:</span>
-                              <span
-                                className={cn("font-mono font-medium", hasUpdate && "text-primary")}
-                              >
-                                v{latestVersion}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Latest:</span>
-                              <span className="text-muted-foreground text-xs">Unavailable</span>
-                            </div>
-                          )}
-                        </div>
-                        {!hasUpdate && latestVersion && (
-                          <div className="flex items-center gap-1.5 pt-2 text-xs text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            <span>Up to date</span>
-                          </div>
-                        )}
-                        {hasUpdate && (
-                          <p className="text-muted-foreground pt-2 text-xs">
-                            A new version is available on{" "}
-                            <a
-                              href="https://hub.docker.com/r/morelitea/initiative"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline"
-                            >
-                              Docker Hub
-                            </a>
-                          </p>
-                        )}
-                      </div>
-                    </HoverCardContent>
-                  </HoverCard>
-                )}
-
-                {/* Mobile: Use Dialog */}
-                {isMobile && (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <button className="flex cursor-pointer items-center gap-1.5">
-                        <span className="text-muted-foreground hover:text-foreground text-xs transition-colors">
-                          v{currentVersion}
-                        </span>
-                        {hasUpdate && (
-                          <Badge variant="default" className="h-4 px-1.5 text-[10px]">
-                            NEW
-                          </Badge>
-                        )}
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="w-[90vw] max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Version Info</DialogTitle>
-                        <DialogDescription className="sr-only">
-                          View current version and check for updates
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        {hasUpdate && (
-                          <div className="text-primary flex items-center gap-1.5 text-sm">
-                            <Download className="h-4 w-4" />
-                            <span>Update available</span>
-                          </div>
-                        )}
-                        <div className="space-y-3 text-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Current:</span>
-                            <span className="font-mono font-medium">v{currentVersion}</span>
-                          </div>
-                          {isLoadingVersion ? (
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Latest:</span>
-                              <span className="text-muted-foreground">Loading...</span>
-                            </div>
-                          ) : latestVersion ? (
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Latest:</span>
-                              <span
-                                className={cn("font-mono font-medium", hasUpdate && "text-primary")}
-                              >
-                                v{latestVersion}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Latest:</span>
-                              <span className="text-muted-foreground text-xs">Unavailable</span>
-                            </div>
-                          )}
-                        </div>
-                        {!hasUpdate && latestVersion && (
-                          <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span>Up to date</span>
-                          </div>
-                        )}
-                        {hasUpdate && (
-                          <p className="text-muted-foreground text-sm">
-                            A new version is available on{" "}
-                            <a
-                              href="https://hub.docker.com/r/morelitea/initiative"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline"
-                            >
-                              Docker Hub
-                            </a>
-                          </p>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                )}
+                <VersionDialog
+                  currentVersion={currentVersion}
+                  latestVersion={latestVersion ?? null}
+                  hasUpdate={Boolean(hasUpdate)}
+                  isLoadingVersion={isLoadingVersion}
+                >
+                  <button className="flex cursor-pointer items-center gap-1.5">
+                    <span className="text-muted-foreground hover:text-foreground text-xs transition-colors">
+                      v{currentVersion}
+                    </span>
+                    {hasUpdate && (
+                      <Badge variant="default" className="h-4 px-1.5 text-[10px]">
+                        NEW
+                      </Badge>
+                    )}
+                  </button>
+                </VersionDialog>
 
                 <Tooltip delayDuration={300}>
                   <TooltipTrigger asChild>

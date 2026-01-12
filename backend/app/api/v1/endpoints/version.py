@@ -1,6 +1,7 @@
 """Version endpoint."""
 
 import re
+from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -64,3 +65,54 @@ async def get_latest_dockerhub_version() -> dict[str, Optional[str]]:
     except Exception as e:
         print(f"Unexpected error fetching DockerHub version: {e}")
         return {"version": None}
+
+
+@router.get("/changelog")
+def get_changelog(version: Optional[str] = None) -> dict[str, list[dict]]:
+    """
+    Get changelog entries.
+
+    If version is provided, returns changes for that specific version.
+    If not provided, returns the most recent version's changes.
+    """
+    try:
+        # Try Docker path first: /app/app/api/v1/endpoints/version.py -> /app/CHANGELOG.md
+        changelog_path = Path(__file__).parent.parent.parent.parent / "CHANGELOG.md"
+
+        if not changelog_path.exists():
+            # Fall back to development path: backend/app/api/v1/endpoints/version.py -> ../../../../../CHANGELOG.md
+            changelog_path = Path(__file__).parent.parent.parent.parent.parent.parent / "CHANGELOG.md"
+
+        if not changelog_path.exists():
+            return {"entries": []}
+
+        content = changelog_path.read_text()
+
+        # Parse changelog sections
+        # Format: ## [version] - date
+        # Captures the version, date, and everything until the next ## or end of file
+        pattern = r"## \[([^\]]+)\] - ([^\n]+)\n(.*?)(?=\n## |\Z)"
+        matches = re.findall(pattern, content, re.DOTALL)
+
+        entries = []
+        for version_num, date, changes in matches:
+            # Skip if user requested a specific version and this isn't it
+            if version and version_num != version:
+                continue
+
+            entry = {
+                "version": version_num,
+                "date": date,
+                "changes": changes.strip()
+            }
+            entries.append(entry)
+
+            # If no specific version requested, only return the first (most recent) entry
+            if not version:
+                break
+
+        return {"entries": entries}
+
+    except Exception as e:
+        print(f"Failed to read changelog: {e}")
+        return {"entries": []}
