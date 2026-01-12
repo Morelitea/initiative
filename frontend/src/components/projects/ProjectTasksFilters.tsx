@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
 import type { ProjectTaskStatus } from "@/types/api";
 
@@ -15,43 +16,43 @@ type ProjectTasksFiltersProps = {
   viewMode: "kanban" | "table" | "calendar" | "gantt";
   userOptions: UserOption[];
   taskStatuses: ProjectTaskStatus[];
-  assigneeFilter: "all" | string;
+  assigneeFilters: string[];
   dueFilter: DueFilterOption;
-  listStatusFilter: ListStatusFilter;
-  onAssigneeFilterChange: (value: string) => void;
+  statusFilters: number[];
+  onAssigneeFiltersChange: (values: string[]) => void;
   onDueFilterChange: (value: DueFilterOption) => void;
-  onListStatusFilterChange: (value: ListStatusFilter) => void;
+  onStatusFiltersChange: (values: number[]) => void;
 };
 
 export const ProjectTasksFilters = ({
   viewMode,
   taskStatuses,
   userOptions,
-  assigneeFilter,
+  assigneeFilters,
   dueFilter,
-  listStatusFilter,
-  onAssigneeFilterChange,
+  statusFilters,
+  onAssigneeFiltersChange,
   onDueFilterChange,
-  onListStatusFilterChange,
+  onStatusFiltersChange,
 }: ProjectTasksFiltersProps) => (
   <div className="border-muted bg-background/40 flex flex-wrap items-end gap-4 rounded-md border p-3">
     <div className="w-full sm:w-48">
-      <Label htmlFor="assignee-filter" className="text-muted-foreground text-xs font-medium">
+      <Label
+        htmlFor="assignee-filter"
+        className="text-muted-foreground mb-2 block text-xs font-medium"
+      >
         Filter by assignee
       </Label>
-      <Select value={assigneeFilter} onValueChange={onAssigneeFilterChange}>
-        <SelectTrigger id="assignee-filter">
-          <SelectValue placeholder="All assignees" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All assignees</SelectItem>
-          {userOptions.map((option) => (
-            <SelectItem key={option.id} value={String(option.id)}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <MultiSelect
+        selectedValues={assigneeFilters}
+        options={userOptions.map((option) => ({
+          value: String(option.id),
+          label: option.label,
+        }))}
+        onChange={onAssigneeFiltersChange}
+        placeholder="All assignees"
+        emptyMessage="No users available"
+      />
     </div>
     <div className="w-full sm:w-48">
       <Label htmlFor="due-filter" className="text-muted-foreground text-xs font-medium">
@@ -74,40 +75,26 @@ export const ProjectTasksFilters = ({
       </Select>
     </div>
     {viewMode === "table" || viewMode === "calendar" || viewMode === "gantt" ? (
-      <div className="w-full sm:w-44">
-        <Label htmlFor="status-filter" className="text-muted-foreground text-xs font-medium">
+      <div className="w-full sm:w-48">
+        <Label
+          htmlFor="status-filter"
+          className="text-muted-foreground mb-2 block text-xs font-medium"
+        >
           Filter by status
         </Label>
-        <Select
-          value={
-            listStatusFilter === "all" || listStatusFilter === "incomplete"
-              ? listStatusFilter
-              : String(listStatusFilter)
-          }
-          onValueChange={(value) => {
-            if (value === "all" || value === "incomplete") {
-              onListStatusFilterChange(value);
-              return;
-            }
-            const parsed = Number(value);
-            if (Number.isFinite(parsed)) {
-              onListStatusFilterChange(parsed);
-            }
+        <MultiSelect
+          selectedValues={statusFilters.map(String)}
+          options={taskStatuses.map((status) => ({
+            value: String(status.id),
+            label: status.name,
+          }))}
+          onChange={(values) => {
+            const numericValues = values.map(Number).filter(Number.isFinite);
+            onStatusFiltersChange(numericValues);
           }}
-        >
-          <SelectTrigger id="status-filter">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="incomplete">Incomplete</SelectItem>
-            {taskStatuses.map((status) => (
-              <SelectItem key={status.id} value={String(status.id)}>
-                {status.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          placeholder="All statuses"
+          emptyMessage="No statuses available"
+        />
       </div>
     ) : null}
   </div>

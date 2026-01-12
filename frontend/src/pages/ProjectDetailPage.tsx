@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
-import type { Project, ProjectTaskStatus, Task, User } from "@/types/api";
+import type { Project, ProjectTaskStatus, User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams();
@@ -37,16 +37,7 @@ export const ProjectDetailPage = () => {
     enabled: Number.isFinite(parsedProjectId),
   });
 
-  const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", parsedProjectId],
-    queryFn: async () => {
-      const response = await apiClient.get<Task[]>("/tasks/", {
-        params: { project_id: parsedProjectId },
-      });
-      return response.data;
-    },
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  // Tasks query is now inside ProjectTasksSection to support server-side filtering
 
   const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
     queryKey: ["projects", parsedProjectId, "task-statuses"],
@@ -134,11 +125,11 @@ export const ProjectDetailPage = () => {
     );
   }
 
-  if (projectQuery.isLoading || tasksQuery.isLoading || taskStatusesQuery.isLoading) {
+  if (projectQuery.isLoading || taskStatusesQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">Loading project…</p>;
   }
 
-  if (projectQuery.isError || tasksQuery.isError || taskStatusesQuery.isError || !project) {
+  if (projectQuery.isError || taskStatusesQuery.isError || !project) {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
@@ -215,7 +206,6 @@ export const ProjectDetailPage = () => {
       />
       <ProjectTasksSection
         projectId={project.id}
-        tasks={tasksQuery.data ?? []}
         taskStatuses={taskStatusesQuery.data ?? []}
         userOptions={userOptions}
         canEditTaskDetails={canEditTaskDetails}

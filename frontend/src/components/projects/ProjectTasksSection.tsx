@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DragEndEvent,
   DragOverEvent,
@@ -27,10 +27,7 @@ import type {
 import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
-import {
-  ProjectTasksFilters,
-  type ListStatusFilter,
-} from "@/components/projects/ProjectTasksFilters";
+import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import {
   priorityVariant,
   type DueFilterOption,
@@ -57,9 +54,9 @@ type ViewMode = "table" | "kanban" | "calendar" | "gantt";
 
 type StoredFilters = {
   viewMode: ViewMode;
-  assigneeFilter: string;
+  assigneeFilters: string[];
   dueFilter: DueFilterOption;
-  listStatusFilter: ListStatusFilter;
+  statusFilters: number[];
 };
 
 const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] = [
@@ -78,7 +75,6 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectTasksSectionProps = {
   projectId: number;
-  tasks: Task[];
   taskStatuses: ProjectTaskStatus[];
   userOptions: UserOption[];
   canEditTaskDetails: boolean;
@@ -90,7 +86,6 @@ type ProjectTasksSectionProps = {
 
 export const ProjectTasksSection = ({
   projectId,
-  tasks: projectTasks,
   taskStatuses,
   userOptions,
   canEditTaskDetails,
@@ -116,9 +111,9 @@ export const ProjectTasksSection = ({
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [assigneeFilter, setAssigneeFilter] = useState<"all" | string>("all");
+  const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
-  const [listStatusFilter, setListStatusFilter] = useState<ListStatusFilter>("all");
+  const [statusFilters, setStatusFilters] = useState<number[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -127,6 +122,30 @@ export const ProjectTasksSection = ({
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
+
+  // Fetch tasks with server-side filtering
+  const tasksQuery = useQuery<Task[]>({
+    queryKey: ["tasks", projectId, assigneeFilters, statusFilters],
+    queryFn: async () => {
+      const params: Record<string, number | string[]> = { project_id: projectId };
+
+      // Add assignee filters (array)
+      if (assigneeFilters.length > 0) {
+        params.assignee_ids = assigneeFilters;
+      }
+
+      // Add status filters (array)
+      if (statusFilters.length > 0) {
+        params.task_status_ids = statusFilters;
+      }
+
+      const response = await apiClient.get<Task[]>("/tasks/", { params });
+      return response.data;
+    },
+    enabled: Number.isFinite(projectId) && filtersLoaded,
+  });
+
+  const projectTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const collapsedStorageKey = useMemo(
     () => (Number.isFinite(projectId) ? `project:${projectId}:kanban-collapsed` : null),
     [projectId]
@@ -197,17 +216,14 @@ export const ProjectTasksSection = ({
         ) {
           setViewMode(parsed.viewMode);
         }
-        if (parsed.assigneeFilter) {
-          setAssigneeFilter(parsed.assigneeFilter);
+        if (Array.isArray(parsed.assigneeFilters)) {
+          setAssigneeFilters(parsed.assigneeFilters);
         }
         if (parsed.dueFilter) {
           setDueFilter(parsed.dueFilter);
         }
-        const parsedListFilter = parsed.listStatusFilter;
-        if (parsedListFilter === "all" || parsedListFilter === "incomplete") {
-          setListStatusFilter(parsedListFilter);
-        } else if (typeof parsedListFilter === "number" && Number.isFinite(parsedListFilter)) {
-          setListStatusFilter(parsedListFilter);
+        if (Array.isArray(parsed.statusFilters)) {
+          setStatusFilters(parsed.statusFilters);
         }
       }
     } catch {
@@ -221,14 +237,14 @@ export const ProjectTasksSection = ({
     if (!filterStorageKey || !filtersLoaded) {
       return;
     }
-    const payload = {
+    const payload: StoredFilters = {
       viewMode,
-      assigneeFilter,
+      assigneeFilters,
       dueFilter,
-      listStatusFilter,
+      statusFilters,
     };
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
-  }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilter, dueFilter, listStatusFilter]);
+  }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilters, dueFilter, statusFilters]);
 
   useEffect(() => {
     if (!collapsedStorageKey || typeof window === "undefined") {
@@ -416,50 +432,43 @@ export const ProjectTasksSection = ({
     [orderedTasks, activeTaskId]
   );
 
+  // Client-side filtering for due date (not yet supported server-side)
   const filteredTasks = useMemo(() => {
-    if (assigneeFilter === "all" && dueFilter === "all") {
+    if (dueFilter === "all") {
       return tasks;
     }
     const now = new Date();
     return tasks.filter((task) => {
-      if (assigneeFilter !== "all") {
-        const targetId = Number(assigneeFilter);
-        if (!task.assignees.some((assignee) => assignee.id === targetId)) {
-          return false;
-        }
+      if (!task.due_date) {
+        return false;
       }
-      if (dueFilter !== "all") {
-        if (!task.due_date) {
+      const taskDueDate = new Date(task.due_date);
+      if (Number.isNaN(taskDueDate.getTime())) {
+        return false;
+      }
+      if (dueFilter === "overdue") {
+        if (taskDueDate >= now) {
           return false;
         }
-        const taskDueDate = new Date(task.due_date);
-        if (Number.isNaN(taskDueDate.getTime())) {
+      } else if (dueFilter === "today") {
+        if (
+          taskDueDate.getFullYear() !== now.getFullYear() ||
+          taskDueDate.getMonth() !== now.getMonth() ||
+          taskDueDate.getDate() !== now.getDate()
+        ) {
           return false;
         }
-        if (dueFilter === "overdue") {
-          if (taskDueDate >= now) {
-            return false;
-          }
-        } else if (dueFilter === "today") {
-          if (
-            taskDueDate.getFullYear() !== now.getFullYear() ||
-            taskDueDate.getMonth() !== now.getMonth() ||
-            taskDueDate.getDate() !== now.getDate()
-          ) {
-            return false;
-          }
-        } else {
-          const days = dueFilter === "7_days" ? 7 : 30;
-          const windowEnd = new Date(now.getTime());
-          windowEnd.setDate(windowEnd.getDate() + days);
-          if (taskDueDate < now || taskDueDate > windowEnd) {
-            return false;
-          }
+      } else {
+        const days = dueFilter === "7_days" ? 7 : 30;
+        const windowEnd = new Date(now.getTime());
+        windowEnd.setDate(windowEnd.getDate() + days);
+        if (taskDueDate < now || taskDueDate > windowEnd) {
+          return false;
         }
       }
       return true;
     });
-  }, [tasks, assigneeFilter, dueFilter]);
+  }, [tasks, dueFilter]);
 
   const groupedTasks = useMemo(() => {
     const groups: Record<number, Task[]> = {};
@@ -475,15 +484,8 @@ export const ProjectTasksSection = ({
     return groups;
   }, [filteredTasks, sortedTaskStatuses]);
 
-  const statusFilteredTasks = useMemo(() => {
-    if (listStatusFilter === "all") {
-      return filteredTasks;
-    }
-    if (listStatusFilter === "incomplete") {
-      return filteredTasks.filter((task) => task.task_status.category !== "done");
-    }
-    return filteredTasks.filter((task) => task.task_status_id === listStatusFilter);
-  }, [filteredTasks, listStatusFilter]);
+  // Status filtering is now done server-side, so statusFilteredTasks is just filteredTasks
+  const statusFilteredTasks = filteredTasks;
 
   const persistOrder = useCallback(
     (nextTasks: Task[]) => {
@@ -775,12 +777,12 @@ export const ProjectTasksSection = ({
               viewMode={viewMode}
               taskStatuses={sortedTaskStatuses}
               userOptions={userOptions}
-              assigneeFilter={assigneeFilter}
+              assigneeFilters={assigneeFilters}
               dueFilter={dueFilter}
-              listStatusFilter={listStatusFilter}
-              onAssigneeFilterChange={setAssigneeFilter}
+              statusFilters={statusFilters}
+              onAssigneeFiltersChange={setAssigneeFilters}
               onDueFilterChange={setDueFilter}
-              onListStatusFilterChange={setListStatusFilter}
+              onStatusFiltersChange={setStatusFilters}
             />
           </CollapsibleContent>
         </Collapsible>

@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
@@ -54,20 +55,12 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 const guild_DEFAULT_LABEL = "No Guild";
 
-const INITIATIVE_FILTER_ALL = "all";
-const GUILD_FILTER_ALL = "all";
 const MY_TASKS_FILTERS_KEY = "initiative-my-tasks-filters";
-const STATUS_FILTER_VALUES: Array<"all" | "incomplete" | TaskStatusCategory> = [
-  "all",
-  "incomplete",
-  ...statusOptions.map((option) => option.value),
-];
-const PRIORITY_FILTER_VALUES: Array<"all" | TaskPriority> = ["all", ...priorityOrder];
 const FILTER_DEFAULTS = {
-  statusFilter: "incomplete" as "all" | "incomplete" | TaskStatusCategory,
-  priorityFilter: "all" as "all" | TaskPriority,
-  initiativeFilter: INITIATIVE_FILTER_ALL,
-  guildFilter: GUILD_FILTER_ALL,
+  statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
+  priorityFilters: [] as TaskPriority[],
+  initiativeFilters: [] as number[],
+  guildFilters: [] as number[],
 };
 
 const readStoredFilters = () => {
@@ -80,23 +73,19 @@ const readStoredFilters = () => {
       return FILTER_DEFAULTS;
     }
     const parsed = JSON.parse(raw);
-    const statusFilter = STATUS_FILTER_VALUES.includes(parsed?.statusFilter)
-      ? parsed.statusFilter
-      : FILTER_DEFAULTS.statusFilter;
-    const priorityFilter = PRIORITY_FILTER_VALUES.includes(parsed?.priorityFilter)
-      ? parsed.priorityFilter
-      : FILTER_DEFAULTS.priorityFilter;
-    const initiativeFilter =
-      typeof parsed?.initiativeFilter === "string"
-        ? parsed.initiativeFilter
-        : FILTER_DEFAULTS.initiativeFilter;
-    const guildFilter =
-      typeof parsed?.guildFilter === "string" ? parsed.guildFilter : FILTER_DEFAULTS.guildFilter;
     return {
-      statusFilter,
-      priorityFilter,
-      initiativeFilter,
-      guildFilter,
+      statusFilters: Array.isArray(parsed?.statusFilters)
+        ? parsed.statusFilters
+        : FILTER_DEFAULTS.statusFilters,
+      priorityFilters: Array.isArray(parsed?.priorityFilters)
+        ? parsed.priorityFilters
+        : FILTER_DEFAULTS.priorityFilters,
+      initiativeFilters: Array.isArray(parsed?.initiativeFilters)
+        ? parsed.initiativeFilters
+        : FILTER_DEFAULTS.initiativeFilters,
+      guildFilters: Array.isArray(parsed?.guildFilters)
+        ? parsed.guildFilters
+        : FILTER_DEFAULTS.guildFilters,
     };
   } catch {
     return FILTER_DEFAULTS;
@@ -186,34 +175,36 @@ export const MyTasksPage = () => {
   >(new Map());
   const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | TaskStatusCategory>(
-    () => readStoredFilters().statusFilter
+  const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
+    () => readStoredFilters().statusFilters
   );
-  const [priorityFilter, setPriorityFilter] = useState<"all" | TaskPriority>(
-    () => readStoredFilters().priorityFilter
+  const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>(
+    () => readStoredFilters().priorityFilters
   );
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    () => readStoredFilters().initiativeFilter
+  const [initiativeFilters, setInitiativeFilters] = useState<number[]>(
+    () => readStoredFilters().initiativeFilters
   );
-  const [guildFilter, setGuildFilter] = useState<string>(() => readStoredFilters().guildFilter);
+  const [guildFilters, setGuildFilters] = useState<number[]>(
+    () => readStoredFilters().guildFilters
+  );
 
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "global", statusFilter, priorityFilter, initiativeFilter, guildFilter],
+    queryKey: ["tasks", "global", statusFilters, priorityFilters, initiativeFilters, guildFilters],
     queryFn: async () => {
-      const params: Record<string, string> = { scope: "global" };
+      const params: Record<string, string | string[] | number[]> = { scope: "global" };
 
-      if (statusFilter !== "all") {
-        params.status_category = statusFilter;
+      if (statusFilters.length > 0) {
+        params.status_category = statusFilters;
       }
-      if (priorityFilter !== "all") {
-        params.priority = priorityFilter;
+      if (priorityFilters.length > 0) {
+        params.priorities = priorityFilters;
       }
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
+      if (initiativeFilters.length > 0) {
+        params.initiative_ids = initiativeFilters;
       }
-      if (guildFilter !== GUILD_FILTER_ALL) {
-        params.guild_id = guildFilter;
+      if (guildFilters.length > 0) {
+        params.guild_ids = guildFilters;
       }
 
       const response = await apiClient.get<Task[]>("/tasks/", { params });
@@ -327,13 +318,13 @@ export const MyTasksPage = () => {
       return;
     }
     const payload = {
-      statusFilter,
-      priorityFilter,
-      initiativeFilter,
-      guildFilter,
+      statusFilters,
+      priorityFilters,
+      initiativeFilters,
+      guildFilters,
     };
     window.localStorage.setItem(MY_TASKS_FILTERS_KEY, JSON.stringify(payload));
-  }, [statusFilter, priorityFilter, initiativeFilter, guildFilter]);
+  }, [statusFilters, priorityFilters, initiativeFilters, guildFilters]);
 
   const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {
     const cached = projectStatusCache.current.get(projectId);
@@ -806,95 +797,80 @@ export const MyTasksPage = () => {
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-status-filter"
-                className="text-muted-foreground text-xs font-medium"
+                className="text-muted-foreground mb-2 block text-xs font-medium"
               >
                 Status category
               </Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) =>
-                  setStatusFilter(value as "all" | "incomplete" | TaskStatusCategory)
-                }
-              >
-                <SelectTrigger id="task-status-filter">
-                  <SelectValue placeholder="All status categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="incomplete">Incomplete</SelectItem>
-                  <SelectItem value="all">All status categories</SelectItem>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                selectedValues={statusFilters}
+                options={statusOptions.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                placeholder="All status categories"
+                emptyMessage="No status categories available"
+              />
             </div>
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-priority-filter"
-                className="text-muted-foreground text-xs font-medium"
+                className="text-muted-foreground mb-2 block text-xs font-medium"
               >
                 Priority
               </Label>
-              <Select
-                value={priorityFilter}
-                onValueChange={(value) => setPriorityFilter(value as typeof priorityFilter)}
-              >
-                <SelectTrigger id="task-priority-filter">
-                  <SelectValue placeholder="All priorities" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
-                  {priorityOrder.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {priority.replace("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                selectedValues={priorityFilters}
+                options={priorityOrder.map((priority) => ({
+                  value: priority,
+                  label: priority.replace("_", " "),
+                }))}
+                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                placeholder="All priorities"
+                emptyMessage="No priorities available"
+              />
             </div>
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-guild-filter"
-                className="text-muted-foreground text-xs font-medium"
+                className="text-muted-foreground mb-2 block text-xs font-medium"
               >
                 Guild
               </Label>
-              <Select value={guildFilter} onValueChange={setGuildFilter}>
-                <SelectTrigger id="task-guild-filter">
-                  <SelectValue placeholder="All guilds" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={GUILD_FILTER_ALL}>All guilds</SelectItem>
-                  {guilds.map((guild) => (
-                    <SelectItem key={guild.id} value={String(guild.id)}>
-                      {guild.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                selectedValues={guildFilters.map(String)}
+                options={guilds.map((guild) => ({
+                  value: String(guild.id),
+                  label: guild.name,
+                }))}
+                onChange={(values) => {
+                  const numericValues = values.map(Number).filter(Number.isFinite);
+                  setGuildFilters(numericValues);
+                }}
+                placeholder="All guilds"
+                emptyMessage="No guilds available"
+              />
             </div>
             <div className="w-full sm:w-60 lg:flex-1">
               <Label
                 htmlFor="task-initiative-filter"
-                className="text-muted-foreground text-xs font-medium"
+                className="text-muted-foreground mb-2 block text-xs font-medium"
               >
                 Initiative
               </Label>
-              <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-                <SelectTrigger id="task-initiative-filter">
-                  <SelectValue placeholder="All initiatives" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                  {initiativeOptions.map((initiative) => (
-                    <SelectItem key={initiative.id} value={initiative.id}>
-                      {initiative.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                selectedValues={initiativeFilters.map(String)}
+                options={initiativeOptions.map((initiative) => ({
+                  value: initiative.id,
+                  label: initiative.name,
+                }))}
+                onChange={(values) => {
+                  const numericValues = values.map(Number).filter(Number.isFinite);
+                  setInitiativeFilters(numericValues);
+                }}
+                placeholder="All initiatives"
+                emptyMessage="No initiatives available"
+              />
             </div>
           </div>
         </CollapsibleContent>
