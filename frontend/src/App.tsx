@@ -6,7 +6,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
-import { UpdateDialog } from "@/components/UpdateDialog";
+import { VersionDialog } from "@/components/VersionDialog";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
@@ -139,8 +139,10 @@ const AppLayout = () => {
           <ProjectActivitySidebar projectId={activeProjectId} />
         </SidebarProvider>
       </div>
-      <UpdateDialog
+      <VersionDialog
+        mode="update"
         open={updateAvailable.show}
+        currentVersion={updateAvailable.version}
         newVersion={updateAvailable.version}
         onClose={closeDialog}
       />
