@@ -7,11 +7,8 @@ import { ImagePlus, Loader2, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
-import {
-  DocumentEditor,
-  createEmptyEditorState,
-  normalizeEditorState,
-} from "@/components/editor/DocumentEditor";
+import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
+import { Editor } from "@/components/editor-x/editor";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -353,13 +350,21 @@ export const DocumentDetailPage = () => {
               </div>
             </CardContent>
           </Card>
-          <DocumentEditor
+          {/* <DocumentEditor
             key={document.id}
             initialState={normalizedDocumentContent}
             onChange={setContentState}
             placeholder="Capture requirements, share decisions, or outline processes…"
             readOnly={!canEditDocument}
             showToolbar={canEditDocument}
+          /> */}
+          <Editor
+            key={document.id}
+            editorSerializedState={normalizedDocumentContent}
+            onSerializedChange={setContentState}
+            readOnly={!canEditDocument}
+            showToolbar={canEditDocument}
+            className="h-80vh!"
           />
           <div className="flex flex-wrap gap-3">
             {canEditDocument ? (
