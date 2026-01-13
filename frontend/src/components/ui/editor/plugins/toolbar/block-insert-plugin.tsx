@@ -1,5 +1,3 @@
-"use client";
-
 import { PlusIcon } from "lucide-react";
 
 import { useEditorModal } from "@/components/ui/editor/editor-hooks/use-modal";

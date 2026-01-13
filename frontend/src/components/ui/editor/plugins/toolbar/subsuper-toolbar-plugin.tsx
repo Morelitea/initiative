@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { $isTableSelection } from "@lexical/table";
 import { $isRangeSelection, BaseSelection, FORMAT_TEXT_COMMAND } from "lexical";

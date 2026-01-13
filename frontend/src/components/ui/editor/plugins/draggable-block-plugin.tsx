@@ -1,5 +1,3 @@
-"use client";
-
 import { JSX, useRef } from "react";
 import { DraggableBlockPlugin_EXPERIMENTAL } from "@lexical/react/LexicalDraggableBlockPlugin";
 import { GripVerticalIcon } from "lucide-react";

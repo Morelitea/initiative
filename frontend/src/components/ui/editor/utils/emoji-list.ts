@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- *
- */
-
 // This list was sourced from Github (MIT License)
 // https://github.com/github/gemoji/blob/master/db/emoji.json
 

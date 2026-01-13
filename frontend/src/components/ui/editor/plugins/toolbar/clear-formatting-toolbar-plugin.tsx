@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback } from "react";
 import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
 import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";

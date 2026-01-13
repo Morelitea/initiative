@@ -1,5 +1,3 @@
-"use client";
-
 import { exportFile, importFile } from "@lexical/file";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { DownloadIcon, UploadIcon } from "lucide-react";

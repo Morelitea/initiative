@@ -1,5 +1,3 @@
-"use client";
-
 import { ImageIcon } from "lucide-react";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";

@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useState } from "react";
 import { $getSelectionStyleValueForProperty, $patchStyleText } from "@lexical/selection";
 import { $getSelection, $isRangeSelection, BaseSelection } from "lexical";

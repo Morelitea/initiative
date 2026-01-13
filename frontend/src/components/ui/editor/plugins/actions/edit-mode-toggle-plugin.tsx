@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LockIcon, UnlockIcon } from "lucide-react";
