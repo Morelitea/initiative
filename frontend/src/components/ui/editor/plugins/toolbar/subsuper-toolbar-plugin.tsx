@@ -16,9 +16,7 @@ export function SubSuperToolbarPlugin() {
 
   const $updateToolbar = (selection: BaseSelection) => {
     if ($isRangeSelection(selection) || $isTableSelection(selection)) {
-      // @ts-expect-error - hasFormat exists on selection but types are incomplete
       setIsSubscript(selection.hasFormat("subscript"));
-      // @ts-expect-error - hasFormat exists on selection but types are incomplete
       setIsSuperscript(selection.hasFormat("superscript"));
     }
   };

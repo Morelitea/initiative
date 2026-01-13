@@ -28,13 +28,13 @@ type PossibleRef<T> = React.Ref<T> | undefined;
  * Set a given ref to a given value
  * This utility takes care of different types of refs: callback refs and RefObject(s)
  */
-function setRef<T>(ref: PossibleRef<T>, value: T) {
+function setRef<T>(ref: PossibleRef<T>, value: T): void | (() => void) {
   if (typeof ref === "function") {
-    return ref(value);
+    return ref(value) as void | (() => void);
   }
 
   if (ref !== null && ref !== undefined) {
-    ref.current = value;
+    (ref as React.MutableRefObject<T>).current = value;
   }
 }
 
@@ -852,7 +852,9 @@ function ColorPickerRootImpl(props: ColorPickerRootImplProps) {
   const dir = useDirection(dirProp);
 
   const [formTrigger, setFormTrigger] = React.useState<HTMLDivElement | null>(null);
-  const composedRef = useComposedRefs(ref, (node) => setFormTrigger(node));
+  const composedRef = useComposedRefs(ref as PossibleRef<HTMLDivElement>, (node) =>
+    setFormTrigger(node)
+  );
 
   const isFormControl = formTrigger ? !!formTrigger.closest("form") : true;
 
@@ -1001,7 +1003,7 @@ function ColorPickerArea(props: ColorPickerAreaProps) {
 
   const isDraggingRef = React.useRef(false);
   const areaRef = React.useRef<HTMLDivElement>(null);
-  const composedRef = useComposedRefs(ref, areaRef);
+  const composedRef = useComposedRefs(ref as PossibleRef<HTMLDivElement>, areaRef);
 
   const updateColorFromPosition = React.useCallback(
     (clientX: number, clientY: number) => {
@@ -1302,10 +1304,10 @@ function ColorPickerEyeDropper(props: ColorPickerEyeDropperProps) {
 
 interface ColorPickerFormatSelectProps
   extends Omit<React.ComponentProps<typeof Select>, "value" | "onValueChange">,
-    Pick<React.ComponentProps<typeof SelectTrigger>, "size" | "className"> {}
+    Pick<React.ComponentProps<typeof SelectTrigger>, "className"> {}
 
 function ColorPickerFormatSelect(props: ColorPickerFormatSelectProps) {
-  const { size, className, ...selectProps } = props;
+  const { className, ...selectProps } = props;
   const context = useColorPickerContext("ColorPickerFormatSelector");
   const store = useColorPickerStoreContext("ColorPickerFormatSelector");
 
@@ -1328,8 +1330,7 @@ function ColorPickerFormatSelect(props: ColorPickerFormatSelectProps) {
     >
       <SelectTrigger
         data-slot="color-picker-format-select-trigger"
-        size={size ?? "sm"}
-        className={cn(className)}
+        className={cn("h-8", className)}
       >
         <SelectValue />
       </SelectTrigger>

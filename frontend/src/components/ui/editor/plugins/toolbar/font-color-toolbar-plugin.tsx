@@ -81,7 +81,7 @@ export function FontColorToolbarPlugin() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ColorPickerFormatSelect size="sm" />
+          <ColorPickerFormatSelect />
           <ColorPickerInput />
         </div>
       </ColorPickerContent>

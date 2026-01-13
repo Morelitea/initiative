@@ -24,7 +24,6 @@ export function caretFromPoint(
     };
     // @ts-expect-error - Firefox API not in standard types
   } else if (document.caretPositionFromPoint !== "undefined") {
-    // @ts-expect-error - Firefox caretPositionFromPoint not in standard types
     const range = document.caretPositionFromPoint(x, y);
     if (range === null) {
       return null;
