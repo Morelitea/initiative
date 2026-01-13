@@ -117,13 +117,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Automated release CI workflow
 
-## [Unreleased]
-
-### Changed
-
-- README rewritten to better describe the project
-- Updated screenshots and feature descriptions
-
 ---
 
 ## Version Format
