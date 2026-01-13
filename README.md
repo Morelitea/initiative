@@ -227,6 +227,7 @@ For detailed development guidelines, coding standards, and workflow, see [AGENTS
 | `SECRET_KEY`               | JWT signing key (use a secure random string)  | `your-secret-key-here`                                     |
 | `APP_URL`                  | Public base URL (required for OIDC callbacks) | `https://initiative.example.com`                           |
 | `DISABLE_GUILD_CREATION`   | Restrict guild creation to super admin only   | `true` or `false`                                          |
+| `BEHIND_PROXY`             | Trust X-Forwarded-For headers (set when behind nginx/load balancer) | `true` or `false`                     |
 | `FIRST_SUPERUSER_EMAIL`    | Bootstrap admin email                         | `admin@example.com`                                        |
 | `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password                      | `secure-password`                                          |
 | `SMTP_HOST`                | SMTP server hostname                          | `smtp.gmail.com`                                           |

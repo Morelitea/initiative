@@ -4,27 +4,27 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
+from app.core.config import settings
+
 
 def get_real_client_ip(request: Request) -> str:
     """
     Get the real client IP address, accounting for proxies.
 
-    Checks X-Forwarded-For header first (set by reverse proxies),
-    falls back to direct client IP.
+    Only trusts X-Forwarded-For/X-Real-IP headers when BEHIND_PROXY=True,
+    preventing header spoofing when directly exposed to the internet.
     """
-    # X-Forwarded-For may contain multiple IPs: client, proxy1, proxy2, ...
-    # The first one is the original client
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # Take the first IP (original client)
-        return forwarded_for.split(",")[0].strip()
+    if settings.BEHIND_PROXY:
+        # X-Forwarded-For may contain multiple IPs: client, proxy1, proxy2, ...
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
 
-    # X-Real-IP is another common header set by nginx
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
 
-    # Fall back to direct connection IP
+    # Direct connection IP (or BEHIND_PROXY not set)
     return get_remote_address(request)
 
 
