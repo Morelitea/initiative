@@ -17,6 +17,7 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_user
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
 from app.models.guild import GuildRole
@@ -45,7 +46,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/15minutes")
 async def register_user(
+    request: Request,
     user_in: UserCreate,
     session: SessionDep,
     invite_code: str | None = Query(default=None),
@@ -150,7 +153,9 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 
 
 @router.post("/token", response_model=Token)
+@limiter.limit("5/15minutes")
 async def login_access_token(
+    request: Request,
     session: SessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
@@ -250,7 +255,8 @@ async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
 
 
 @router.get("/oidc/login")
-async def oidc_login(session: SessionDep) -> RedirectResponse:
+@limiter.limit("20/minute")
+async def oidc_login(request: Request, session: SessionDep) -> RedirectResponse:
     app_settings, metadata = await _get_oidc_runtime_config(session)
     state = _generate_state()
     params = {
@@ -265,7 +271,9 @@ async def oidc_login(session: SessionDep) -> RedirectResponse:
 
 
 @router.get("/oidc/callback")
+@limiter.limit("5/15minutes")
 async def oidc_callback(
+    request: Request,
     session: SessionDep,
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
@@ -363,7 +371,9 @@ async def oidc_callback(
 
 
 @router.post("/verification/send", response_model=VerificationSendResponse)
+@limiter.limit("5/15minutes")
 async def resend_verification_email(
+    request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
@@ -385,7 +395,8 @@ async def resend_verification_email(
 
 
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
-async def confirm_verification(payload: VerificationConfirmRequest, session: SessionDep) -> VerificationSendResponse:
+@limiter.limit("5/15minutes")
+async def confirm_verification(request: Request, session: SessionDep, payload: VerificationConfirmRequest) -> VerificationSendResponse:
     record = await user_tokens.consume_token(
         session,
         token=payload.token,
@@ -408,7 +419,8 @@ async def confirm_verification(payload: VerificationConfirmRequest, session: Ses
 
 
 @router.post("/password/forgot", response_model=VerificationSendResponse)
-async def request_password_reset(payload: PasswordResetRequest, session: SessionDep) -> VerificationSendResponse:
+@limiter.limit("5/15minutes")
+async def request_password_reset(request: Request, payload: PasswordResetRequest, session: SessionDep) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
     stmt = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(stmt)
@@ -431,7 +443,8 @@ async def request_password_reset(payload: PasswordResetRequest, session: Session
 
 
 @router.post("/password/reset", response_model=VerificationSendResponse)
-async def reset_password(payload: PasswordResetSubmit, session: SessionDep) -> VerificationSendResponse:
+@limiter.limit("5/15minutes")
+async def reset_password(request: Request, payload: PasswordResetSubmit, session: SessionDep) -> VerificationSendResponse:
     record = await user_tokens.consume_token(
         session,
         token=payload.token,

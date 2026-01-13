@@ -2,13 +2,16 @@ import asyncio
 from contextlib import suppress
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.api import api_router
+from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
 from app.db.session import AsyncSessionLocal, run_migrations
@@ -34,6 +37,10 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     redoc_url=None,
 )
+
+# Initialize rate limiter (uses shared limiter from app.core.rate_limit)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

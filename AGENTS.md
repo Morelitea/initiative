@@ -221,6 +221,52 @@ git push && git push --tags
 - **MINOR** (0.2.0): New features, backward-compatible additions
 - **PATCH** (0.1.1): Bug fixes, backward-compatible fixes
 
+### Changelog Maintenance
+
+**IMPORTANT**: Always update `CHANGELOG.md` when making significant changes.
+
+**Determining where to add changes:**
+
+1. Check git log for recent "bump version to X.Y.Z" commits
+2. If that version exists, it's already released
+3. Add your changes to an `[Unreleased]` section at the top of the changelog
+4. When the version is bumped, the unreleased section becomes the new version
+
+**Example workflow:**
+
+```bash
+# Check recent history
+git log --oneline --grep="bump version" -n 1
+
+# If output shows "bump version to 0.7.2"
+# Then 0.7.2 is released, add changes to [Unreleased]
+```
+
+**Changelog format:**
+
+```markdown
+## [Unreleased]
+
+### Added
+- New features go here
+
+### Changed
+- Modifications to existing features
+
+### Fixed
+- Bug fixes
+
+## [0.7.2] - 2026-01-12
+...existing released versions...
+```
+
+**Rules:**
+- ✅ Update changelog for all feature additions, breaking changes, and bug fixes
+- ✅ Use `[Unreleased]` section if the current VERSION has already been tagged
+- ✅ Keep entries concise and user-focused
+- ❌ Do NOT add changelog entries for minor refactoring or internal changes
+- ❌ Do NOT put new changes under an already-released version number
+
 ### Docker Builds with Specific Versions
 
 Build Docker images with version labels:

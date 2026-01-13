@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str | None = None
     FIRST_SUPERUSER_FULL_NAME: str | None = None
     DISABLE_GUILD_CREATION: bool = False
+    BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
     @classmethod

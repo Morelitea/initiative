@@ -5,6 +5,19 @@ All notable changes to Initiative will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Rate limiting on all API endpoints (100 requests/minute default)
+- Aggressive rate limiting on sensitive auth endpoints (5 requests/15 minutes):
+  - Login (`/token`)
+  - Registration (`/register`)
+  - Password reset request (`/password/forgot`)
+  - Password reset submit (`/password/reset`)
+  - Email verification send (`/verification/send`)
+  - Email verification confirm (`/verification/confirm`)
+
 ## [0.7.2] 2026-01-12
 
 ### Added
