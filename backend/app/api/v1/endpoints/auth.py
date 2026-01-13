@@ -393,7 +393,7 @@ async def resend_verification_email(
 
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
-async def confirm_verification(request: Request, payload: VerificationConfirmRequest, session: SessionDep) -> VerificationSendResponse:
+async def confirm_verification(request: Request, session: SessionDep, payload: VerificationConfirmRequest) -> VerificationSendResponse:
     record = await user_tokens.consume_token(
         session,
         token=payload.token,
