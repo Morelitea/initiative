@@ -1,4 +1,4 @@
-import { Loader2, Download, CheckCircle2 } from "lucide-react";
+import { Loader2, Download, CheckCircle2, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { cn } from "@/lib/utils";
@@ -46,16 +47,22 @@ export const VersionDialog = ({
   onClose,
   newVersion,
 }: VersionDialogProps) => {
-  // In update mode, show the new version's changelog
-  // In info mode, show the current version's changelog
-  const versionToShow = mode === "update" && newVersion ? newVersion : currentVersion;
+  // In update mode, show the new version's changelog only
+  // In info mode, show last 5 versions
+  const versionToShow = mode === "update" && newVersion ? newVersion : undefined;
+  const limit = mode === "update" ? 1 : 5;
 
   const { data, isLoading } = useQuery<{ entries: ChangelogEntry[] }>({
-    queryKey: ["changelog", versionToShow],
+    queryKey: ["changelog", versionToShow, limit],
     queryFn: async () => {
-      const response = await apiClient.get("/changelog", {
-        params: { version: versionToShow },
-      });
+      const params: { version?: string; limit?: number } = {};
+      if (versionToShow) {
+        params.version = versionToShow;
+      }
+      if (mode === "info") {
+        params.limit = limit;
+      }
+      const response = await apiClient.get("/changelog", { params });
       return response.data;
     },
     enabled: mode === "info" || (mode === "update" && Boolean(open)),
@@ -64,8 +71,6 @@ export const VersionDialog = ({
   const handleReload = () => {
     window.location.reload();
   };
-
-  const changelog = data?.entries?.[0];
 
   // Parse changelog markdown into sections
   const parseChangelog = (text: string) => {
@@ -100,11 +105,9 @@ export const VersionDialog = ({
     return sections;
   };
 
-  const sections = changelog ? parseChangelog(changelog.changes) : [];
-
   const dialogContent = (
-    <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-      <DialogHeader>
+    <DialogContent className="flex h-[80vh] max-w-2xl flex-col gap-0">
+      <DialogHeader className="shrink-0">
         <DialogTitle>
           {mode === "update" ? "New Version Available" : "Version Information"}
         </DialogTitle>
@@ -115,10 +118,10 @@ export const VersionDialog = ({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         {/* Version Info Section - only show in info mode */}
         {mode === "info" && (
-          <div className="space-y-4 border-b pb-4">
+          <div className="shrink-0 space-y-4 border-b pb-4">
             {hasUpdate && (
               <div className="text-primary flex items-center gap-1.5 text-sm font-medium">
                 <Download className="h-4 w-4" />
@@ -172,54 +175,76 @@ export const VersionDialog = ({
         )}
 
         {/* Changelog Section */}
-        <div>
-          <h3 className="mb-4 text-lg font-semibold">Changelog</h3>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <h3 className="mb-3 shrink-0 text-lg font-semibold">Changelog</h3>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : changelog ? (
-            <div className="space-y-4">
-              <div className="border-b pb-2">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-base font-semibold">Version {changelog.version}</h4>
-                  <Badge variant="outline" className="text-xs">
-                    {changelog.date}
-                  </Badge>
-                </div>
-              </div>
+          ) : data?.entries && data.entries.length > 0 ? (
+            <ScrollArea className="flex-1">
+              <div className="space-y-6 pr-6">
+                {data.entries.map((entry, entryIdx) => {
+                  const sections = parseChangelog(entry.changes);
+                  return (
+                    <div key={entry.version} className={entryIdx > 0 ? "border-t pt-6" : ""}>
+                      <div className="mb-4 border-b pb-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-base font-semibold">Version {entry.version}</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {entry.date}
+                          </Badge>
+                        </div>
+                      </div>
 
-              {sections.length > 0 ? (
-                <div className="space-y-4">
-                  {sections.map((section, idx) => (
-                    <div key={idx}>
-                      <h5 className="mb-2 text-sm font-semibold">{section.title}</h5>
-                      <ul className="text-muted-foreground space-y-1 text-sm">
-                        {section.items.map((item, itemIdx) => (
-                          <li key={itemIdx} className="flex gap-2">
-                            <span className="text-primary">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      {sections.length > 0 ? (
+                        <div className="space-y-4">
+                          {sections.map((section, idx) => (
+                            <div key={idx}>
+                              <h5 className="mb-2 text-sm font-semibold">{section.title}</h5>
+                              <ul className="text-muted-foreground space-y-1 text-sm">
+                                {section.items.map((item, itemIdx) => (
+                                  <li key={itemIdx} className="flex gap-2">
+                                    <span className="text-primary shrink-0">•</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground text-sm">
+                          No detailed changes available.
+                        </p>
+                      )}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">No detailed changes available.</p>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
           ) : (
-            <p className="text-muted-foreground text-sm">
-              No changelog available for this version.
-            </p>
+            <p className="text-muted-foreground text-sm">No changelog available.</p>
           )}
+          <div className="shrink-0 border-t pt-3">
+            <Button variant="outline" size="sm" className="w-full" asChild>
+              <a
+                href="https://github.com/Morelitea/initiative/blob/main/CHANGELOG.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2"
+              >
+                View all changes
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Footer with buttons - only in update mode */}
       {mode === "update" && (
-        <DialogFooter>
+        <DialogFooter className="shrink-0 px-6 pb-6">
           <Button variant="outline" onClick={onClose}>
             Later
           </Button>
