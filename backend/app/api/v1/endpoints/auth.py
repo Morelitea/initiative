@@ -255,7 +255,8 @@ async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
 
 
 @router.get("/oidc/login")
-async def oidc_login(session: SessionDep) -> RedirectResponse:
+@limiter.limit("20/minute")
+async def oidc_login(request: Request, session: SessionDep) -> RedirectResponse:
     app_settings, metadata = await _get_oidc_runtime_config(session)
     state = _generate_state()
     params = {
