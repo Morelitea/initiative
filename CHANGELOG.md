@@ -7,16 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-01-12
+
 ### Added
 
 - Rate limiting on all API endpoints (100 requests/minute default)
-- Aggressive rate limiting on sensitive auth endpoints (5 requests/15 minutes):
-  - Login (`/token`)
-  - Registration (`/register`)
-  - Password reset request (`/password/forgot`)
-  - Password reset submit (`/password/reset`)
-  - Email verification send (`/verification/send`)
-  - Email verification confirm (`/verification/confirm`)
+- Aggressive rate limiting on sensitive auth endpoints (5 requests/15 minutes)
+- Rate limiting on OIDC endpoints (login: 20/minute, callback: 5/15 minutes)
+- `BEHIND_PROXY` setting to safely trust X-Forwarded-For headers behind reverse proxies
 
 ## [0.7.2] 2026-01-12
 
