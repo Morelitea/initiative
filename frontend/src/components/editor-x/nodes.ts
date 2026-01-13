@@ -9,6 +9,7 @@ import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { Klass, LexicalNode, LexicalNodeReplacement, ParagraphNode, TextNode } from "lexical";
 
 import { AutocompleteNode } from "@/components/ui/editor/nodes/autocomplete-node";
+import { EmbedNode } from "@/components/ui/editor/nodes/embed-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
 import { EmojiNode } from "@/components/ui/editor/nodes/emoji-node";
@@ -44,4 +45,5 @@ export const nodes: ReadonlyArray<Klass<LexicalNode> | LexicalNodeReplacement> =
   TweetNode,
   YouTubeNode,
   AutocompleteNode,
+  EmbedNode,
 ];

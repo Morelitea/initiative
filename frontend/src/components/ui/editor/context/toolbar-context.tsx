@@ -1,5 +1,3 @@
-"use client";
-
 import { createContext, JSX, useContext } from "react";
 import { LexicalEditor } from "lexical";
 

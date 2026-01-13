@@ -38,16 +38,17 @@ export function Editor({
   className?: string;
 }) {
   return (
-    <div className={cn("bg-background overflow-hidden rounded-lg border shadow", className)}>
+    <div className={cn("bg-background overflow-y-auto rounded-lg border shadow", className)}>
       <LexicalComposer
         initialConfig={{
           ...editorConfig,
+          editable: !readOnly,
           ...(editorState ? { editorState } : {}),
           ...(editorSerializedState ? { editorState: JSON.stringify(editorSerializedState) } : {}),
         }}
       >
         <TooltipProvider>
-          {showToolbar && <Plugins />}
+          <Plugins showToolbar={showToolbar} readOnly={readOnly} />
 
           {!readOnly && (
             <OnChangePlugin

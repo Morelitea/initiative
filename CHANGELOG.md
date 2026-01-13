@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Document editor upgraded to shadcn-editor with improved toolbar and formatting options
+- Image uploads now use server-side storage instead of base64 encoding
+
 ## [0.7.3] - 2026-01-12
 
 ### Added

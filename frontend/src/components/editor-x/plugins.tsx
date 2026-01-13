@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CHECK_LIST,
   ELEMENT_TRANSFORMERS,
@@ -10,6 +10,7 @@ import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import { ClearEditorPlugin } from "@lexical/react/LexicalClearEditorPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
@@ -107,9 +108,21 @@ import { Separator } from "@/components/ui/separator";
 const placeholder = "Press / for commands...";
 // const maxLength = 500;
 
-export function Plugins() {
+export function Plugins({
+  showToolbar = true,
+  readOnly = false,
+}: {
+  showToolbar?: boolean;
+  readOnly?: boolean;
+}) {
+  const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
+
+  // Enforce read-only mode
+  useEffect(() => {
+    editor.setEditable(!readOnly);
+  }, [editor, readOnly]);
 
   const onRef = (_floatingAnchorElem: HTMLDivElement) => {
     if (_floatingAnchorElem !== null) {
@@ -119,51 +132,53 @@ export function Plugins() {
 
   return (
     <div className="relative">
-      <ToolbarPlugin>
-        {({ blockType }) => (
-          <div className="vertical-align-middle sticky top-0 z-10 flex flex-wrap items-center gap-2 overflow-auto border-b p-1">
-            <HistoryToolbarPlugin />
-            <Separator orientation="vertical" className="h-7!" />
-            <BlockFormatDropDown>
-              <FormatParagraph />
-              <FormatHeading levels={["h1", "h2", "h3"]} />
-              <FormatNumberedList />
-              <FormatBulletedList />
-              <FormatCheckList />
-              <FormatCodeBlock />
-              <FormatQuote />
-            </BlockFormatDropDown>
-            {blockType === "code" ? (
-              <CodeLanguageToolbarPlugin />
-            ) : (
-              <>
-                {/* <FontFamilyToolbarPlugin /> */}
-                <FontSizeToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <FontFormatToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <SubSuperToolbarPlugin />
-                <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-                <Separator orientation="vertical" className="h-7!" />
-                <ClearFormattingToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <FontColorToolbarPlugin />
-                <FontBackgroundToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <ElementFormatToolbarPlugin />
-                <Separator orientation="vertical" className="h-7!" />
-                <BlockInsertPlugin>
-                  <InsertHorizontalRule />
-                  <InsertImage />
-                  <InsertTable />
-                  <InsertColumnsLayout />
-                  <InsertEmbeds />
-                </BlockInsertPlugin>
-              </>
-            )}
-          </div>
-        )}
-      </ToolbarPlugin>
+      {showToolbar && (
+        <ToolbarPlugin>
+          {({ blockType }) => (
+            <div className="bg-background vertical-align-middle sticky top-0 z-10 flex flex-wrap items-center gap-2 overflow-auto border-b p-1">
+              <HistoryToolbarPlugin />
+              <Separator orientation="vertical" className="h-7!" />
+              <BlockFormatDropDown>
+                <FormatParagraph />
+                <FormatHeading levels={["h1", "h2", "h3"]} />
+                <FormatNumberedList />
+                <FormatBulletedList />
+                <FormatCheckList />
+                <FormatCodeBlock />
+                <FormatQuote />
+              </BlockFormatDropDown>
+              {blockType === "code" ? (
+                <CodeLanguageToolbarPlugin />
+              ) : (
+                <>
+                  {/* <FontFamilyToolbarPlugin /> */}
+                  <FontSizeToolbarPlugin />
+                  <Separator orientation="vertical" className="h-7!" />
+                  <FontFormatToolbarPlugin />
+                  <Separator orientation="vertical" className="h-7!" />
+                  <SubSuperToolbarPlugin />
+                  <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+                  <Separator orientation="vertical" className="h-7!" />
+                  <ClearFormattingToolbarPlugin />
+                  <Separator orientation="vertical" className="h-7!" />
+                  <FontColorToolbarPlugin />
+                  <FontBackgroundToolbarPlugin />
+                  <Separator orientation="vertical" className="h-7!" />
+                  <ElementFormatToolbarPlugin />
+                  <Separator orientation="vertical" className="h-7!" />
+                  <BlockInsertPlugin>
+                    <InsertHorizontalRule />
+                    <InsertImage />
+                    <InsertTable />
+                    <InsertColumnsLayout />
+                    <InsertEmbeds />
+                  </BlockInsertPlugin>
+                </>
+              )}
+            </div>
+          )}
+        </ToolbarPlugin>
+      )}
       <div className="relative">
         <AutoFocusPlugin />
         <RichTextPlugin
@@ -172,7 +187,7 @@ export function Plugins() {
               <div className="" ref={onRef}>
                 <ContentEditable
                   placeholder={placeholder}
-                  className="ContentEditable__root relative block h-[calc(100vh-90px)] min-h-72 overflow-auto px-8 py-4 focus:outline-none"
+                  className="ContentEditable__root relative block min-h-72 px-8 py-4 focus:outline-none"
                 />
               </div>
             </div>
@@ -183,7 +198,7 @@ export function Plugins() {
         <ClickableLinkPlugin />
         <CheckListPlugin />
         <HorizontalRulePlugin />
-        <TablePlugin />
+        <TablePlugin hasCellMerge hasCellBackgroundColor />
         <ListPlugin />
         <TabIndentationPlugin />
         <HashtagPlugin />
@@ -249,8 +264,8 @@ export function Plugins() {
           dynamicOptionsFn={DynamicTablePickerPlugin}
         />
 
-        <ContextMenuPlugin />
-        <DragDropPastePlugin />
+        {!readOnly && <ContextMenuPlugin />}
+        {!readOnly && <DragDropPastePlugin />}
         <EmojiPickerPlugin />
 
         <FloatingLinkEditorPlugin
@@ -265,41 +280,43 @@ export function Plugins() {
 
         <ListMaxIndentLevelPlugin />
       </div>
-      <ActionsPlugin>
-        <div className="clear-both flex items-center justify-between gap-2 overflow-auto border-t p-1">
-          <div className="flex flex-1 justify-start">
-            {/* <MaxLengthPlugin maxLength={maxLength} />
-            <CharacterLimitPlugin maxLength={maxLength} charset="UTF-16" /> */}
+      {showToolbar && (
+        <ActionsPlugin>
+          <div className="clear-both flex items-center justify-between gap-2 overflow-auto border-t p-1">
+            <div className="flex flex-1 justify-start">
+              {/* <MaxLengthPlugin maxLength={maxLength} />
+              <CharacterLimitPlugin maxLength={maxLength} charset="UTF-16" /> */}
+            </div>
+            <div>
+              <CounterCharacterPlugin charset="UTF-16" />
+            </div>
+            <div className="flex flex-1 justify-end">
+              {/* <SpeechToTextPlugin /> */}
+              {/* <ShareContentPlugin /> */}
+              <ImportExportPlugin />
+              <MarkdownTogglePlugin
+                shouldPreserveNewLinesInMarkdown={true}
+                transformers={[
+                  TABLE,
+                  HR,
+                  IMAGE,
+                  EMOJI,
+                  TWEET,
+                  CHECK_LIST,
+                  ...ELEMENT_TRANSFORMERS,
+                  ...MULTILINE_ELEMENT_TRANSFORMERS,
+                  ...TEXT_FORMAT_TRANSFORMERS,
+                  ...TEXT_MATCH_TRANSFORMERS,
+                ]}
+              />
+              <EditModeTogglePlugin />
+              <ClearEditorActionPlugin />
+              <ClearEditorPlugin />
+              <TreeViewPlugin />
+            </div>
           </div>
-          <div>
-            <CounterCharacterPlugin charset="UTF-16" />
-          </div>
-          <div className="flex flex-1 justify-end">
-            {/* <SpeechToTextPlugin /> */}
-            {/* <ShareContentPlugin /> */}
-            <ImportExportPlugin />
-            <MarkdownTogglePlugin
-              shouldPreserveNewLinesInMarkdown={true}
-              transformers={[
-                TABLE,
-                HR,
-                IMAGE,
-                EMOJI,
-                TWEET,
-                CHECK_LIST,
-                ...ELEMENT_TRANSFORMERS,
-                ...MULTILINE_ELEMENT_TRANSFORMERS,
-                ...TEXT_FORMAT_TRANSFORMERS,
-                ...TEXT_MATCH_TRANSFORMERS,
-              ]}
-            />
-            <EditModeTogglePlugin />
-            <ClearEditorActionPlugin />
-            <ClearEditorPlugin />
-            <TreeViewPlugin />
-          </div>
-        </div>
-      </ActionsPlugin>
+        </ActionsPlugin>
+      )}
     </div>
   );
 }

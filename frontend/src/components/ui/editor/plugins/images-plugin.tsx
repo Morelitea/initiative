@@ -37,6 +37,7 @@ import {
   ImagePayload,
 } from "@/components/ui/editor/nodes/image-node";
 import { CAN_USE_DOM } from "@/components/ui/editor/shared/can-use-dom";
+import { uploadAttachment } from "@/api/attachments";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -104,19 +105,28 @@ export function InsertImageUploadedDialogBody({
 }) {
   const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [fileName, setFileName] = useState("");
 
-  const isDisabled = src === "";
+  const isDisabled = src === "" || isUploading;
 
-  const loadImage = (files: FileList | null) => {
-    const reader = new FileReader();
-    reader.onload = function () {
-      if (typeof reader.result === "string") {
-        setSrc(reader.result);
-      }
-      return "";
-    };
-    if (files !== null) {
-      reader.readAsDataURL(files[0]);
+  const handleFileChange = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setFileName(file.name);
+    setAltText(file.name);
+    setIsUploading(true);
+
+    try {
+      const response = await uploadAttachment(file);
+      setSrc(response.url);
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      setSrc("");
+      setFileName("");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -127,10 +137,11 @@ export function InsertImageUploadedDialogBody({
         <Input
           id="image-upload"
           type="file"
-          onChange={(e) => loadImage(e.target.files)}
+          onChange={(e) => void handleFileChange(e.target.files)}
           accept="image/*"
           data-test-id="image-modal-file-upload"
         />
+        {isUploading && <p className="text-muted-foreground text-sm">Uploading {fileName}...</p>}
       </div>
       <div className="grid gap-2">
         <Label htmlFor="alt-text">Alt Text</Label>
@@ -148,7 +159,7 @@ export function InsertImageUploadedDialogBody({
         onClick={() => onClick({ altText, src })}
         data-test-id="image-modal-file-upload-btn"
       >
-        Confirm
+        {isUploading ? "Uploading..." : "Confirm"}
       </Button>
     </div>
   );
