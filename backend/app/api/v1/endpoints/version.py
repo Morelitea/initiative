@@ -68,12 +68,13 @@ async def get_latest_dockerhub_version() -> dict[str, Optional[str]]:
 
 
 @router.get("/changelog")
-def get_changelog(version: Optional[str] = None) -> dict[str, list[dict]]:
+def get_changelog(version: Optional[str] = None, limit: int = 1) -> dict[str, list[dict]]:
     """
     Get changelog entries.
 
     If version is provided, returns changes for that specific version.
-    If not provided, returns the most recent version's changes.
+    If not provided, returns the most recent N versions (default 1).
+    Limit parameter controls how many recent versions to return (max 10).
     """
     try:
         # Try Docker path first: /app/app/api/v1/endpoints/version.py -> /app/CHANGELOG.md
@@ -95,6 +96,9 @@ def get_changelog(version: Optional[str] = None) -> dict[str, list[dict]]:
         matches = re.findall(pattern, content, re.DOTALL)
 
         entries = []
+        # Clamp limit to max 10
+        max_entries = min(limit, 10) if not version else len(matches)
+
         for version_num, date, changes in matches:
             # Skip if user requested a specific version and this isn't it
             if version and version_num != version:
@@ -107,8 +111,8 @@ def get_changelog(version: Optional[str] = None) -> dict[str, list[dict]]:
             }
             entries.append(entry)
 
-            # If no specific version requested, only return the first (most recent) entry
-            if not version:
+            # If we've collected enough entries, stop
+            if len(entries) >= max_entries:
                 break
 
         return {"entries": entries}

@@ -5,6 +5,18 @@ All notable changes to Initiative will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Version dialog shows last 5 versions with scrolling
+- "View all changes" button linking to GitHub CHANGELOG.md
+- Changelog endpoint limit parameter (max 10 versions)
+
+### Fixed
+
+- Dialog scrolling with proper flex layout and 80vh height
+
 ## [0.7.1] - 2026-01-12
 
 ### Fixed
