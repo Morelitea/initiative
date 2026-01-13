@@ -270,7 +270,9 @@ async def oidc_login(session: SessionDep) -> RedirectResponse:
 
 
 @router.get("/oidc/callback")
+@limiter.limit("5/15minutes")
 async def oidc_callback(
+    request: Request,
     session: SessionDep,
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
