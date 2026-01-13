@@ -11,14 +11,13 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_user
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
 from app.models.guild import GuildRole
@@ -39,7 +38,6 @@ from app.services import guilds as guilds_service
 from app.models.user_token import UserTokenPurpose
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
 
 STATE_TTL_SECONDS = 600
 _oidc_metadata_cache: dict[str, dict[str, Any]] = {}
