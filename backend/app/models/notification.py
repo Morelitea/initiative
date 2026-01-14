@@ -11,6 +11,7 @@ class NotificationType(str, Enum):
     initiative_added = "initiative_added"
     project_added = "project_added"
     user_pending_approval = "user_pending_approval"
+    mention = "mention"
 
 
 class Notification(SQLModel, table=True):

@@ -388,7 +388,8 @@ export type NotificationType =
   | "task_assignment"
   | "initiative_added"
   | "project_added"
-  | "user_pending_approval";
+  | "user_pending_approval"
+  | "mention";
 
 export interface Notification {
   id: number;

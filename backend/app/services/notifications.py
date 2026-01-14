@@ -206,6 +206,38 @@ async def notify_admins_pending_user(session: AsyncSession, pending_user: User) 
     await session.commit()
 
 
+async def notify_document_mention(
+    session: AsyncSession,
+    *,
+    mentioned_user: User,
+    mentioned_by: User,
+    document_id: int,
+    document_title: str,
+    guild_id: int,
+) -> None:
+    """Notify a user they were mentioned in a document."""
+    if mentioned_user.id == mentioned_by.id:
+        return
+    if getattr(mentioned_user, "notify_mentions", True) is False:
+        return
+    target_path = f"/documents/{document_id}"
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    await user_notifications.create_notification(
+        session,
+        user_id=mentioned_user.id,
+        notification_type=NotificationType.mention,
+        data={
+            "document_id": document_id,
+            "document_title": document_title,
+            "mentioned_by_name": mentioned_by.full_name or mentioned_by.email,
+            "mentioned_by_id": mentioned_by.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+
+
 async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
     stmt = (
         select(TaskAssignmentDigestItem.user_id)

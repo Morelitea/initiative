@@ -7,11 +7,9 @@ import { ImagePlus, Loader2, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
-import {
-  DocumentEditor,
-  createEmptyEditorState,
-  normalizeEditorState,
-} from "@/components/editor/DocumentEditor";
+import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
+import { Editor } from "@/components/editor-x/editor";
+import { findNewMentions } from "@/lib/mentionUtils";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,7 +20,9 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
@@ -39,6 +39,8 @@ export const DocumentDetailPage = () => {
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
 
   const documentQuery = useQuery<DocumentRead>({
@@ -118,6 +120,10 @@ export const DocumentDetailPage = () => {
     );
   }, [document, user]);
 
+  const mentionableUsers = useMemo(() => {
+    return document?.initiative?.members?.map((member) => member.user) ?? [];
+  }, [document?.initiative?.members]);
+
   const updateDocumentCommentCount = (delta: number) => {
     queryClient.setQueryData<DocumentRead>(["documents", parsedId], (previous) => {
       if (!previous) {
@@ -166,16 +172,47 @@ export const DocumentDetailPage = () => {
       return response.data;
     },
     onSuccess: (updated) => {
-      toast.success("Document saved");
+      if (!isAutosaveRef.current) {
+        toast.success("Document saved");
+      }
+      isAutosaveRef.current = false;
       queryClient.setQueryData(["documents", parsedId], updated);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      // Fire-and-forget: notify users who were newly mentioned
+      const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
+      if (newMentionIds.length > 0) {
+        apiClient
+          .post(`/documents/${parsedId}/mentions`, { mentioned_user_ids: newMentionIds })
+          .catch((err) => console.error("Failed to notify mentions:", err));
+      }
     },
     onError: (error) => {
+      isAutosaveRef.current = false;
       const message = error instanceof Error ? error.message : "Unable to save document.";
       toast.error(message);
     },
   });
+
+  // Autosave with debounce
+  useEffect(() => {
+    if (!autosaveEnabled || !isDirty || !canEditDocument || saveDocument.isPending) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      isAutosaveRef.current = true;
+      saveDocument.mutate();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [
+    autosaveEnabled,
+    isDirty,
+    canEditDocument,
+    saveDocument,
+    title,
+    contentState,
+    featuredImageUrl,
+  ]);
 
   const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!canEditDocument) {
@@ -353,15 +390,24 @@ export const DocumentDetailPage = () => {
               </div>
             </CardContent>
           </Card>
-          <DocumentEditor
+          {/* <DocumentEditor
             key={document.id}
             initialState={normalizedDocumentContent}
             onChange={setContentState}
             placeholder="Capture requirements, share decisions, or outline processes…"
             readOnly={!canEditDocument}
             showToolbar={canEditDocument}
+          /> */}
+          <Editor
+            key={document.id}
+            editorSerializedState={normalizedDocumentContent}
+            onSerializedChange={setContentState}
+            readOnly={!canEditDocument}
+            showToolbar={canEditDocument}
+            className="h-[80vh]"
+            mentionableUsers={mentionableUsers}
           />
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
               <>
                 <Button
@@ -378,6 +424,16 @@ export const DocumentDetailPage = () => {
                     "Save changes"
                   )}
                 </Button>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="autosave"
+                    checked={autosaveEnabled}
+                    onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                  />
+                  <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                    Autosave
+                  </Label>
+                </div>
                 {!isDirty ? (
                   <span className="text-muted-foreground self-center text-sm">
                     All changes saved
