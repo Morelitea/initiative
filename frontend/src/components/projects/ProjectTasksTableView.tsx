@@ -105,7 +105,7 @@ const SortableRowWrapper = ({
       <TableRow
         ref={setNodeRef}
         style={style}
-        className={cn(isDragging && "bg-muted/60")}
+        className={cn(isDragging && "bg-muted/60", row.original.is_archived && "opacity-50")}
         data-state={row.getIsSelected() && "selected"}
       >
         {children}

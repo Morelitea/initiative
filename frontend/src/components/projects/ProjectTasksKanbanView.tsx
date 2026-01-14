@@ -36,6 +36,8 @@ type ProjectTasksKanbanViewProps = {
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
   onToggleCollapse: (statusId: number) => void;
+  onArchiveDoneTasks?: (statusId: number) => void;
+  isArchivingDoneTasks?: boolean;
 };
 
 export const ProjectTasksKanbanView = ({
@@ -53,6 +55,8 @@ export const ProjectTasksKanbanView = ({
   onDragEnd,
   onDragCancel,
   onToggleCollapse,
+  onArchiveDoneTasks,
+  isArchivingDoneTasks,
 }: ProjectTasksKanbanViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
@@ -96,6 +100,8 @@ export const ProjectTasksKanbanView = ({
                       ? "w-70 sm:w-80"
                       : "w-70 sm:w-89"
                 )}
+                onArchiveDoneTasks={onArchiveDoneTasks}
+                isArchiving={isArchivingDoneTasks}
               />
             );
           })}

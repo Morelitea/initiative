@@ -108,6 +108,10 @@ class Task(SQLModel, table=True):
         default=0,
         sa_column=Column(Float, nullable=False, server_default="0"),
     )
+    is_archived: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false", index=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

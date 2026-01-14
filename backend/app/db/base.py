@@ -10,6 +10,8 @@ from app.models.user import User
 from app.models.api_key import AdminApiKey
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.comment import Comment
+from app.models.document import Document
+from app.models.notification import Notification
 
 __all__ = [
     "User",
@@ -29,4 +31,6 @@ __all__ = [
     "ProjectFavorite",
     "RecentProjectView",
     "Comment",
+    "Document",
+    "Notification",
 ]
