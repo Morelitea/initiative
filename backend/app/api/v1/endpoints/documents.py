@@ -30,6 +30,7 @@ from app.schemas.document import (
 from app.services import attachments as attachments_service
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
+from app.services import notifications as notifications_service
 
 router = APIRouter()
 
@@ -404,3 +405,43 @@ async def delete_document(
     await session.delete(document)
     await session.commit()
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
+
+
+@router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)
+async def notify_mentions(
+    document_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    mentioned_user_ids: List[int] = Body(..., embed=True),
+) -> None:
+    """Notify users that they were mentioned in a document."""
+    if not mentioned_user_ids:
+        return
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_write_access(
+        session,
+        document=document,
+        user=current_user,
+        guild_role=guild_context.role,
+    )
+    initiative = document.initiative
+    if not initiative:
+        initiative = await _get_initiative_or_404(
+            session, initiative_id=document.initiative_id, guild_id=guild_context.guild_id
+        )
+    memberships = getattr(initiative, "memberships", []) or []
+    member_map = {membership.user_id: membership.user for membership in memberships if membership.user}
+    for user_id in mentioned_user_ids:
+        mentioned_user = member_map.get(user_id)
+        if not mentioned_user:
+            continue
+        await notifications_service.notify_document_mention(
+            session,
+            mentioned_user=mentioned_user,
+            mentioned_by=current_user,
+            document_id=document.id,
+            document_title=document.title,
+            guild_id=guild_context.guild_id,
+        )
+    await session.commit()

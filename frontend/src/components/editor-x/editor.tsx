@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { nodes } from "./nodes";
 import { Plugins } from "./plugins";
 import { cn } from "@/lib/utils";
+import type { UserPublic } from "@/types/api";
 
 const editorConfig: InitialConfigType = {
   namespace: "Editor",
@@ -28,6 +29,7 @@ export function Editor({
   readOnly = false,
   showToolbar = true,
   className,
+  mentionableUsers = [],
 }: {
   editorState?: EditorState;
   editorSerializedState?: SerializedEditorState;
@@ -36,6 +38,7 @@ export function Editor({
   readOnly?: boolean;
   showToolbar?: boolean;
   className?: string;
+  mentionableUsers?: UserPublic[];
 }) {
   return (
     <div className={cn("bg-background overflow-y-auto rounded-lg border shadow", className)}>
@@ -48,7 +51,11 @@ export function Editor({
         }}
       >
         <TooltipProvider>
-          <Plugins showToolbar={showToolbar} readOnly={readOnly} />
+          <Plugins
+            showToolbar={showToolbar}
+            readOnly={readOnly}
+            mentionableUsers={mentionableUsers}
+          />
 
           {!readOnly && (
             <OnChangePlugin

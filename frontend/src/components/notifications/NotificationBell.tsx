@@ -86,6 +86,11 @@ const notificationLink = (notification: Notification): string | null => {
       return null;
     case "user_pending_approval":
       return "/settings";
+    case "mention":
+      if (typeof data.document_id === "number") {
+        return `/documents/${data.document_id}`;
+      }
+      return null;
     default:
       return null;
   }
@@ -102,6 +107,8 @@ const notificationText = (notification: Notification): string => {
       return `${data.project_name ?? "A project"} was added to ${data.initiative_name ?? "an initiative"} you're part of.`;
     case "user_pending_approval":
       return `${data.email ?? "A user"} is awaiting approval.`;
+    case "mention":
+      return `${data.mentioned_by_name ?? "Someone"} mentioned you in ${data.document_title ?? "a document"}.`;
     default:
       return "You have a new notification.";
   }

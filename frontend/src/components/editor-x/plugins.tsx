@@ -104,6 +104,7 @@ import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transf
 import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
 import { Separator } from "@/components/ui/separator";
+import type { UserPublic } from "@/types/api";
 
 const placeholder = "Press / for commands...";
 // const maxLength = 500;
@@ -111,9 +112,11 @@ const placeholder = "Press / for commands...";
 export function Plugins({
   showToolbar = true,
   readOnly = false,
+  mentionableUsers = [],
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
+  mentionableUsers?: UserPublic[];
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
@@ -204,7 +207,7 @@ export function Plugins({
         <HashtagPlugin />
         <HistoryPlugin />
 
-        <MentionsPlugin />
+        <MentionsPlugin mentionableUsers={mentionableUsers} />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
         <KeywordsPlugin />
         <EmojisPlugin />

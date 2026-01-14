@@ -14,6 +14,7 @@ import {
 export type SerializedMentionNode = Spread<
   {
     mentionName: string;
+    mentionUserId?: number | null;
   },
   SerializedTextNode
 >;
@@ -34,16 +35,21 @@ function $convertMentionElement(domNode: HTMLElement): DOMConversionOutput | nul
 const mentionStyle = "background-color: rgba(24, 119, 232, 0.2)";
 export class MentionNode extends TextNode {
   __mention: string;
+  __mentionUserId: number | null;
 
   static getType(): string {
     return "mention";
   }
 
   static clone(node: MentionNode): MentionNode {
-    return new MentionNode(node.__mention, node.__text, node.__key);
+    return new MentionNode(node.__mention, node.__mentionUserId, node.__text, node.__key);
   }
+
   static importJSON(serializedNode: SerializedMentionNode): MentionNode {
-    const node = $createMentionNode(serializedNode.mentionName);
+    const node = $createMentionNode(
+      serializedNode.mentionName,
+      serializedNode.mentionUserId ?? null
+    );
     node.setTextContent(serializedNode.text);
     node.setFormat(serializedNode.format);
     node.setDetail(serializedNode.detail);
@@ -52,18 +58,24 @@ export class MentionNode extends TextNode {
     return node;
   }
 
-  constructor(mentionName: string, text?: string, key?: NodeKey) {
+  constructor(mentionName: string, mentionUserId?: number | null, text?: string, key?: NodeKey) {
     super(text ?? mentionName, key);
     this.__mention = mentionName;
+    this.__mentionUserId = mentionUserId ?? null;
   }
 
   exportJSON(): SerializedMentionNode {
     return {
       ...super.exportJSON(),
       mentionName: this.__mention,
+      mentionUserId: this.__mentionUserId,
       type: "mention",
       version: 1,
     };
+  }
+
+  getMentionUserId(): number | null {
+    return this.__mentionUserId;
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -107,8 +119,11 @@ export class MentionNode extends TextNode {
   }
 }
 
-export function $createMentionNode(mentionName: string): MentionNode {
-  const mentionNode = new MentionNode(mentionName);
+export function $createMentionNode(
+  mentionName: string,
+  mentionUserId?: number | null
+): MentionNode {
+  const mentionNode = new MentionNode(mentionName, mentionUserId);
   mentionNode.setMode("segmented").toggleDirectionless();
   return $applyNodeReplacement(mentionNode);
 }

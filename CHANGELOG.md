@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- @mention support for tagging initiative members in documents
+- Notifications when users are mentioned in documents
+- User preference to enable/disable mention notifications
+
 ### Changed
 
 - Document editor upgraded to shadcn-editor with improved toolbar and formatting options

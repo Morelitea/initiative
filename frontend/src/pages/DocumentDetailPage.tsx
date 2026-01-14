@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { Editor } from "@/components/editor-x/editor";
+import { findNewMentions } from "@/lib/mentionUtils";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -115,6 +116,10 @@ export const DocumentDetailPage = () => {
     );
   }, [document, user]);
 
+  const mentionableUsers = useMemo(() => {
+    return document?.initiative?.members?.map((member) => member.user) ?? [];
+  }, [document?.initiative?.members]);
+
   const updateDocumentCommentCount = (delta: number) => {
     queryClient.setQueryData<DocumentRead>(["documents", parsedId], (previous) => {
       if (!previous) {
@@ -167,6 +172,13 @@ export const DocumentDetailPage = () => {
       queryClient.setQueryData(["documents", parsedId], updated);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      // Fire-and-forget: notify users who were newly mentioned
+      const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
+      if (newMentionIds.length > 0) {
+        apiClient
+          .post(`/documents/${parsedId}/mentions`, { mentioned_user_ids: newMentionIds })
+          .catch((err) => console.error("Failed to notify mentions:", err));
+      }
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Unable to save document.";
@@ -365,6 +377,7 @@ export const DocumentDetailPage = () => {
             readOnly={!canEditDocument}
             showToolbar={canEditDocument}
             className="h-80vh!"
+            mentionableUsers={mentionableUsers}
           />
           <div className="flex flex-wrap gap-3">
             {canEditDocument ? (
