@@ -204,5 +204,13 @@ async def import_todoist_tasks(
             result.errors.append(f"Failed to import task '{task_data.get('title', 'unknown')}': {str(e)}")
             result.tasks_failed += 1
 
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        result.tasks_created = 0
+        result.subtasks_created = 0
+        result.tasks_failed = len(tasks)
+        result.errors = [f"Failed to commit import: {str(e)}"]
+
     return result
