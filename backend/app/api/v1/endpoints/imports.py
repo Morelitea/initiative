@@ -21,6 +21,8 @@ from app.schemas.import_data import (
     TodoistParseResult,
     VikunjaImportRequest,
     VikunjaParseResult,
+    TickTickImportRequest,
+    TickTickParseResult,
     ImportResult,
 )
 from app.services import import_service
@@ -236,6 +238,75 @@ async def import_from_vikunja(
         request.json_content,
         request.source_project_id,
         request.bucket_mapping,
+    )
+
+    return result
+
+
+@router.post("/ticktick/parse", response_model=TickTickParseResult)
+async def parse_ticktick_csv(
+    csv_content: Annotated[str, Body(media_type="text/plain")],
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+) -> TickTickParseResult:
+    """
+    Parse a TickTick CSV export and return detected lists with columns.
+
+    This is a preview endpoint to help users select a list and map columns.
+    """
+    try:
+        return import_service.parse_ticktick_csv(csv_content)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to parse CSV: {str(e)}",
+        )
+
+
+@router.post("/ticktick", response_model=ImportResult)
+async def import_from_ticktick(
+    request: TickTickImportRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportResult:
+    """
+    Import tasks from a TickTick CSV export into a project.
+
+    The column_mapping maps TickTick column names to task_status_id values
+    in the target project.
+    """
+    # Validate write access to the project
+    project = await _validate_project_write_access(
+        session,
+        request.project_id,
+        current_user,
+        guild_context.guild_id,
+        guild_context.role,
+    )
+
+    # Ensure default statuses exist
+    await task_statuses_service.ensure_default_statuses(session, project.id)
+
+    # Validate that all mapped status IDs belong to the project
+    project_statuses = await task_statuses_service.list_statuses(
+        session, project.id
+    )
+    valid_status_ids = {s.id for s in project_statuses}
+
+    for column_name, status_id in request.column_mapping.items():
+        if status_id not in valid_status_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status ID {status_id} for column '{column_name}'",
+            )
+
+    # Perform the import
+    result = await import_service.import_ticktick_tasks(
+        session,
+        project.id,
+        request.csv_content,
+        request.source_list_name,
+        request.column_mapping,
     )
 
     return result

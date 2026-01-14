@@ -77,3 +77,41 @@ class VikunjaParseResult(BaseModel):
         default_factory=list, description="Projects found in the export"
     )
     total_tasks: int = Field(default=0, description="Total number of tasks across all projects")
+
+
+# TickTick import schemas
+
+
+class TickTickImportRequest(BaseModel):
+    """Request body for importing tasks from TickTick CSV export."""
+
+    project_id: int = Field(..., description="Target Initiative project to import into")
+    csv_content: str = Field(..., description="Raw CSV content from TickTick export")
+    source_list_name: str = Field(..., description="TickTick list name to import from")
+    column_mapping: Dict[str, int] = Field(
+        ..., description="Mapping of TickTick column names to task_status_id"
+    )
+
+
+class TickTickColumn(BaseModel):
+    """A column (status) from a TickTick list."""
+
+    name: str
+    task_count: int
+
+
+class TickTickList(BaseModel):
+    """A list detected in the TickTick export."""
+
+    name: str
+    task_count: int
+    columns: List[TickTickColumn] = Field(default_factory=list)
+
+
+class TickTickParseResult(BaseModel):
+    """Result of parsing a TickTick CSV export."""
+
+    lists: List[TickTickList] = Field(
+        default_factory=list, description="Lists found in the export"
+    )
+    total_tasks: int = Field(default=0, description="Total number of tasks across all lists")

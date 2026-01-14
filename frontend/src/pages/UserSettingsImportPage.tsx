@@ -7,6 +7,7 @@ import todoistIcon from "@/assets/todoist.svg";
 import trelloIcon from "@/assets/trello.svg";
 import vikunjaIcon from "@/assets/vikunja.svg";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TickTickImportDialog } from "@/components/import/TickTickImportDialog";
 import { TodoistImportDialog } from "@/components/import/TodoistImportDialog";
 import { VikunjaImportDialog } from "@/components/import/VikunjaImportDialog";
 
@@ -31,7 +32,7 @@ const IMPORT_PLATFORMS: ImportPlatform[] = [
     name: "TickTick",
     description: "Import tasks from TickTick CSV export",
     icon: ticktickIcon,
-    available: false,
+    available: true,
   },
   {
     id: "vikunja",
@@ -57,6 +58,7 @@ const IMPORT_PLATFORMS: ImportPlatform[] = [
 ];
 
 export const UserSettingsImportPage = () => {
+  const [ticktickDialogOpen, setTicktickDialogOpen] = useState(false);
   const [todoistDialogOpen, setTodoistDialogOpen] = useState(false);
   const [vikunjaDialogOpen, setVikunjaDialogOpen] = useState(false);
 
@@ -64,6 +66,9 @@ export const UserSettingsImportPage = () => {
     if (!platform.available) return;
 
     switch (platform.id) {
+      case "ticktick":
+        setTicktickDialogOpen(true);
+        break;
       case "todoist":
         setTodoistDialogOpen(true);
         break;
@@ -120,6 +125,7 @@ export const UserSettingsImportPage = () => {
         </CardContent>
       </Card>
 
+      <TickTickImportDialog open={ticktickDialogOpen} onOpenChange={setTicktickDialogOpen} />
       <TodoistImportDialog open={todoistDialogOpen} onOpenChange={setTodoistDialogOpen} />
       <VikunjaImportDialog open={vikunjaDialogOpen} onOpenChange={setVikunjaDialogOpen} />
     </>
