@@ -18,7 +18,7 @@ from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskSt
 from app.models.user import User
 from app.models.guild import GuildRole, GuildMembership
 from app.models.comment import Comment
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.schemas.task import TaskCreate, TaskListRead, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.schemas.subtask import (
@@ -132,6 +132,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         created_at=task.created_at,
         updated_at=task.updated_at,
         sort_order=task.sort_order,
+        is_archived=task.is_archived,
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
@@ -484,6 +485,7 @@ async def _list_global_tasks(
     status_category: Optional[List[TaskStatusCategory]],
     initiative_ids: Optional[List[int]],
     guild_ids: Optional[List[int]],
+    include_archived: bool = False,
 ) -> list[Task]:
     statement = (
         select(Task)
@@ -507,6 +509,9 @@ async def _list_global_tasks(
         )
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
+    if not include_archived:
+        statement = statement.where(Task.is_archived.is_(False))
+
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
 
@@ -539,6 +544,7 @@ async def list_tasks(
     status_category: Optional[List[TaskStatusCategory]] = Query(default=None),
     initiative_ids: Optional[List[int]] = Query(default=None),
     guild_ids: Optional[List[int]] = Query(default=None),
+    include_archived: bool = Query(default=False, description="Include archived tasks"),
 ) -> List[TaskListRead]:
     if scope == "global":
         tasks = await _list_global_tasks(
@@ -549,6 +555,7 @@ async def list_tasks(
             status_category=status_category,
             initiative_ids=initiative_ids,
             guild_ids=guild_ids,
+            include_archived=include_archived,
         )
         await _annotate_task_comment_counts(session, tasks)
         await _annotate_task_subtask_progress(session, tasks)
@@ -579,6 +586,9 @@ async def list_tasks(
         if not allowed_ids:
             return []
         statement = statement.where(Task.project_id.in_(tuple(allowed_ids)))
+
+    if not include_archived:
+        statement = statement.where(Task.is_archived.is_(False))
 
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
@@ -1056,6 +1066,59 @@ async def reorder_tasks(
     _annotate_task_guild(tasks)
     await broadcast_event("task", "reordered", {"project_id": reorder_in.project_id})
     return tasks
+
+
+class ArchiveDoneResponse(BaseModel):
+    archived_count: int
+
+
+@router.post("/archive-done", response_model=ArchiveDoneResponse)
+async def archive_done_tasks(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    project_id: int = Query(..., description="Project to archive done tasks from"),
+    task_status_id: Optional[int] = Query(default=None, description="Specific done status to archive (optional)"),
+) -> ArchiveDoneResponse:
+    """Archive all tasks in 'done' status category for a project."""
+    await _ensure_can_manage(
+        session,
+        project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    # Build the query to find done tasks
+    statement = (
+        select(Task)
+        .join(Task.task_status)
+        .where(
+            Task.project_id == project_id,
+            Task.is_archived.is_(False),
+            TaskStatus.category == TaskStatusCategory.done,
+        )
+    )
+
+    # Optionally filter by specific status
+    if task_status_id is not None:
+        statement = statement.where(Task.task_status_id == task_status_id)
+
+    result = await session.exec(statement)
+    tasks = result.all()
+
+    if not tasks:
+        return ArchiveDoneResponse(archived_count=0)
+
+    now = datetime.now(timezone.utc)
+    for task in tasks:
+        task.is_archived = True
+        task.updated_at = now
+        session.add(task)
+
+    await session.commit()
+    await broadcast_event("task", "archived", {"project_id": project_id, "count": len(tasks)})
+    return ArchiveDoneResponse(archived_count=len(tasks))
 
 
 @router.get("/{task_id}/subtasks", response_model=List[SubtaskRead])

@@ -46,6 +46,7 @@ import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSele
 import { CommentSection } from "@/components/comments/CommentSection";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
+import { Archive, ArchiveRestore, Save, X, FolderInput, Copy, Trash2 } from "lucide-react";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -251,6 +252,27 @@ export const TaskEditPage = () => {
       const message = isAxiosError(error)
         ? (error.response?.data?.detail ?? "Unable to move task")
         : "Unable to move task";
+      toast.error(message);
+    },
+  });
+
+  const toggleArchive = useMutation({
+    mutationFn: async (archive: boolean) => {
+      const response = await apiClient.patch<Task>(`/tasks/${parsedTaskId}`, {
+        is_archived: archive,
+      });
+      return response.data;
+    },
+    onSuccess: (updatedTask) => {
+      queryClient.setQueryData<Task>(["task", parsedTaskId], updatedTask);
+      toast.success(updatedTask.is_archived ? "Task archived" : "Task unarchived");
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+    },
+    onError: (error) => {
+      const message = isAxiosError(error)
+        ? (error.response?.data?.detail ?? "Unable to update task")
+        : "Unable to update task";
       toast.error(message);
     },
   });
@@ -604,9 +626,11 @@ export const TaskEditPage = () => {
 
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" disabled={updateTask.isPending || isReadOnly}>
+                  <Save className="h-4 w-4" />
                   {updateTask.isPending ? "Saving…" : "Save task"}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => navigate(projectLink)}>
+                  <X className="h-4 w-4" />
                   Cancel
                 </Button>
                 {!isReadOnly ? (
@@ -614,6 +638,7 @@ export const TaskEditPage = () => {
                     <MoveTaskDialog
                       trigger={
                         <Button type="button" variant="secondary" disabled={moveTask.isPending}>
+                          <FolderInput className="h-4 w-4" />
                           Move to project
                         </Button>
                       }
@@ -634,7 +659,26 @@ export const TaskEditPage = () => {
                       }}
                       disabled={duplicateTask.isPending}
                     >
+                      <Copy className="h-4 w-4" />
                       {duplicateTask.isPending ? "Duplicating…" : "Duplicate task"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => toggleArchive.mutate(!task?.is_archived)}
+                      disabled={toggleArchive.isPending}
+                    >
+                      {task?.is_archived ? (
+                        <>
+                          <ArchiveRestore className="h-4 w-4" />
+                          {toggleArchive.isPending ? "Unarchiving…" : "Unarchive"}
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-4 w-4" />
+                          {toggleArchive.isPending ? "Archiving…" : "Archive"}
+                        </>
+                      )}
                     </Button>
                     <Button
                       type="button"
@@ -646,6 +690,7 @@ export const TaskEditPage = () => {
                       }}
                       disabled={deleteTask.isPending}
                     >
+                      <Trash2 className="h-4 w-4" />
                       {deleteTask.isPending ? "Deleting…" : "Delete task"}
                     </Button>
                   </>

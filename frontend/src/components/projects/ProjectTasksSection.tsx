@@ -10,7 +10,16 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Calendar, Kanban, Table, GanttChart, Filter, ChevronDown, Plus } from "lucide-react";
+import {
+  Calendar,
+  Kanban,
+  Table,
+  GanttChart,
+  Filter,
+  ChevronDown,
+  Plus,
+  Archive,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,6 +58,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type ViewMode = "table" | "kanban" | "calendar" | "gantt";
 
@@ -57,6 +67,7 @@ type StoredFilters = {
   assigneeFilters: string[];
   dueFilter: DueFilterOption;
   statusFilters: number[];
+  showArchived: boolean;
 };
 
 const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] = [
@@ -114,6 +125,7 @@ export const ProjectTasksSection = ({
   const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [statusFilters, setStatusFilters] = useState<number[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -121,13 +133,17 @@ export const ProjectTasksSection = ({
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [archiveDialogStatusId, setArchiveDialogStatusId] = useState<number | undefined>(undefined);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
 
   // Fetch tasks with server-side filtering
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", projectId, assigneeFilters, statusFilters],
+    queryKey: ["tasks", projectId, assigneeFilters, statusFilters, showArchived],
     queryFn: async () => {
-      const params: Record<string, number | string[] | number[]> = { project_id: projectId };
+      const params: Record<string, number | string[] | number[] | boolean> = {
+        project_id: projectId,
+      };
 
       // Add assignee filters (array)
       if (assigneeFilters.length > 0) {
@@ -137,6 +153,11 @@ export const ProjectTasksSection = ({
       // Add status filters (array)
       if (statusFilters.length > 0) {
         params.task_status_ids = statusFilters;
+      }
+
+      // Include archived tasks if requested
+      if (showArchived) {
+        params.include_archived = true;
       }
 
       const response = await apiClient.get<Task[]>("/tasks/", { params });
@@ -225,6 +246,9 @@ export const ProjectTasksSection = ({
         if (Array.isArray(parsed.statusFilters)) {
           setStatusFilters(parsed.statusFilters);
         }
+        if (typeof parsed.showArchived === "boolean") {
+          setShowArchived(parsed.showArchived);
+        }
       }
     } catch {
       // ignore parse errors
@@ -242,9 +266,18 @@ export const ProjectTasksSection = ({
       assigneeFilters,
       dueFilter,
       statusFilters,
+      showArchived,
     };
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
-  }, [filterStorageKey, filtersLoaded, viewMode, assigneeFilters, dueFilter, statusFilters]);
+  }, [
+    filterStorageKey,
+    filtersLoaded,
+    viewMode,
+    assigneeFilters,
+    dueFilter,
+    statusFilters,
+    showArchived,
+  ]);
 
   useEffect(() => {
     if (!collapsedStorageKey || typeof window === "undefined") {
@@ -406,6 +439,59 @@ export const ProjectTasksSection = ({
     },
   });
 
+  const bulkArchiveTasks = useMutation({
+    mutationFn: async (taskIds: number[]) => {
+      const results = await Promise.all(
+        taskIds.map((taskId) => apiClient.patch<Task>(`/tasks/${taskId}`, { is_archived: true }))
+      );
+      return results.map((r) => r.data);
+    },
+    onSuccess: (updatedTasks) => {
+      const count = updatedTasks.length;
+      toast.success(`${count} task${count === 1 ? "" : "s"} archived`);
+      setSelectedTasks([]);
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", projectId],
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to archive tasks right now.";
+      toast.error(message);
+    },
+  });
+
+  const archiveDoneTasks = useMutation({
+    mutationFn: async (taskStatusId?: number) => {
+      const params: { project_id: number; task_status_id?: number } = { project_id: projectId };
+      if (taskStatusId !== undefined) {
+        params.task_status_id = taskStatusId;
+      }
+      const response = await apiClient.post<{ archived_count: number }>(
+        "/tasks/archive-done",
+        null,
+        {
+          params,
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const count = data.archived_count;
+      if (count === 0) {
+        toast.info("No done tasks to archive");
+      } else {
+        toast.success(`${count} task${count === 1 ? "" : "s"} archived`);
+      }
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks", projectId],
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to archive tasks right now.";
+      toast.error(message);
+    },
+  });
+
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
     mutationFn: async (payload: TaskReorderPayload) => {
       const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
@@ -486,6 +572,23 @@ export const ProjectTasksSection = ({
 
   // Status filtering is now done server-side, so statusFilteredTasks is just filteredTasks
   const statusFilteredTasks = filteredTasks;
+
+  // Count of archivable done tasks (non-archived tasks in done category)
+  const archivableDoneTasksCount = useMemo(() => {
+    return filteredTasks.filter((task) => task.task_status.category === "done" && !task.is_archived)
+      .length;
+  }, [filteredTasks]);
+
+  // Count of archivable tasks per done status
+  const archivableCountByStatus = useMemo(() => {
+    const counts: Record<number, number> = {};
+    sortedTaskStatuses.forEach((status) => {
+      if (status.category === "done") {
+        counts[status.id] = (groupedTasks[status.id] ?? []).filter((t) => !t.is_archived).length;
+      }
+    });
+    return counts;
+  }, [sortedTaskStatuses, groupedTasks]);
 
   const persistOrder = useCallback(
     (nextTasks: Task[]) => {
@@ -780,9 +883,11 @@ export const ProjectTasksSection = ({
               assigneeFilters={assigneeFilters}
               dueFilter={dueFilter}
               statusFilters={statusFilters}
+              showArchived={showArchived}
               onAssigneeFiltersChange={setAssigneeFilters}
               onDueFilterChange={setDueFilter}
               onStatusFiltersChange={setStatusFilters}
+              onShowArchivedChange={setShowArchived}
             />
           </CollapsibleContent>
         </Collapsible>
@@ -803,6 +908,15 @@ export const ProjectTasksSection = ({
             onDragEnd={handleKanbanDragEnd}
             onDragCancel={handleKanbanDragCancel}
             onToggleCollapse={toggleStatusCollapse}
+            onArchiveDoneTasks={
+              canEditTaskDetails
+                ? (statusId) => {
+                    setArchiveDialogStatusId(statusId);
+                    setIsArchiveDialogOpen(true);
+                  }
+                : undefined
+            }
+            isArchivingDoneTasks={archiveDoneTasks.isPending}
           />
         </TabsContent>
 
@@ -811,6 +925,7 @@ export const ProjectTasksSection = ({
             <TaskBulkEditPanel
               selectedTasks={selectedTasks}
               onEdit={() => setIsBulkEditDialogOpen(true)}
+              onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}
               onDelete={() => {
                 if (
                   confirm(
@@ -820,6 +935,7 @@ export const ProjectTasksSection = ({
                   bulkDeleteTasks.mutate(selectedTasks.map((t) => t.id));
                 }
               }}
+              isArchiving={bulkArchiveTasks.isPending}
             />
           )}
           <ProjectTasksTableView
@@ -844,6 +960,22 @@ export const ProjectTasksSection = ({
             onTaskSelectionChange={setSelectedTasks}
             onExitSelection={() => setSelectedTasks([])}
           />
+          {canEditTaskDetails && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setArchiveDialogStatusId(undefined);
+                  setIsArchiveDialogOpen(true);
+                }}
+                disabled={archiveDoneTasks.isPending}
+              >
+                <Archive className="h-4 w-4" />
+                {archiveDoneTasks.isPending ? "Archiving…" : "Archive done tasks"}
+              </Button>
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="calendar">
           <ProjectCalendarView
@@ -924,6 +1056,25 @@ export const ProjectTasksSection = ({
           </Dialog>
         </>
       ) : null}
+
+      <ConfirmDialog
+        open={isArchiveDialogOpen}
+        onOpenChange={setIsArchiveDialogOpen}
+        title="Archive tasks"
+        description={(() => {
+          const count =
+            archiveDialogStatusId !== undefined
+              ? (archivableCountByStatus[archiveDialogStatusId] ?? 0)
+              : archivableDoneTasksCount;
+          return `This will archive ${count} task${count === 1 ? "" : "s"}. Archived tasks are hidden by default but can be shown using the filter.`;
+        })()}
+        confirmLabel="Archive"
+        onConfirm={() => {
+          archiveDoneTasks.mutate(archiveDialogStatusId);
+          setIsArchiveDialogOpen(false);
+        }}
+        isLoading={archiveDoneTasks.isPending}
+      />
     </div>
   );
 };

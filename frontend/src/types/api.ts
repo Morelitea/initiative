@@ -287,6 +287,7 @@ export interface Task {
   created_at: string;
   updated_at: string;
   sort_order: number;
+  is_archived: boolean;
   comment_count?: number;
   guild_id?: number | null;
   guild_name?: string | null;

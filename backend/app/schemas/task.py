@@ -8,7 +8,7 @@ from app.schemas.task_status import TaskStatusRead
 from app.schemas.guild import GuildSummary
 from app.schemas.subtask import TaskSubtaskProgress
 
-from app.models.task import TaskPriority, TaskStatusCategory
+from app.models.task import TaskPriority
 
 
 class TaskAssigneeSummary(BaseModel):
@@ -123,6 +123,7 @@ class TaskUpdate(BaseModel):
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence | None] = None
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
+    is_archived: Optional[bool] = None
 
 
 class TaskMoveRequest(BaseModel):
@@ -159,6 +160,7 @@ class TaskRead(TaskBase):
     created_at: datetime
     updated_at: datetime
     sort_order: float
+    is_archived: bool = False
     assignees: List[UserPublic] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0
@@ -179,6 +181,7 @@ class TaskListRead(TaskBase):
     created_at: datetime
     updated_at: datetime
     sort_order: float
+    is_archived: bool = False
     assignees: List[TaskAssigneeSummary] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0

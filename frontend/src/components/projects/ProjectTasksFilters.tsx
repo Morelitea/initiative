@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
 import type { ProjectTaskStatus } from "@/types/api";
 
@@ -19,9 +20,11 @@ type ProjectTasksFiltersProps = {
   assigneeFilters: string[];
   dueFilter: DueFilterOption;
   statusFilters: number[];
+  showArchived: boolean;
   onAssigneeFiltersChange: (values: string[]) => void;
   onDueFilterChange: (value: DueFilterOption) => void;
   onStatusFiltersChange: (values: number[]) => void;
+  onShowArchivedChange: (value: boolean) => void;
 };
 
 export const ProjectTasksFilters = ({
@@ -31,9 +34,11 @@ export const ProjectTasksFilters = ({
   assigneeFilters,
   dueFilter,
   statusFilters,
+  showArchived,
   onAssigneeFiltersChange,
   onDueFilterChange,
   onStatusFiltersChange,
+  onShowArchivedChange,
 }: ProjectTasksFiltersProps) => (
   <div className="border-muted bg-background/40 flex flex-wrap items-end gap-4 rounded-md border p-3">
     <div className="w-full sm:w-48">
@@ -97,5 +102,15 @@ export const ProjectTasksFilters = ({
         />
       </div>
     ) : null}
+    <div className="flex items-center gap-2 self-center pt-4 sm:pt-0">
+      <Checkbox
+        id="show-archived"
+        checked={showArchived}
+        onCheckedChange={(checked) => onShowArchivedChange(checked === true)}
+      />
+      <Label htmlFor="show-archived" className="cursor-pointer text-sm font-medium">
+        Show archived
+      </Label>
+    </div>
   </div>
 );

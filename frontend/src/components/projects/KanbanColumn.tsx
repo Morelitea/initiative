@@ -1,7 +1,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare } from "lucide-react";
+import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare, Archive } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ interface KanbanColumnProps {
   onToggleCollapse: (statusId: number) => void;
   taskCount: number;
   className?: string;
+  onArchiveDoneTasks?: (statusId: number) => void;
+  isArchiving?: boolean;
 }
 
 export const KanbanColumn = ({
@@ -37,6 +39,8 @@ export const KanbanColumn = ({
   onToggleCollapse,
   taskCount,
   className,
+  onArchiveDoneTasks,
+  isArchiving,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${status.id}`,
@@ -92,6 +96,20 @@ export const KanbanColumn = ({
           </SortableContext>
         )}
       </div>
+      {!collapsed && status.category === "done" && onArchiveDoneTasks && (
+        <div className="border-t p-2" data-kanban-scroll-lock="true">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => onArchiveDoneTasks(status.id)}
+            disabled={isArchiving}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            {isArchiving ? "Archiving…" : "Archive done tasks"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
@@ -204,7 +222,10 @@ const KanbanTaskCard = ({
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-card space-y-3 rounded-lg border p-3 shadow-sm"
+      className={cn(
+        "bg-card space-y-3 rounded-lg border p-3 shadow-sm",
+        task.is_archived && "opacity-50"
+      )}
       data-kanban-scroll-lock="true"
     >
       <button
