@@ -80,9 +80,10 @@ const buildWebsocketUrl = (token: string) => {
 };
 
 export const useRealtimeUpdates = () => {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const authFailureCountRef = useRef<number>(0);
 
   useEffect(() => {
     if (!token) {
@@ -94,19 +95,20 @@ export const useRealtimeUpdates = () => {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
+      authFailureCountRef.current = 0;
       return;
     }
 
     let isActive = true;
 
-    const scheduleReconnect = () => {
+    const scheduleReconnect = (delayMs = 2000) => {
       if (!isActive || reconnectTimerRef.current !== null) {
         return;
       }
       reconnectTimerRef.current = window.setTimeout(() => {
         reconnectTimerRef.current = null;
         connect();
-      }, 2000);
+      }, delayMs);
     };
 
     const connect = () => {
@@ -120,6 +122,11 @@ export const useRealtimeUpdates = () => {
       }
       const websocket = new WebSocket(wsUrl);
       websocketRef.current = websocket;
+
+      websocket.onopen = () => {
+        // Reset failure count on successful connection
+        authFailureCountRef.current = 0;
+      };
 
       websocket.onmessage = (event) => {
         try {
@@ -154,9 +161,22 @@ export const useRealtimeUpdates = () => {
         websocket.close();
       };
 
-      websocket.onclose = () => {
+      websocket.onclose = (event) => {
         if (websocketRef.current === websocket) {
           websocketRef.current = null;
+        }
+        // WS_1008_POLICY_VIOLATION (1008) indicates auth failure (403)
+        if (event.code === 1008) {
+          authFailureCountRef.current += 1;
+          // After 3 consecutive auth failures, stop trying and log out
+          if (authFailureCountRef.current >= 3) {
+            console.warn("WebSocket auth failed repeatedly, logging out");
+            logout();
+            return;
+          }
+          // Use exponential backoff for auth failures
+          scheduleReconnect(Math.min(30000, 2000 * Math.pow(2, authFailureCountRef.current)));
+          return;
         }
         scheduleReconnect();
       };
@@ -175,5 +195,5 @@ export const useRealtimeUpdates = () => {
         websocketRef.current = null;
       }
     };
-  }, [token]);
+  }, [token, logout]);
 };
