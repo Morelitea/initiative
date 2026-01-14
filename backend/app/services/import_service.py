@@ -17,6 +17,9 @@ from app.schemas.import_data import (
     VikunjaBucket,
     VikunjaProject,
     VikunjaParseResult,
+    TickTickColumn,
+    TickTickList,
+    TickTickParseResult,
 )
 
 
@@ -36,6 +39,14 @@ VIKUNJA_PRIORITY_MAP: Dict[int, TaskPriority] = {
     3: TaskPriority.medium,
     4: TaskPriority.high,
     5: TaskPriority.urgent,
+}
+
+# TickTick priority mapping (TickTick uses 0=none, 1=low, 3=medium, 5=high)
+TICKTICK_PRIORITY_MAP: Dict[int, TaskPriority] = {
+    0: TaskPriority.low,
+    1: TaskPriority.low,
+    3: TaskPriority.medium,
+    5: TaskPriority.high,
 }
 
 
@@ -510,6 +521,253 @@ async def import_vikunja_tasks(
         result.tasks_created = 0
         result.subtasks_created = 0
         result.tasks_failed = len(tasks)
+        result.errors = [f"Failed to commit import: {str(e)}"]
+
+    return result
+
+
+def _find_ticktick_csv_header(lines: List[str]) -> int:
+    """Find the line index of the CSV header in TickTick export."""
+    for i, line in enumerate(lines):
+        if "Folder Name" in line and "List Name" in line and "Title" in line:
+            return i
+    return -1
+
+
+def parse_ticktick_csv(csv_content: str) -> TickTickParseResult:
+    """
+    Parse TickTick CSV export and extract lists with their columns and task counts.
+
+    TickTick exports have metadata header lines before the actual CSV data.
+
+    Returns:
+        TickTickParseResult with list metadata
+    """
+    # Handle BOM if present
+    if csv_content.startswith("\ufeff"):
+        csv_content = csv_content[1:]
+
+    lines = csv_content.splitlines(keepends=True)
+    header_idx = _find_ticktick_csv_header(lines)
+
+    if header_idx == -1:
+        raise ValueError("Could not find CSV header in TickTick export")
+
+    # Parse CSV starting from header
+    csv_data = "".join(lines[header_idx:])
+    reader = csv.DictReader(io.StringIO(csv_data))
+
+    # Track lists and their columns
+    list_data: Dict[str, Dict[str, int]] = {}  # list_name -> {column_name -> count}
+    total_tasks = 0
+
+    for row in reader:
+        list_name = row.get("List Name", "").strip()
+        if not list_name:
+            continue
+
+        column_name = row.get("Column Name", "").strip() or "No Column"
+        title = row.get("Title", "").strip()
+        parent_id = row.get("parentId", "").strip()
+
+        # Skip subtasks for list/column counting (they'll be imported with parent)
+        if parent_id:
+            continue
+
+        if not title:
+            continue
+
+        if list_name not in list_data:
+            list_data[list_name] = {}
+
+        list_data[list_name][column_name] = list_data[list_name].get(column_name, 0) + 1
+        total_tasks += 1
+
+    # Build result
+    lists: List[TickTickList] = []
+    for list_name, columns in list_data.items():
+        task_count = sum(columns.values())
+        column_list = [
+            TickTickColumn(name=col_name, task_count=count)
+            for col_name, count in columns.items()
+        ]
+        # Sort columns by task count descending
+        column_list.sort(key=lambda c: -c.task_count)
+        lists.append(
+            TickTickList(name=list_name, task_count=task_count, columns=column_list)
+        )
+
+    # Sort lists by task count descending
+    lists.sort(key=lambda lst: -lst.task_count)
+
+    return TickTickParseResult(lists=lists, total_tasks=total_tasks)
+
+
+async def import_ticktick_tasks(
+    session: AsyncSession,
+    project_id: int,
+    csv_content: str,
+    source_list_name: str,
+    column_mapping: Dict[str, int],
+) -> ImportResult:
+    """
+    Import tasks from a TickTick list into an Initiative project.
+
+    Args:
+        session: Database session
+        project_id: Target Initiative project ID
+        csv_content: Raw CSV content from TickTick export
+        source_list_name: TickTick list name to import from
+        column_mapping: Mapping of TickTick column names to task_status_id
+
+    Returns:
+        ImportResult with counts and errors
+    """
+    result = ImportResult()
+
+    # Handle BOM if present
+    if csv_content.startswith("\ufeff"):
+        csv_content = csv_content[1:]
+
+    lines = csv_content.splitlines(keepends=True)
+    header_idx = _find_ticktick_csv_header(lines)
+
+    if header_idx == -1:
+        result.errors.append("Could not find CSV header in TickTick export")
+        return result
+
+    # Parse CSV
+    csv_data = "".join(lines[header_idx:])
+    reader = csv.DictReader(io.StringIO(csv_data))
+
+    # Collect tasks and subtasks
+    tasks_by_id: Dict[str, dict] = {}
+    subtasks: List[dict] = []
+
+    for row in reader:
+        list_name = row.get("List Name", "").strip()
+        if list_name != source_list_name:
+            continue
+
+        title = row.get("Title", "").strip()
+        if not title:
+            continue
+
+        task_id = row.get("taskId", "").strip()
+        parent_id = row.get("parentId", "").strip()
+
+        task_data = {
+            "id": task_id,
+            "title": title,
+            "content": row.get("Content", "").strip(),
+            "column": row.get("Column Name", "").strip() or "No Column",
+            "priority": int(row.get("Priority", "0") or "0"),
+            "status": int(row.get("Status", "0") or "0"),
+            "parent_id": parent_id,
+        }
+
+        if parent_id:
+            subtasks.append(task_data)
+        else:
+            tasks_by_id[task_id] = task_data
+
+    if not tasks_by_id:
+        result.errors.append(f"No tasks found in list '{source_list_name}'")
+        return result
+
+    # Get the next sort_order for the project
+    max_order_result = await session.execute(
+        select(func.coalesce(func.max(Task.sort_order), 0)).where(
+            Task.project_id == project_id
+        )
+    )
+    next_sort_order = float(max_order_result.scalar() or 0) + 1
+
+    # Track created tasks for subtask linking
+    created_tasks: Dict[str, Task] = {}
+
+    # Import tasks
+    for task_data in tasks_by_id.values():
+        try:
+            column = task_data["column"]
+
+            # Get status from mapping
+            status_id = column_mapping.get(column)
+            if status_id is None:
+                status_id = column_mapping.get("No Column")
+            if status_id is None:
+                status_id = next(iter(column_mapping.values()), None)
+
+            if status_id is None:
+                result.errors.append(
+                    f"No status mapping for column '{column}', skipping: {task_data['title']}"
+                )
+                result.tasks_failed += 1
+                continue
+
+            # Map priority
+            priority = TICKTICK_PRIORITY_MAP.get(
+                task_data["priority"], TaskPriority.low
+            )
+
+            # Use content as description
+            description = task_data["content"] or None
+
+            task = Task(
+                project_id=project_id,
+                task_status_id=status_id,
+                title=task_data["title"],
+                description=description,
+                priority=priority,
+                sort_order=next_sort_order,
+            )
+            session.add(task)
+            await session.flush()
+
+            created_tasks[task_data["id"]] = task
+            next_sort_order += 1
+            result.tasks_created += 1
+
+        except Exception as e:
+            result.errors.append(
+                f"Failed to import task '{task_data.get('title', 'unknown')}': {str(e)}"
+            )
+            result.tasks_failed += 1
+
+    # Import subtasks
+    subtask_positions: Dict[str, int] = {}  # parent_id -> next position
+    for subtask_data in subtasks:
+        parent_task = created_tasks.get(subtask_data["parent_id"])
+        if not parent_task:
+            # Parent wasn't imported (maybe different list or failed)
+            continue
+
+        try:
+            parent_id = subtask_data["parent_id"]
+            position = subtask_positions.get(parent_id, 0)
+            subtask_positions[parent_id] = position + 1
+
+            subtask = Subtask(
+                task_id=parent_task.id,
+                content=subtask_data["title"],
+                is_completed=subtask_data["status"] == 1,
+                position=position,
+            )
+            session.add(subtask)
+            result.subtasks_created += 1
+
+        except Exception as e:
+            result.errors.append(
+                f"Failed to import subtask '{subtask_data.get('title', 'unknown')}': {str(e)}"
+            )
+
+    try:
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        result.tasks_created = 0
+        result.subtasks_created = 0
+        result.tasks_failed = len(tasks_by_id)
         result.errors = [f"Failed to commit import: {str(e)}"]
 
     return result
