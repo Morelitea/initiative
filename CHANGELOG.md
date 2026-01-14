@@ -5,6 +5,17 @@ All notable changes to Initiative will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Task archival feature: archive tasks to hide them from default views
+- "Show archived" filter toggle in project task views
+- Archive/Unarchive button on task detail page
+- "Archive done tasks" bulk action in table view and kanban done columns
+- Archive button in bulk selection panel for archiving multiple tasks at once
+- Confirmation dialog for archive actions showing task count
+
 ## [0.8.0] - 2026-01-13
 
 ### Added
