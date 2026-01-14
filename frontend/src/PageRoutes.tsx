@@ -133,6 +133,11 @@ const UserSettingsDangerZonePage = lazy(() =>
     default: module.UserSettingsDangerZonePage,
   }))
 );
+const UserSettingsImportPage = lazy(() =>
+  import("./pages/UserSettingsImportPage").then((module) => ({
+    default: module.UserSettingsImportPage,
+  }))
+);
 const UserStatsPage = lazy(() =>
   import("./pages/UserStatsPage").then((module) => ({
     default: module.UserStatsPage,
@@ -207,6 +212,7 @@ export const PageRoutes = () => {
                 path="notifications"
                 element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
               />
+              <Route path="import" element={<UserSettingsImportPage />} />
               <Route path="api-keys" element={<SettingsApiKeysPage />} />
               <Route
                 path="danger"
