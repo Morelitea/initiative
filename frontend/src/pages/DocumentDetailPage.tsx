@@ -20,7 +20,9 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
@@ -37,6 +39,8 @@ export const DocumentDetailPage = () => {
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
+  const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
 
   const documentQuery = useQuery<DocumentRead>({
@@ -168,7 +172,10 @@ export const DocumentDetailPage = () => {
       return response.data;
     },
     onSuccess: (updated) => {
-      toast.success("Document saved");
+      if (!isAutosaveRef.current) {
+        toast.success("Document saved");
+      }
+      isAutosaveRef.current = false;
       queryClient.setQueryData(["documents", parsedId], updated);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -181,10 +188,31 @@ export const DocumentDetailPage = () => {
       }
     },
     onError: (error) => {
+      isAutosaveRef.current = false;
       const message = error instanceof Error ? error.message : "Unable to save document.";
       toast.error(message);
     },
   });
+
+  // Autosave with debounce
+  useEffect(() => {
+    if (!autosaveEnabled || !isDirty || !canEditDocument || saveDocument.isPending) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      isAutosaveRef.current = true;
+      saveDocument.mutate();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [
+    autosaveEnabled,
+    isDirty,
+    canEditDocument,
+    saveDocument,
+    title,
+    contentState,
+    featuredImageUrl,
+  ]);
 
   const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!canEditDocument) {
@@ -379,7 +407,7 @@ export const DocumentDetailPage = () => {
             className="h-80vh!"
             mentionableUsers={mentionableUsers}
           />
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
               <>
                 <Button
@@ -396,6 +424,16 @@ export const DocumentDetailPage = () => {
                     "Save changes"
                   )}
                 </Button>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="autosave"
+                    checked={autosaveEnabled}
+                    onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                  />
+                  <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                    Autosave
+                  </Label>
+                </div>
                 {!isDirty ? (
                   <span className="text-muted-foreground self-center text-sm">
                     All changes saved

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @mention support for tagging initiative members in documents
 - Notifications when users are mentioned in documents
 - User preference to enable/disable mention notifications
+- Autosave for documents with toggle checkbox (enabled by default)
 
 ### Changed
 
