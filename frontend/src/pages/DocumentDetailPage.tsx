@@ -404,7 +404,7 @@ export const DocumentDetailPage = () => {
             onSerializedChange={setContentState}
             readOnly={!canEditDocument}
             showToolbar={canEditDocument}
-            className="h-80vh!"
+            className="h-[80vh]"
             mentionableUsers={mentionableUsers}
           />
           <div className="flex flex-wrap items-center gap-3">
