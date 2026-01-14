@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - WebSocket reconnection storm when token expires (now uses exponential backoff and auto-logout)
+- Mentions and emoji picker dropdowns appearing at bottom of editor instead of near cursor
 
 ## [0.7.3] - 2026-01-12
 
