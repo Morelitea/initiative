@@ -285,7 +285,7 @@ export function Plugins({
       </div>
       {showToolbar && (
         <ActionsPlugin>
-          <div className="clear-both flex items-center justify-between gap-2 overflow-auto border-t p-1">
+          <div className="bg-background sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t p-1">
             <div className="flex flex-1 justify-start">
               {/* <MaxLengthPlugin maxLength={maxLength} />
               <CharacterLimitPlugin maxLength={maxLength} charset="UTF-16" /> */}
