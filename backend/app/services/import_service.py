@@ -661,8 +661,8 @@ async def import_ticktick_tasks(
             "title": title,
             "content": row.get("Content", "").strip(),
             "column": row.get("Column Name", "").strip() or "No Column",
-            "priority": int(row.get("Priority", "0") or "0"),
-            "status": int(row.get("Status", "0") or "0"),
+            "priority": int(p) if (p := row.get("Priority", "0") or "0").isdigit() else 0,
+            "status": int(s) if (s := row.get("Status", "0") or "0").isdigit() else 0,
             "parent_id": parent_id,
         }
 
