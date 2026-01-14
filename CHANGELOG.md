@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Task import from external platforms (Todoist CSV export)
-- Import settings page with extensible platform support (TickTick, Vikunja, Trello, Asana coming soon)
-- Section-to-status mapping with smart suggestions based on section names
+- Task import from external platforms (Todoist CSV, Vikunja JSON)
+- Import settings page with extensible platform support (TickTick, Trello, Asana coming soon)
+- Section/bucket-to-status mapping with smart suggestions based on names
 - Subtask and priority mapping during import
 
 ## [0.9.0] - 2026-01-14

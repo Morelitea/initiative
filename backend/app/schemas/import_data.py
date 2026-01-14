@@ -37,3 +37,43 @@ class TodoistParseResult(BaseModel):
     )
     task_count: int = Field(default=0, description="Total number of tasks found")
     has_subtasks: bool = Field(default=False, description="Whether any tasks have subtasks")
+
+
+# Vikunja import schemas
+
+
+class VikunjaImportRequest(BaseModel):
+    """Request body for importing tasks from Vikunja JSON export."""
+
+    project_id: int = Field(..., description="Target Initiative project to import into")
+    json_content: str = Field(..., description="Raw JSON content from Vikunja export")
+    source_project_id: int = Field(..., description="Vikunja project ID to import from")
+    bucket_mapping: Dict[int, int] = Field(
+        ..., description="Mapping of Vikunja bucket IDs to task_status_id"
+    )
+
+
+class VikunjaBucket(BaseModel):
+    """A bucket (status column) from a Vikunja project."""
+
+    id: int
+    name: str
+    task_count: int
+
+
+class VikunjaProject(BaseModel):
+    """A project detected in the Vikunja export."""
+
+    id: int
+    name: str
+    task_count: int
+    buckets: List[VikunjaBucket] = Field(default_factory=list)
+
+
+class VikunjaParseResult(BaseModel):
+    """Result of parsing a Vikunja JSON export."""
+
+    projects: List[VikunjaProject] = Field(
+        default_factory=list, description="Projects found in the export"
+    )
+    total_tasks: int = Field(default=0, description="Total number of tasks across all projects")

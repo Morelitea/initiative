@@ -19,6 +19,8 @@ from app.models.guild import GuildRole
 from app.schemas.import_data import (
     TodoistImportRequest,
     TodoistParseResult,
+    VikunjaImportRequest,
+    VikunjaParseResult,
     ImportResult,
 )
 from app.services import import_service
@@ -165,6 +167,75 @@ async def import_from_todoist(
         project.id,
         request.csv_content,
         request.section_mapping,
+    )
+
+    return result
+
+
+@router.post("/vikunja/parse", response_model=VikunjaParseResult)
+async def parse_vikunja_json(
+    json_content: Annotated[str, Body(media_type="text/plain")],
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+) -> VikunjaParseResult:
+    """
+    Parse a Vikunja JSON export and return detected projects with buckets.
+
+    This is a preview endpoint to help users select a project and map buckets.
+    """
+    try:
+        return import_service.parse_vikunja_json(json_content)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to parse JSON: {str(e)}",
+        )
+
+
+@router.post("/vikunja", response_model=ImportResult)
+async def import_from_vikunja(
+    request: VikunjaImportRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ImportResult:
+    """
+    Import tasks from a Vikunja JSON export into a project.
+
+    The bucket_mapping maps Vikunja bucket IDs to task_status_id values
+    in the target project.
+    """
+    # Validate write access to the project
+    project = await _validate_project_write_access(
+        session,
+        request.project_id,
+        current_user,
+        guild_context.guild_id,
+        guild_context.role,
+    )
+
+    # Ensure default statuses exist
+    await task_statuses_service.ensure_default_statuses(session, project.id)
+
+    # Validate that all mapped status IDs belong to the project
+    project_statuses = await task_statuses_service.list_statuses(
+        session, project.id
+    )
+    valid_status_ids = {s.id for s in project_statuses}
+
+    for bucket_id, status_id in request.bucket_mapping.items():
+        if status_id not in valid_status_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status ID {status_id} for bucket {bucket_id}",
+            )
+
+    # Perform the import
+    result = await import_service.import_vikunja_tasks(
+        session,
+        project.id,
+        request.json_content,
+        request.source_project_id,
+        request.bucket_mapping,
     )
 
     return result

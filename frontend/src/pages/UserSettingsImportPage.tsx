@@ -8,6 +8,7 @@ import trelloIcon from "@/assets/trello.svg";
 import vikunjaIcon from "@/assets/vikunja.svg";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TodoistImportDialog } from "@/components/import/TodoistImportDialog";
+import { VikunjaImportDialog } from "@/components/import/VikunjaImportDialog";
 
 interface ImportPlatform {
   id: string;
@@ -37,7 +38,7 @@ const IMPORT_PLATFORMS: ImportPlatform[] = [
     name: "Vikunja",
     description: "Import projects and tasks from Vikunja JSON export",
     icon: vikunjaIcon,
-    available: false,
+    available: true,
   },
   {
     id: "trello",
@@ -57,6 +58,7 @@ const IMPORT_PLATFORMS: ImportPlatform[] = [
 
 export const UserSettingsImportPage = () => {
   const [todoistDialogOpen, setTodoistDialogOpen] = useState(false);
+  const [vikunjaDialogOpen, setVikunjaDialogOpen] = useState(false);
 
   const handlePlatformClick = (platform: ImportPlatform) => {
     if (!platform.available) return;
@@ -64,6 +66,9 @@ export const UserSettingsImportPage = () => {
     switch (platform.id) {
       case "todoist":
         setTodoistDialogOpen(true);
+        break;
+      case "vikunja":
+        setVikunjaDialogOpen(true);
         break;
       default:
         break;
@@ -116,6 +121,7 @@ export const UserSettingsImportPage = () => {
       </Card>
 
       <TodoistImportDialog open={todoistDialogOpen} onOpenChange={setTodoistDialogOpen} />
+      <VikunjaImportDialog open={vikunjaDialogOpen} onOpenChange={setVikunjaDialogOpen} />
     </>
   );
 };
