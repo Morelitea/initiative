@@ -6,12 +6,12 @@ const config: CapacitorConfig = {
   appName: "Initiative",
   webDir: "dist",
   server: {
-    // Use HTTP scheme to avoid mixed content issues with self-hosted HTTP servers
-    androidScheme: "http",
+    // Use HTTP scheme to avoid mixed content issues with self-hosted HTTP servers (LOCAL development and LAN testing)
+    // androidScheme: "http",
   },
   android: {
-    // Allow HTTP requests (for self-hosted servers without HTTPS)
-    allowMixedContent: true,
+    // Allow HTTP requests (for self-hosted servers without HTTPS) (LOCAL development and LAN testing)
+    // allowMixedContent: true,
   },
   plugins: {
     // Disable built-in SystemBars insets handling - safe-area plugin handles it
