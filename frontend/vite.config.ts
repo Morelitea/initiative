@@ -22,9 +22,14 @@ const createProxyConfig = (supportsWebSocket = false) => ({
   ws: supportsWebSocket,
 });
 
+// Use relative paths for Capacitor builds (mobile apps load from file:// or local server)
+const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
+
 export default defineConfig({
+  base: isCapacitorBuild ? "" : "/",
   define: {
     __APP_VERSION__: JSON.stringify(getVersion()),
+    __IS_CAPACITOR__: JSON.stringify(isCapacitorBuild),
   },
   plugins: [react(), tailwindcss()],
   resolve: {

@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import select
@@ -15,20 +15,54 @@ from app.models.user import User, UserRole
 from app.schemas.token import TokenPayload
 from app.services import api_keys as api_keys_service
 from app.services import guilds as guilds_service
+from app.services import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False)
+
+
+async def _authenticate_device_token(session: AsyncSession, token: str) -> Optional[User]:
+    """Authenticate using a device token and return the associated user."""
+    device_token = await user_tokens.get_device_token(session, token=token)
+    if not device_token:
+        return None
+    statement = select(User).where(User.id == device_token.user_id)
+    result = await session.exec(statement)
+    return result.one_or_none()
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    request: Request,
     session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ) -> User:
+    # Check for Authorization header - could be Bearer, DeviceToken, or API key
+    auth_header = request.headers.get("Authorization", "")
+
+    # Handle DeviceToken scheme
+    if auth_header.startswith("DeviceToken "):
+        device_token = auth_header[12:]  # len("DeviceToken ") = 12
+        user = await _authenticate_device_token(session, device_token)
+        if user:
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid device token")
+
+    # Use the bearer token from OAuth2 scheme
+    token = bearer_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
     if user:
         return user
 
+    # Try JWT authentication
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)

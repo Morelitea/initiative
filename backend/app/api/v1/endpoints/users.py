@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlmodel import select, delete
+from sqlmodel import select
 
 from app.api.deps import (
     SessionDep,
@@ -15,13 +15,11 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.core.security import get_password_hash, verify_password
-from app.models.task import TaskAssignee
 from app.models.guild import GuildRole, GuildMembership
 from app.models.user import User, UserRole
 from app.schemas.user import (
     UserCreate,
     UserGuildMember,
-    UserPublic,
     UserRead,
     UserSelfUpdate,
     UserUpdate,

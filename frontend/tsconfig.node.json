@@ -7,8 +7,14 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["vite.config.ts", "vite.config.d.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.config.d.ts",
+    "capacitor.config.ts"
+  ]
 }

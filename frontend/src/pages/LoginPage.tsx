@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useServer } from "@/hooks/useServer";
 import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
 
@@ -21,21 +22,27 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login } = useAuth();
+  const { isNativePlatform, isServerConfigured, getServerHostname, clearServerUrl } = useServer();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [oidcLoginUrl, setOidcLoginUrl] = useState<string | null>(null);
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
+  // On native, start as "ready" since we skip OIDC; on web start as "loading"
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
-    "loading"
+    isNativePlatform ? "ready" : "loading"
   );
   const inviteCodeParam = useMemo(() => {
     const code = searchParams.get("invite_code");
     return code && code.trim().length > 0 ? code.trim() : null;
   }, [searchParams]);
 
+  // Fetch OIDC status - only on web (mobile doesn't support OIDC redirect flow)
   useEffect(() => {
+    if (isNativePlatform) {
+      return;
+    }
     const fetchOidcStatus = async () => {
       try {
         const response = await apiClient.get<{
@@ -56,9 +63,14 @@ export const LoginPage = () => {
       }
     };
     void fetchOidcStatus();
-  }, []);
+  }, [isNativePlatform]);
 
+  // Fetch bootstrap status - wait for server to be configured on native
   useEffect(() => {
+    // On native, skip bootstrap check (handled by connect page flow)
+    if (isNativePlatform) {
+      return;
+    }
     const fetchBootstrapStatus = async () => {
       try {
         const response = await apiClient.get<{ has_users: boolean }>("/auth/bootstrap");
@@ -68,7 +80,12 @@ export const LoginPage = () => {
       }
     };
     void fetchBootstrapStatus();
-  }, []);
+  }, [isNativePlatform, isServerConfigured]);
+
+  const handleChangeServer = () => {
+    clearServerUrl();
+    navigate("/connect", { replace: true });
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -176,6 +193,19 @@ export const LoginPage = () => {
             </form>
           </CardContent>
           <CardFooter className="text-muted-foreground flex flex-col items-start gap-2 text-sm">
+            {isNativePlatform && (
+              <p className="text-xs">
+                Connected to <span className="font-medium">{getServerHostname()}</span>
+                {" · "}
+                <button
+                  type="button"
+                  className="text-primary underline-offset-4 hover:underline"
+                  onClick={handleChangeServer}
+                >
+                  Change
+                </button>
+              </p>
+            )}
             <p>
               Need an account?{" "}
               <Link

@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { $createMentionNode } from "@/components/ui/editor/nodes/mention-node";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { UserPublic } from "@/types/api";
 
 const LexicalTypeaheadMenuPlugin = lazy(() =>
@@ -152,7 +153,7 @@ function useMentionLookupService(
       .slice(0, SUGGESTION_LIST_LENGTH_LIMIT)
       .map((user) => {
         const displayName = getDisplayName(user);
-        const avatarSrc = user.avatar_url || user.avatar_base64 || undefined;
+        const avatarSrc = resolveUploadUrl(user.avatar_url) || user.avatar_base64 || undefined;
         const initials = getInitials(displayName);
         return new MentionTypeaheadOption(
           displayName,

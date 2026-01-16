@@ -10,9 +10,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import get_password_hash
 from app.models.user import User
 from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import InitiativeMember
 from app.models.project import Project, ProjectPermission
-from app.models.task import Task, TaskAssignee
+from app.models.task import TaskAssignee
 from app.models.document import Document, ProjectDocument
 from app.models.comment import Comment
 from app.models.notification import Notification
@@ -155,7 +154,6 @@ async def check_deletion_eligibility(
 async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     """Soft delete (deactivate) a user account and remove from all guilds/initiatives."""
     from app.services import initiatives as initiatives_service
-    from app.models.guild import Guild
 
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)

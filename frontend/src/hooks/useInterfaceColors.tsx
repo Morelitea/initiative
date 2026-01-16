@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/api/client";
 import { setAccentFaviconColors, syncFaviconWithTheme } from "@/lib/favicon";
+import { useServer } from "@/hooks/useServer";
 
 interface InterfaceSettings {
   light_accent_color: string;
@@ -16,7 +17,11 @@ const srgbToLinear = (value: number) => {
   return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
 };
 
-const hexToOklch = (hex: string) => {
+const hexToOklch = (hex: string | undefined | null) => {
+  if (!hex) {
+    // Default to a neutral gray if no hex provided
+    return { l: 0.5, c: 0, h: 0 };
+  }
   let normalized = hex.replace("#", "");
   if (normalized.length === 3) {
     normalized = normalized
@@ -94,6 +99,8 @@ const applyInterfaceColors = (settings: InterfaceSettings) => {
 };
 
 export const useInterfaceColors = () => {
+  const { isServerConfigured, loading: serverLoading } = useServer();
+
   const query = useQuery({
     queryKey: ["interface-settings"],
     queryFn: async () => {
@@ -101,6 +108,8 @@ export const useInterfaceColors = () => {
       return response.data;
     },
     staleTime: 1000 * 60 * 10,
+    // Don't fetch until server is configured (matters on native platforms)
+    enabled: isServerConfigured && !serverLoading,
   });
 
   useEffect(() => {

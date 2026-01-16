@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -11,6 +11,8 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
+import { useServer } from "@/hooks/useServer";
+import { useSafeArea } from "@/hooks/useSafeArea";
 import { apiClient } from "@/api/client";
 import type { Project } from "@/types/api";
 import { PageRoutes } from "@/PageRoutes";
@@ -60,6 +62,30 @@ const LandingPage = lazy(() =>
     default: module.LandingPage,
   }))
 );
+const ConnectServerPage = lazy(() =>
+  import("./pages/ConnectServerPage").then((module) => ({
+    default: module.ConnectServerPage,
+  }))
+);
+
+/**
+ * Route guard that requires a server to be configured on native platforms.
+ * On web, this passes through. On mobile without a configured server, redirects to /connect.
+ */
+const ServerRequiredRoute = () => {
+  const { isNativePlatform, isServerConfigured, loading } = useServer();
+
+  if (loading) {
+    return <div className="text-muted-foreground py-10 text-center">Loading...</div>;
+  }
+
+  // On native, if no server is configured, redirect to connect page
+  if (isNativePlatform && !isServerConfigured) {
+    return <Navigate to="/connect" replace />;
+  }
+
+  return <Outlet />;
+};
 
 const AppLayout = () => {
   const { activeGuildId } = useGuilds();
@@ -152,23 +178,30 @@ const AppLayout = () => {
 
 export const App = () => {
   useInterfaceColors();
+  useSafeArea();
   return (
     <BrowserRouter>
       <Suspense
         fallback={<div className="text-muted-foreground py-10 text-center">Loading...</div>}
       >
         <Routes>
-          <Route path="/welcome" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/oidc/callback" element={<OidcCallbackPage />} />
-          <Route path="/invite/:code" element={<GuildInvitePage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route path="/navigate" element={<NavigatePage />} />
-            <Route path="/*" element={<AppLayout />} />
+          {/* Server connection page for mobile - doesn't require server to be configured */}
+          <Route path="/connect" element={<ConnectServerPage />} />
+
+          {/* All other routes require server to be configured on mobile */}
+          <Route element={<ServerRequiredRoute />}>
+            <Route path="/welcome" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/oidc/callback" element={<OidcCallbackPage />} />
+            <Route path="/invite/:code" element={<GuildInvitePage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/navigate" element={<NavigatePage />} />
+              <Route path="/*" element={<AppLayout />} />
+            </Route>
           </Route>
         </Routes>
       </Suspense>

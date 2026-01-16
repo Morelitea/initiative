@@ -12,7 +12,15 @@ const tsRecommendedRules = tsPlugin.configs.recommended?.rules ?? {};
 
 export default defineConfig([
   {
-    ignores: ["vite.config.ts", "dist/**", "public/**"],
+    ignores: [
+      "vite.config.ts",
+      "vite.config.js",
+      "capacitor.config.*",
+      "dist/**",
+      "public/**",
+      "android/**",
+      "ios/**",
+    ],
   },
   js.configs.recommended,
   reactPlugin.configs.flat.recommended,

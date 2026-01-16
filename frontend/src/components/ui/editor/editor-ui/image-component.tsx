@@ -33,6 +33,7 @@ import {
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { ImageResizer } from "@/components/ui/editor/editor-ui/image-resizer";
 import { $isImageNode } from "@/components/ui/editor/nodes/image-node";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 const imageCache = new Set();
 
@@ -130,6 +131,8 @@ export default function ImageComponent({
   width: "inherit" | number;
   captionsEnabled: boolean;
 }): JSX.Element {
+  // Resolve upload URLs to full paths on native platforms
+  const resolvedSrc = resolveUploadUrl(src) ?? src;
   const imageRef = useRef<null | HTMLImageElement>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey);
@@ -344,7 +347,7 @@ export default function ImageComponent({
                   ? `${$isNodeSelection(selection) ? "draggable cursor-grab active:cursor-grabbing" : ""} focused ring-primary ring-2 ring-offset-2`
                   : null
               }`}
-              src={src}
+              src={resolvedSrc}
               altText={altText}
               imageRef={imageRef}
               width={width}

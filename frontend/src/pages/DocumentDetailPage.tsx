@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
 import { useAuth } from "@/hooks/useAuth";
@@ -334,7 +335,11 @@ export const DocumentDetailPage = () => {
               <div className="flex flex-col gap-4 md:flex-row md:items-center">
                 <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
                   {featuredImageUrl ? (
-                    <img src={featuredImageUrl} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={resolveUploadUrl(featuredImageUrl) ?? undefined}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="text-muted-foreground flex h-full items-center justify-center">
                       <ScrollText className="h-10 w-10" />

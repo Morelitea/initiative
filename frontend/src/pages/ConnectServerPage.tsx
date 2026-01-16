@@ -1,0 +1,104 @@
+import { FormEvent, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LogoIcon } from "@/components/LogoIcon";
+import { useServer } from "@/hooks/useServer";
+
+export const ConnectServerPage = () => {
+  const navigate = useNavigate();
+  const { setServerUrl, testServerConnection } = useServer();
+  const [serverUrlInput, setServerUrlInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    const trimmedUrl = serverUrlInput.trim();
+    if (!trimmedUrl) {
+      setError("Please enter a server URL");
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      // Test the connection first
+      const result = await testServerConnection(trimmedUrl);
+      if (!result.valid) {
+        setError(result.error ?? "Could not connect to server");
+        setSubmitting(false);
+        return;
+      }
+
+      // Connection successful, save the URL
+      await setServerUrl(trimmedUrl);
+
+      // Navigate to login
+      navigate("/login", { replace: true });
+    } catch (err) {
+      console.error(err);
+      setError("An unexpected error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isDark = document.documentElement.classList.contains("dark");
+
+  return (
+    <div
+      style={{
+        backgroundImage: `url(${isDark ? "./images/gridWhite.svg" : "./images/gridBlack.svg"})`,
+        backgroundPosition: "center",
+        backgroundBlendMode: "screen",
+        backgroundSize: "96px 96px",
+      }}
+    >
+      <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
+        <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
+          <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+          initiative
+        </div>
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader>
+            <CardTitle>Connect to Server</CardTitle>
+            <CardDescription>
+              Enter the URL of your Initiative server to get started.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="serverUrl">Server URL</Label>
+                <Input
+                  id="serverUrl"
+                  name="serverUrl"
+                  type="url"
+                  placeholder="https://initiative.example.com"
+                  value={serverUrlInput}
+                  onChange={(event) => setServerUrlInput(event.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  required
+                />
+                <p className="text-muted-foreground text-xs">
+                  Enter the base URL of your Initiative server
+                </p>
+              </div>
+              <Button className="w-full" type="submit" disabled={submitting}>
+                {submitting ? "Connecting…" : "Connect"}
+              </Button>
+              {error ? <p className="text-destructive text-sm">{error}</p> : null}
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
