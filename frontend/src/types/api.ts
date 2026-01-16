@@ -368,6 +368,12 @@ export interface ApiKeyCreateResponse {
   secret: string;
 }
 
+export interface DeviceTokenInfo {
+  id: number;
+  device_name: string | null;
+  created_at: string;
+}
+
 export interface RoleLabels {
   admin: string;
   project_manager: string;

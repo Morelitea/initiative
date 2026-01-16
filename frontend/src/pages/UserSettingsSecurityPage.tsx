@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Smartphone, Trash2 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
-import type { ApiKeyCreateResponse, ApiKeyListResponse, ApiKeyMetadata } from "@/types/api";
+import type {
+  ApiKeyCreateResponse,
+  ApiKeyListResponse,
+  ApiKeyMetadata,
+  DeviceTokenInfo,
+} from "@/types/api";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const API_KEYS_QUERY_KEY = ["settings", "api-keys"] as const;
+const DEVICE_TOKENS_QUERY_KEY = ["auth", "device-tokens"] as const;
 
 const formatDateTime = (value?: string | null) => {
   if (!value) {
@@ -38,12 +55,14 @@ const computeStatus = (key: ApiKeyMetadata) => {
   return { label: "Active", variant: "default" as const };
 };
 
-export const SettingsApiKeysPage = () => {
+export const UserSettingsSecurityPage = () => {
   const [name, setName] = useState("");
   const [expiresAtInput, setExpiresAtInput] = useState("");
   const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<DeviceTokenInfo | null>(null);
 
+  // API Keys queries and mutations
   const apiKeysQuery = useQuery<ApiKeyListResponse>({
     queryKey: API_KEYS_QUERY_KEY,
     queryFn: async () => {
@@ -88,6 +107,31 @@ export const SettingsApiKeysPage = () => {
     },
   });
 
+  // Device tokens queries and mutations
+  const devicesQuery = useQuery<DeviceTokenInfo[]>({
+    queryKey: DEVICE_TOKENS_QUERY_KEY,
+    queryFn: async () => {
+      const response = await apiClient.get<DeviceTokenInfo[]>("/auth/device-tokens");
+      return response.data;
+    },
+  });
+
+  const revokeToken = useMutation({
+    mutationFn: async (tokenId: number) => {
+      await apiClient.delete(`/auth/device-tokens/${tokenId}`);
+    },
+    onSuccess: () => {
+      toast.success("Device logged out");
+      void queryClient.invalidateQueries({ queryKey: DEVICE_TOKENS_QUERY_KEY });
+    },
+    onError: () => {
+      toast.error("Unable to revoke device access");
+    },
+    onSettled: () => {
+      setRevokeTarget(null);
+    },
+  });
+
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedName = name.trim();
@@ -105,7 +149,14 @@ export const SettingsApiKeysPage = () => {
     createKey.mutate(payload);
   };
 
+  const handleRevoke = () => {
+    if (revokeTarget) {
+      revokeToken.mutate(revokeTarget.id);
+    }
+  };
+
   const apiKeys = useMemo(() => apiKeysQuery.data?.keys ?? [], [apiKeysQuery.data?.keys]);
+  const devices = useMemo(() => devicesQuery.data ?? [], [devicesQuery.data]);
 
   const copySecret = () => {
     if (!generatedSecret || !navigator?.clipboard) {
@@ -118,6 +169,66 @@ export const SettingsApiKeysPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Device Tokens Section */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Logged in devices</CardTitle>
+          <CardDescription>
+            Mobile devices that are currently logged in to your account. Revoking access will log
+            the device out.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {devicesQuery.isLoading ? (
+            <p className="text-muted-foreground text-sm">Loading devices...</p>
+          ) : devicesQuery.isError ? (
+            <p className="text-destructive text-sm">Unable to load devices.</p>
+          ) : devices.length === 0 ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-3 py-6 text-center">
+              <Smartphone className="h-10 w-10 opacity-50" />
+              <div>
+                <p className="font-medium">No devices logged in</p>
+                <p className="text-sm">
+                  When you log in from a mobile device, it will appear here.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {devices.map((device) => (
+                <div
+                  key={device.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{device.device_name ?? "Unknown device"}</p>
+                      <p className="text-muted-foreground text-sm">
+                        Logged in {formatDateTime(device.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRevokeTarget(device)}
+                    disabled={revokeToken.isPending}
+                  >
+                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    Revoke
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* API Keys Section */}
       {generatedSecret ? (
         <Card className="border-primary/50 shadow-sm">
           <CardHeader>
@@ -173,7 +284,7 @@ export const SettingsApiKeysPage = () => {
               </p>
             </div>
             <Button type="submit" disabled={createKey.isPending}>
-              {createKey.isPending ? "Generating…" : "Generate API key"}
+              {createKey.isPending ? "Generating..." : "Generate API key"}
             </Button>
           </form>
         </CardContent>
@@ -188,7 +299,7 @@ export const SettingsApiKeysPage = () => {
         </CardHeader>
         <CardContent>
           {apiKeysQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading API keys…</p>
+            <p className="text-muted-foreground text-sm">Loading API keys...</p>
           ) : apiKeysQuery.isError ? (
             <p className="text-destructive text-sm">Unable to load API keys.</p>
           ) : apiKeys.length === 0 ? (
@@ -217,7 +328,7 @@ export const SettingsApiKeysPage = () => {
                             {formatDateTime(key.created_at)}
                           </div>
                         </td>
-                        <td className="py-3 pr-4 font-mono">{key.token_prefix}•••</td>
+                        <td className="py-3 pr-4 font-mono">{key.token_prefix}...</td>
                         <td className="py-3 pr-4">
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </td>
@@ -234,7 +345,7 @@ export const SettingsApiKeysPage = () => {
                             disabled={deleteTarget === key.id && deleteKey.isPending}
                           >
                             {deleteTarget === key.id && deleteKey.isPending
-                              ? "Removing…"
+                              ? "Removing..."
                               : "Delete"}
                           </Button>
                         </td>
@@ -247,6 +358,26 @@ export const SettingsApiKeysPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Revoke Device Dialog */}
+      <AlertDialog open={revokeTarget !== null} onOpenChange={() => setRevokeTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke device access?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will log out{" "}
+              <span className="font-medium">{revokeTarget?.device_name ?? "this device"}</span>.
+              They will need to log in again to access your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRevoke} disabled={revokeToken.isPending}>
+              {revokeToken.isPending ? "Revoking..." : "Revoke access"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

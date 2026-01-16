@@ -88,9 +88,9 @@ const SettingsAuthPage = lazy(() =>
     default: module.SettingsAuthPage,
   }))
 );
-const SettingsApiKeysPage = lazy(() =>
-  import("./pages/SettingsApiKeysPage").then((module) => ({
-    default: module.SettingsApiKeysPage,
+const UserSettingsSecurityPage = lazy(() =>
+  import("./pages/UserSettingsSecurityPage").then((module) => ({
+    default: module.UserSettingsSecurityPage,
   }))
 );
 const SettingsBrandingPage = lazy(() =>
@@ -213,7 +213,7 @@ export const PageRoutes = () => {
                 element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
               />
               <Route path="import" element={<UserSettingsImportPage />} />
-              <Route path="api-keys" element={<SettingsApiKeysPage />} />
+              <Route path="security" element={<UserSettingsSecurityPage />} />
               <Route
                 path="danger"
                 element={<UserSettingsDangerZonePage user={user} logout={logout} />}
