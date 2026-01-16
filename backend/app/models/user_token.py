@@ -9,6 +9,7 @@ from sqlmodel import Enum as SQLEnum, Field, SQLModel
 class UserTokenPurpose(str, Enum):
     email_verification = "email_verification"
     password_reset = "password_reset"
+    device_auth = "device_auth"  # Long-lived device tokens for mobile apps
 
 
 class UserToken(SQLModel, table=True):
@@ -24,6 +25,11 @@ class UserToken(SQLModel, table=True):
             SQLEnum(UserTokenPurpose, name="user_token_purpose", create_type=False),
             nullable=False,
         ),
+    )
+    # Device name for device_auth tokens (e.g., "John's iPhone")
+    device_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(255), nullable=True),
     )
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),

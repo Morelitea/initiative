@@ -23,6 +23,9 @@ from app.models.user import User, UserRole
 from app.models.guild import GuildRole
 from app.schemas.token import Token
 from app.schemas.auth import (
+    DeviceTokenInfo,
+    DeviceTokenRequest,
+    DeviceTokenResponse,
     PasswordResetRequest,
     PasswordResetSubmit,
     VerificationConfirmRequest,
@@ -30,7 +33,6 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserCreate, UserRead
 from app.services import app_settings as app_settings_service
-from app.services import notifications as notifications_service
 from app.services import email as email_service
 from app.services import user_tokens
 from app.services import initiatives as initiatives_service
@@ -173,6 +175,70 @@ async def login_access_token(
 
     access_token = create_access_token(subject=str(user.id))
     return Token(access_token=access_token)
+
+
+@router.post("/device-token", response_model=DeviceTokenResponse)
+@limiter.limit("5/15minutes")
+async def create_device_token(
+    request: Request,
+    session: SessionDep,
+    payload: DeviceTokenRequest,
+) -> DeviceTokenResponse:
+    """
+    Create a long-lived device token for mobile app authentication.
+    Device tokens do not expire and can be used instead of JWT tokens.
+    """
+    normalized_email = payload.email.lower().strip()
+    statement = select(User).where(func.lower(User.email) == normalized_email)
+    result = await session.exec(statement)
+    user = result.one_or_none()
+    if not user or not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect email or password")
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+    if not user.email_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email not verified")
+
+    device_token = await user_tokens.create_device_token(
+        session,
+        user_id=user.id,
+        device_name=payload.device_name.strip(),
+    )
+    return DeviceTokenResponse(device_token=device_token)
+
+
+@router.get("/device-tokens", response_model=list[DeviceTokenInfo])
+async def list_device_tokens(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> list[DeviceTokenInfo]:
+    """List all device tokens for the current user."""
+    tokens = await user_tokens.get_user_device_tokens(session, user_id=current_user.id)
+    return [
+        DeviceTokenInfo(
+            id=t.id,
+            device_name=t.device_name,
+            created_at=t.created_at,
+        )
+        for t in tokens
+    ]
+
+
+@router.delete("/device-tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_device_token(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    token_id: int,
+) -> None:
+    """Revoke a device token."""
+    success = await user_tokens.revoke_device_token(
+        session,
+        token_id=token_id,
+        user_id=current_user.id,
+    )
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
 
 
 def _generate_state() -> str:

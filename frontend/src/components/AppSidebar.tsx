@@ -51,6 +51,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { cn } from "@/lib/utils";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { Initiative, Project } from "@/types/api";
 
@@ -166,7 +167,7 @@ export const AppSidebar = () => {
       .map((part) => part.charAt(0).toUpperCase())
       .join("")
       .slice(0, 2) || "U";
-  const avatarSrc = user?.avatar_url || user?.avatar_base64 || null;
+  const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
 
   // Fetch latest DockerHub version
   const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();

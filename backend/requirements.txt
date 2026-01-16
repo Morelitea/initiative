@@ -12,6 +12,7 @@ email-validator==2.1.1
 httpx==0.27.0
 alembic==1.14.0
 slowapi==0.1.9
+tzdata>=2024.1  # Required on Windows for timezone support
 
 # Testing dependencies
 pytest==8.3.4

@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { App } from "@/App";
 import { AuthProvider } from "@/hooks/useAuth";
 import { GuildProvider } from "@/hooks/useGuilds";
+import { ServerProvider } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { queryClient } from "@/lib/queryClient";
 import { registerServiceWorker } from "@/serviceWorkerRegistration";
@@ -15,16 +16,18 @@ import { registerServiceWorker } from "@/serviceWorkerRegistration";
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <GuildProvider>
-            <>
-              <App />
-              <Toaster position="bottom-center" />
-            </>
-          </GuildProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      <ServerProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <GuildProvider>
+              <>
+                <App />
+                <Toaster position="bottom-center" />
+              </>
+            </GuildProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ServerProvider>
     </ThemeProvider>
   </React.StrictMode>
 );

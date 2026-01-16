@@ -1,10 +1,28 @@
+import { Capacitor } from "@capacitor/core";
 import axios from "axios";
 
 const DEFAULT_API_BASE_URL = "/api/v1";
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
+/**
+ * Resolve the initial API base URL.
+ * On native platforms, we return a placeholder - the actual URL
+ * will be set by the ServerProvider after loading from storage.
+ */
 const resolveApiBaseUrl = (): string => {
   const envValue = import.meta.env.VITE_API_URL?.trim();
+  const isNative = Capacitor.isNativePlatform();
+
+  // On native, the URL will be set dynamically by ServerProvider
+  // We use a placeholder that will fail if used before configuration
+  if (isNative) {
+    // If env value is set (for dev/testing), use it as initial value
+    if (envValue) {
+      return envValue;
+    }
+    return ""; // Will be set by ServerProvider
+  }
+
   if (!envValue) {
     return DEFAULT_API_BASE_URL;
   }
@@ -37,15 +55,31 @@ const resolveApiBaseUrl = (): string => {
   return DEFAULT_API_BASE_URL;
 };
 
-export const API_BASE_URL = resolveApiBaseUrl();
+export let API_BASE_URL = resolveApiBaseUrl();
+
+/**
+ * Dynamically update the API base URL.
+ * Used by ServerProvider on native platforms to set the user-configured server URL.
+ */
+export const setApiBaseUrl = (url: string) => {
+  API_BASE_URL = url;
+  apiClient.defaults.baseURL = url;
+};
 
 export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 
 let authToken: string | null = null;
+let isDeviceToken = false;
 let activeGuildId: number | null = null;
 
-export const setAuthToken = (token: string | null) => {
+/**
+ * Set the authentication token.
+ * @param token The token value (JWT or device token)
+ * @param deviceToken If true, use "DeviceToken" auth scheme instead of "Bearer"
+ */
+export const setAuthToken = (token: string | null, deviceToken = false) => {
   authToken = token;
+  isDeviceToken = deviceToken;
 };
 
 export const setCurrentGuildId = (guildId: number | null) => {
@@ -76,7 +110,9 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   if (authToken) {
     config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${authToken}`;
+    // Use DeviceToken scheme for device tokens, Bearer for JWTs
+    const scheme = isDeviceToken ? "DeviceToken" : "Bearer";
+    config.headers.Authorization = `${scheme} ${authToken}`;
   }
   if (activeGuildId !== null) {
     config.headers = config.headers ?? {};

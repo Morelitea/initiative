@@ -5,6 +5,7 @@ import { ScrollText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { DocumentSummary } from "@/types/api";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -30,7 +31,7 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
       <div className="bg-muted relative aspect-square overflow-hidden border-b">
         {document.featured_image_url ? (
           <img
-            src={document.featured_image_url}
+            src={resolveUploadUrl(document.featured_image_url) ?? undefined}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"

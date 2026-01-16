@@ -1,6 +1,7 @@
 import type { TaskAssignee, UserPublic } from "@/types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 interface TaskAssigneeListProps {
   assignees: (UserPublic | TaskAssignee)[];
@@ -56,7 +57,8 @@ export const TaskAssigneeList = ({ assignees, size = "sm", className }: TaskAssi
     <div className={cn("text-muted-foreground flex flex-wrap gap-3", className)}>
       {assignees.map((assignee) => {
         const displayName = getDisplayName(assignee);
-        const avatarSrc = assignee.avatar_url || assignee.avatar_base64 || undefined;
+        const avatarSrc =
+          resolveUploadUrl(assignee.avatar_url) || assignee.avatar_base64 || undefined;
         const initials = getInitials(displayName);
 
         return (

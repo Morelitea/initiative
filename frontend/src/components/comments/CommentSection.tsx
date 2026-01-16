@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { Comment } from "@/types/api";
 
 type CommentEntity = "task" | "document";
@@ -98,7 +99,7 @@ export const CommentSection = ({
     comment.author?.full_name?.trim() || comment.author?.email || `User #${comment.author_id}`;
 
   const getAvatarSrc = (comment: Comment) =>
-    comment.author?.avatar_url || comment.author?.avatar_base64 || undefined;
+    resolveUploadUrl(comment.author?.avatar_url) || comment.author?.avatar_base64 || undefined;
 
   const getInitials = (value: string) => {
     if (!value) {

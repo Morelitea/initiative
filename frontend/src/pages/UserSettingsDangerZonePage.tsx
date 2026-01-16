@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Unplug } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DeleteAccountDialog } from "@/components/user/DeleteAccountDialog";
+import { useServer } from "@/hooks/useServer";
 import type { User } from "@/types/api";
 
 interface UserSettingsDangerZonePageProps {
@@ -15,6 +16,7 @@ interface UserSettingsDangerZonePageProps {
 export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZonePageProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const navigate = useNavigate();
+  const { isNativePlatform, getServerHostname, clearServerUrl } = useServer();
 
   const handleDeleteSuccess = () => {
     setDeleteDialogOpen(false);
@@ -22,8 +24,45 @@ export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZ
     navigate("/login");
   };
 
+  const handleDisconnectServer = async () => {
+    await logout();
+    clearServerUrl();
+    navigate("/connect", { replace: true });
+  };
+
   return (
     <div className="space-y-6">
+      {isNativePlatform && (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="bg-muted rounded-lg p-2">
+              <Unplug className="text-muted-foreground h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold">Server Connection</p>
+              <p className="text-muted-foreground text-sm">
+                Currently connected to {getServerHostname()}.
+              </p>
+            </div>
+          </div>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Disconnect from Server</CardTitle>
+              <CardDescription>
+                Log out and disconnect from this server. You can connect to a different server
+                afterward.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={handleDisconnectServer}>
+                Disconnect
+              </Button>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       <div className="flex items-center gap-3">
         <div className="bg-destructive/10 rounded-lg p-2">
           <AlertTriangle className="text-destructive h-6 w-6" />

@@ -121,6 +121,26 @@
   * {
     @apply border-border outline-ring/50;
   }
+  :root {
+    /* Safe area insets - set by @capacitor-community/safe-area plugin on native */
+    /* Falls back to env() for iOS Safari or 0px on unsupported platforms */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  }
+  html {
+    /* Safe area padding and scroll container */
+    margin-top: var(--safe-area-inset-top);
+    margin-bottom: var(--safe-area-inset-bottom);
+    margin-left: var(--safe-area-inset-left);
+    margin-right: var(--safe-area-inset-right);
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    position: relative;
+    @apply bg-background;
+  }
   body {
     font-family:
       "Outfit",
@@ -130,6 +150,7 @@
       "Segoe UI",
       sans-serif;
     @apply bg-background text-foreground;
+    min-height: 100%;
   }
 }
 
