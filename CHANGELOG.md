@@ -14,10 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server URL configuration page for connecting to self-hosted instances
 - Safe area handling for edge-to-edge display on Android
 - Android APK automatically built and attached to GitHub releases
-- Device token management in user settings (view and revoke tokens)
+- Device token management in user settings (view and revoke mobile sessions)
 
 ### Changed
 
+- Renamed "API Keys" settings tab to "Security" (now includes device management)
 - Mobile auth uses device tokens instead of expiring JWTs
 - Token storage uses native Preferences API for persistence on mobile
 
