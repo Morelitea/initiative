@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Capacitor mobile app support for iOS and Android
+- Device authentication tokens for persistent mobile login (never expire)
+- Server URL configuration page for connecting to self-hosted instances
+- Safe area handling for edge-to-edge display on Android
+- Android APK automatically built and attached to GitHub releases
+- Device token management in user settings (view and revoke tokens)
+
+### Changed
+
+- Mobile auth uses device tokens instead of expiring JWTs
+- Token storage uses native Preferences API for persistence on mobile
+
 ## [0.10.0] - 2026-01-14
 
 ### Added
