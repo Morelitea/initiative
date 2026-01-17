@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Device } from "@capacitor/device";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,16 @@ export const LoginPage = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await login({ email: email.toLowerCase().trim(), password });
+      let deviceName: string | undefined;
+      if (isNativePlatform) {
+        try {
+          const info = await Device.getInfo();
+          deviceName = info.name || info.model || "Mobile Device";
+        } catch {
+          deviceName = "Mobile Device";
+        }
+      }
+      await login({ email: email.toLowerCase().trim(), password, deviceName });
       if (inviteCodeParam) {
         navigate(`/invite/${encodeURIComponent(inviteCodeParam)}`, { replace: true });
       } else {
