@@ -53,7 +53,7 @@ async def _send_to_fcm(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     notification_type: Optional[str] = None,
-) -> bool:
+) -> tuple[bool, bool]:
     """Send a push notification via FCM HTTP v1 API.
 
     Args:
@@ -64,22 +64,24 @@ async def _send_to_fcm(
         notification_type: Type of notification for Android channel routing
 
     Returns:
-        True if successful, False otherwise
+        Tuple of (success, should_delete_token):
+        - success: True if notification was sent successfully
+        - should_delete_token: True if token is invalid and should be deleted
 
     Error handling:
-        - 404/410: Token invalid, caller should delete from database
+        - 404/410: Token invalid, should be deleted from database
         - 401: Credentials issue, logged as error
         - 5xx: Server error, logged as warning
         - Network errors: Logged as warning
     """
     if not settings.FCM_ENABLED or not settings.FCM_PROJECT_ID:
         logger.warning("FCM not enabled, skipping push notification")
-        return False
+        return (False, False)
 
     access_token = _get_fcm_access_token()
     if not access_token:
         logger.error("Failed to get FCM access token")
-        return False
+        return (False, False)
 
     # Build FCM message
     message = {
@@ -117,32 +119,32 @@ async def _send_to_fcm(
 
             if response.status_code == 200:
                 logger.info(f"Push notification sent successfully to token: {token[:20]}...")
-                return True
+                return (True, False)
             elif response.status_code in (404, 410):
-                # Token invalid or unregistered
+                # Token invalid or unregistered - should be deleted
                 logger.warning(
                     f"FCM token invalid (status {response.status_code}): {token[:20]}..."
                 )
-                return False
+                return (False, True)
             elif response.status_code == 401:
-                # Credentials issue
+                # Credentials issue - don't delete token
                 logger.error(
                     f"FCM authentication failed (status {response.status_code}): {response.text}"
                 )
-                return False
+                return (False, False)
             else:
-                # Other error
+                # Other error - don't delete token (might be temporary)
                 logger.error(
                     f"FCM request failed (status {response.status_code}): {response.text}"
                 )
-                return False
+                return (False, False)
 
     except httpx.TimeoutException:
         logger.warning(f"FCM request timed out for token: {token[:20]}...")
-        return False
+        return (False, False)
     except Exception as exc:
         logger.error(f"Failed to send FCM notification: {exc}", exc_info=True)
-        return False
+        return (False, False)
 
 
 async def send_push_notification(
@@ -152,7 +154,7 @@ async def send_push_notification(
     data: Optional[Dict[str, Any]] = None,
     platform: str = "android",
     notification_type: Optional[str] = None,
-) -> bool:
+) -> tuple[bool, bool]:
     """Send a push notification to a single device.
 
     Args:
@@ -164,7 +166,9 @@ async def send_push_notification(
         notification_type: Type of notification for Android channel routing
 
     Returns:
-        True if successful, False otherwise
+        Tuple of (success, should_delete_token):
+        - success: True if notification was sent successfully
+        - should_delete_token: True if token is invalid and should be deleted
     """
     return await _send_to_fcm(push_token, title, body, data, notification_type)
 
@@ -207,7 +211,7 @@ async def send_push_to_user(
     notification_type_str = notification_type.value if notification_type else None
 
     for token_record in tokens:
-        success = await send_push_notification(
+        success, should_delete = await send_push_notification(
             push_token=token_record.push_token,
             title=title,
             body=body,
@@ -220,11 +224,8 @@ async def send_push_to_user(
             successful += 1
             # Update last_used_at
             await push_tokens.update_last_used(session, push_token=token_record.push_token)
-        else:
-            # Token might be invalid, mark for deletion
-            # Note: Only delete if we get explicit invalid token error (404/410)
-            # For now, we'll let tokens accumulate and rely on periodic cleanup
-            # In production, you might want to check the specific error code
+        elif should_delete:
+            # Token is invalid (404/410 from FCM), mark for deletion
             tokens_to_delete.append(token_record.push_token)
 
     # Delete invalid tokens
