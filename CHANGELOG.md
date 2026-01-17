@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-01-17
+
+### Fixed
+
+- Server crash on startup due to missing request parameter in FCM config endpoint rate limiter
+
 ## [0.12.0] - 2026-01-17
 
 ### Added
