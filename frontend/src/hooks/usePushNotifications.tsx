@@ -7,6 +7,7 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
+import FirebaseRuntime from "@/plugins/firebaseRuntime";
 
 export type PermissionState = PermissionStatus["receive"];
 
@@ -18,9 +19,10 @@ interface UsePushNotificationsReturn {
 
 export const usePushNotifications = (): UsePushNotificationsReturn => {
   const { user } = useAuth();
-  const { isNativePlatform } = useServer();
+  const { isNativePlatform, serverUrl } = useServer();
   const navigate = useNavigate();
   const [permissionStatus, setPermissionStatus] = useState<PermissionState>("prompt");
+  const [fcmEnabled, setFcmEnabled] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isNativePlatform || !user) {
@@ -34,6 +36,32 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
 
     const setupListeners = async () => {
       try {
+        // Initialize Firebase with runtime configuration from backend
+        if (!serverUrl) {
+          console.log("No server URL configured, skipping push notification setup");
+          return;
+        }
+
+        try {
+          const initResult = await FirebaseRuntime.initialize({ serverUrl });
+
+          if (!initResult.success) {
+            console.log(
+              "Firebase initialization skipped:",
+              initResult.message || "FCM not configured on backend"
+            );
+            setFcmEnabled(false);
+            return;
+          }
+
+          console.log("Firebase initialized successfully for push notifications");
+          setFcmEnabled(true);
+        } catch (err) {
+          console.error("Failed to initialize Firebase:", err);
+          setFcmEnabled(false);
+          return;
+        }
+
         // Check current permission status
         const permissions = await PushNotifications.checkPermissions();
         setPermissionStatus(permissions.receive);
@@ -114,12 +142,38 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
       void pushReceivedListener?.remove();
       void pushActionListener?.remove();
     };
-  }, [user, isNativePlatform, navigate]);
+  }, [user, isNativePlatform, serverUrl, navigate]);
 
   const requestPermission = async () => {
     if (!isNativePlatform) {
       console.warn("Push notifications not supported on web");
       return;
+    }
+
+    if (!serverUrl) {
+      console.warn("No server URL configured, cannot enable push notifications");
+      return;
+    }
+
+    // Initialize Firebase if not already done
+    if (!fcmEnabled) {
+      try {
+        const initResult = await FirebaseRuntime.initialize({ serverUrl });
+
+        if (!initResult.success) {
+          console.warn(
+            "Firebase initialization failed:",
+            initResult.message || "FCM not configured on backend"
+          );
+          return;
+        }
+
+        setFcmEnabled(true);
+        console.log("Firebase initialized successfully");
+      } catch (err) {
+        console.error("Failed to initialize Firebase:", err);
+        return;
+      }
     }
 
     try {
@@ -143,6 +197,6 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
   return {
     permissionStatus,
     requestPermission,
-    isSupported: isNativePlatform,
+    isSupported: isNativePlatform && fcmEnabled,
   };
 };

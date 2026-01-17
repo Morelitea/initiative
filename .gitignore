@@ -37,5 +37,8 @@ frontend/vite.config.d.ts
 frontend/capacitor.config.js
 frontend/capacitor.config.d.ts
 
+# Firebase (keep template, ignore actual config)
+frontend/android/app/google-services.json
+
 # Docker
 docker-compose.yml
