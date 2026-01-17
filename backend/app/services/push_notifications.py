@@ -52,6 +52,7 @@ async def _send_to_fcm(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
+    notification_type: Optional[str] = None,
 ) -> bool:
     """Send a push notification via FCM HTTP v1 API.
 
@@ -60,6 +61,7 @@ async def _send_to_fcm(
         title: Notification title
         body: Notification body
         data: Optional data payload (must be string key-value pairs)
+        notification_type: Type of notification for Android channel routing
 
     Returns:
         True if successful, False otherwise
@@ -89,6 +91,14 @@ async def _send_to_fcm(
             },
         }
     }
+
+    # Add Android-specific configuration for notification channels
+    if notification_type:
+        message["message"]["android"] = {
+            "notification": {
+                "channel_id": notification_type,  # Maps to Android channel ID
+            }
+        }
 
     # Add data payload if provided (convert all values to strings)
     if data:
@@ -141,6 +151,7 @@ async def send_push_notification(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     platform: str = "android",
+    notification_type: Optional[str] = None,
 ) -> bool:
     """Send a push notification to a single device.
 
@@ -150,11 +161,12 @@ async def send_push_notification(
         body: Notification body
         data: Optional data payload
         platform: Platform identifier ('android' or 'ios')
+        notification_type: Type of notification for Android channel routing
 
     Returns:
         True if successful, False otherwise
     """
-    return await _send_to_fcm(push_token, title, body, data)
+    return await _send_to_fcm(push_token, title, body, data, notification_type)
 
 
 async def send_push_to_user(
@@ -191,6 +203,9 @@ async def send_push_to_user(
     successful = 0
     tokens_to_delete = []
 
+    # Convert NotificationType enum to string for channel routing
+    notification_type_str = notification_type.value if notification_type else None
+
     for token_record in tokens:
         success = await send_push_notification(
             push_token=token_record.push_token,
@@ -198,6 +213,7 @@ async def send_push_to_user(
             body=body,
             data=data,
             platform=token_record.platform,
+            notification_type=notification_type_str,
         )
 
         if success:
