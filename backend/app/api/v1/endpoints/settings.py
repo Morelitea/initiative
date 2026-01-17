@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
@@ -201,7 +201,7 @@ async def send_test_email(
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
 @limiter.limit("20/minute")
-async def get_fcm_config() -> FCMConfigResponse:
+async def get_fcm_config(request: Request) -> FCMConfigResponse:
     """Get public FCM configuration for mobile app initialization.
 
     This endpoint is public (no authentication required) and only exposes
