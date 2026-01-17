@@ -12,6 +12,7 @@ dependencies {
     implementation project(':capacitor-community-safe-area')
     implementation project(':capacitor-device')
     implementation project(':capacitor-preferences')
+    implementation project(':capacitor-push-notifications')
 
 }
 

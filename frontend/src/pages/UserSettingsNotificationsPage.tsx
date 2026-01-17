@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { Badge } from "@/components/ui/badge";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import type { User } from "@/types/api";
 
 const FALLBACK_TIMEZONES = [
@@ -54,6 +56,7 @@ export const UserSettingsNotificationsPage = ({
   user,
   refreshUser,
 }: UserSettingsNotificationsPageProps) => {
+  const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [notificationTime, setNotificationTime] = useState(
     user.overdue_notification_time ?? "21:00"
@@ -131,6 +134,41 @@ export const UserSettingsNotificationsPage = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Push Notifications Section (Mobile Only) */}
+        {isSupported && (
+          <div className="space-y-2 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Push Notifications</p>
+                <p className="text-muted-foreground text-sm">
+                  Receive real-time alerts on your device
+                </p>
+              </div>
+              {permissionStatus === "granted" && (
+                <Badge variant="default" className="bg-green-600 hover:bg-green-600">
+                  Enabled
+                </Badge>
+              )}
+              {permissionStatus === "denied" && <Badge variant="destructive">Blocked</Badge>}
+              {permissionStatus === "prompt" && <Badge variant="secondary">Not enabled</Badge>}
+            </div>
+            {permissionStatus === "prompt" && (
+              <Button onClick={requestPermission} size="sm" className="w-full">
+                Enable Push Notifications
+              </Button>
+            )}
+            {permissionStatus === "denied" && (
+              <div className="text-muted-foreground bg-muted rounded p-3 text-sm">
+                <p className="mb-1 font-medium">Push notifications are blocked</p>
+                <p>
+                  To enable push notifications, open your device settings, find this app, and enable
+                  notifications.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Timezone</Label>

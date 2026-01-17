@@ -19,6 +19,7 @@ from app.models.user import User, UserRole
 from app.models.notification import NotificationType
 from app.services import email as email_service
 from app.services import user_notifications
+from app.services import push_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,23 @@ async def enqueue_task_assignment_event(
             "smart_link": smart_link,
         },
     )
+    # Send push notification
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=assignee.id,
+            notification_type=NotificationType.task_assignment,
+            title="New Task Assignment",
+            body=f"{task.title} in {project_name}",
+            data={
+                "type": "task_assignment",
+                "task_id": str(task.id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: int) -> None:
@@ -142,6 +160,22 @@ async def notify_initiative_membership(
         notification_type=NotificationType.initiative_added,
         data={"initiative_id": initiative_id, "initiative_name": initiative_name},
     )
+    # Send push notification
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.initiative_added,
+            title="Added to Initiative",
+            body=f"You've been added to {initiative_name}",
+            data={
+                "type": "initiative_added",
+                "initiative_id": str(initiative_id),
+                "target_path": f"/initiatives/{initiative_id}",
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
     await session.commit()
 
 
@@ -187,6 +221,23 @@ async def notify_project_added(
             ),
         },
     )
+    # Send push notification
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.project_added,
+            title="New Project Added",
+            body=f"{project_name} in {initiative_name}",
+            data={
+                "type": "project_added",
+                "project_id": str(project_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
     await session.commit()
 
 
@@ -236,6 +287,24 @@ async def notify_document_mention(
             "smart_link": smart_link,
         },
     )
+    # Send push notification
+    try:
+        mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=mentioned_user.id,
+            notification_type=NotificationType.mention,
+            title="You were mentioned",
+            body=f"{mentioned_by_name} mentioned you in {document_title}",
+            data={
+                "type": "mention",
+                "document_id": str(document_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:

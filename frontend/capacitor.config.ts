@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
   plugins: {
     // Disable built-in SystemBars insets handling - safe-area plugin handles it
     SystemBars: {
-      // insetsHandling: "disable",
+      insetsHandling: "disable",
     },
     // SafeArea plugin config for edge-to-edge mode
     SafeArea: {
