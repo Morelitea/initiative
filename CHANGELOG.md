@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [0.11.1] - 2026-01-16
+
+### Fixed
 
 - Device tokens now display actual device name (e.g., "Jordan's S25 Ultra") instead of generic "Mobile Device"
 
