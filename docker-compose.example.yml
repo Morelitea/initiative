@@ -36,6 +36,14 @@ services:
       # OIDC_CLIENT_SECRET: your-client-secret
       # OIDC_PROVIDER_NAME: Your Provider Name
       # OIDC_SCOPES: openid,profile,email
+      # Optional: Enable push notifications (requires Firebase project)
+      # See docs/FIREBASE_SETUP.md for setup instructions
+      # FCM_ENABLED: false
+      # FCM_PROJECT_ID: your-firebase-project-id
+      # FCM_APPLICATION_ID: 1:123456789:android:abcdef
+      # FCM_API_KEY: AIzaSy...
+      # FCM_SENDER_ID: 123456789
+      # FCM_SERVICE_ACCOUNT_JSON: '{"type":"service_account","project_id":"..."}'
     depends_on:
       db:
         condition: service_healthy

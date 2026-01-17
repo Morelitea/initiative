@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Push notifications for mobile devices via Firebase Cloud Messaging (FCM)
+- Runtime Firebase initialization - no APK rebuild required for self-hosted instances
+- Five notification channels for Android: Task Assignments, Initiative Invites, New Projects, User Approvals, and Mentions
+- Custom white notification icon for proper Android notification tray display
+- Push notification settings in user notification preferences
+- Automatic FCM config endpoint for mobile app initialization (`/api/v1/settings/fcm-config`)
+- Push token management with automatic cleanup of invalid tokens
+
 ## [0.11.1] - 2026-01-16
 
 ### Fixed
