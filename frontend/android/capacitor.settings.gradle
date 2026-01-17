@@ -5,5 +5,8 @@ project(':capacitor-android').projectDir = new File('../node_modules/.pnpm/@capa
 include ':capacitor-community-safe-area'
 project(':capacitor-community-safe-area').projectDir = new File('../node_modules/.pnpm/@capacitor-community+safe-area@8.0.1_@capacitor+core@8.0.1/node_modules/@capacitor-community/safe-area/android')
 
+include ':capacitor-device'
+project(':capacitor-device').projectDir = new File('../node_modules/.pnpm/@capacitor+device@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/device/android')
+
 include ':capacitor-preferences'
 project(':capacitor-preferences').projectDir = new File('../node_modules/.pnpm/@capacitor+preferences@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/preferences/android')
