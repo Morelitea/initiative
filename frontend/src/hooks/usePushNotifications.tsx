@@ -33,63 +33,79 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
     let pushActionListener: PluginListenerHandle;
 
     const setupListeners = async () => {
-      // Check current permission status
-      const permissions = await PushNotifications.checkPermissions();
-      setPermissionStatus(permissions.receive);
+      try {
+        // Check current permission status
+        const permissions = await PushNotifications.checkPermissions();
+        setPermissionStatus(permissions.receive);
 
-      // Register listeners
-      registrationListener = await PushNotifications.addListener("registration", async (token) => {
-        console.log("Push registration success, token:", token.value);
-        // Send token to backend
-        try {
-          await apiClient.post("/push/register", {
-            push_token: token.value,
-            platform: Capacitor.getPlatform(),
-          });
-          console.log("Push token registered with backend");
-        } catch (err) {
-          console.error("Failed to register push token with backend:", err);
-        }
-      });
+        // Register listeners
+        registrationListener = await PushNotifications.addListener(
+          "registration",
+          async (token) => {
+            console.log("Push registration success, token:", token.value);
+            // Send token to backend
+            try {
+              await apiClient.post("/push/register", {
+                push_token: token.value,
+                platform: Capacitor.getPlatform(),
+              });
+              console.log("Push token registered with backend");
+            } catch (err) {
+              console.error("Failed to register push token with backend:", err);
+            }
+          }
+        );
 
-      registrationErrorListener = await PushNotifications.addListener(
-        "registrationError",
-        (error) => {
-          console.error("Push registration error:", error);
-        }
-      );
+        registrationErrorListener = await PushNotifications.addListener(
+          "registrationError",
+          (error) => {
+            console.error("Push registration error:", error);
+          }
+        );
 
-      pushReceivedListener = await PushNotifications.addListener(
-        "pushNotificationReceived",
-        (notification) => {
-          // Handle foreground notification
-          console.log("Push notification received (foreground):", notification);
-          // The system will display the notification automatically
-          // You could show a custom in-app notification here if desired
-        }
-      );
+        pushReceivedListener = await PushNotifications.addListener(
+          "pushNotificationReceived",
+          (notification) => {
+            // Handle foreground notification
+            console.log("Push notification received (foreground):", notification);
+            // The system will display the notification automatically
+            // You could show a custom in-app notification here if desired
+          }
+        );
 
-      pushActionListener = await PushNotifications.addListener(
-        "pushNotificationActionPerformed",
-        (notification) => {
-          // Handle notification tap (navigate to target)
-          console.log("Push notification action performed:", notification);
-          const data = notification.notification.data;
-          if (data.target_path && data.guild_id) {
-            const targetPath = data.target_path as string;
-            const guildId = data.guild_id as string;
-            navigate(`/navigate?guild_id=${guildId}&target=${encodeURIComponent(targetPath)}`);
+        pushActionListener = await PushNotifications.addListener(
+          "pushNotificationActionPerformed",
+          (notification) => {
+            // Handle notification tap (navigate to target)
+            console.log("Push notification action performed:", notification);
+            const data = notification.notification.data;
+            if (data.target_path && data.guild_id) {
+              const targetPath = data.target_path as string;
+              const guildId = data.guild_id as string;
+              navigate(`/navigate?guild_id=${guildId}&target=${encodeURIComponent(targetPath)}`);
+            }
+          }
+        );
+
+        // Register if already granted
+        if (permissions.receive === "granted") {
+          try {
+            await PushNotifications.register();
+          } catch (err) {
+            console.error("Failed to register for push notifications:", err);
+            // Don't crash the app if registration fails (e.g., in emulator or if FCM not configured)
           }
         }
-      );
-
-      // Register if already granted
-      if (permissions.receive === "granted") {
-        await PushNotifications.register();
+      } catch (err) {
+        console.error("Failed to setup push notifications:", err);
+        // Don't crash the app if setup fails
       }
     };
 
-    void setupListeners();
+    void setupListeners().catch((err) => {
+      console.error("Failed to setup push notification listeners:", err);
+      // Don't crash the app if setup fails
+    });
 
     return () => {
       // Cleanup listeners
@@ -106,11 +122,21 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
       return;
     }
 
-    const result = await PushNotifications.requestPermissions();
-    setPermissionStatus(result.receive);
+    try {
+      const result = await PushNotifications.requestPermissions();
+      setPermissionStatus(result.receive);
 
-    if (result.receive === "granted") {
-      await PushNotifications.register();
+      if (result.receive === "granted") {
+        try {
+          await PushNotifications.register();
+        } catch (err) {
+          console.error("Failed to register for push notifications:", err);
+          // Don't crash the app if registration fails (e.g., in emulator or if FCM not configured)
+        }
+      }
+    } catch (err) {
+      console.error("Failed to request push notification permissions:", err);
+      // Don't crash the app if permission request fails
     }
   };
 
