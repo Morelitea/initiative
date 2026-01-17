@@ -109,6 +109,21 @@ public class FirebaseInitializer {
 
                 Log.d(TAG, "Fetching FCM config from: " + configUrl);
 
+                // Validate HTTPS for security (allow HTTP only for localhost and private IPs)
+                if (configUrl.startsWith("http://")) {
+                    String host = new URL(configUrl).getHost();
+                    boolean isLocalHost = host.equals("localhost") || host.equals("127.0.0.1") || host.equals("0.0.0.0");
+                    boolean isPrivateIP = host.startsWith("192.168.") || host.startsWith("10.") ||
+                                         host.matches("172\\.(1[6-9]|2[0-9]|3[0-1])\\..*");
+
+                    if (!isLocalHost && !isPrivateIP) {
+                        Log.e(TAG, "Server URL must use HTTPS for security (HTTP only allowed for localhost/private IPs)");
+                        return;
+                    }
+
+                    Log.w(TAG, "Using HTTP connection - only use this for local development");
+                }
+
                 URL url = new URL(configUrl);
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
