@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
 from app.core.config import settings as app_config
+from app.core.rate_limit import limiter
 from app.models.user import User
 from app.models.app_setting import AppSetting
 from app.models.guild import GuildRole
@@ -199,12 +200,15 @@ async def send_test_email(
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
+@limiter.limit("20/minute")
 async def get_fcm_config() -> FCMConfigResponse:
     """Get public FCM configuration for mobile app initialization.
 
     This endpoint is public (no authentication required) and only exposes
     public fields needed by the mobile app to initialize Firebase.
     Service account credentials are NOT exposed.
+
+    Rate limited to 20 requests per minute to prevent abuse.
     """
     return FCMConfigResponse(
         enabled=app_config.FCM_ENABLED,
