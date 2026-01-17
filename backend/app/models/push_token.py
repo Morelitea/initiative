@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlmodel import Field, SQLModel
 
 
@@ -18,8 +18,7 @@ class PushToken(SQLModel, table=True):
     # Links to device authentication token (nullable for cases where device token is deleted)
     device_token_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, nullable=True),
-        foreign_key="user_tokens.id",
+        sa_column=Column(Integer, ForeignKey("user_tokens.id"), nullable=True),
     )
     # FCM registration token (Android) or APNS device token (iOS)
     push_token: str = Field(
