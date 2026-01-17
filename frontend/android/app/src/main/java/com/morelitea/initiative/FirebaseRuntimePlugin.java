@@ -27,7 +27,7 @@ public class FirebaseRuntimePlugin extends Plugin {
             return;
         }
 
-        // Initialize Firebase on background thread to avoid blocking UI
+        // Initialize Firebase (network call happens in background thread inside initializeFirebase)
         getActivity().runOnUiThread(() -> {
             boolean success = FirebaseInitializer.initializeFirebase(
                 getContext(),
