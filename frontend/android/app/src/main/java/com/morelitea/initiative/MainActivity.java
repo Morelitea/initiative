@@ -9,5 +9,11 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
+
+        // Register custom Firebase runtime plugin
+        registerPlugin(FirebaseRuntimePlugin.class);
+
+        // Create notification channels for push notifications
+        NotificationChannelManager.createNotificationChannels(this);
     }
 }

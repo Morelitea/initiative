@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
 from app.core.config import settings as app_config
+from app.core.rate_limit import limiter
 from app.models.user import User
 from app.models.app_setting import AppSetting
 from app.models.guild import GuildRole
@@ -17,6 +18,7 @@ from app.schemas.settings import (
     RoleLabelsResponse,
     RoleLabelsUpdate,
 )
+from app.schemas.push import FCMConfigResponse
 from app.services import app_settings as app_settings_service
 from app.services import email as email_service
 
@@ -195,3 +197,23 @@ async def send_test_email(
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return {"status": "sent"}
+
+
+@router.get("/fcm-config", response_model=FCMConfigResponse)
+@limiter.limit("20/minute")
+async def get_fcm_config() -> FCMConfigResponse:
+    """Get public FCM configuration for mobile app initialization.
+
+    This endpoint is public (no authentication required) and only exposes
+    public fields needed by the mobile app to initialize Firebase.
+    Service account credentials are NOT exposed.
+
+    Rate limited to 20 requests per minute to prevent abuse.
+    """
+    return FCMConfigResponse(
+        enabled=app_config.FCM_ENABLED,
+        project_id=app_config.FCM_PROJECT_ID if app_config.FCM_ENABLED else None,
+        application_id=app_config.FCM_APPLICATION_ID if app_config.FCM_ENABLED else None,
+        api_key=app_config.FCM_API_KEY if app_config.FCM_ENABLED else None,
+        sender_id=app_config.FCM_SENDER_ID if app_config.FCM_ENABLED else None,
+    )

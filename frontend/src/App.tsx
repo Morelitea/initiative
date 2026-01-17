@@ -13,10 +13,12 @@ import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { useServer } from "@/hooks/useServer";
 import { useSafeArea } from "@/hooks/useSafeArea";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { apiClient } from "@/api/client";
 import type { Project } from "@/types/api";
 import { PageRoutes } from "@/PageRoutes";
 import { AppSidebar } from "./components/AppSidebar";
+import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { Menu } from "lucide-react";
 
 const LoginPage = lazy(() =>
@@ -90,6 +92,7 @@ const ServerRequiredRoute = () => {
 const AppLayout = () => {
   const { activeGuildId } = useGuilds();
   useRealtimeUpdates();
+  usePushNotifications(); // Initialize push notifications
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   const location = useLocation();
@@ -130,6 +133,7 @@ const AppLayout = () => {
 
   return (
     <div className="bg-background flex min-h-screen flex-col">
+      <PushPermissionPrompt />
       <div className="flex flex-1">
         <SidebarProvider
           defaultOpen={true}

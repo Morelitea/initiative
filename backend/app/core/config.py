@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     SMTP_FROM_ADDRESS: str | None = None
     SMTP_TEST_RECIPIENT: str | None = None
 
+    # FCM Push Notifications
+    FCM_ENABLED: bool = False
+    FCM_PROJECT_ID: str | None = None
+    FCM_APPLICATION_ID: str | None = None  # Android: 1:123:android:abc, iOS: 1:123:ios:def
+    FCM_API_KEY: str | None = None  # Firebase API key (public, safe to expose)
+    FCM_SENDER_ID: str | None = None  # FCM sender ID (numeric)
+    FCM_SERVICE_ACCOUNT_JSON: str | None = None  # Service account for backend sending (private)
+
     UPLOADS_DIR: str = "uploads"
     STATIC_DIR: str = "static"
 
