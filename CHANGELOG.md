@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- FirebaseRuntime plugin now registers before Capacitor bridge initialization
+
 ## [0.12.3] - 2026-01-17
 
 ### Fixed
 
-- Push notifications now work on self-hosted deployments (fixed double `/api/v1` in FCM config URL)
+- Push notifications now work on self-hosted deployments (fixed FCM config URL)
 
 ## [0.12.2] - 2026-01-17
 
