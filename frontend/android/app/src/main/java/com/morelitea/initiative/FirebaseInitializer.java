@@ -104,8 +104,9 @@ public class FirebaseInitializer {
             BufferedReader reader = null;
             try {
                 // Remove trailing slash from server URL
+                // Note: serverUrl already includes /api/v1 from the frontend
                 String baseUrl = serverUrl.endsWith("/") ? serverUrl.substring(0, serverUrl.length() - 1) : serverUrl;
-                String configUrl = baseUrl + "/api/v1/settings/fcm-config";
+                String configUrl = baseUrl + "/settings/fcm-config";
 
                 Log.d(TAG, "Fetching FCM config from: " + configUrl);
 
