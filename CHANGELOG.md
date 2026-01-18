@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Task position no longer changes when updating status via dropdown in table view
+- Safe area insets now work correctly on Samsung One UI devices
+
 ## [0.12.1] - 2026-01-17
 
 ### Fixed
