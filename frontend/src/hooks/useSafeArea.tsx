@@ -5,7 +5,7 @@ import { SafeArea, SystemBarsStyle } from "@capacitor-community/safe-area";
 /**
  * Configure the native system bars for mobile platforms.
  * Uses @capacitor-community/safe-area for edge-to-edge mode with proper insets.
- * The plugin automatically sets env(safe-area-inset-*) CSS values on Android.
+ * The plugin handles safe area insets natively (non-passthrough mode for reliability).
  */
 export const useSafeArea = () => {
   useEffect(() => {
