@@ -740,7 +740,6 @@ async def update_task(
     assignee_ids = update_data.pop("assignee_ids", None)
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
-    status_changed = False
 
     if new_status_id is not None and new_status_id != task.task_status_id:
         selected_status = await task_statuses_service.get_project_status(
@@ -752,7 +751,6 @@ async def update_task(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task status not found for project")
         task.task_status_id = selected_status.id
         task.task_status = selected_status
-        status_changed = True
 
     for field, value in update_data.items():
         if field == "recurrence":
@@ -772,9 +770,6 @@ async def update_task(
         setattr(task, field, value)
     now = datetime.now(timezone.utc)
     task.updated_at = now
-
-    if status_changed:
-        task.sort_order = await _next_sort_order(session, task.project_id)
 
     new_assignees: list[User] = []
     if assignee_ids is not None:
