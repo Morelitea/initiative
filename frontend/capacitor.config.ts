@@ -20,10 +20,11 @@ const config: CapacitorConfig = {
     },
     // SafeArea plugin config for edge-to-edge mode
     SafeArea: {
-      // Detect viewport-fit changes to properly handle safe areas
-      detectViewportFitCoverChanges: true,
-      // Assume viewport-fit=cover initially to prevent layout jumps
-      initialViewportFitCover: true,
+      // Disable viewport-fit detection to force native padding mode
+      // This ensures safe area insets work on Samsung and other devices where
+      // the WebView may not properly set CSS env(safe-area-inset-*) values
+      detectViewportFitCoverChanges: false,
+      initialViewportFitCover: false,
     },
   },
 };

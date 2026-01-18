@@ -130,15 +130,8 @@
     --safe-area-inset-right: env(safe-area-inset-right, 0px);
   }
   html {
-    /* Safe area padding and scroll container */
-    margin-top: var(--safe-area-inset-top);
-    margin-bottom: var(--safe-area-inset-bottom);
-    margin-left: var(--safe-area-inset-left);
-    margin-right: var(--safe-area-inset-right);
     height: 100vh;
     height: 100dvh;
-    overflow-y: auto;
-    position: relative;
     @apply bg-background;
   }
   body {
@@ -149,8 +142,15 @@
       BlinkMacSystemFont,
       "Segoe UI",
       sans-serif;
-    @apply bg-background text-foreground;
     min-height: 100%;
+    @apply bg-background text-foreground;
+  }
+  /* Non-native platforms (web): apply safe area insets via CSS */
+  html:not(.native-platform) body {
+    padding-top: var(--safe-area-inset-top);
+    padding-bottom: var(--safe-area-inset-bottom);
+    padding-left: var(--safe-area-inset-left);
+    padding-right: var(--safe-area-inset-right);
   }
 }
 

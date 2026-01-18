@@ -375,17 +375,20 @@ export const ProjectTasksSection = ({
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      let nextState: Task[] | null = null;
       setOrderedTasks((prev) => {
         if (!prev.length) {
           return prev;
         }
-        nextState = prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
-        return nextState;
+        // Check if the new status matches current filters
+        const matchesFilters =
+          statusFilters.length === 0 || statusFilters.includes(updatedTask.task_status_id);
+        if (matchesFilters) {
+          // Update task in place (preserves order)
+          return prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+        }
+        // Remove task from list (doesn't match filters anymore)
+        return prev.filter((task) => task.id !== updatedTask.id);
       });
-      if (nextState) {
-        persistOrder(nextState);
-      }
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
@@ -497,8 +500,10 @@ export const ProjectTasksSection = ({
       const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
       return response.data;
     },
-    onSuccess: (data) => {
-      setOrderedTasks(data);
+    onSuccess: () => {
+      // Don't set orderedTasks from response - it returns unfiltered tasks
+      // which causes a flash of all tasks. The optimistic update already
+      // shows the new order, and query invalidation will confirm with filters.
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
