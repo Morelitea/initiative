@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import type {
   Project,
   ProjectTaskStatus,
@@ -170,10 +171,15 @@ const TaskStatusSelector = ({
 export const MyTasksPage = () => {
   const { guilds, activeGuildId, switchGuild } = useGuilds();
   const navigate = useNavigate();
+  const localQueryClient = useQueryClient();
   const projectStatusCache = useRef<
     Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
   >(new Map());
   const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
+
+  const handleRefresh = useCallback(async () => {
+    await localQueryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
+  }, [localQueryClient]);
 
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
     () => readStoredFilters().statusFilters
@@ -770,150 +776,152 @@ export const MyTasksPage = () => {
     archivedProjectsQuery.isError;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">My Tasks</h1>
-        <p className="text-muted-foreground">Everything assigned to you across all projects.</p>
-      </div>
-
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-        <div className="flex items-center justify-between sm:hidden">
-          <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
-            <Filter className="h-4 w-4" />
-            Filters
-          </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-3">
-              {filtersOpen ? "Hide" : "Show"}
-              <span className="ml-1">filters</span>
-              <ChevronDown
-                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-              />
-            </Button>
-          </CollapsibleTrigger>
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">My Tasks</h1>
+          <p className="text-muted-foreground">Everything assigned to you across all projects.</p>
         </div>
-        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-status-filter"
-                className="text-muted-foreground mb-2 block text-xs font-medium"
-              >
-                Status category
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder="All status categories"
-                emptyMessage="No status categories available"
-              />
-            </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-priority-filter"
-                className="text-muted-foreground mb-2 block text-xs font-medium"
-              >
-                Priority
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={priorityOrder.map((priority) => ({
-                  value: priority,
-                  label: priority.replace("_", " "),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder="All priorities"
-                emptyMessage="No priorities available"
-              />
-            </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-guild-filter"
-                className="text-muted-foreground mb-2 block text-xs font-medium"
-              >
-                Guild
-              </Label>
-              <MultiSelect
-                selectedValues={guildFilters.map(String)}
-                options={guilds.map((guild) => ({
-                  value: String(guild.id),
-                  label: guild.name,
-                }))}
-                onChange={(values) => {
-                  const numericValues = values.map(Number).filter(Number.isFinite);
-                  setGuildFilters(numericValues);
-                }}
-                placeholder="All guilds"
-                emptyMessage="No guilds available"
-              />
-            </div>
-            <div className="w-full sm:w-60 lg:flex-1">
-              <Label
-                htmlFor="task-initiative-filter"
-                className="text-muted-foreground mb-2 block text-xs font-medium"
-              >
-                Initiative
-              </Label>
-              <MultiSelect
-                selectedValues={initiativeFilters.map(String)}
-                options={initiativeOptions.map((initiative) => ({
-                  value: initiative.id,
-                  label: initiative.name,
-                }))}
-                onChange={(values) => {
-                  const numericValues = values.map(Number).filter(Number.isFinite);
-                  setInitiativeFilters(numericValues);
-                }}
-                placeholder="All initiatives"
-                emptyMessage="No initiatives available"
-              />
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
 
-      <div className="relative">
-        {isRefetching ? (
-          <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
-            <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-muted-foreground text-sm">Updating…</span>
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+          <div className="flex items-center justify-between sm:hidden">
+            <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
+              <Filter className="h-4 w-4" />
+              Filters
             </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-3">
+                {filtersOpen ? "Hide" : "Show"}
+                <span className="ml-1">filters</span>
+                <ChevronDown
+                  className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
           </div>
-        ) : null}
-        {isInitialLoad ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : hasError ? (
-          <p className="text-destructive py-8 text-center text-sm">Unable to load your tasks.</p>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={displayTasks}
-            groupingOptions={groupingOptions}
-            initialState={{
-              grouping: ["date group"],
-              expanded: true,
-              columnVisibility: { "date group": false, guild: false },
-            }}
-            initialSorting={[
-              { id: "date group", desc: false },
-              { id: "due date", desc: false },
-            ]}
-            enableFilterInput
-            filterInputColumnKey="title"
-            filterInputPlaceholder="Filter tasks..."
-            enablePagination
-            enableResetSorting
-            enableColumnVisibilityDropdown
-          />
-        )}
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+            <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
+              <div className="w-full sm:w-60 lg:flex-1">
+                <Label
+                  htmlFor="task-status-filter"
+                  className="text-muted-foreground mb-2 block text-xs font-medium"
+                >
+                  Status category
+                </Label>
+                <MultiSelect
+                  selectedValues={statusFilters}
+                  options={statusOptions.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                  onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                  placeholder="All status categories"
+                  emptyMessage="No status categories available"
+                />
+              </div>
+              <div className="w-full sm:w-60 lg:flex-1">
+                <Label
+                  htmlFor="task-priority-filter"
+                  className="text-muted-foreground mb-2 block text-xs font-medium"
+                >
+                  Priority
+                </Label>
+                <MultiSelect
+                  selectedValues={priorityFilters}
+                  options={priorityOrder.map((priority) => ({
+                    value: priority,
+                    label: priority.replace("_", " "),
+                  }))}
+                  onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                  placeholder="All priorities"
+                  emptyMessage="No priorities available"
+                />
+              </div>
+              <div className="w-full sm:w-60 lg:flex-1">
+                <Label
+                  htmlFor="task-guild-filter"
+                  className="text-muted-foreground mb-2 block text-xs font-medium"
+                >
+                  Guild
+                </Label>
+                <MultiSelect
+                  selectedValues={guildFilters.map(String)}
+                  options={guilds.map((guild) => ({
+                    value: String(guild.id),
+                    label: guild.name,
+                  }))}
+                  onChange={(values) => {
+                    const numericValues = values.map(Number).filter(Number.isFinite);
+                    setGuildFilters(numericValues);
+                  }}
+                  placeholder="All guilds"
+                  emptyMessage="No guilds available"
+                />
+              </div>
+              <div className="w-full sm:w-60 lg:flex-1">
+                <Label
+                  htmlFor="task-initiative-filter"
+                  className="text-muted-foreground mb-2 block text-xs font-medium"
+                >
+                  Initiative
+                </Label>
+                <MultiSelect
+                  selectedValues={initiativeFilters.map(String)}
+                  options={initiativeOptions.map((initiative) => ({
+                    value: initiative.id,
+                    label: initiative.name,
+                  }))}
+                  onChange={(values) => {
+                    const numericValues = values.map(Number).filter(Number.isFinite);
+                    setInitiativeFilters(numericValues);
+                  }}
+                  placeholder="All initiatives"
+                  emptyMessage="No initiatives available"
+                />
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="relative">
+          {isRefetching ? (
+            <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
+              <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-muted-foreground text-sm">Updating…</span>
+              </div>
+            </div>
+          ) : null}
+          {isInitialLoad ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : hasError ? (
+            <p className="text-destructive py-8 text-center text-sm">Unable to load your tasks.</p>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={displayTasks}
+              groupingOptions={groupingOptions}
+              initialState={{
+                grouping: ["date group"],
+                expanded: true,
+                columnVisibility: { "date group": false, guild: false },
+              }}
+              initialSorting={[
+                { id: "date group", desc: false },
+                { id: "due date", desc: false },
+              ]}
+              enableFilterInput
+              filterInputColumnKey="title"
+              filterInputPlaceholder="Filter tasks..."
+              enablePagination
+              enableResetSorting
+              enableColumnVisibilityDropdown
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </PullToRefresh>
   );
 };

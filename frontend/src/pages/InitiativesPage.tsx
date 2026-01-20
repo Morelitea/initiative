@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,10 @@ export const InitiativesPage = () => {
   const { data: roleLabels } = useRoleLabels();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+
+  const handleRefresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+  }, [queryClient]);
 
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
@@ -176,169 +181,173 @@ export const InitiativesPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">My Initiatives</h1>
-          <p className="text-muted-foreground text-sm">
-            Open an initiative to manage documents, projects, and membership.
-          </p>
-        </div>
-        {canCreateInitiatives ? (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New initiative
-          </Button>
-        ) : null}
-      </div>
-
-      {!activeGuild ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Select a guild</CardTitle>
-            <CardDescription>
-              Switch into a guild to view its initiatives and memberships.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : null}
-
-      {initiativesQuery.isLoading ? (
-        <div className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading initiatives…
-        </div>
-      ) : null}
-
-      {initiativesQuery.isError ? (
-        <p className="text-destructive text-sm">Unable to load initiatives right now.</p>
-      ) : null}
-
-      {!initiativesQuery.isLoading && !initiativesQuery.isError && activeGuild ? (
-        visibleInitiatives.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {visibleInitiatives.map((initiative) => (
-              <Card key={initiative.id} className="shadow-sm">
-                <CardHeader className="space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <InitiativeColorDot color={initiative.color} />
-                      <CardTitle className="text-xl">{initiative.name}</CardTitle>
-                    </div>
-                    {renderMembershipBadge(initiative)}
-                  </div>
-                  {initiative.description ? (
-                    <Markdown content={initiative.description} className="text-sm" />
-                  ) : (
-                    <CardDescription className="text-sm">No description yet.</CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent className="text-muted-foreground text-sm">
-                  <div className="mt-3 space-y-1 text-xs font-medium">
-                    <p>
-                      Members: <span className="font-semibold">{initiative.members.length}</span>
-                    </p>
-                    <p>
-                      Projects:{" "}
-                      <span className="font-semibold">
-                        {projectsQuery.isLoading ? "…" : (projectCounts.get(initiative.id) ?? 0)}
-                      </span>
-                    </p>
-                    <p>
-                      Documents:{" "}
-                      <span className="font-semibold">
-                        {documentsQuery.isLoading ? "…" : (documentCounts.get(initiative.id) ?? 0)}
-                      </span>
-                    </p>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={`/initiatives/${initiative.id}`}>Open initiative</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">My Initiatives</h1>
+            <p className="text-muted-foreground text-sm">
+              Open an initiative to manage documents, projects, and membership.
+            </p>
           </div>
-        ) : (
+          {canCreateInitiatives ? (
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New initiative
+            </Button>
+          ) : null}
+        </div>
+
+        {!activeGuild ? (
           <Card>
             <CardHeader>
-              <CardTitle>No initiatives yet</CardTitle>
+              <CardTitle>Select a guild</CardTitle>
               <CardDescription>
-                You&apos;re not part of any initiatives in this guild. Check back after an admin
-                invites you or create one if you have permissions.
+                Switch into a guild to view its initiatives and memberships.
               </CardDescription>
             </CardHeader>
-            {canCreateInitiatives ? (
-              <CardFooter>
-                <Button onClick={() => setCreateDialogOpen(true)}>Create initiative</Button>
-              </CardFooter>
-            ) : null}
           </Card>
-        )
-      ) : null}
+        ) : null}
 
-      {canCreateInitiatives ? (
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogContent className="bg-card max-h-screen overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create initiative</DialogTitle>
-              <DialogDescription>
-                Give it a name, optional description, and color to organize projects.
-              </DialogDescription>
-            </DialogHeader>
-            <form className="space-y-4" onSubmit={handleCreateInitiative}>
-              <div className="space-y-2">
-                <Label htmlFor="new-initiative-name">Name</Label>
-                <Input
-                  id="new-initiative-name"
-                  value={newName}
-                  onChange={(event) => setNewName(event.target.value)}
-                  placeholder="Customer onboarding"
-                  required
-                  disabled={createInitiative.isPending}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-initiative-description">Description</Label>
-                <Textarea
-                  id="new-initiative-description"
-                  value={newDescription}
-                  onChange={(event) => setNewDescription(event.target.value)}
-                  placeholder="Optional summary (Markdown supported)"
-                  rows={3}
-                  disabled={createInitiative.isPending}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-initiative-color">Color</Label>
-                <ColorPickerPopover
-                  id="new-initiative-color"
-                  value={newColor}
-                  onChange={setNewColor}
-                  triggerLabel="Adjust"
-                  disabled={createInitiative.isPending}
-                />
-                <p className="text-muted-foreground text-xs">
-                  This accent appears on projects tied to the initiative.
-                </p>
-              </div>
-              <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button type="submit" disabled={createInitiative.isPending}>
-                  {createInitiative.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating…
-                    </>
-                  ) : (
-                    "Create initiative"
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </div>
+        {initiativesQuery.isLoading ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading initiatives…
+          </div>
+        ) : null}
+
+        {initiativesQuery.isError ? (
+          <p className="text-destructive text-sm">Unable to load initiatives right now.</p>
+        ) : null}
+
+        {!initiativesQuery.isLoading && !initiativesQuery.isError && activeGuild ? (
+          visibleInitiatives.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {visibleInitiatives.map((initiative) => (
+                <Card key={initiative.id} className="shadow-sm">
+                  <CardHeader className="space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <InitiativeColorDot color={initiative.color} />
+                        <CardTitle className="text-xl">{initiative.name}</CardTitle>
+                      </div>
+                      {renderMembershipBadge(initiative)}
+                    </div>
+                    {initiative.description ? (
+                      <Markdown content={initiative.description} className="text-sm" />
+                    ) : (
+                      <CardDescription className="text-sm">No description yet.</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className="text-muted-foreground text-sm">
+                    <div className="mt-3 space-y-1 text-xs font-medium">
+                      <p>
+                        Members: <span className="font-semibold">{initiative.members.length}</span>
+                      </p>
+                      <p>
+                        Projects:{" "}
+                        <span className="font-semibold">
+                          {projectsQuery.isLoading ? "…" : (projectCounts.get(initiative.id) ?? 0)}
+                        </span>
+                      </p>
+                      <p>
+                        Documents:{" "}
+                        <span className="font-semibold">
+                          {documentsQuery.isLoading
+                            ? "…"
+                            : (documentCounts.get(initiative.id) ?? 0)}
+                        </span>
+                      </p>
+                    </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to={`/initiatives/${initiative.id}`}>Open initiative</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>No initiatives yet</CardTitle>
+                <CardDescription>
+                  You&apos;re not part of any initiatives in this guild. Check back after an admin
+                  invites you or create one if you have permissions.
+                </CardDescription>
+              </CardHeader>
+              {canCreateInitiatives ? (
+                <CardFooter>
+                  <Button onClick={() => setCreateDialogOpen(true)}>Create initiative</Button>
+                </CardFooter>
+              ) : null}
+            </Card>
+          )
+        ) : null}
+
+        {canCreateInitiatives ? (
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogContent className="bg-card max-h-screen overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create initiative</DialogTitle>
+                <DialogDescription>
+                  Give it a name, optional description, and color to organize projects.
+                </DialogDescription>
+              </DialogHeader>
+              <form className="space-y-4" onSubmit={handleCreateInitiative}>
+                <div className="space-y-2">
+                  <Label htmlFor="new-initiative-name">Name</Label>
+                  <Input
+                    id="new-initiative-name"
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    placeholder="Customer onboarding"
+                    required
+                    disabled={createInitiative.isPending}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-initiative-description">Description</Label>
+                  <Textarea
+                    id="new-initiative-description"
+                    value={newDescription}
+                    onChange={(event) => setNewDescription(event.target.value)}
+                    placeholder="Optional summary (Markdown supported)"
+                    rows={3}
+                    disabled={createInitiative.isPending}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-initiative-color">Color</Label>
+                  <ColorPickerPopover
+                    id="new-initiative-color"
+                    value={newColor}
+                    onChange={setNewColor}
+                    triggerLabel="Adjust"
+                    disabled={createInitiative.isPending}
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    This accent appears on projects tied to the initiative.
+                  </p>
+                </div>
+                <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button type="submit" disabled={createInitiative.isPending}>
+                    {createInitiative.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating…
+                      </>
+                    ) : (
+                      "Create initiative"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </div>
+    </PullToRefresh>
   );
 };

@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Pull-to-refresh on mobile app to refresh data without reloading the page (My Tasks, Projects, Project Detail, Initiatives)
+
 ### Fixed
 
 - Android hardware back button now navigates through router history instead of exiting the app
+
+### Changed
+
+- Inverted app icon. Now when it's themed, its more legible.
 
 ## [0.12.4] - 2026-01-18
 
