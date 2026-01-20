@@ -1,6 +1,14 @@
-import { FormEvent, HTMLAttributes, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  HTMLAttributes,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   DragEndEvent,
@@ -30,6 +38,7 @@ import {
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -84,7 +93,12 @@ type ProjectsViewProps = {
 export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const localQueryClient = useQueryClient();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
+
+  const handleRefresh = useCallback(async () => {
+    await localQueryClient.invalidateQueries({ queryKey: ["projects"] });
+  }, [localQueryClient]);
   const claimedManagedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
@@ -585,459 +599,463 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   }
 
   return (
-    <div className="space-y-6">
-      {!lockedInitiativeId && (
-        <div>
-          <div className="flex items-baseline gap-4">
-            <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
-            {isProjectManager && (
-              <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Add Project
-              </Button>
-            )}
-          </div>
-          <p className="text-muted-foreground">
-            Track initiatives and collaborate with your guild.
-          </p>
-        </div>
-      )}
-
-      <Tabs
-        value={tabValue}
-        onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
-        className="space-y-6"
-      >
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="active" className="inline-flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4" />
-            Active Projects
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="inline-flex items-center gap-2">
-            <ScrollText className="h-4 w-4" />
-            Templates
-          </TabsTrigger>
-          <TabsTrigger value="archive" className="inline-flex items-center gap-2">
-            <Archive className="h-4 w-4" />
-            Archive
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="active" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {isProjectManager && lockedInitiativeId && (
-              <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Add Project
-              </Button>
-            )}
-            <Tabs
-              value={viewMode}
-              onValueChange={(value) => setViewMode(value as "grid" | "list")}
-              className="w-auto"
-            >
-              <TabsList className="grid grid-cols-2">
-                <TabsTrigger value="grid" className="inline-flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4" />
-                  Grid
-                </TabsTrigger>
-                <TabsTrigger value="list" className="inline-flex items-center gap-2">
-                  <List className="h-4 w-4" />
-                  List
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-            <div className="flex items-center justify-between sm:hidden">
-              <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
-                <Filter className="h-4 w-4" />
-                Filters
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-3">
-                  {filtersOpen ? "Hide" : "Show"} filters
-                  <ChevronDown
-                    className={`ml-1 h-4 w-4 transition-transform ${
-                      filtersOpen ? "rotate-180" : ""
-                    }`}
-                  />
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6">
+        {!lockedInitiativeId && (
+          <div>
+            <div className="flex items-baseline gap-4">
+              <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
+              {isProjectManager && (
+                <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add Project
                 </Button>
-              </CollapsibleTrigger>
+              )}
             </div>
-            <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-              <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
-                <div className="w-full lg:flex-1">
-                  <Label
-                    htmlFor="project-search"
-                    className="text-muted-foreground text-xs font-medium"
-                  >
-                    Filter by name
-                  </Label>
-                  <Input
-                    id="project-search"
-                    placeholder="Search projects"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="min-w-60"
-                  />
+            <p className="text-muted-foreground">
+              Track initiatives and collaborate with your guild.
+            </p>
+          </div>
+        )}
+
+        <Tabs
+          value={tabValue}
+          onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
+          className="space-y-6"
+        >
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="active" className="inline-flex items-center gap-2">
+              <LayoutGrid className="h-4 w-4" />
+              Active Projects
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="inline-flex items-center gap-2">
+              <ScrollText className="h-4 w-4" />
+              Templates
+            </TabsTrigger>
+            <TabsTrigger value="archive" className="inline-flex items-center gap-2">
+              <Archive className="h-4 w-4" />
+              Archive
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {isProjectManager && lockedInitiativeId && (
+                <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Add Project
+                </Button>
+              )}
+              <Tabs
+                value={viewMode}
+                onValueChange={(value) => setViewMode(value as "grid" | "list")}
+                className="w-auto"
+              >
+                <TabsList className="grid grid-cols-2">
+                  <TabsTrigger value="grid" className="inline-flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" />
+                    Grid
+                  </TabsTrigger>
+                  <TabsTrigger value="list" className="inline-flex items-center gap-2">
+                    <List className="h-4 w-4" />
+                    List
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+              <div className="flex items-center justify-between sm:hidden">
+                <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
+                  <Filter className="h-4 w-4" />
+                  Filters
                 </div>
-                {lockedInitiativeId ? (
-                  <div className="w-full sm:w-60">
-                    <Label className="text-muted-foreground text-xs font-medium">Initiative</Label>
-                    <p className="text-sm font-medium">
-                      {lockedInitiative?.name ?? "Selected initiative"}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="w-full sm:w-60">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 px-3">
+                    {filtersOpen ? "Hide" : "Show"} filters
+                    <ChevronDown
+                      className={`ml-1 h-4 w-4 transition-transform ${
+                        filtersOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
+                  <div className="w-full lg:flex-1">
                     <Label
-                      htmlFor="project-initiative-filter"
+                      htmlFor="project-search"
                       className="text-muted-foreground text-xs font-medium"
                     >
-                      Filter by initiative
+                      Filter by name
                     </Label>
-                    <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-                      <SelectTrigger id="project-initiative-filter">
-                        <SelectValue placeholder="All initiatives" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                        {availableInitiatives.map((initiative) => (
-                          <SelectItem key={initiative.id} value={initiative.id.toString()}>
-                            {initiative.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="w-full sm:w-60">
-                  <Label
-                    htmlFor="project-sort"
-                    className="text-muted-foreground text-xs font-medium"
-                  >
-                    Sort projects
-                  </Label>
-                  <Select
-                    value={sortMode}
-                    onValueChange={(value) =>
-                      setSortMode(
-                        value as
-                          | "custom"
-                          | "updated"
-                          | "created"
-                          | "alphabetical"
-                          | "recently_viewed"
-                      )
-                    }
-                  >
-                    <SelectTrigger id="project-sort">
-                      <SelectValue placeholder="Select sort order" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="custom">Custom (drag & drop)</SelectItem>
-                      <SelectItem value="recently_viewed">Recently opened</SelectItem>
-                      <SelectItem value="updated">Recently updated</SelectItem>
-                      <SelectItem value="created">Recently created</SelectItem>
-                      <SelectItem value="alphabetical">Alphabetical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-full sm:w-60">
-                  <Label
-                    htmlFor="favorites-only"
-                    className="text-muted-foreground text-xs font-medium"
-                  >
-                    Favorites
-                  </Label>
-                  <div className="bg-background/60 flex h-10 items-center gap-3 rounded-md border px-3">
-                    <Switch
-                      id="favorites-only"
-                      checked={favoritesOnly}
-                      onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
-                      aria-label="Filter to favorite projects"
+                    <Input
+                      id="project-search"
+                      placeholder="Search projects"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      className="min-w-60"
                     />
-                    <span className="text-muted-foreground text-sm">Show only favorites</span>
                   </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {filteredProjects.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              {projects.length === 0
-                ? "No projects yet. Create one to get started."
-                : "No projects match your filters."}
-            </p>
-          ) : (
-            <>
-              {pinnedProjectsSection}
-              {sortedProjects.length > 0 ? (
-                projectCards
-              ) : pinnedProjects.length > 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  Only pinned projects match your filters.
-                </p>
-              ) : null}
-            </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="templates">
-          {templatesQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading templates…</p>
-          ) : templatesQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load templates.</p>
-          ) : templatesQuery.data?.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {templatesQuery.data.map((template) => (
-                <Card key={template.id} className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-xl">{template.name}</CardTitle>
-                    {template.description ? (
-                      <Markdown content={template.description} className="text-sm" />
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="text-muted-foreground space-y-2 text-sm">
-                    {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
-                    <p>Last updated: {new Date(template.updated_at).toLocaleString()}</p>
-                  </CardContent>
-                  <CardFooter className="flex flex-wrap gap-3">
-                    <Button asChild variant="link" className="px-0">
-                      <Link to={`/projects/${template.id}`}>View template</Link>
-                    </Button>
-                    {canManageProjects ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => removeTemplate.mutate(template.id)}
-                        disabled={removeTemplate.isPending}
-                      >
-                        Stop using as template
-                      </Button>
-                    ) : null}
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>No templates available</CardTitle>
-                <CardDescription>
-                  Create a template from any project in project settings.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="archive">
-          {archivedQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading archived projects…</p>
-          ) : archivedQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load archived projects.</p>
-          ) : archivedQuery.data?.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {archivedQuery.data.map((archived) => (
-                <Card key={archived.id} className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-xl">{archived.name}</CardTitle>
-                    {archived.description ? (
-                      <Markdown content={archived.description} className="text-sm" />
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="text-muted-foreground space-y-2 text-sm">
-                    {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
-                    <p>
-                      Archived at:{" "}
-                      {archived.archived_at
-                        ? new Date(archived.archived_at).toLocaleString()
-                        : "Unknown"}
-                    </p>
-                  </CardContent>
-                  <CardFooter className="flex flex-wrap gap-3">
-                    <Button asChild variant="link" className="px-0">
-                      <Link to={`/projects/${archived.id}`}>View details</Link>
-                    </Button>
-                    {canManageProjects ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => unarchiveProject.mutate(archived.id)}
-                        disabled={unarchiveProject.isPending}
-                      >
-                        Unarchive
-                      </Button>
-                    ) : null}
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>No archived projects</CardTitle>
-                <CardDescription>Active projects stay on the Active tab.</CardDescription>
-              </CardHeader>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {isProjectManager && (
-        <Button
-          className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
-          onClick={() => setIsComposerOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          Add Project
-        </Button>
-      )}
-
-      {isProjectManager && (
-        <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
-          <DialogContent className="bg-card max-h-screen overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create project</DialogTitle>
-              <DialogDescription>
-                Give the project a name, optional description, and owning initiative.
-              </DialogDescription>
-            </DialogHeader>
-            <form className="w-full max-w-lg" onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="project-icon">Icon (optional)</Label>
-                  <EmojiPicker
-                    id="project-icon"
-                    value={icon || undefined}
-                    onChange={(emoji) => setIcon(emoji ?? "")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="project-name">Name</Label>
-                  <Input
-                    id="project-name"
-                    placeholder="Foundation refresh"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="project-description">Description (Markdown supported)</Label>
-                  <Textarea
-                    id="project-description"
-                    placeholder="Share context to help the initiative prioritize."
-                    rows={3}
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Initiative</Label>
                   {lockedInitiativeId ? (
-                    <div className="rounded-md border px-3 py-2 text-sm">
-                      {lockedInitiative?.name ?? "Selected initiative"}
+                    <div className="w-full sm:w-60">
+                      <Label className="text-muted-foreground text-xs font-medium">
+                        Initiative
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {lockedInitiative?.name ?? "Selected initiative"}
+                      </p>
                     </div>
-                  ) : initiativesQuery.isLoading ? (
-                    <p className="text-muted-foreground text-sm">Loading initiatives…</p>
-                  ) : initiativesQuery.isError ? (
-                    <p className="text-destructive text-sm">Unable to load initiatives.</p>
-                  ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
-                    <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select initiative" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {initiativesQuery.data.map((initiative) => (
-                          <SelectItem key={initiative.id} value={String(initiative.id)}>
-                            {initiative.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   ) : (
-                    <p className="text-muted-foreground text-sm">No initiatives available.</p>
+                    <div className="w-full sm:w-60">
+                      <Label
+                        htmlFor="project-initiative-filter"
+                        className="text-muted-foreground text-xs font-medium"
+                      >
+                        Filter by initiative
+                      </Label>
+                      <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
+                        <SelectTrigger id="project-initiative-filter">
+                          <SelectValue placeholder="All initiatives" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                          {availableInitiatives.map((initiative) => (
+                            <SelectItem key={initiative.id} value={initiative.id.toString()}>
+                              {initiative.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="project-template">Template (optional)</Label>
-                  {templatesQuery.isLoading ? (
-                    <p className="text-muted-foreground text-sm">Loading templates…</p>
-                  ) : templatesQuery.isError ? (
-                    <p className="text-destructive text-sm">Unable to load templates.</p>
-                  ) : (
-                    <Select
-                      value={selectedTemplateId}
-                      onValueChange={setSelectedTemplateId}
-                      disabled={isTemplateProject}
+                  <div className="w-full sm:w-60">
+                    <Label
+                      htmlFor="project-sort"
+                      className="text-muted-foreground text-xs font-medium"
                     >
-                      <SelectTrigger id="project-template">
-                        <SelectValue placeholder="No template" />
+                      Sort projects
+                    </Label>
+                    <Select
+                      value={sortMode}
+                      onValueChange={(value) =>
+                        setSortMode(
+                          value as
+                            | "custom"
+                            | "updated"
+                            | "created"
+                            | "alphabetical"
+                            | "recently_viewed"
+                        )
+                      }
+                    >
+                      <SelectTrigger id="project-sort">
+                        <SelectValue placeholder="Select sort order" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
-                        {templatesQuery.data?.map((template) => (
-                          <SelectItem key={template.id} value={String(template.id)}>
-                            {template.name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="custom">Custom (drag & drop)</SelectItem>
+                        <SelectItem value="recently_viewed">Recently opened</SelectItem>
+                        <SelectItem value="updated">Recently updated</SelectItem>
+                        <SelectItem value="created">Recently created</SelectItem>
+                        <SelectItem value="alphabetical">Alphabetical</SelectItem>
                       </SelectContent>
                     </Select>
-                  )}
-                  {isTemplateProject ? (
-                    <p className="text-muted-foreground text-xs">
-                      Disable &ldquo;Save as template&rdquo; to pick a template.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label htmlFor="create-as-template" className="text-base">
-                      Save as template
-                    </Label>
-                    <p className="text-muted-foreground text-xs">
-                      Template projects live under the Templates tab and can be reused to spin up
-                      new work.
-                    </p>
                   </div>
-                  <Switch
-                    id="create-as-template"
-                    checked={isTemplateProject}
-                    onCheckedChange={(checked) => {
-                      const nextStatus = Boolean(checked);
-                      setIsTemplateProject(nextStatus);
-                      if (nextStatus) {
-                        setSelectedTemplateId(NO_TEMPLATE_VALUE);
-                      }
-                    }}
-                  />
+                  <div className="w-full sm:w-60">
+                    <Label
+                      htmlFor="favorites-only"
+                      className="text-muted-foreground text-xs font-medium"
+                    >
+                      Favorites
+                    </Label>
+                    <div className="bg-background/60 flex h-10 items-center gap-3 rounded-md border px-3">
+                      <Switch
+                        id="favorites-only"
+                        checked={favoritesOnly}
+                        onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
+                        aria-label="Filter to favorite projects"
+                      />
+                      <span className="text-muted-foreground text-sm">Show only favorites</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="submit" disabled={createProject.isPending}>
-                    {createProject.isPending ? "Creating…" : "Create project"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={createProject.isPending}
-                    onClick={() => setIsComposerOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  {createProject.isError ? (
-                    <p className="text-destructive text-sm">Unable to create project.</p>
-                  ) : null}
-                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {filteredProjects.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                {projects.length === 0
+                  ? "No projects yet. Create one to get started."
+                  : "No projects match your filters."}
+              </p>
+            ) : (
+              <>
+                {pinnedProjectsSection}
+                {sortedProjects.length > 0 ? (
+                  projectCards
+                ) : pinnedProjects.length > 0 ? (
+                  <p className="text-muted-foreground text-sm">
+                    Only pinned projects match your filters.
+                  </p>
+                ) : null}
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="templates">
+            {templatesQuery.isLoading ? (
+              <p className="text-muted-foreground text-sm">Loading templates…</p>
+            ) : templatesQuery.isError ? (
+              <p className="text-destructive text-sm">Unable to load templates.</p>
+            ) : templatesQuery.data?.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {templatesQuery.data.map((template) => (
+                  <Card key={template.id} className="shadow-sm">
+                    <CardHeader>
+                      <CardTitle className="text-xl">{template.name}</CardTitle>
+                      {template.description ? (
+                        <Markdown content={template.description} className="text-sm" />
+                      ) : null}
+                    </CardHeader>
+                    <CardContent className="text-muted-foreground space-y-2 text-sm">
+                      {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
+                      <p>Last updated: {new Date(template.updated_at).toLocaleString()}</p>
+                    </CardContent>
+                    <CardFooter className="flex flex-wrap gap-3">
+                      <Button asChild variant="link" className="px-0">
+                        <Link to={`/projects/${template.id}`}>View template</Link>
+                      </Button>
+                      {canManageProjects ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => removeTemplate.mutate(template.id)}
+                          disabled={removeTemplate.isPending}
+                        >
+                          Stop using as template
+                        </Button>
+                      ) : null}
+                    </CardFooter>
+                  </Card>
+                ))}
               </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+            ) : (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>No templates available</CardTitle>
+                  <CardDescription>
+                    Create a template from any project in project settings.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="archive">
+            {archivedQuery.isLoading ? (
+              <p className="text-muted-foreground text-sm">Loading archived projects…</p>
+            ) : archivedQuery.isError ? (
+              <p className="text-destructive text-sm">Unable to load archived projects.</p>
+            ) : archivedQuery.data?.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {archivedQuery.data.map((archived) => (
+                  <Card key={archived.id} className="shadow-sm">
+                    <CardHeader>
+                      <CardTitle className="text-xl">{archived.name}</CardTitle>
+                      {archived.description ? (
+                        <Markdown content={archived.description} className="text-sm" />
+                      ) : null}
+                    </CardHeader>
+                    <CardContent className="text-muted-foreground space-y-2 text-sm">
+                      {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
+                      <p>
+                        Archived at:{" "}
+                        {archived.archived_at
+                          ? new Date(archived.archived_at).toLocaleString()
+                          : "Unknown"}
+                      </p>
+                    </CardContent>
+                    <CardFooter className="flex flex-wrap gap-3">
+                      <Button asChild variant="link" className="px-0">
+                        <Link to={`/projects/${archived.id}`}>View details</Link>
+                      </Button>
+                      {canManageProjects ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => unarchiveProject.mutate(archived.id)}
+                          disabled={unarchiveProject.isPending}
+                        >
+                          Unarchive
+                        </Button>
+                      ) : null}
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>No archived projects</CardTitle>
+                  <CardDescription>Active projects stay on the Active tab.</CardDescription>
+                </CardHeader>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {isProjectManager && (
+          <Button
+            className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
+            onClick={() => setIsComposerOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            Add Project
+          </Button>
+        )}
+
+        {isProjectManager && (
+          <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+            <DialogContent className="bg-card max-h-screen overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create project</DialogTitle>
+                <DialogDescription>
+                  Give the project a name, optional description, and owning initiative.
+                </DialogDescription>
+              </DialogHeader>
+              <form className="w-full max-w-lg" onSubmit={handleSubmit}>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="project-icon">Icon (optional)</Label>
+                    <EmojiPicker
+                      id="project-icon"
+                      value={icon || undefined}
+                      onChange={(emoji) => setIcon(emoji ?? "")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-name">Name</Label>
+                    <Input
+                      id="project-name"
+                      placeholder="Foundation refresh"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-description">Description (Markdown supported)</Label>
+                    <Textarea
+                      id="project-description"
+                      placeholder="Share context to help the initiative prioritize."
+                      rows={3}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Initiative</Label>
+                    {lockedInitiativeId ? (
+                      <div className="rounded-md border px-3 py-2 text-sm">
+                        {lockedInitiative?.name ?? "Selected initiative"}
+                      </div>
+                    ) : initiativesQuery.isLoading ? (
+                      <p className="text-muted-foreground text-sm">Loading initiatives…</p>
+                    ) : initiativesQuery.isError ? (
+                      <p className="text-destructive text-sm">Unable to load initiatives.</p>
+                    ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
+                      <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select initiative" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {initiativesQuery.data.map((initiative) => (
+                            <SelectItem key={initiative.id} value={String(initiative.id)}>
+                              {initiative.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">No initiatives available.</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-template">Template (optional)</Label>
+                    {templatesQuery.isLoading ? (
+                      <p className="text-muted-foreground text-sm">Loading templates…</p>
+                    ) : templatesQuery.isError ? (
+                      <p className="text-destructive text-sm">Unable to load templates.</p>
+                    ) : (
+                      <Select
+                        value={selectedTemplateId}
+                        onValueChange={setSelectedTemplateId}
+                        disabled={isTemplateProject}
+                      >
+                        <SelectTrigger id="project-template">
+                          <SelectValue placeholder="No template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
+                          {templatesQuery.data?.map((template) => (
+                            <SelectItem key={template.id} value={String(template.id)}>
+                              {template.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {isTemplateProject ? (
+                      <p className="text-muted-foreground text-xs">
+                        Disable &ldquo;Save as template&rdquo; to pick a template.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <Label htmlFor="create-as-template" className="text-base">
+                        Save as template
+                      </Label>
+                      <p className="text-muted-foreground text-xs">
+                        Template projects live under the Templates tab and can be reused to spin up
+                        new work.
+                      </p>
+                    </div>
+                    <Switch
+                      id="create-as-template"
+                      checked={isTemplateProject}
+                      onCheckedChange={(checked) => {
+                        const nextStatus = Boolean(checked);
+                        setIsTemplateProject(nextStatus);
+                        if (nextStatus) {
+                          setSelectedTemplateId(NO_TEMPLATE_VALUE);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" disabled={createProject.isPending}>
+                      {createProject.isPending ? "Creating…" : "Create project"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={createProject.isPending}
+                      onClick={() => setIsComposerOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    {createProject.isError ? (
+                      <p className="text-destructive text-sm">Unable to create project.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    </PullToRefresh>
   );
 };
 

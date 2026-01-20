@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 
 import { apiClient } from "@/api/client";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
@@ -26,7 +27,18 @@ export const ProjectDetailPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  const localQueryClient = useQueryClient();
   const parsedProjectId = Number(projectId);
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      localQueryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] }),
+      localQueryClient.invalidateQueries({ queryKey: ["tasks", parsedProjectId] }),
+      localQueryClient.invalidateQueries({
+        queryKey: ["projects", parsedProjectId, "task-statuses"],
+      }),
+    ]);
+  }, [localQueryClient, parsedProjectId]);
 
   const projectQuery = useQuery<Project>({
     queryKey: ["project", parsedProjectId],
@@ -167,53 +179,55 @@ export const ProjectDetailPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb>
-          <BreadcrumbList>
-            {project.initiative && (
-              <>
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link to={`/initiatives/${project.initiative.id}`}>
-                      {project.initiative.name}
-                    </Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-              </>
-            )}
-            <BreadcrumbItem>
-              <BreadcrumbPage>{project.name}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        {canManageSettings ? (
-          <Button asChild variant="outline" size="sm" aria-label="Open project settings">
-            <Link to={`/projects/${project.id}/settings`}>
-              <Settings className="h-5 w-5" /> Project Settings
-            </Link>
-          </Button>
-        ) : null}
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Breadcrumb>
+            <BreadcrumbList>
+              {project.initiative && (
+                <>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink asChild>
+                      <Link to={`/initiatives/${project.initiative.id}`}>
+                        {project.initiative.name}
+                      </Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                </>
+              )}
+              <BreadcrumbItem>
+                <BreadcrumbPage>{project.name}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          {canManageSettings ? (
+            <Button asChild variant="outline" size="sm" aria-label="Open project settings">
+              <Link to={`/projects/${project.id}/settings`}>
+                <Settings className="h-5 w-5" /> Project Settings
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+        <ProjectOverviewCard project={project} projectIsArchived={projectIsArchived} />
+        <ProjectDocumentsSection
+          projectId={project.id}
+          initiativeId={project.initiative_id}
+          documents={project.documents ?? []}
+          canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
+          canAttach={Boolean(canAttachDocuments && !projectIsArchived)}
+        />
+        <ProjectTasksSection
+          projectId={project.id}
+          taskStatuses={taskStatusesQuery.data ?? []}
+          userOptions={userOptions}
+          canEditTaskDetails={canEditTaskDetails}
+          canWriteProject={Boolean(canWriteProject)}
+          projectIsArchived={projectIsArchived}
+          canViewTaskDetails={canViewTaskDetails}
+          onTaskClick={handleTaskClick}
+        />
       </div>
-      <ProjectOverviewCard project={project} projectIsArchived={projectIsArchived} />
-      <ProjectDocumentsSection
-        projectId={project.id}
-        initiativeId={project.initiative_id}
-        documents={project.documents ?? []}
-        canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
-        canAttach={Boolean(canAttachDocuments && !projectIsArchived)}
-      />
-      <ProjectTasksSection
-        projectId={project.id}
-        taskStatuses={taskStatusesQuery.data ?? []}
-        userOptions={userOptions}
-        canEditTaskDetails={canEditTaskDetails}
-        canWriteProject={Boolean(canWriteProject)}
-        projectIsArchived={projectIsArchived}
-        canViewTaskDetails={canViewTaskDetails}
-        onTaskClick={handleTaskClick}
-      />
-    </div>
+    </PullToRefresh>
   );
 };
