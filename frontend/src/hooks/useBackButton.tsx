@@ -15,8 +15,10 @@ export const useBackButton = () => {
       return;
     }
 
-    const listener = App.addListener("backButton", ({ canGoBack }) => {
-      if (canGoBack) {
+    const listener = App.addListener("backButton", () => {
+      // Check if we can navigate back in React Router history
+      // window.history.length > 1 indicates we have history to go back to
+      if (window.history.length > 1) {
         navigate(-1);
       } else {
         const now = Date.now();
