@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   Comment,
+  GenerateDescriptionResponse,
   Project,
   ProjectTaskStatus,
   Task,
@@ -40,13 +41,24 @@ import type {
   TaskRecurrenceStrategy,
   User,
 } from "@/types/api";
+import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
-import { Archive, ArchiveRestore, Save, X, FolderInput, Copy, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Save,
+  X,
+  FolderInput,
+  Copy,
+  Trash2,
+  Sparkles,
+  Loader2,
+} from "lucide-react";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -75,6 +87,7 @@ export const TaskEditPage = () => {
   const { user } = useAuth();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
+  const { isEnabled: aiEnabled } = useAIEnabled();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -273,6 +286,26 @@ export const TaskEditPage = () => {
       const message = isAxiosError(error)
         ? (error.response?.data?.detail ?? "Unable to update task")
         : "Unable to update task";
+      toast.error(message);
+    },
+  });
+
+  const generateDescription = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<GenerateDescriptionResponse>(
+        `/tasks/${parsedTaskId}/ai/description`
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setDescription(data.description);
+      setIsEditingDescription(true);
+      toast.success("Description generated");
+    },
+    onError: (error) => {
+      const message = isAxiosError(error)
+        ? (error.response?.data?.detail ?? "Unable to generate description")
+        : "Unable to generate description";
       toast.error(message);
     },
   });
@@ -500,6 +533,23 @@ export const TaskEditPage = () => {
                       onClick={() => setIsEditingDescription((prev) => !prev)}
                     >
                       {isEditingDescription ? "Preview" : "Edit"}
+                    </Button>
+                  ) : null}
+                  {!isReadOnly && aiEnabled ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => generateDescription.mutate()}
+                      disabled={generateDescription.isPending}
+                    >
+                      {generateDescription.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                      AI Generate
                     </Button>
                   ) : null}
                 </div>

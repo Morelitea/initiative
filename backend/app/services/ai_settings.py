@@ -526,18 +526,12 @@ async def _test_anthropic_connection(
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # Anthropic doesn't have a models endpoint, so we test with a minimal request
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
+            # Fetch available models from Anthropic's models endpoint
+            response = await client.get(
+                "https://api.anthropic.com/v1/models",
                 headers={
                     "x-api-key": api_key,
                     "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model or "claude-3-haiku-20240307",
-                    "max_tokens": 1,
-                    "messages": [{"role": "user", "content": "Hi"}],
                 },
             )
 
@@ -546,28 +540,28 @@ async def _test_anthropic_connection(
                     success=False,
                     message="Invalid API key",
                 )
-            elif response.status_code == 400:
-                error = response.json().get("error", {})
-                if "model" in str(error):
+            elif response.status_code != 200:
+                return AITestConnectionResponse(
+                    success=False,
+                    message=f"API error: {response.status_code}",
+                )
+
+            data = response.json()
+            models = [m["id"] for m in data.get("data", [])]
+
+            # Validate model if specified
+            if model and models:
+                if model not in models:
                     return AITestConnectionResponse(
                         success=False,
-                        message=f"Invalid model: {model}",
+                        message=f"Model '{model}' not found. Select a model from the list.",
+                        available_models=models,
                     )
-
-            # Success or quota errors mean the key is valid
-            available_models = [
-                "claude-sonnet-4-20250514",
-                "claude-3-5-sonnet-20241022",
-                "claude-3-5-haiku-20241022",
-                "claude-3-opus-20240229",
-                "claude-3-sonnet-20240229",
-                "claude-3-haiku-20240307",
-            ]
 
             return AITestConnectionResponse(
                 success=True,
                 message="Connection successful",
-                available_models=available_models,
+                available_models=models,
             )
     except httpx.TimeoutException:
         return AITestConnectionResponse(

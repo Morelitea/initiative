@@ -17,15 +17,24 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, Trash2, SquareCheck } from "lucide-react";
+import { GripVertical, Loader2, Trash2, SquareCheck, Sparkles } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { TaskSubtask, TaskSubtaskProgress } from "@/types/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { TaskSubtask, TaskSubtaskProgress, GenerateSubtasksResponse } from "@/types/api";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
+import { useAIEnabled } from "@/hooks/useAIEnabled";
 
 type TaskChecklistProps = {
   taskId: number;
@@ -44,6 +53,10 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
   const [newContent, setNewContent] = useState("");
   const [contentDrafts, setContentDrafts] = useState<Record<number, string>>({});
   const [shouldRefocusAddInput, setShouldRefocusAddInput] = useState(false);
+  const { isEnabled: aiEnabled } = useAIEnabled();
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [generatedSubtasks, setGeneratedSubtasks] = useState<string[]>([]);
+  const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
 
   const subtasksQueryKey = useMemo(() => ["tasks", taskId, "subtasks"], [taskId]);
 
@@ -166,6 +179,56 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
     },
   });
 
+  const generateSubtasksMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<GenerateSubtasksResponse>(
+        `/tasks/${taskId}/ai/subtasks`
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setGeneratedSubtasks(data.subtasks);
+      setSelectedSubtasks(new Set(data.subtasks.map((_, index) => index)));
+      setAiDialogOpen(true);
+    },
+    onError: (error) => {
+      toast.error(parseErrorMessage(error, "Unable to generate subtasks. Please try again."));
+    },
+  });
+
+  const handleAddSelectedSubtasks = async () => {
+    const subtasksToAdd = generatedSubtasks.filter((_, index) => selectedSubtasks.has(index));
+    if (subtasksToAdd.length === 0) {
+      setAiDialogOpen(false);
+      return;
+    }
+
+    try {
+      for (const content of subtasksToAdd) {
+        await apiClient.post<TaskSubtask>(`/tasks/${taskId}/subtasks`, { content });
+      }
+      invalidateRelatedData();
+      toast.success(`Added ${subtasksToAdd.length} subtask${subtasksToAdd.length > 1 ? "s" : ""}`);
+      setAiDialogOpen(false);
+      setGeneratedSubtasks([]);
+      setSelectedSubtasks(new Set());
+    } catch (error) {
+      toast.error(parseErrorMessage(error, "Unable to add subtasks. Please try again."));
+    }
+  };
+
+  const toggleSubtaskSelection = (index: number) => {
+    setSelectedSubtasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   const handleAdd = () => {
     if (!canEdit || createSubtask.isPending) {
       return;
@@ -268,10 +331,28 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <SquareCheck className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-          Subtasks
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <SquareCheck className="text-muted-foreground h-4 w-4" aria-hidden="true" />
+            Subtasks
+          </CardTitle>
+          {canEdit && aiEnabled ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => generateSubtasksMutation.mutate()}
+              disabled={generateSubtasksMutation.isPending}
+            >
+              {generateSubtasksMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sparkles className="h-3 w-3" />
+              )}
+              AI Generate
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {subtasksQuery.isLoading ? (
@@ -348,6 +429,40 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
           </p>
         ) : null}
       </CardContent>
+
+      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>AI-Generated Subtasks</DialogTitle>
+            <DialogDescription>Select the subtasks you want to add to this task.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            {generatedSubtasks.map((subtask, index) => (
+              <div key={index} className="flex items-center gap-3 rounded-md border p-3">
+                <Checkbox
+                  id={`generated-subtask-${index}`}
+                  checked={selectedSubtasks.has(index)}
+                  onCheckedChange={() => toggleSubtaskSelection(index)}
+                />
+                <label
+                  htmlFor={`generated-subtask-${index}`}
+                  className="flex-1 cursor-pointer text-sm"
+                >
+                  {subtask}
+                </label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddSelectedSubtasks} disabled={selectedSubtasks.size === 0}>
+              Add Selected ({selectedSubtasks.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
