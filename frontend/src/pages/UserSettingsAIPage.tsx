@@ -18,6 +18,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
 import type {
+  AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
   UserAISettings,
@@ -122,6 +123,27 @@ export const UserSettingsAIPage = () => {
       }
     },
     onError: () => toast.error("Unable to test connection"),
+  });
+
+  const fetchModelsMutation = useMutation({
+    mutationFn: async () => {
+      const provider = formState.useInheritedSettings
+        ? settingsQuery.data?.effective_provider
+        : formState.provider;
+      const response = await apiClient.post<AIModelsResponse>("/settings/ai/models", {
+        provider: provider,
+        api_key: formState.apiKey || null,
+        base_url: formState.useInheritedSettings
+          ? settingsQuery.data?.effective_base_url
+          : formState.baseUrl || null,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.models.length > 0) {
+        setAvailableModels(data.models);
+      }
+    },
   });
 
   if (settingsQuery.isLoading) {
@@ -362,10 +384,13 @@ export const UserSettingsAIPage = () => {
                     value={formState.model}
                     onValueChange={(value) => setFormState((prev) => ({ ...prev, model: value }))}
                     placeholder={providerConfig?.modelPlaceholder ?? "Select or type a model"}
+                    onOpen={() => {
+                      if (activeProvider && !fetchModelsMutation.isPending) {
+                        fetchModelsMutation.mutate();
+                      }
+                    }}
+                    isLoading={fetchModelsMutation.isPending}
                   />
-                  <p className="text-muted-foreground text-xs">
-                    Click &ldquo;Test Connection&rdquo; to fetch available models from the provider.
-                  </p>
                 </div>
               )}
             </>

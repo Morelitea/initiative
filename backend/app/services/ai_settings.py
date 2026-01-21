@@ -701,3 +701,139 @@ async def _test_custom_connection(
             success=False,
             message=f"Connection failed: {str(e)}",
         )
+
+
+# Fetch models functions
+async def fetch_models(
+    provider: AIProvider,
+    api_key: str | None,
+    base_url: str | None,
+) -> tuple[list[str], str | None]:
+    """Fetch available models from an AI provider.
+
+    Returns (models, error_message). If successful, error_message is None.
+    """
+    if provider == AIProvider.openai:
+        return await _fetch_openai_models(api_key)
+    elif provider == AIProvider.anthropic:
+        return await _fetch_anthropic_models(api_key)
+    elif provider == AIProvider.ollama:
+        return await _fetch_ollama_models(base_url)
+    elif provider == AIProvider.custom:
+        return await _fetch_custom_models(api_key, base_url)
+    else:
+        return [], f"Unknown provider: {provider}"
+
+
+async def _fetch_openai_models(api_key: str | None) -> tuple[list[str], str | None]:
+    """Fetch available models from OpenAI."""
+    if not api_key:
+        return [], "API key required"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+
+            if response.status_code == 401:
+                return [], "Invalid API key"
+            elif response.status_code != 200:
+                return [], f"API error: {response.status_code}"
+
+            data = response.json()
+            all_models = [m["id"] for m in data.get("data", [])]
+            chat_models = [m for m in all_models if _is_openai_chat_model(m)]
+            sorted_models = _sort_openai_models(chat_models)
+            return sorted_models, None
+    except httpx.TimeoutException:
+        return [], "Request timed out"
+    except Exception as e:
+        return [], str(e)
+
+
+async def _fetch_anthropic_models(api_key: str | None) -> tuple[list[str], str | None]:
+    """Fetch available models from Anthropic."""
+    if not api_key:
+        return [], "API key required"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://api.anthropic.com/v1/models",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+            )
+
+            if response.status_code == 401:
+                return [], "Invalid API key"
+            elif response.status_code != 200:
+                return [], f"API error: {response.status_code}"
+
+            data = response.json()
+            models = [m["id"] for m in data.get("data", [])]
+            return models, None
+    except httpx.TimeoutException:
+        return [], "Request timed out"
+    except Exception as e:
+        return [], str(e)
+
+
+async def _fetch_ollama_models(base_url: str | None) -> tuple[list[str], str | None]:
+    """Fetch available models from Ollama."""
+    url = (base_url or "http://localhost:11434").rstrip("/")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{url}/api/tags")
+
+            if response.status_code != 200:
+                return [], f"API error: {response.status_code}"
+
+            data = response.json()
+            models = [m["name"] for m in data.get("models", [])]
+            return models, None
+    except httpx.ConnectError:
+        return [], f"Could not connect to Ollama at {url}"
+    except httpx.TimeoutException:
+        return [], "Request timed out"
+    except Exception as e:
+        return [], str(e)
+
+
+async def _fetch_custom_models(
+    api_key: str | None,
+    base_url: str | None,
+) -> tuple[list[str], str | None]:
+    """Fetch available models from custom OpenAI-compatible endpoint."""
+    if not base_url:
+        return [], "Base URL required"
+
+    url = base_url.rstrip("/")
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{url}/models", headers=headers)
+
+            if response.status_code == 401:
+                return [], "Invalid API key"
+            elif response.status_code == 404:
+                return [], "Models endpoint not available"
+            elif response.status_code != 200:
+                return [], f"API error: {response.status_code}"
+
+            data = response.json()
+            models = [m["id"] for m in data.get("data", [])]
+            return models[:50], None  # Limit to 50 models
+    except httpx.ConnectError:
+        return [], f"Could not connect to {url}"
+    except httpx.TimeoutException:
+        return [], "Request timed out"
+    except Exception as e:
+        return [], str(e)

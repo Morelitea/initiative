@@ -503,7 +503,7 @@ export interface UserAISettings {
   effective_base_url?: string | null;
   effective_model?: string | null;
   can_override: boolean;
-  settings_source: "platform" | "guild" | "user";
+  settings_source: "platform" | "guild" | "user" | "mixed";
 }
 
 export interface UserAISettingsUpdate {
@@ -535,6 +535,17 @@ export interface AITestConnectionResponse {
   success: boolean;
   message: string;
   available_models?: string[] | null;
+}
+
+export interface AIModelsRequest {
+  provider: AIProvider;
+  api_key?: string | null;
+  base_url?: string | null;
+}
+
+export interface AIModelsResponse {
+  models: string[];
+  error?: string | null;
 }
 
 // AI Generation types

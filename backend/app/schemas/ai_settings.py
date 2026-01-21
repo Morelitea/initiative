@@ -130,3 +130,15 @@ class AITestConnectionResponse(BaseModel):
     success: bool
     message: str
     available_models: Optional[list[str]] = None
+
+
+# Fetch models schemas
+class AIModelsRequest(BaseModel):
+    provider: AIProvider
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class AIModelsResponse(BaseModel):
+    models: list[str]
+    error: Optional[str] = None

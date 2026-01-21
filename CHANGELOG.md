@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Anthropic test connection now fetches models dynamically from their API instead of hardcoded list
+- Model combobox now fetches available models automatically when opened (improved UX)
 
 ## [0.12.5] - 2026-01-20
 

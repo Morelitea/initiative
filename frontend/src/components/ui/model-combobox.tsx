@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
@@ -20,6 +20,8 @@ export interface ModelComboboxProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  onOpen?: () => void;
+  isLoading?: boolean;
 }
 
 export const ModelCombobox = ({
@@ -29,6 +31,8 @@ export const ModelCombobox = ({
   placeholder = "Select or type a model",
   disabled = false,
   className,
+  onOpen,
+  isLoading = false,
 }: ModelComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -64,12 +68,17 @@ export const ModelCombobox = ({
     }
   }, [open]);
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled) return;
+    setOpen(nextOpen);
+    if (nextOpen && onOpen) {
+      onOpen();
+    }
+  };
+
   return (
     <div className={cn("w-full", className)}>
-      <Popover
-        open={disabled ? false : open}
-        onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}
-      >
+      <Popover open={disabled ? false : open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -93,7 +102,12 @@ export const ModelCombobox = ({
             />
             <CommandList>
               <CommandEmpty>
-                {search.length > 0 ? (
+                {isLoading ? (
+                  <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading models...
+                  </div>
+                ) : search.length > 0 ? (
                   <button
                     type="button"
                     className="hover:bg-accent w-full cursor-pointer px-2 py-1.5 text-left text-sm"

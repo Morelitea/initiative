@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
 import type {
+  AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
   PlatformAISettings,
@@ -112,6 +113,22 @@ export const SettingsAIPage = () => {
       }
     },
     onError: () => toast.error("Unable to test connection"),
+  });
+
+  const fetchModelsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<AIModelsResponse>("/settings/ai/models", {
+        provider: formState.provider,
+        api_key: formState.apiKey || null,
+        base_url: formState.baseUrl || null,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.models.length > 0) {
+        setAvailableModels(data.models);
+      }
+    },
   });
 
   if (!isSuperUser) {
@@ -252,10 +269,13 @@ export const SettingsAIPage = () => {
                 value={formState.model}
                 onValueChange={(value) => setFormState((prev) => ({ ...prev, model: value }))}
                 placeholder={providerConfig?.modelPlaceholder ?? "Select or type a model"}
+                onOpen={() => {
+                  if (formState.provider && !fetchModelsMutation.isPending) {
+                    fetchModelsMutation.mutate();
+                  }
+                }}
+                isLoading={fetchModelsMutation.isPending}
               />
-              <p className="text-muted-foreground text-xs">
-                Click &ldquo;Test Connection&rdquo; to fetch available models from the provider.
-              </p>
             </div>
           )}
 

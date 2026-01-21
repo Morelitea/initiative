@@ -14,6 +14,8 @@ from app.api.deps import SessionDep, get_current_active_user, GuildContext, requ
 from app.models.guild import GuildRole
 from app.models.user import User
 from app.schemas.ai_settings import (
+    AIModelsRequest,
+    AIModelsResponse,
     AITestConnectionRequest,
     AITestConnectionResponse,
     GuildAISettingsResponse,
@@ -156,3 +158,32 @@ async def test_ai_connection(
         existing_api_key = resolved.api_key
 
     return await ai_settings_service.test_ai_connection(payload, existing_api_key=existing_api_key)
+
+
+# Fetch models endpoint (any authenticated user)
+@router.post("/ai/models", response_model=AIModelsResponse)
+async def fetch_ai_models(
+    payload: AIModelsRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+) -> AIModelsResponse:
+    """Fetch available models from an AI provider.
+
+    If no API key is provided in the request, it will use the existing
+    key from the user's resolved settings.
+    """
+    api_key = payload.api_key
+    if not api_key:
+        # Get existing key from resolved settings
+        guild_id = x_guild_id or current_user.active_guild_id
+        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_id)
+        api_key = resolved.api_key
+
+    models, error = await ai_settings_service.fetch_models(
+        payload.provider,
+        api_key,
+        payload.base_url,
+    )
+
+    return AIModelsResponse(models=models, error=error)
