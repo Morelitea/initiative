@@ -203,8 +203,8 @@ async def get_user_ai_settings(
         if guild_settings.ai_allow_user_override is not None:
             can_override = guild_settings.ai_allow_user_override
 
-    # Compute effective settings and source
-    settings_source = "platform"
+    # Compute effective settings, tracking which levels contribute
+    sources: set[str] = {"platform"}
 
     # Start with platform settings
     effective_enabled = platform_settings.ai_enabled
@@ -216,31 +216,40 @@ async def get_user_ai_settings(
     if guild_settings and platform_settings.ai_allow_guild_override:
         if guild_settings.ai_enabled is not None:
             effective_enabled = guild_settings.ai_enabled
-            settings_source = "guild"
+            sources.add("guild")
         if guild_settings.ai_provider is not None:
             effective_provider = guild_settings.ai_provider
-            settings_source = "guild"
+            sources.add("guild")
         if guild_settings.ai_base_url is not None:
             effective_base_url = guild_settings.ai_base_url
-            settings_source = "guild"
+            sources.add("guild")
         if guild_settings.ai_model is not None:
             effective_model = guild_settings.ai_model
-            settings_source = "guild"
+            sources.add("guild")
 
     # Apply user overrides if allowed
     if can_override:
         if user.ai_enabled is not None:
             effective_enabled = user.ai_enabled
-            settings_source = "user"
+            sources.add("user")
         if user.ai_provider is not None:
             effective_provider = user.ai_provider
-            settings_source = "user"
+            sources.add("user")
         if user.ai_base_url is not None:
             effective_base_url = user.ai_base_url
-            settings_source = "user"
+            sources.add("user")
         if user.ai_model is not None:
             effective_model = user.ai_model
-            settings_source = "user"
+            sources.add("user")
+
+    # Determine overall settings source
+    sources.discard("platform")  # Only count overrides
+    if not sources:
+        settings_source = "platform"
+    elif len(sources) == 1:
+        settings_source = sources.pop()
+    else:
+        settings_source = "mixed"
 
     return UserAISettingsResponse(
         enabled=user.ai_enabled,

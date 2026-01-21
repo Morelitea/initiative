@@ -204,7 +204,9 @@ export const UserSettingsAIPage = () => {
       ? "guild"
       : settingsQuery.data.settings_source === "user"
         ? "your personal"
-        : "platform";
+        : settingsQuery.data.settings_source === "mixed"
+          ? "inherited"
+          : "platform";
 
   return (
     <Card className="shadow-sm">
@@ -226,9 +228,23 @@ export const UserSettingsAIPage = () => {
             </div>
             <Switch
               checked={formState.useInheritedSettings}
-              onCheckedChange={(checked) =>
-                setFormState((prev) => ({ ...prev, useInheritedSettings: Boolean(checked) }))
-              }
+              onCheckedChange={(checked) => {
+                const useInherited = Boolean(checked);
+                if (useInherited) {
+                  // Switching to inherited - clear custom values
+                  setFormState((prev) => ({ ...prev, useInheritedSettings: true }));
+                } else {
+                  // Switching to custom - initialize with effective values
+                  setFormState((prev) => ({
+                    ...prev,
+                    useInheritedSettings: false,
+                    enabled: settingsQuery.data?.effective_enabled ?? false,
+                    provider: settingsQuery.data?.effective_provider ?? "",
+                    baseUrl: settingsQuery.data?.effective_base_url ?? "",
+                    model: settingsQuery.data?.effective_model ?? "",
+                  }));
+                }
+              }}
             />
           </div>
 
