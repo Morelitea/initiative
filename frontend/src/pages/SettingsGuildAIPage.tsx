@@ -110,6 +110,9 @@ export const SettingsGuildAIPage = () => {
       const provider = formState.useInheritedSettings
         ? settingsQuery.data?.effective_provider
         : formState.provider;
+      if (!provider) {
+        throw new Error("No provider selected");
+      }
       const response = await apiClient.post<AITestConnectionResponse>("/settings/ai/test", {
         provider: provider,
         api_key: formState.apiKey || null,
@@ -140,6 +143,9 @@ export const SettingsGuildAIPage = () => {
       const provider = formState.useInheritedSettings
         ? settingsQuery.data?.effective_provider
         : formState.provider;
+      if (!provider) {
+        throw new Error("No provider selected");
+      }
       const response = await apiClient.post<AIModelsResponse>("/settings/ai/models", {
         provider: provider,
         api_key: formState.apiKey || null,

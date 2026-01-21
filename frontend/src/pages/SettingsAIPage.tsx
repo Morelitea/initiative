@@ -94,6 +94,9 @@ export const SettingsAIPage = () => {
 
   const testMutation = useMutation({
     mutationFn: async () => {
+      if (!formState.provider) {
+        throw new Error("No provider selected");
+      }
       const response = await apiClient.post<AITestConnectionResponse>("/settings/ai/test", {
         provider: formState.provider,
         api_key: formState.apiKey || null,
@@ -117,6 +120,9 @@ export const SettingsAIPage = () => {
 
   const fetchModelsMutation = useMutation({
     mutationFn: async () => {
+      if (!formState.provider) {
+        throw new Error("No provider selected");
+      }
       const response = await apiClient.post<AIModelsResponse>("/settings/ai/models", {
         provider: formState.provider,
         api_key: formState.apiKey || null,
