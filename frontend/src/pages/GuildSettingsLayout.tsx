@@ -6,6 +6,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 
 const guildSettingsTabs = [
   { value: "guild", label: "Guild", path: "/settings/guild" },
+  { value: "ai", label: "AI", path: "/settings/guild/ai" },
   { value: "users", label: "Users", path: "/settings/guild/users" },
 ];
 

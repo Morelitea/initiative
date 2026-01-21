@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- AI Integration with BYOK (Bring Your Own Key) support
+  - Hierarchical settings: Platform → Guild → User with inheritance and override controls
+  - Support for OpenAI, Anthropic, Ollama (local), and custom OpenAI-compatible providers
+  - Test connection validates API keys and model names, fetches available models
+  - Searchable model combobox with custom model name support
+
 ## [0.12.5] - 2026-01-20
 
 ### Added

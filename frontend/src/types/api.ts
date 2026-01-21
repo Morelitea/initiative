@@ -443,3 +443,96 @@ export interface UserStatsResponse {
   heatmap_data: HeatmapDayData[];
   guild_breakdown: GuildTaskBreakdown[];
 }
+
+// AI Settings types
+export type AIProvider = "openai" | "anthropic" | "ollama" | "custom";
+
+export interface PlatformAISettings {
+  enabled: boolean;
+  provider?: AIProvider | null;
+  has_api_key: boolean;
+  base_url?: string | null;
+  model?: string | null;
+  allow_guild_override: boolean;
+  allow_user_override: boolean;
+}
+
+export interface PlatformAISettingsUpdate {
+  enabled: boolean;
+  provider?: AIProvider | null;
+  api_key?: string | null;
+  base_url?: string | null;
+  model?: string | null;
+  allow_guild_override: boolean;
+  allow_user_override: boolean;
+}
+
+export interface GuildAISettings {
+  enabled?: boolean | null;
+  provider?: AIProvider | null;
+  has_api_key: boolean;
+  base_url?: string | null;
+  model?: string | null;
+  allow_user_override?: boolean | null;
+  effective_enabled: boolean;
+  effective_provider?: AIProvider | null;
+  effective_base_url?: string | null;
+  effective_model?: string | null;
+  effective_allow_user_override: boolean;
+  can_override: boolean;
+}
+
+export interface GuildAISettingsUpdate {
+  enabled?: boolean | null;
+  provider?: AIProvider | null;
+  api_key?: string | null;
+  base_url?: string | null;
+  model?: string | null;
+  allow_user_override?: boolean | null;
+  clear_settings?: boolean;
+}
+
+export interface UserAISettings {
+  enabled?: boolean | null;
+  provider?: AIProvider | null;
+  has_api_key: boolean;
+  base_url?: string | null;
+  model?: string | null;
+  effective_enabled: boolean;
+  effective_provider?: AIProvider | null;
+  effective_base_url?: string | null;
+  effective_model?: string | null;
+  can_override: boolean;
+  settings_source: "platform" | "guild" | "user";
+}
+
+export interface UserAISettingsUpdate {
+  enabled?: boolean | null;
+  provider?: AIProvider | null;
+  api_key?: string | null;
+  base_url?: string | null;
+  model?: string | null;
+  clear_settings?: boolean;
+}
+
+export interface ResolvedAISettings {
+  enabled: boolean;
+  provider?: AIProvider | null;
+  has_api_key: boolean;
+  base_url?: string | null;
+  model?: string | null;
+  source: "platform" | "guild" | "user";
+}
+
+export interface AITestConnectionRequest {
+  provider: AIProvider;
+  api_key?: string | null;
+  base_url?: string | null;
+  model?: string | null;
+}
+
+export interface AITestConnectionResponse {
+  success: boolean;
+  message: string;
+  available_models?: string[] | null;
+}
