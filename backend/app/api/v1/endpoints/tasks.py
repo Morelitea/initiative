@@ -22,6 +22,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.schemas.task import TaskCreate, TaskListRead, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.schemas.subtask import (
+    SubtaskBatchCreate,
     SubtaskCreate,
     SubtaskRead,
     SubtaskReorderRequest,
@@ -1179,6 +1180,60 @@ async def create_subtask(
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
+
+
+@router.post("/{task_id}/subtasks/batch", response_model=List[SubtaskRead])
+async def create_subtasks_batch(
+    task_id: int,
+    subtask_batch: SubtaskBatchCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[Subtask]:
+    """Create multiple subtasks at once."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    # Get current max position
+    existing = await _list_subtasks_for_task(session, task.id)
+    position = max((s.position for s in existing), default=-1) + 1
+
+    now = datetime.now(timezone.utc)
+    created_subtasks = []
+
+    for content in subtask_batch.contents:
+        content = content.strip()
+        if not content or len(content) > 2000:
+            continue  # Skip empty or too-long content
+
+        subtask = Subtask(
+            task_id=task.id,
+            content=content,
+            position=position,
+            updated_at=now,
+        )
+        session.add(subtask)
+        created_subtasks.append(subtask)
+        position += 1
+
+    if created_subtasks:
+        _touch_task(task, timestamp=now)
+        session.add(task)
+        await session.commit()
+        for subtask in created_subtasks:
+            await session.refresh(subtask)
+        await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
+
+    return created_subtasks
 
 
 @router.put("/{task_id}/subtasks/order", response_model=List[SubtaskRead])

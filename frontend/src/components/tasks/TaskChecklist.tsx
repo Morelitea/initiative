@@ -204,9 +204,9 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
     }
 
     try {
-      for (const content of subtasksToAdd) {
-        await apiClient.post<TaskSubtask>(`/tasks/${taskId}/subtasks`, { content });
-      }
+      await apiClient.post<TaskSubtask[]>(`/tasks/${taskId}/subtasks/batch`, {
+        contents: subtasksToAdd,
+      });
       invalidateRelatedData();
       toast.success(`Added ${subtasksToAdd.length} subtask${subtasksToAdd.length > 1 ? "s" : ""}`);
       setAiDialogOpen(false);

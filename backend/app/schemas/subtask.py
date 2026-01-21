@@ -18,6 +18,11 @@ class SubtaskUpdate(BaseModel):
     is_completed: Optional[bool] = None
 
 
+class SubtaskBatchCreate(BaseModel):
+    """Create multiple subtasks at once."""
+    contents: list[str] = Field(min_length=1, max_length=50)
+
+
 class SubtaskReorderItem(BaseModel):
     id: int
     position: int
