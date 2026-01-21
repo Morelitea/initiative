@@ -7,6 +7,7 @@ const adminTabs = [
   { value: "auth", label: "Auth", path: "/settings/admin/auth" },
   { value: "branding", label: "Branding", path: "/settings/admin/branding" },
   { value: "email", label: "Email", path: "/settings/admin/email" },
+  { value: "ai", label: "AI", path: "/settings/admin/ai" },
   { value: "users", label: "Users", path: "/settings/admin/users" },
 ];
 

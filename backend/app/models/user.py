@@ -94,6 +94,16 @@ class User(SQLModel, table=True):
         nullable=True,
     )
 
+    # AI Settings (nullable = inherit from guild/platform)
+    ai_enabled: Optional[bool] = Field(
+        default=None,
+        sa_column=Column(Boolean, nullable=True),
+    )
+    ai_provider: Optional[str] = Field(default=None, sa_column=Column(String(50), nullable=True))
+    ai_api_key: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
+    ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
+    ai_model: Optional[str] = Field(default=None, sa_column=Column(String(100), nullable=True))
+
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
     project_permissions: List["ProjectPermission"] = Relationship(back_populates="user")
