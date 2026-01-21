@@ -76,6 +76,14 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Notification preferences**: Control which notifications you receive and when
 - **Activity tracking**: Recently viewed projects and favorites for quick access
 
+### AI Integration
+
+- **Bring Your Own Key (BYOK)**: Configure your own API keys for AI providers
+- **Multiple providers**: Support for OpenAI, Anthropic, Ollama, and OpenAI-compatible APIs
+- **Hierarchical settings**: Platform, guild, and user-level AI configuration with override controls
+- **AI-powered task creation**: Generate task descriptions and subtasks using AI
+- **Smart suggestions**: Auto-generate subtask breakdowns from task titles and descriptions
+
 ### Production Features
 
 - **SMTP email**: Configurable email server for transactional emails and notifications
