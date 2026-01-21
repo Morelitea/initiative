@@ -150,14 +150,14 @@ async def test_ai_connection(
     If no API key is provided in the request, it will use the existing
     key from the user's resolved settings.
     """
-    existing_api_key = None
-    if not payload.api_key:
+    api_key = payload.api_key
+    if not api_key:
         # Get existing key from resolved settings
         guild_id = x_guild_id or current_user.active_guild_id
         resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_id)
-        existing_api_key = resolved.api_key
+        api_key = resolved.api_key
 
-    return await ai_settings_service.test_ai_connection(payload, existing_api_key=existing_api_key)
+    return await ai_settings_service.test_ai_connection(payload, existing_api_key=api_key)
 
 
 # Fetch models endpoint (any authenticated user)
