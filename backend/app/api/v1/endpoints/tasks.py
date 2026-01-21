@@ -28,10 +28,12 @@ from app.schemas.subtask import (
     SubtaskUpdate,
     TaskSubtaskProgress,
 )
+from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescriptionResponse
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
+from app.services import ai_generation as ai_generation_service
 
 router = APIRouter()
 subtasks_router = APIRouter()
@@ -1303,3 +1305,72 @@ async def delete_subtask(
     await session.commit()
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return None
+
+
+# AI Generation endpoints
+@router.post("/{task_id}/ai/subtasks", response_model=GenerateSubtasksResponse)
+async def generate_task_subtasks(
+    task_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> GenerateSubtasksResponse:
+    """Generate AI-powered subtask suggestions for a task."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    # Check write access
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
+
+    try:
+        subtasks = await ai_generation_service.generate_subtasks(
+            session,
+            current_user,
+            guild_context.guild_id,
+            task,
+        )
+        return GenerateSubtasksResponse(subtasks=subtasks)
+    except ai_generation_service.AIGenerationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
+async def generate_task_description(
+    task_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> GenerateDescriptionResponse:
+    """Generate AI-powered description for a task."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    # Check write access
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
+
+    try:
+        description = await ai_generation_service.generate_description(
+            session,
+            current_user,
+            guild_context.guild_id,
+            task,
+        )
+        return GenerateDescriptionResponse(description=description)
+    except ai_generation_service.AIGenerationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

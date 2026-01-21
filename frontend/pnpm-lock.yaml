@@ -155,18 +155,6 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.1.17
         version: 4.1.17(vite@5.4.21(@types/node@20.19.25)(lightningcss@1.30.2))
-      '@tanstack/ai':
-        specifier: ^0.2.2
-        version: 0.2.2
-      '@tanstack/ai-ollama':
-        specifier: ^0.3.0
-        version: 0.3.0(@tanstack/ai@0.2.2)(zod@4.1.13)
-      '@tanstack/ai-openai':
-        specifier: ^0.2.1
-        version: 0.2.1(@tanstack/ai@0.2.2)(zod@4.1.13)
-      '@tanstack/ai-react':
-        specifier: ^0.2.2
-        version: 0.2.2(@tanstack/ai@0.2.2)(@types/react@18.3.27)(react@18.3.1)
       '@tanstack/react-query':
         specifier: ^5.32.0
         version: 5.90.10(react@18.3.1)
@@ -1903,36 +1891,6 @@ packages:
     resolution: {integrity: sha512-4+9w8ZHOiGnpcGI6z1TVVfWaX/koK7fKeSYF3qlYg2xpBtbteP2ddBxiarL+HVgfSJGeK5RIxRQmKm4rTJJAwA==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7
-
-  '@tanstack/ai-client@0.2.2':
-    resolution: {integrity: sha512-7WVYzMas6ACtt4NMGqnduWbKwDr1syYrmgQoy+hw3Iu5lEEIqdI/tG4koJJROtOM7ogUjKQBpIgsX4Tej+fPWA==}
-
-  '@tanstack/ai-ollama@0.3.0':
-    resolution: {integrity: sha512-u/68bLsRehmFsfEcvmMS09yq5vuqOVJs51q1QvBLwxKwBoSzSIKFHArRSVW8W5RcBPdsYxnLyz9d0hcqUy2NjQ==}
-    peerDependencies:
-      '@tanstack/ai': ^0.2.1
-      zod: ^4.0.0
-
-  '@tanstack/ai-openai@0.2.1':
-    resolution: {integrity: sha512-MCD/WgJ7qZr/oWyik/zlsXzuO++np+Ag5l5n/5ZmX4mXc3R8Ga1qDeCt+/7RSSmxDJbogeGGn/0j6JpQLrLmRA==}
-    peerDependencies:
-      '@tanstack/ai': ^0.2.1
-      zod: ^4.0.0
-
-  '@tanstack/ai-react@0.2.2':
-    resolution: {integrity: sha512-CNSOOoAUjre5lQxbQVqsXIJEJsTEdyPfyuvAFtgBGvbAJAVn5+6AZyOJzZZz1YKO3F05yD4hMkygelvoSPTUJA==}
-    peerDependencies:
-      '@tanstack/ai': ^0.2.2
-      '@types/react': '>=18.0.0'
-      react: '>=18.0.0'
-
-  '@tanstack/ai@0.2.2':
-    resolution: {integrity: sha512-qqnUSKYMuJnGhiL6t8BAu3Joc9QhQTJIxUIWgQlObDhdY+dCJMLyv+Z7Zw+WqzCCjDfvWmHgLNWDI8+f3KkOPw==}
-    engines: {node: '>=18'}
-
-  '@tanstack/devtools-event-client@0.4.0':
-    resolution: {integrity: sha512-RPfGuk2bDZgcu9bAJodvO2lnZeHuz4/71HjZ0bGb/SPg8+lyTA+RLSKQvo7fSmPSi8/vcH3aKQ8EM9ywf1olaw==}
-    engines: {node: '>=18'}
 
   '@tanstack/query-core@5.90.10':
     resolution: {integrity: sha512-EhZVFu9rl7GfRNuJLJ3Y7wtbTnENsvzp+YpcAV7kCYiXni1v8qZh++lpw4ch4rrwC0u/EZRnBHIehzCGzwXDSQ==}
@@ -4134,9 +4092,6 @@ packages:
     resolution: {integrity: sha512-gXah6aZrcUxjWg2zR2MwouP2eHlCBzdV4pygudehaKXSGW4v2AsRQUK+lwwXhii6KFZcunEnmSUoYp5CXibxtA==}
     engines: {node: '>= 0.4'}
 
-  ollama@0.6.3:
-    resolution: {integrity: sha512-KEWEhIqE5wtfzEIZbDCLH51VFZ6Z3ZSa6sIOg/E/tBV8S51flyqBOXi+bRxlOYKDf8i327zG9eSTb8IJxvm3Zg==}
-
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
@@ -4147,18 +4102,6 @@ packages:
   open@8.4.2:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
-
-  openai@6.16.0:
-    resolution: {integrity: sha512-fZ1uBqjFUjXzbGc35fFtYKEOxd20kd9fDpFeqWtsOZWiubY8CZ1NAlXHW3iathaFvqmNtCWMIsosCuyeI7Joxg==}
-    hasBin: true
-    peerDependencies:
-      ws: ^8.18.0
-      zod: ^3.25 || ^4.0
-    peerDependenciesMeta:
-      ws:
-        optional: true
-      zod:
-        optional: true
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -4221,9 +4164,6 @@ packages:
   parse-json@5.2.0:
     resolution: {integrity: sha512-ayCKvm/phCGxOkYRSCM82iDwct8/EonSEgCSxWxD7ve6jHggsFl4fZVQBPRNgQoKiuV/odhFrGzQXZwbifC8Rg==}
     engines: {node: '>=8'}
-
-  partial-json@0.1.7:
-    resolution: {integrity: sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==}
 
   path-exists@3.0.0:
     resolution: {integrity: sha512-bpC7GYwiDYQ4wYLe+FA8lhRjhQCMcQGuSgGGqDkg/QerRWw9CmGRT0iSOVRSZJ29NMLZgIzqaljJ63oaL4NIJQ==}
@@ -5199,9 +5139,6 @@ packages:
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
-
-  whatwg-fetch@3.6.20:
-    resolution: {integrity: sha512-EqhiFU6daOA8kpjOWTL0olhVOF3i7OrFzSYiGsEMB8GcXS+RrzauAERX65xMeNWVqxA6HXH2m69Z9LaKKdisfg==}
 
   whatwg-url@5.0.0:
     resolution: {integrity: sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==}
@@ -7091,38 +7028,6 @@ snapshots:
       '@tailwindcss/oxide': 4.1.17
       tailwindcss: 4.1.17
       vite: 5.4.21(@types/node@20.19.25)(lightningcss@1.30.2)
-
-  '@tanstack/ai-client@0.2.2':
-    dependencies:
-      '@tanstack/ai': 0.2.2
-
-  '@tanstack/ai-ollama@0.3.0(@tanstack/ai@0.2.2)(zod@4.1.13)':
-    dependencies:
-      '@tanstack/ai': 0.2.2
-      ollama: 0.6.3
-      zod: 4.1.13
-
-  '@tanstack/ai-openai@0.2.1(@tanstack/ai@0.2.2)(zod@4.1.13)':
-    dependencies:
-      '@tanstack/ai': 0.2.2
-      openai: 6.16.0(zod@4.1.13)
-      zod: 4.1.13
-    transitivePeerDependencies:
-      - ws
-
-  '@tanstack/ai-react@0.2.2(@tanstack/ai@0.2.2)(@types/react@18.3.27)(react@18.3.1)':
-    dependencies:
-      '@tanstack/ai': 0.2.2
-      '@tanstack/ai-client': 0.2.2
-      '@types/react': 18.3.27
-      react: 18.3.1
-
-  '@tanstack/ai@0.2.2':
-    dependencies:
-      '@tanstack/devtools-event-client': 0.4.0
-      partial-json: 0.1.7
-
-  '@tanstack/devtools-event-client@0.4.0': {}
 
   '@tanstack/query-core@5.90.10': {}
 
@@ -9728,10 +9633,6 @@ snapshots:
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
 
-  ollama@0.6.3:
-    dependencies:
-      whatwg-fetch: 3.6.20
-
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
@@ -9745,10 +9646,6 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
-
-  openai@6.16.0(zod@4.1.13):
-    optionalDependencies:
-      zod: 4.1.13
 
   optionator@0.9.4:
     dependencies:
@@ -9824,8 +9721,6 @@ snapshots:
       error-ex: 1.3.4
       json-parse-even-better-errors: 2.3.1
       lines-and-columns: 1.2.4
-
-  partial-json@0.1.7: {}
 
   path-exists@3.0.0: {}
 
@@ -10946,8 +10841,6 @@ snapshots:
       lightningcss: 1.30.2
 
   webidl-conversions@3.0.1: {}
-
-  whatwg-fetch@3.6.20: {}
 
   whatwg-url@5.0.0:
     dependencies:

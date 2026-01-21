@@ -536,3 +536,12 @@ export interface AITestConnectionResponse {
   message: string;
   available_models?: string[] | null;
 }
+
+// AI Generation types
+export interface GenerateSubtasksResponse {
+  subtasks: string[];
+}
+
+export interface GenerateDescriptionResponse {
+  description: string;
+}
