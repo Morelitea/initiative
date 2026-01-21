@@ -143,6 +143,21 @@ const UserStatsPage = lazy(() =>
     default: module.UserStatsPage,
   }))
 );
+const SettingsAIPage = lazy(() =>
+  import("./pages/SettingsAIPage").then((module) => ({
+    default: module.SettingsAIPage,
+  }))
+);
+const SettingsGuildAIPage = lazy(() =>
+  import("./pages/SettingsGuildAIPage").then((module) => ({
+    default: module.SettingsGuildAIPage,
+  }))
+);
+const UserSettingsAIPage = lazy(() =>
+  import("./pages/UserSettingsAIPage").then((module) => ({
+    default: module.UserSettingsAIPage,
+  }))
+);
 
 export const PageRoutes = () => {
   const location = useLocation();
@@ -212,6 +227,7 @@ export const PageRoutes = () => {
                 path="notifications"
                 element={<UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />}
               />
+              <Route path="ai" element={<UserSettingsAIPage />} />
               <Route path="import" element={<UserSettingsImportPage />} />
               <Route path="security" element={<UserSettingsSecurityPage />} />
               <Route
@@ -225,6 +241,7 @@ export const PageRoutes = () => {
         <Route path="/settings" element={<Navigate to="/settings/guild" replace />} />
         <Route path="/settings/guild/*" element={<GuildSettingsLayout />}>
           <Route index element={<SettingsGuildPage />} />
+          <Route path="ai" element={<SettingsGuildAIPage />} />
           <Route path="users" element={<SettingsUsersPage />} />
         </Route>
         <Route path="/settings/admin/*" element={<AdminSettingsLayout />}>
@@ -232,6 +249,7 @@ export const PageRoutes = () => {
           <Route path="auth" element={<SettingsAuthPage />} />
           <Route path="branding" element={<SettingsBrandingPage />} />
           <Route path="email" element={<SettingsEmailPage />} />
+          <Route path="ai" element={<SettingsAIPage />} />
           <Route path="users" element={<SettingsPlatformUsersPage />} />
         </Route>
       </Routes>

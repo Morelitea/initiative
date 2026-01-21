@@ -22,16 +22,19 @@ from pydantic import BaseModel, ValidationError
 
 from app.schemas.task import TaskCreate, TaskListRead, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.schemas.subtask import (
+    SubtaskBatchCreate,
     SubtaskCreate,
     SubtaskRead,
     SubtaskReorderRequest,
     SubtaskUpdate,
     TaskSubtaskProgress,
 )
+from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescriptionResponse
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
+from app.services import ai_generation as ai_generation_service
 
 router = APIRouter()
 subtasks_router = APIRouter()
@@ -1179,6 +1182,60 @@ async def create_subtask(
     return subtask
 
 
+@router.post("/{task_id}/subtasks/batch", response_model=List[SubtaskRead])
+async def create_subtasks_batch(
+    task_id: int,
+    subtask_batch: SubtaskBatchCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[Subtask]:
+    """Create multiple subtasks at once."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role,
+    )
+
+    # Get current max position
+    existing = await _list_subtasks_for_task(session, task.id)
+    position = max((s.position for s in existing), default=-1) + 1
+
+    now = datetime.now(timezone.utc)
+    created_subtasks = []
+
+    for content in subtask_batch.contents:
+        content = content.strip()
+        if not content or len(content) > 2000:
+            continue  # Skip empty or too-long content
+
+        subtask = Subtask(
+            task_id=task.id,
+            content=content,
+            position=position,
+            updated_at=now,
+        )
+        session.add(subtask)
+        created_subtasks.append(subtask)
+        position += 1
+
+    if created_subtasks:
+        _touch_task(task, timestamp=now)
+        session.add(task)
+        await session.commit()
+        for subtask in created_subtasks:
+            await session.refresh(subtask)
+        await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
+
+    return created_subtasks
+
+
 @router.put("/{task_id}/subtasks/order", response_model=List[SubtaskRead])
 async def reorder_subtasks(
     task_id: int,
@@ -1303,3 +1360,72 @@ async def delete_subtask(
     await session.commit()
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return None
+
+
+# AI Generation endpoints
+@router.post("/{task_id}/ai/subtasks", response_model=GenerateSubtasksResponse)
+async def generate_task_subtasks(
+    task_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> GenerateSubtasksResponse:
+    """Generate AI-powered subtask suggestions for a task."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    # Check write access
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
+
+    try:
+        subtasks = await ai_generation_service.generate_subtasks(
+            session,
+            current_user,
+            guild_context.guild_id,
+            task,
+        )
+        return GenerateSubtasksResponse(subtasks=subtasks)
+    except ai_generation_service.AIGenerationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
+async def generate_task_description(
+    task_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> GenerateDescriptionResponse:
+    """Generate AI-powered description for a task."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    # Check write access
+    await _get_project_with_access(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+        access="write",
+        guild_role=guild_context.role,
+    )
+
+    try:
+        description = await ai_generation_service.generate_description(
+            session,
+            current_user,
+            guild_context.guild_id,
+            task,
+        )
+        return GenerateDescriptionResponse(description=description)
+    except ai_generation_service.AIGenerationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

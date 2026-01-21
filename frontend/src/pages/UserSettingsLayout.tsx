@@ -8,6 +8,7 @@ const userSettingsTabs = [
   { value: "profile", label: "Profile", path: "/profile" },
   { value: "interface", label: "Interface", path: "/profile/interface" },
   { value: "notifications", label: "Notifications", path: "/profile/notifications" },
+  { value: "ai", label: "AI", path: "/profile/ai" },
   { value: "import", label: "Import", path: "/profile/import" },
   { value: "security", label: "Security", path: "/profile/security" },
   { value: "danger", label: "Danger Zone", path: "/profile/danger" },
