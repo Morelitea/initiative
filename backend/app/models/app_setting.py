@@ -63,9 +63,9 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     ai_provider: Optional[str] = Field(default=None, sa_column=Column(String(50), nullable=True))
-    ai_api_key: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
-    ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
-    ai_model: Optional[str] = Field(default=None, sa_column=Column(String(100), nullable=True))
+    ai_api_key: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
+    ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(1000), nullable=True))
+    ai_model: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
     ai_allow_guild_override: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
