@@ -107,20 +107,12 @@ export const ModelCombobox = ({
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading models...
                   </div>
-                ) : search.length > 0 ? (
-                  <button
-                    type="button"
-                    className="hover:bg-accent w-full cursor-pointer px-2 py-1.5 text-left text-sm"
-                    onClick={handleCustomSelect}
-                  >
-                    Use &ldquo;{search}&rdquo;
-                  </button>
                 ) : (
                   "No models available"
                 )}
               </CommandEmpty>
               <CommandGroup className="max-h-64 overflow-y-auto">
-                {showCustomOption && (
+                {showCustomOption && filteredModels.length === 0 && (
                   <CommandItem
                     value={`__custom__${search}`}
                     onSelect={handleCustomSelect}
