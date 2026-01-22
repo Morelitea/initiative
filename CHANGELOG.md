@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Users already notified via one mechanism won't receive duplicate notifications
 - Mentions toggle in user notification settings
 
+### Fixed
+
+- Document editor: heading spacing, horizontal rule spacing, code background, url modal background
+
 ## [0.13.0] - 2026-01-21
 
 ### Added
