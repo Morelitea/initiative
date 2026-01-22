@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Enhanced comments with mentions, threading, and notifications
-  - @mention syntax for users (`@{userId}`) with autocomplete popup
-  - Entity mentions for tasks (`#task:id`), documents (`#doc:id`), and projects (`#project:id`)
+  - @mention syntax for users (`@[Name](id)`) with autocomplete popup
+  - Entity mentions for tasks (`#task[Title](id)`), documents (`#doc[Title](id)`), and projects (`#project[Name](id)`)
   - Threaded replies with visual indentation (max 3 levels)
   - Reply button on each comment with inline reply form
 - Comment notifications with intelligent deduplication

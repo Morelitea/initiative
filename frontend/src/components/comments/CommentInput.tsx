@@ -103,20 +103,22 @@ export const CommentInput = ({
     (suggestion: MentionSuggestion) => {
       if (!mentionTrigger || !textareaRef.current) return;
 
-      // Build the mention syntax
+      // Build the mention syntax with embedded display text
+      // Format: @[Display Name](id) or #type[Display Text](id)
       let mentionSyntax = "";
+      const displayText = suggestion.display_text.replace(/[[\]()]/g, ""); // Sanitize brackets
       switch (suggestion.type) {
         case "user":
-          mentionSyntax = `@{${suggestion.id}}`;
+          mentionSyntax = `@[${displayText}](${suggestion.id})`;
           break;
         case "task":
-          mentionSyntax = `#task:${suggestion.id}`;
+          mentionSyntax = `#task[${displayText}](${suggestion.id})`;
           break;
         case "doc":
-          mentionSyntax = `#doc:${suggestion.id}`;
+          mentionSyntax = `#doc[${displayText}](${suggestion.id})`;
           break;
         case "project":
-          mentionSyntax = `#project:${suggestion.id}`;
+          mentionSyntax = `#project[${displayText}](${suggestion.id})`;
           break;
       }
 

@@ -7,17 +7,20 @@ interface MentionPart {
   type: "text" | "user" | "task" | "doc" | "project";
   content: string;
   id?: number;
+  displayText?: string;
 }
 
-// Patterns for parsing mentions
-const USER_PATTERN = /@\{(\d+)\}/g;
-const TASK_PATTERN = /#task:(\d+)/g;
-const DOC_PATTERN = /#doc:(\d+)/g;
-const PROJECT_PATTERN = /#project:(\d+)/g;
+// Patterns for parsing mentions with embedded display text
+// Format: @[Display Name](id) or #type[Display Text](id)
+const USER_PATTERN = /@\[([^\]]+)\]\((\d+)\)/g;
+const TASK_PATTERN = /#task\[([^\]]+)\]\((\d+)\)/g;
+const DOC_PATTERN = /#doc\[([^\]]+)\]\((\d+)\)/g;
+const PROJECT_PATTERN = /#project\[([^\]]+)\]\((\d+)\)/g;
 
 interface ParsedMention {
   type: "user" | "task" | "doc" | "project";
   id: number;
+  displayText: string;
   start: number;
   end: number;
   raw: string;
@@ -26,14 +29,15 @@ interface ParsedMention {
 function parseContent(content: string): MentionPart[] {
   const mentions: ParsedMention[] = [];
 
-  // Find all mentions
+  // Find all mentions with new format (with display text)
   let match: RegExpExecArray | null;
 
   USER_PATTERN.lastIndex = 0;
   while ((match = USER_PATTERN.exec(content)) !== null) {
     mentions.push({
       type: "user",
-      id: parseInt(match[1], 10),
+      displayText: match[1],
+      id: parseInt(match[2], 10),
       start: match.index,
       end: match.index + match[0].length,
       raw: match[0],
@@ -44,7 +48,8 @@ function parseContent(content: string): MentionPart[] {
   while ((match = TASK_PATTERN.exec(content)) !== null) {
     mentions.push({
       type: "task",
-      id: parseInt(match[1], 10),
+      displayText: match[1],
+      id: parseInt(match[2], 10),
       start: match.index,
       end: match.index + match[0].length,
       raw: match[0],
@@ -55,7 +60,8 @@ function parseContent(content: string): MentionPart[] {
   while ((match = DOC_PATTERN.exec(content)) !== null) {
     mentions.push({
       type: "doc",
-      id: parseInt(match[1], 10),
+      displayText: match[1],
+      id: parseInt(match[2], 10),
       start: match.index,
       end: match.index + match[0].length,
       raw: match[0],
@@ -66,7 +72,8 @@ function parseContent(content: string): MentionPart[] {
   while ((match = PROJECT_PATTERN.exec(content)) !== null) {
     mentions.push({
       type: "project",
-      id: parseInt(match[1], 10),
+      displayText: match[1],
+      id: parseInt(match[2], 10),
       start: match.index,
       end: match.index + match[0].length,
       raw: match[0],
@@ -94,6 +101,7 @@ function parseContent(content: string): MentionPart[] {
       type: mention.type,
       content: mention.raw,
       id: mention.id,
+      displayText: mention.displayText,
     });
 
     lastIndex = mention.end;
@@ -112,19 +120,9 @@ function parseContent(content: string): MentionPart[] {
 
 interface CommentContentProps {
   content: string;
-  userDisplayNames?: Map<number, string>;
-  taskTitles?: Map<number, string>;
-  docTitles?: Map<number, string>;
-  projectNames?: Map<number, string>;
 }
 
-export const CommentContent = ({
-  content,
-  userDisplayNames = new Map(),
-  taskTitles = new Map(),
-  docTitles = new Map(),
-  projectNames = new Map(),
-}: CommentContentProps) => {
+export const CommentContent = ({ content }: CommentContentProps) => {
   const { activeGuildId } = useGuilds();
   const guildId = activeGuildId;
 
@@ -143,52 +141,48 @@ export const CommentContent = ({
         }
 
         if (part.type === "user") {
-          const displayName = userDisplayNames.get(part.id!) || `User #${part.id}`;
           return (
             <span
               key={index}
               className="bg-primary/10 text-primary rounded px-1 py-0.5 text-sm font-medium"
             >
-              @{displayName}
+              @{part.displayText}
             </span>
           );
         }
 
         if (part.type === "task") {
-          const title = taskTitles.get(part.id!) || `Task #${part.id}`;
           return (
             <Link
               key={index}
               to={buildSmartLink(`/tasks/${part.id}`)}
               className="text-primary hover:underline"
             >
-              Task: {title}
+              Task: {part.displayText}
             </Link>
           );
         }
 
         if (part.type === "doc") {
-          const title = docTitles.get(part.id!) || `Document #${part.id}`;
           return (
             <Link
               key={index}
               to={buildSmartLink(`/documents/${part.id}`)}
               className="text-primary hover:underline"
             >
-              Doc: {title}
+              Doc: {part.displayText}
             </Link>
           );
         }
 
         if (part.type === "project") {
-          const name = projectNames.get(part.id!) || `Project #${part.id}`;
           return (
             <Link
               key={index}
               to={buildSmartLink(`/projects/${part.id}`)}
               className="text-primary hover:underline"
             >
-              Project: {name}
+              Project: {part.displayText}
             </Link>
           );
         }
