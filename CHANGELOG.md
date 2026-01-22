@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Document editor: heading spacing, horizontal rule spacing, code background, url modal background
+
 ## [0.13.0] - 2026-01-21
 
 ### Added
