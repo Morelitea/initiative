@@ -108,7 +108,17 @@ const notificationText = (notification: Notification): string => {
     case "user_pending_approval":
       return `${data.email ?? "A user"} is awaiting approval.`;
     case "mention":
+      // Check if it's a comment mention or document mention
+      if (data.comment_id) {
+        return `${data.mentioned_by_name ?? "Someone"} mentioned you in a comment on ${data.context_title ?? "an item"}.`;
+      }
       return `${data.mentioned_by_name ?? "Someone"} mentioned you in ${data.document_title ?? "a document"}.`;
+    case "comment_on_task":
+      return `${data.commenter_name ?? "Someone"} commented on ${data.task_title ?? "your task"}.`;
+    case "comment_on_document":
+      return `${data.commenter_name ?? "Someone"} commented on ${data.document_title ?? "your document"}.`;
+    case "comment_reply":
+      return `${data.replier_name ?? "Someone"} replied to your comment on ${data.context_title ?? "an item"}.`;
     default:
       return "You have a new notification.";
   }

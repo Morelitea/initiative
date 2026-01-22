@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from collections.abc import Sequence
-from typing import Optional, cast
+from typing import Optional, Set, cast
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -17,6 +18,13 @@ from app.models.task import Task
 from app.models.user import User
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
+from app.services import notifications
+from app.services.mention_parser import (
+    extract_mentioned_user_ids,
+    extract_mentioned_task_ids,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class CommentError(Exception):
@@ -211,7 +219,184 @@ async def create_comment(
     session.add(comment)
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
+
+    # Process notifications after creating comment
+    task_context_for_notify = None
+    document_for_notify = None
+    if task_id is not None and context:
+        task_context_for_notify = context
+    elif document_id is not None:
+        document_for_notify = document
+
+    await _process_comment_notifications(
+        session,
+        comment=comment,
+        author=author,
+        guild_id=guild_id,
+        task_context=task_context_for_notify,
+        document=document_for_notify,
+        parent_comment=parent_comment,
+    )
+
     return comment
+
+
+async def _load_user(session: AsyncSession, user_id: int) -> User | None:
+    """Load a user by ID."""
+    result = await session.exec(select(User).where(User.id == user_id))
+    return result.one_or_none()
+
+
+async def _load_task_with_assignees(
+    session: AsyncSession, task_id: int, guild_id: int
+) -> tuple[Task, list[User], str] | None:
+    """Load a task with its assignees and project name."""
+    stmt = (
+        select(Task, Project, Initiative)
+        .join(Project, Project.id == Task.project_id)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(Task.id == task_id, Initiative.guild_id == guild_id)
+        .options(selectinload(Task.assignees))
+    )
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    if not row:
+        return None
+    task, project, _ = row
+    return task, list(task.assignees), project.name
+
+
+async def _process_comment_notifications(
+    session: AsyncSession,
+    *,
+    comment: Comment,
+    author: User,
+    guild_id: int,
+    task_context: _TaskContext | None,
+    document: Document | None,
+    parent_comment: Comment | None,
+) -> None:
+    """Process all notifications for a new comment.
+
+    Notification priority (deduplicated):
+    1. Reply to comment → notify parent comment author
+    2. @user mentions
+    3. #task mentions → notify assignees
+    4. Task comment → notify assignees
+    5. Document comment → notify author
+    """
+    notified_user_ids: Set[int] = set()
+    content = comment.content
+
+    # Determine context title for notifications
+    context_title = ""
+    if task_context:
+        context_title = task_context.task.title
+    elif document:
+        context_title = document.title
+
+    # 1. Reply to comment → notify parent comment author
+    if parent_comment and parent_comment.author_id != author.id:
+        parent_author = await _load_user(session, parent_comment.author_id)
+        if parent_author:
+            await notifications.notify_comment_reply(
+                session,
+                parent_author=parent_author,
+                replier=author,
+                comment_id=cast(int, comment.id),
+                task_id=comment.task_id,
+                document_id=comment.document_id,
+                context_title=context_title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(parent_comment.author_id)
+
+    # 2. Process @user mentions
+    mentioned_user_ids = extract_mentioned_user_ids(content)
+    for user_id in mentioned_user_ids:
+        if user_id == author.id:
+            continue
+        if user_id in notified_user_ids:
+            continue
+        mentioned_user = await _load_user(session, user_id)
+        if not mentioned_user:
+            continue
+        await notifications.notify_comment_mention(
+            session,
+            mentioned_user=mentioned_user,
+            mentioned_by=author,
+            comment_id=cast(int, comment.id),
+            task_id=comment.task_id,
+            document_id=comment.document_id,
+            context_title=context_title,
+            guild_id=guild_id,
+        )
+        notified_user_ids.add(user_id)
+
+    # 3. Process #task mentions → notify assignees
+    mentioned_task_ids = extract_mentioned_task_ids(content)
+    for mentioned_task_id in mentioned_task_ids:
+        task_data = await _load_task_with_assignees(session, mentioned_task_id, guild_id)
+        if not task_data:
+            continue
+        mentioned_task, assignees, _ = task_data
+        for assignee in assignees:
+            if assignee.id == author.id:
+                continue
+            if assignee.id in notified_user_ids:
+                continue
+            await notifications.notify_task_mentioned_in_comment(
+                session,
+                assignee=assignee,
+                mentioned_by=author,
+                comment_id=cast(int, comment.id),
+                mentioned_task_id=mentioned_task_id,
+                mentioned_task_title=mentioned_task.title,
+                context_task_id=comment.task_id,
+                context_document_id=comment.document_id,
+                context_title=context_title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(assignee.id)
+
+    # 4. Task comment → notify assignees (who haven't been notified yet)
+    if task_context:
+        task_with_assignees = await _load_task_with_assignees(
+            session, task_context.task.id, guild_id
+        )
+        if task_with_assignees:
+            task, assignees, project_name = task_with_assignees
+            for assignee in assignees:
+                if assignee.id == author.id:
+                    continue
+                if assignee.id in notified_user_ids:
+                    continue
+                await notifications.notify_comment_on_task(
+                    session,
+                    assignee=assignee,
+                    commenter=author,
+                    comment_id=cast(int, comment.id),
+                    task_id=task.id,
+                    task_title=task.title,
+                    project_name=project_name,
+                    guild_id=guild_id,
+                )
+                notified_user_ids.add(assignee.id)
+
+    # 5. Document comment → notify author (if not already notified)
+    if document:
+        doc_author = await _load_user(session, document.created_by_id)
+        if doc_author and doc_author.id != author.id and doc_author.id not in notified_user_ids:
+            await notifications.notify_comment_on_document(
+                session,
+                author=doc_author,
+                commenter=author,
+                comment_id=cast(int, comment.id),
+                document_id=document.id,
+                document_title=document.title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(doc_author.id)
 
 
 async def list_comments(

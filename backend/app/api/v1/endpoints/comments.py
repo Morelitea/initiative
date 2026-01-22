@@ -1,10 +1,15 @@
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import select
 
 from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_guild_membership
+from app.models.document import Document
+from app.models.initiative import Initiative, InitiativeMember
+from app.models.project import Project
+from app.models.task import Task
 from app.models.user import User
-from app.schemas.comment import CommentCreate, CommentRead
+from app.schemas.comment import CommentCreate, CommentRead, MentionSuggestion
 from app.services import comments as comments_service
 from app.services.realtime import broadcast_event
 
@@ -104,3 +109,130 @@ async def delete_comment(
             "project_id": getattr(deleted_comment, "project_id", None),
         },
     )
+
+
+@router.get("/mentions/search", response_model=List[MentionSuggestion])
+async def search_mentionables(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    entity_type: Literal["user", "task", "doc", "project"] = Query(...),
+    initiative_id: int = Query(..., gt=0),
+    q: str = Query(default="", max_length=100),
+) -> List[MentionSuggestion]:
+    """Search for mentionable entities within an initiative."""
+    guild_id = guild_context.guild_id
+    query = q.strip().lower()
+    suggestions: List[MentionSuggestion] = []
+    limit = 10
+
+    # Verify initiative belongs to guild
+    init_stmt = select(Initiative).where(
+        Initiative.id == initiative_id,
+        Initiative.guild_id == guild_id,
+    )
+    init_result = await session.exec(init_stmt)
+    initiative = init_result.one_or_none()
+    if not initiative:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Initiative not found",
+        )
+
+    if entity_type == "user":
+        # Get users who are members of this initiative
+        stmt = (
+            select(User)
+            .join(InitiativeMember, InitiativeMember.user_id == User.id)
+            .where(
+                InitiativeMember.initiative_id == initiative_id,
+                User.is_active.is_(True),
+            )
+        )
+        if query:
+            stmt = stmt.where(
+                (User.full_name.ilike(f"%{query}%")) | (User.email.ilike(f"%{query}%"))
+            )
+        stmt = stmt.limit(limit)
+        result = await session.exec(stmt)
+        users = result.all()
+        for user in users:
+            display = user.full_name or user.email
+            suggestions.append(
+                MentionSuggestion(
+                    type="user",
+                    id=user.id,
+                    display_text=display,
+                    subtitle=user.email if user.full_name else None,
+                )
+            )
+
+    elif entity_type == "task":
+        # Get tasks from projects in this initiative
+        stmt = (
+            select(Task, Project.name)
+            .join(Project, Project.id == Task.project_id)
+            .where(
+                Project.initiative_id == initiative_id,
+                Task.is_archived.is_(False),
+            )
+        )
+        if query:
+            stmt = stmt.where(Task.title.ilike(f"%{query}%"))
+        stmt = stmt.order_by(Task.updated_at.desc()).limit(limit)
+        result = await session.exec(stmt)
+        rows = result.all()
+        for task, project_name in rows:
+            suggestions.append(
+                MentionSuggestion(
+                    type="task",
+                    id=task.id,
+                    display_text=task.title,
+                    subtitle=project_name,
+                )
+            )
+
+    elif entity_type == "doc":
+        # Get documents in this initiative
+        stmt = select(Document).where(
+            Document.initiative_id == initiative_id,
+            Document.is_template.is_(False),
+        )
+        if query:
+            stmt = stmt.where(Document.title.ilike(f"%{query}%"))
+        stmt = stmt.order_by(Document.updated_at.desc()).limit(limit)
+        result = await session.exec(stmt)
+        docs = result.all()
+        for doc in docs:
+            suggestions.append(
+                MentionSuggestion(
+                    type="doc",
+                    id=doc.id,
+                    display_text=doc.title,
+                    subtitle=None,
+                )
+            )
+
+    elif entity_type == "project":
+        # Get projects in this initiative
+        stmt = select(Project).where(
+            Project.initiative_id == initiative_id,
+            Project.is_archived.is_(False),
+            Project.is_template.is_(False),
+        )
+        if query:
+            stmt = stmt.where(Project.name.ilike(f"%{query}%"))
+        stmt = stmt.order_by(Project.updated_at.desc()).limit(limit)
+        result = await session.exec(stmt)
+        projects = result.all()
+        for project in projects:
+            suggestions.append(
+                MentionSuggestion(
+                    type="project",
+                    id=project.id,
+                    display_text=project.name,
+                    subtitle=project.description[:50] if project.description else None,
+                )
+            )
+
+    return suggestions

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Enhanced comments with mentions, threading, and notifications
+  - @mention syntax for users (`@[Name](id)`) with autocomplete popup
+  - Entity mentions for tasks (`#task[Title](id)`), documents (`#doc[Title](id)`), and projects (`#project[Name](id)`)
+  - Threaded replies with visual indentation (max 3 levels)
+  - Reply button on each comment with inline reply form
+- Comment notifications with intelligent deduplication
+  - Notify users when mentioned in comments
+  - Notify task assignees when their task is mentioned
+  - Notify task assignees when someone comments on their task
+  - Notify document authors when someone comments on their document
+  - Users already notified via one mechanism won't receive duplicate notifications
+- Mentions toggle in user notification settings
+
 ### Fixed
 
 - Document editor: heading spacing, horizontal rule spacing, code background, url modal background

@@ -307,6 +307,308 @@ async def notify_document_mention(
         logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
+async def notify_comment_mention(
+    session: AsyncSession,
+    *,
+    mentioned_user: User,
+    mentioned_by: User,
+    comment_id: int,
+    task_id: int | None,
+    document_id: int | None,
+    context_title: str,
+    guild_id: int,
+) -> None:
+    """Notify a user they were mentioned in a comment."""
+    if mentioned_user.id == mentioned_by.id:
+        return
+    if getattr(mentioned_user, "notify_mentions", True) is False:
+        return
+
+    if task_id:
+        target_path = f"/tasks/{task_id}"
+    elif document_id:
+        target_path = f"/documents/{document_id}"
+    else:
+        return
+
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+
+    await user_notifications.create_notification(
+        session,
+        user_id=mentioned_user.id,
+        notification_type=NotificationType.mention,
+        data={
+            "comment_id": comment_id,
+            "task_id": task_id,
+            "document_id": document_id,
+            "context_title": context_title,
+            "mentioned_by_name": mentioned_by_name,
+            "mentioned_by_id": mentioned_by.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=mentioned_user.id,
+            notification_type=NotificationType.mention,
+            title="You were mentioned",
+            body=f"{mentioned_by_name} mentioned you in a comment on {context_title}",
+            data={
+                "type": "mention",
+                "comment_id": str(comment_id),
+                "task_id": str(task_id) if task_id else None,
+                "document_id": str(document_id) if document_id else None,
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+async def notify_task_mentioned_in_comment(
+    session: AsyncSession,
+    *,
+    assignee: User,
+    mentioned_by: User,
+    comment_id: int,
+    mentioned_task_id: int,
+    mentioned_task_title: str,
+    context_task_id: int | None,
+    context_document_id: int | None,
+    context_title: str,
+    guild_id: int,
+) -> None:
+    """Notify task assignee that their task was mentioned in a comment."""
+    if assignee.id == mentioned_by.id:
+        return
+    if getattr(assignee, "notify_mentions", True) is False:
+        return
+
+    if context_task_id:
+        target_path = f"/tasks/{context_task_id}"
+    elif context_document_id:
+        target_path = f"/documents/{context_document_id}"
+    else:
+        return
+
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+
+    await user_notifications.create_notification(
+        session,
+        user_id=assignee.id,
+        notification_type=NotificationType.mention,
+        data={
+            "comment_id": comment_id,
+            "mentioned_task_id": mentioned_task_id,
+            "mentioned_task_title": mentioned_task_title,
+            "context_task_id": context_task_id,
+            "context_document_id": context_document_id,
+            "context_title": context_title,
+            "mentioned_by_name": mentioned_by_name,
+            "mentioned_by_id": mentioned_by.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=assignee.id,
+            notification_type=NotificationType.mention,
+            title="Your task was mentioned",
+            body=f"{mentioned_by_name} mentioned {mentioned_task_title} in {context_title}",
+            data={
+                "type": "mention",
+                "comment_id": str(comment_id),
+                "mentioned_task_id": str(mentioned_task_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+async def notify_comment_on_task(
+    session: AsyncSession,
+    *,
+    assignee: User,
+    commenter: User,
+    comment_id: int,
+    task_id: int,
+    task_title: str,
+    project_name: str,
+    guild_id: int,
+) -> None:
+    """Notify task assignee that someone commented on their task."""
+    if assignee.id == commenter.id:
+        return
+    if getattr(assignee, "notify_mentions", True) is False:
+        return
+
+    target_path = f"/tasks/{task_id}"
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    commenter_name = commenter.full_name or commenter.email
+
+    await user_notifications.create_notification(
+        session,
+        user_id=assignee.id,
+        notification_type=NotificationType.comment_on_task,
+        data={
+            "comment_id": comment_id,
+            "task_id": task_id,
+            "task_title": task_title,
+            "project_name": project_name,
+            "commenter_name": commenter_name,
+            "commenter_id": commenter.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=assignee.id,
+            notification_type=NotificationType.comment_on_task,
+            title="New comment on your task",
+            body=f"{commenter_name} commented on {task_title}",
+            data={
+                "type": "comment_on_task",
+                "comment_id": str(comment_id),
+                "task_id": str(task_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+async def notify_comment_on_document(
+    session: AsyncSession,
+    *,
+    author: User,
+    commenter: User,
+    comment_id: int,
+    document_id: int,
+    document_title: str,
+    guild_id: int,
+) -> None:
+    """Notify document author that someone commented on their document."""
+    if author.id == commenter.id:
+        return
+    if getattr(author, "notify_mentions", True) is False:
+        return
+
+    target_path = f"/documents/{document_id}"
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    commenter_name = commenter.full_name or commenter.email
+
+    await user_notifications.create_notification(
+        session,
+        user_id=author.id,
+        notification_type=NotificationType.comment_on_document,
+        data={
+            "comment_id": comment_id,
+            "document_id": document_id,
+            "document_title": document_title,
+            "commenter_name": commenter_name,
+            "commenter_id": commenter.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=author.id,
+            notification_type=NotificationType.comment_on_document,
+            title="New comment on your document",
+            body=f"{commenter_name} commented on {document_title}",
+            data={
+                "type": "comment_on_document",
+                "comment_id": str(comment_id),
+                "document_id": str(document_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+async def notify_comment_reply(
+    session: AsyncSession,
+    *,
+    parent_author: User,
+    replier: User,
+    comment_id: int,
+    task_id: int | None,
+    document_id: int | None,
+    context_title: str,
+    guild_id: int,
+) -> None:
+    """Notify parent comment author that someone replied to their comment."""
+    if parent_author.id == replier.id:
+        return
+    if getattr(parent_author, "notify_mentions", True) is False:
+        return
+
+    if task_id:
+        target_path = f"/tasks/{task_id}"
+    elif document_id:
+        target_path = f"/documents/{document_id}"
+    else:
+        return
+
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    replier_name = replier.full_name or replier.email
+
+    await user_notifications.create_notification(
+        session,
+        user_id=parent_author.id,
+        notification_type=NotificationType.comment_reply,
+        data={
+            "comment_id": comment_id,
+            "task_id": task_id,
+            "document_id": document_id,
+            "context_title": context_title,
+            "replier_name": replier_name,
+            "replier_id": replier.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=parent_author.id,
+            notification_type=NotificationType.comment_reply,
+            title="Reply to your comment",
+            body=f"{replier_name} replied to your comment on {context_title}",
+            data={
+                "type": "comment_reply",
+                "comment_id": str(comment_id),
+                "task_id": str(task_id) if task_id else None,
+                "document_id": str(document_id) if document_id else None,
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
 async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
     stmt = (
         select(TaskAssignmentDigestItem.user_id)

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruff check:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm run lint:*)"
+    ]
+  }
+}
