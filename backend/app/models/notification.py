@@ -12,6 +12,8 @@ class NotificationType(str, Enum):
     project_added = "project_added"
     user_pending_approval = "user_pending_approval"
     mention = "mention"
+    comment_on_task = "comment_on_task"
+    comment_on_document = "comment_on_document"
 
 
 class Notification(SQLModel, table=True):

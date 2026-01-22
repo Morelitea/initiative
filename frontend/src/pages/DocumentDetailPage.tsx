@@ -499,6 +499,7 @@ export const DocumentDetailPage = () => {
             onCommentCreated={handleCommentCreated}
             onCommentDeleted={handleCommentDeleted}
             canModerate={commentsCanModerate}
+            initiativeId={document.initiative_id}
           />
         </div>
       </div>

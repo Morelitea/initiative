@@ -45,7 +45,8 @@ type NotificationField =
   | "notify_initiative_addition"
   | "notify_task_assignment"
   | "notify_project_added"
-  | "notify_overdue_tasks";
+  | "notify_overdue_tasks"
+  | "notify_mentions";
 
 interface UserSettingsNotificationsPageProps {
   user: User;
@@ -65,6 +66,7 @@ export const UserSettingsNotificationsPage = ({
   const [notifyAssignment, setNotifyAssignment] = useState(user.notify_task_assignment ?? true);
   const [notifyProjectAdded, setNotifyProjectAdded] = useState(user.notify_project_added ?? true);
   const [notifyOverdue, setNotifyOverdue] = useState(user.notify_overdue_tasks ?? true);
+  const [notifyMentions, setNotifyMentions] = useState(user.notify_mentions ?? true);
 
   useEffect(() => {
     setTimezone(user.timezone ?? "UTC");
@@ -73,6 +75,7 @@ export const UserSettingsNotificationsPage = ({
     setNotifyAssignment(user.notify_task_assignment ?? true);
     setNotifyProjectAdded(user.notify_project_added ?? true);
     setNotifyOverdue(user.notify_overdue_tasks ?? true);
+    setNotifyMentions(user.notify_mentions ?? true);
   }, [user]);
 
   const updateNotificationToggles = useMutation({
@@ -238,6 +241,25 @@ export const UserSettingsNotificationsPage = ({
                   checked,
                   setNotifyAssignment,
                   notifyAssignment
+                )
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-medium">Mentions</p>
+              <p className="text-muted-foreground text-sm">
+                Get notified when someone mentions you or a task you&apos;re assigned to.
+              </p>
+            </div>
+            <Switch
+              checked={notifyMentions}
+              onCheckedChange={(checked) =>
+                handleNotificationToggle(
+                  "notify_mentions",
+                  checked,
+                  setNotifyMentions,
+                  notifyMentions
                 )
               }
             />

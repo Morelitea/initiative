@@ -767,6 +767,7 @@ export const TaskEditPage = () => {
             onCommentCreated={handleCommentCreated}
             onCommentDeleted={handleCommentDeleted}
             canModerate={canModerateComments}
+            initiativeId={projectQuery.data?.initiative_id ?? 0}
           />
         </div>
       </div>

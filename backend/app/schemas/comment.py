@@ -55,3 +55,12 @@ class CommentRead(CommentBase):
 
     class Config:
         from_attributes = True
+
+
+class MentionSuggestion(BaseModel):
+    """A suggestion for mention autocomplete."""
+
+    type: str  # "user", "task", "doc", "project"
+    id: int
+    display_text: str
+    subtitle: Optional[str] = None  # email for users, project name for tasks

@@ -36,6 +36,7 @@ export interface User extends UserPublic {
   notify_task_assignment?: boolean;
   notify_project_added?: boolean;
   notify_overdue_tasks?: boolean;
+  notify_mentions?: boolean;
   last_overdue_notification_at?: string | null;
   last_task_assignment_digest_at?: string | null;
   initiative_roles?: UserInitiativeRole[];
@@ -317,6 +318,19 @@ export interface Comment {
   author?: CommentAuthor | null;
 }
 
+export interface CommentWithReplies extends Comment {
+  replies: CommentWithReplies[];
+}
+
+export type MentionEntityType = "user" | "task" | "doc" | "project";
+
+export interface MentionSuggestion {
+  type: MentionEntityType;
+  id: number;
+  display_text: string;
+  subtitle?: string | null;
+}
+
 export interface ProjectActivityEntry {
   comment_id: number;
   content: string;
@@ -396,7 +410,9 @@ export type NotificationType =
   | "initiative_added"
   | "project_added"
   | "user_pending_approval"
-  | "mention";
+  | "mention"
+  | "comment_on_task"
+  | "comment_on_document";
 
 export interface Notification {
   id: number;
