@@ -10,15 +10,10 @@ interface MentionTrigger {
   triggerText: string;
   query: string;
   startIndex: number;
-  position: { top: number; left: number };
 }
 
 // Detect mention triggers in text
-function detectMentionTrigger(
-  text: string,
-  cursorPosition: number,
-  textareaElement: HTMLTextAreaElement
-): MentionTrigger | null {
+function detectMentionTrigger(text: string, cursorPosition: number): MentionTrigger | null {
   // Get text before cursor
   const textBeforeCursor = text.slice(0, cursorPosition);
 
@@ -36,89 +31,16 @@ function detectMentionTrigger(
       const query = match[1] || "";
       const startIndex = cursorPosition - match[0].length;
 
-      // Calculate position for popover
-      const position = getCaretCoordinates(textareaElement, startIndex);
-
       return {
         type,
         triggerText: match[0],
         query,
         startIndex,
-        position: {
-          top: position.top + 24, // Below the text
-          left: position.left,
-        },
       };
     }
   }
 
   return null;
-}
-
-// Get caret coordinates in a textarea
-function getCaretCoordinates(
-  element: HTMLTextAreaElement,
-  position: number
-): { top: number; left: number } {
-  // Create a mirror div to measure text
-  const mirror = document.createElement("div");
-  const style = getComputedStyle(element);
-
-  // Copy styles that affect text layout
-  const properties = [
-    "fontFamily",
-    "fontSize",
-    "fontWeight",
-    "fontStyle",
-    "letterSpacing",
-    "textTransform",
-    "wordSpacing",
-    "textIndent",
-    "whiteSpace",
-    "wordWrap",
-    "wordBreak",
-    "padding",
-    "border",
-    "boxSizing",
-    "lineHeight",
-  ] as const;
-
-  mirror.style.position = "absolute";
-  mirror.style.visibility = "hidden";
-  mirror.style.overflow = "hidden";
-  mirror.style.width = `${element.offsetWidth}px`;
-
-  for (const prop of properties) {
-    mirror.style[prop] = style[prop];
-  }
-
-  document.body.appendChild(mirror);
-
-  // Insert text up to position with a span marker
-  const textContent = element.value.substring(0, position);
-  const lines = textContent.split("\n");
-  mirror.innerHTML = "";
-
-  for (let i = 0; i < lines.length; i++) {
-    const lineDiv = document.createElement("div");
-    lineDiv.textContent = lines[i] || " ";
-    mirror.appendChild(lineDiv);
-  }
-
-  const marker = document.createElement("span");
-  marker.textContent = "|";
-  mirror.lastElementChild?.appendChild(marker);
-
-  const rect = element.getBoundingClientRect();
-  const markerRect = marker.getBoundingClientRect();
-  const mirrorRect = mirror.getBoundingClientRect();
-
-  const top = rect.top + (markerRect.top - mirrorRect.top) - element.scrollTop;
-  const left = rect.left + (markerRect.left - mirrorRect.left) - element.scrollLeft;
-
-  document.body.removeChild(mirror);
-
-  return { top, left };
 }
 
 interface CommentInputProps {
@@ -160,7 +82,7 @@ export const CommentInput = ({
 
       // Detect mention trigger
       const cursorPosition = e.target.selectionStart;
-      const trigger = detectMentionTrigger(newValue, cursorPosition, e.target);
+      const trigger = detectMentionTrigger(newValue, cursorPosition);
       setMentionTrigger(trigger);
     },
     [onChange, onClearError]
@@ -172,7 +94,7 @@ export const CommentInput = ({
     if (!textarea) return;
 
     const cursorPosition = textarea.selectionStart;
-    const trigger = detectMentionTrigger(value, cursorPosition, textarea);
+    const trigger = detectMentionTrigger(value, cursorPosition);
     setMentionTrigger(trigger);
   }, [value]);
 
@@ -231,7 +153,7 @@ export const CommentInput = ({
     onSubmit(trimmed);
   };
 
-  // Close popover on escape
+  // Close popover on escape (backup handler)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && mentionTrigger) {
@@ -246,38 +168,35 @@ export const CommentInput = ({
   }, [mentionTrigger]);
 
   return (
-    <form onSubmit={handleSubmit} className="relative space-y-2">
-      <Textarea
-        ref={textareaRef}
-        value={value}
-        onChange={handleChange}
-        onSelect={handleSelect}
-        onBlur={() => {
-          // Delay closing to allow click on popover
-          setTimeout(() => {
-            if (!document.activeElement?.closest("[data-mention-popover]")) {
+    <form onSubmit={handleSubmit} className="space-y-2">
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={value}
+          onChange={handleChange}
+          onSelect={handleSelect}
+          onBlur={() => {
+            // Delay closing to allow click on popover
+            setTimeout(() => {
               setMentionTrigger(null);
-            }
-          }, 200);
-        }}
-        placeholder={placeholder}
-        rows={compact ? 2 : 4}
-        disabled={isSubmitting}
-        autoFocus={autoFocus}
-      />
+            }, 200);
+          }}
+          placeholder={placeholder}
+          rows={compact ? 2 : 4}
+          disabled={isSubmitting}
+          autoFocus={autoFocus}
+        />
 
-      {mentionTrigger && (
-        <div data-mention-popover>
+        {mentionTrigger && (
           <MentionPopover
             type={mentionTrigger.type}
             query={mentionTrigger.query}
             initiativeId={initiativeId}
             onSelect={handleMentionSelect}
             onClose={handleCloseMention}
-            position={mentionTrigger.position}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 

@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { CheckSquare, FileText, FolderKanban, User } from "lucide-react";
 
 import { apiClient } from "@/api/client";
-import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import type { MentionEntityType, MentionSuggestion } from "@/types/api";
 
 interface MentionPopoverProps {
@@ -12,7 +11,6 @@ interface MentionPopoverProps {
   initiativeId: number;
   onSelect: (suggestion: MentionSuggestion) => void;
   onClose: () => void;
-  position: { top: number; left: number };
 }
 
 const fetchSuggestions = async (
@@ -33,13 +31,13 @@ const fetchSuggestions = async (
 const getIcon = (type: MentionEntityType) => {
   switch (type) {
     case "user":
-      return <User className="h-4 w-4" />;
+      return <User className="h-4 w-4 shrink-0" />;
     case "task":
-      return <CheckSquare className="h-4 w-4" />;
+      return <CheckSquare className="h-4 w-4 shrink-0" />;
     case "doc":
-      return <FileText className="h-4 w-4" />;
+      return <FileText className="h-4 w-4 shrink-0" />;
     case "project":
-      return <FolderKanban className="h-4 w-4" />;
+      return <FolderKanban className="h-4 w-4 shrink-0" />;
   }
 };
 
@@ -62,7 +60,6 @@ export const MentionPopover = ({
   initiativeId,
   onSelect,
   onClose,
-  position,
 }: MentionPopoverProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -71,6 +68,7 @@ export const MentionPopover = ({
     queryKey: ["mentionSuggestions", type, initiativeId, query],
     queryFn: () => fetchSuggestions(type, initiativeId, query),
     staleTime: 30000,
+    enabled: initiativeId > 0,
   });
 
   // Reset selection when suggestions change
@@ -86,20 +84,25 @@ export const MentionPopover = ({
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
+          e.stopPropagation();
           setSelectedIndex((prev) => (prev + 1) % suggestions.length);
           break;
         case "ArrowUp":
           e.preventDefault();
+          e.stopPropagation();
           setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
           break;
         case "Enter":
+        case "Tab":
           e.preventDefault();
+          e.stopPropagation();
           if (suggestions[selectedIndex]) {
             onSelect(suggestions[selectedIndex]);
           }
           break;
         case "Escape":
           e.preventDefault();
+          e.stopPropagation();
           onClose();
           break;
       }
@@ -108,9 +111,9 @@ export const MentionPopover = ({
   );
 
   useEffect(() => {
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [handleKeyDown]);
 
@@ -132,8 +135,7 @@ export const MentionPopover = ({
     return (
       <div
         ref={popoverRef}
-        className="bg-popover text-popover-foreground absolute z-50 w-64 rounded-md border p-2 shadow-md"
-        style={{ top: position.top, left: position.left }}
+        className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 rounded-md border p-2 shadow-md"
       >
         <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
@@ -144,8 +146,7 @@ export const MentionPopover = ({
     return (
       <div
         ref={popoverRef}
-        className="bg-popover text-popover-foreground absolute z-50 w-64 rounded-md border p-2 shadow-md"
-        style={{ top: position.top, left: position.left }}
+        className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 rounded-md border p-2 shadow-md"
       >
         <p className="text-muted-foreground text-sm">No {getTypeLabel(type).toLowerCase()} found</p>
       </div>
@@ -155,32 +156,31 @@ export const MentionPopover = ({
   return (
     <div
       ref={popoverRef}
-      className="bg-popover text-popover-foreground absolute z-50 w-64 rounded-md border shadow-md"
-      style={{ top: position.top, left: position.left }}
+      className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 overflow-hidden rounded-md border shadow-md"
     >
-      <Command>
-        <CommandList>
-          <CommandGroup heading={getTypeLabel(type)}>
-            {suggestions.map((suggestion, index) => (
-              <CommandItem
-                key={`${suggestion.type}-${suggestion.id}`}
-                onSelect={() => onSelect(suggestion)}
-                className={`flex cursor-pointer items-center gap-2 ${
-                  index === selectedIndex ? "bg-accent" : ""
-                }`}
-              >
-                {getIcon(suggestion.type)}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{suggestion.display_text}</p>
-                  {suggestion.subtitle && (
-                    <p className="text-muted-foreground truncate text-xs">{suggestion.subtitle}</p>
-                  )}
-                </div>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
-      </Command>
+      <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+        {getTypeLabel(type)}
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {suggestions.map((suggestion, index) => (
+          <button
+            key={`${suggestion.type}-${suggestion.id}`}
+            type="button"
+            onClick={() => onSelect(suggestion)}
+            className={`hover:bg-accent flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-sm ${
+              index === selectedIndex ? "bg-accent" : ""
+            }`}
+          >
+            {getIcon(suggestion.type)}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{suggestion.display_text}</p>
+              {suggestion.subtitle && (
+                <p className="text-muted-foreground truncate text-xs">{suggestion.subtitle}</p>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
