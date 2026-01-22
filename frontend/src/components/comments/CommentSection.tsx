@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { MessageSquarePlus } from "lucide-react";
+import { HelpCircle, MessageSquarePlus } from "lucide-react";
 
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { CommentInput } from "./CommentInput";
 import { CommentThread } from "./CommentThread";
@@ -166,9 +167,35 @@ export const CommentSection = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquarePlus className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-          <h3>{title}</h3>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquarePlus className="text-muted-foreground h-4 w-4" aria-hidden="true" />
+            <h3>{title}</h3>
+          </div>
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground">
+                <HelpCircle className="h-4 w-4" />
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent side="left" align="start" className="w-56">
+              <p className="text-sm font-medium">Mention syntax</p>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                <li>
+                  <code className="bg-muted rounded px-1 text-xs">@</code> mention a user
+                </li>
+                <li>
+                  <code className="bg-muted rounded px-1 text-xs">#task:</code> link a task
+                </li>
+                <li>
+                  <code className="bg-muted rounded px-1 text-xs">#doc:</code> link a document
+                </li>
+                <li>
+                  <code className="bg-muted rounded px-1 text-xs">#project:</code> link a project
+                </li>
+              </ul>
+            </HoverCardContent>
+          </HoverCard>
         </CardTitle>
       </CardHeader>
 
