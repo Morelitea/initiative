@@ -205,7 +205,7 @@ function FloatingLinkEditor({
       className="absolute top-0 left-0 w-full max-w-sm rounded-md opacity-0 shadow-md"
     >
       {!isLink ? null : isLinkEditMode ? (
-        <div className="flex items-center space-x-2 rounded-md border p-1 pl-2">
+        <div className="bg-card flex items-center space-x-2 rounded-md border p-1 pl-2">
           <Input
             ref={inputRef}
             value={editedLinkUrl}
@@ -229,7 +229,7 @@ function FloatingLinkEditor({
           </Button>
         </div>
       ) : (
-        <div className="flex items-center justify-between rounded-md border p-1 pl-2">
+        <div className="bg-card flex items-center justify-between rounded-md border p-1 pl-2">
           <a
             href={sanitizeUrl(linkUrl)}
             target="_blank"

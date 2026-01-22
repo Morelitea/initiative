@@ -6,7 +6,7 @@ import {
   TEXT_FORMAT_TRANSFORMERS,
   TEXT_MATCH_TRANSFORMERS,
 } from "@lexical/markdown";
-import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
+// import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import { ClearEditorPlugin } from "@lexical/react/LexicalClearEditorPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
@@ -183,7 +183,7 @@ export function Plugins({
         </ToolbarPlugin>
       )}
       <div className="relative">
-        <AutoFocusPlugin />
+        {/* <AutoFocusPlugin /> */}
         <RichTextPlugin
           contentEditable={
             <div className="">
