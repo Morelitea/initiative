@@ -235,6 +235,7 @@ async def create_comment(
         guild_id=guild_id,
         task_context=task_context_for_notify,
         document=document_for_notify,
+        parent_comment=parent_comment,
     )
 
     return comment
@@ -273,14 +274,16 @@ async def _process_comment_notifications(
     guild_id: int,
     task_context: _TaskContext | None,
     document: Document | None,
+    parent_comment: Comment | None,
 ) -> None:
     """Process all notifications for a new comment.
 
     Notification priority (deduplicated):
-    1. @user mentions
-    2. #task mentions → notify assignees
-    3. Task comment → notify assignees
-    4. Document comment → notify author
+    1. Reply to comment → notify parent comment author
+    2. @user mentions
+    3. #task mentions → notify assignees
+    4. Task comment → notify assignees
+    5. Document comment → notify author
     """
     notified_user_ids: Set[int] = set()
     content = comment.content
@@ -292,7 +295,23 @@ async def _process_comment_notifications(
     elif document:
         context_title = document.title
 
-    # 1. Process @user mentions
+    # 1. Reply to comment → notify parent comment author
+    if parent_comment and parent_comment.author_id != author.id:
+        parent_author = await _load_user(session, parent_comment.author_id)
+        if parent_author:
+            await notifications.notify_comment_reply(
+                session,
+                parent_author=parent_author,
+                replier=author,
+                comment_id=cast(int, comment.id),
+                task_id=comment.task_id,
+                document_id=comment.document_id,
+                context_title=context_title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(parent_comment.author_id)
+
+    # 2. Process @user mentions
     mentioned_user_ids = extract_mentioned_user_ids(content)
     for user_id in mentioned_user_ids:
         if user_id == author.id:
@@ -314,7 +333,7 @@ async def _process_comment_notifications(
         )
         notified_user_ids.add(user_id)
 
-    # 2. Process #task mentions → notify assignees
+    # 3. Process #task mentions → notify assignees
     mentioned_task_ids = extract_mentioned_task_ids(content)
     for mentioned_task_id in mentioned_task_ids:
         task_data = await _load_task_with_assignees(session, mentioned_task_id, guild_id)
@@ -340,7 +359,7 @@ async def _process_comment_notifications(
             )
             notified_user_ids.add(assignee.id)
 
-    # 3. Task comment → notify assignees (who haven't been notified yet)
+    # 4. Task comment → notify assignees (who haven't been notified yet)
     if task_context:
         task_with_assignees = await _load_task_with_assignees(
             session, task_context.task.id, guild_id
@@ -364,7 +383,7 @@ async def _process_comment_notifications(
                 )
                 notified_user_ids.add(assignee.id)
 
-    # 4. Document comment → notify author (if not already notified)
+    # 5. Document comment → notify author (if not already notified)
     if document:
         doc_author = await _load_user(session, document.created_by_id)
         if doc_author and doc_author.id != author.id and doc_author.id not in notified_user_ids:

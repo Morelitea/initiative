@@ -412,7 +412,8 @@ export type NotificationType =
   | "user_pending_approval"
   | "mention"
   | "comment_on_task"
-  | "comment_on_document";
+  | "comment_on_document"
+  | "comment_reply";
 
 export interface Notification {
   id: number;
