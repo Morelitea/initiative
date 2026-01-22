@@ -112,13 +112,7 @@ export const CommentThread = ({
               </div>
             </div>
             <div className="text-foreground mt-2 text-sm">
-              <CommentContent
-                content={comment.content}
-                userDisplayNames={userDisplayNames}
-                taskTitles={taskTitles}
-                docTitles={docTitles}
-                projectNames={projectNames}
-              />
+              <CommentContent content={comment.content} />
             </div>
           </div>
         </div>
