@@ -177,6 +177,15 @@ export const CommentInput = ({
           value={value}
           onChange={handleChange}
           onSelect={handleSelect}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !mentionTrigger) {
+              e.preventDefault();
+              const trimmed = value.trim();
+              if (trimmed && !isSubmitting) {
+                onSubmit(trimmed);
+              }
+            }
+          }}
           onBlur={() => {
             // Delay closing to allow click on popover
             setTimeout(() => {
