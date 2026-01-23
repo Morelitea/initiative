@@ -229,20 +229,20 @@ For detailed development guidelines, coding standards, and workflow, see [AGENTS
 
 ### Key Environment Variables
 
-| Variable                   | Description                                   | Example                                                    |
-| -------------------------- | --------------------------------------------- | ---------------------------------------------------------- |
-| `DATABASE_URL`             | PostgreSQL connection string                  | `postgresql+asyncpg://user:pass@localhost:5432/initiative` |
-| `SECRET_KEY`               | JWT signing key (use a secure random string)  | `your-secret-key-here`                                     |
-| `APP_URL`                  | Public base URL (required for OIDC callbacks) | `https://initiative.example.com`                           |
-| `DISABLE_GUILD_CREATION`   | Restrict guild creation to super admin only   | `true` or `false`                                          |
-| `BEHIND_PROXY`             | Trust X-Forwarded-For headers (set when behind nginx/load balancer) | `true` or `false`                     |
-| `FIRST_SUPERUSER_EMAIL`    | Bootstrap admin email                         | `admin@example.com`                                        |
-| `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password                      | `secure-password`                                          |
-| `SMTP_HOST`                | SMTP server hostname                          | `smtp.gmail.com`                                           |
-| `SMTP_PORT`                | SMTP server port                              | `587`                                                      |
-| `SMTP_USERNAME`            | SMTP authentication username                  | `your-email@gmail.com`                                     |
-| `SMTP_PASSWORD`            | SMTP authentication password                  | `your-app-password`                                        |
-| `SMTP_FROM_ADDRESS`        | Email sender address                          | `Initiative <noreply@example.com>`                         |
+| Variable                   | Description                                                         | Example                                                    |
+| -------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `DATABASE_URL`             | PostgreSQL connection string                                        | `postgresql+asyncpg://user:pass@localhost:5432/initiative` |
+| `SECRET_KEY`               | JWT signing key (use a secure random string)                        | `your-secret-key-here`                                     |
+| `APP_URL`                  | Public base URL (required for OIDC callbacks)                       | `https://initiative.example.com`                           |
+| `DISABLE_GUILD_CREATION`   | Restrict guild creation to super admin only                         | `true` or `false`                                          |
+| `BEHIND_PROXY`             | Trust X-Forwarded-For headers (set when behind nginx/load balancer) | `true` or `false`                                          |
+| `FIRST_SUPERUSER_EMAIL`    | Bootstrap admin email                                               | `admin@example.com`                                        |
+| `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password                                            | `secure-password`                                          |
+| `SMTP_HOST`                | SMTP server hostname                                                | `smtp.gmail.com`                                           |
+| `SMTP_PORT`                | SMTP server port                                                    | `587`                                                      |
+| `SMTP_USERNAME`            | SMTP authentication username                                        | `your-email@gmail.com`                                     |
+| `SMTP_PASSWORD`            | SMTP authentication password                                        | `your-app-password`                                        |
+| `SMTP_FROM_ADDRESS`        | Email sender address                                                | `Initiative <noreply@example.com>`                         |
 
 See `backend/.env.example` for a complete list of configuration options.
 
@@ -322,4 +322,11 @@ Pushing version tags (e.g., `v0.6.3`) triggers GitHub Actions to:
 
 ## License
 
-See repository for license information.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+You are free to use, modify, and self-host this software. If you offer it to users
+over a network, you must also make the complete corresponding source code available
+to those users, as required by the AGPL.
+
+Commercial licenses are available for organizations that wish to use this software
+without AGPL obligations.
