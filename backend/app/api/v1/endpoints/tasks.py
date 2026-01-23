@@ -290,7 +290,16 @@ async def _advance_recurrence_if_needed(
         return False
 
     strategy = task.recurrence_strategy or "fixed"
-    base_date = task.due_date if strategy == "fixed" else now
+    if strategy == "rolling":
+        # For rolling: use completion DATE but preserve original TIME
+        base_date = now.replace(
+            hour=task.due_date.hour,
+            minute=task.due_date.minute,
+            second=task.due_date.second,
+            microsecond=task.due_date.microsecond,
+        )
+    else:
+        base_date = task.due_date
     next_due = get_next_due_date(
         base_date,
         recurrence,

@@ -610,3 +610,220 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
     task_titles = {t["title"] for t in data}
     assert "Todo Task" in task_titles
     assert "Done Task" not in task_titles
+
+
+@pytest.mark.integration
+async def test_rolling_recurrence_preserves_due_time(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test that completing a task with rolling recurrence preserves the original due time."""
+    from datetime import datetime, timezone
+    from app.models.task import Task
+    from app.services import task_statuses as task_statuses_service
+
+    user = await create_user(session, email="user@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild)
+
+    initiative = await _create_initiative(session, guild, user)
+    project = await _create_project(session, initiative, user)
+
+    # Create statuses
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    todo_status = next(s for s in statuses if s.is_default)
+    done_status = next(s for s in statuses if s.name == "Done")
+    await session.commit()
+
+    # Create a task with rolling recurrence due at 17:00
+    original_due_time = datetime(2026, 1, 20, 17, 0, 0, tzinfo=timezone.utc)
+    recurrence_data = {
+        "frequency": "daily",
+        "interval": 3,
+        "ends": "never",
+    }
+
+    task = Task(
+        title="Recurring Task",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        due_date=original_due_time,
+        recurrence=recurrence_data,
+        recurrence_strategy="rolling",  # After completion mode
+    )
+    session.add(task)
+    await session.commit()
+    await session.refresh(task)
+
+    # Mark the task as done (simulating completion at a different time like 12:34)
+    headers = get_guild_headers(guild, user)
+    response = await client.patch(
+        f"/api/v1/tasks/{task.id}",
+        headers=headers,
+        json={"task_status_id": done_status.id},
+    )
+
+    assert response.status_code == 200
+
+    # Fetch all tasks to find the newly created recurring task
+    response = await client.get(
+        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+    )
+    assert response.status_code == 200
+    tasks = response.json()
+
+    # Should have 2 tasks: original (completed) and new recurring task
+    assert len(tasks) == 2
+
+    # Find the new task (not the original one)
+    new_task = next((t for t in tasks if t["id"] != task.id), None)
+    assert new_task is not None
+    assert new_task["title"] == "Recurring Task"
+
+    # Parse the due_date and verify the time is preserved (17:00)
+    new_due_date = datetime.fromisoformat(new_task["due_date"].replace("Z", "+00:00"))
+    assert new_due_date.hour == 17
+    assert new_due_date.minute == 0
+    assert new_due_date.second == 0
+
+
+@pytest.mark.integration
+async def test_fixed_recurrence_uses_original_due_date(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test that fixed recurrence strategy calculates from the original due date."""
+    from datetime import datetime, timezone
+    from app.models.task import Task
+    from app.services import task_statuses as task_statuses_service
+
+    user = await create_user(session, email="user@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild)
+
+    initiative = await _create_initiative(session, guild, user)
+    project = await _create_project(session, initiative, user)
+
+    # Create statuses
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    todo_status = next(s for s in statuses if s.is_default)
+    done_status = next(s for s in statuses if s.name == "Done")
+    await session.commit()
+
+    # Create a task with fixed recurrence due at 09:30
+    original_due_time = datetime(2026, 1, 20, 9, 30, 0, tzinfo=timezone.utc)
+    recurrence_data = {
+        "frequency": "daily",
+        "interval": 2,
+        "ends": "never",
+    }
+
+    task = Task(
+        title="Fixed Recurring Task",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        due_date=original_due_time,
+        recurrence=recurrence_data,
+        recurrence_strategy="fixed",  # Fixed mode (default)
+    )
+    session.add(task)
+    await session.commit()
+    await session.refresh(task)
+
+    # Mark the task as done
+    headers = get_guild_headers(guild, user)
+    response = await client.patch(
+        f"/api/v1/tasks/{task.id}",
+        headers=headers,
+        json={"task_status_id": done_status.id},
+    )
+
+    assert response.status_code == 200
+
+    # Fetch all tasks
+    response = await client.get(
+        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+    )
+    assert response.status_code == 200
+    tasks = response.json()
+
+    # Find the new task
+    new_task = next((t for t in tasks if t["id"] != task.id), None)
+    assert new_task is not None
+
+    # Parse the due_date
+    new_due_date = datetime.fromisoformat(new_task["due_date"].replace("Z", "+00:00"))
+
+    # For fixed recurrence, next due should be 2 days after original (Jan 22)
+    assert new_due_date.day == 22
+    assert new_due_date.hour == 9
+    assert new_due_date.minute == 30
+
+
+@pytest.mark.integration
+async def test_rolling_recurrence_with_midnight_time(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test that rolling recurrence correctly preserves midnight (00:00) time."""
+    from datetime import datetime, timezone
+    from app.models.task import Task
+    from app.services import task_statuses as task_statuses_service
+
+    user = await create_user(session, email="user@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild)
+
+    initiative = await _create_initiative(session, guild, user)
+    project = await _create_project(session, initiative, user)
+
+    # Create statuses
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    todo_status = next(s for s in statuses if s.is_default)
+    done_status = next(s for s in statuses if s.name == "Done")
+    await session.commit()
+
+    # Create a task with rolling recurrence due at midnight (00:00)
+    original_due_time = datetime(2026, 1, 20, 0, 0, 0, tzinfo=timezone.utc)
+    recurrence_data = {
+        "frequency": "weekly",
+        "interval": 1,
+        "weekdays": ["monday"],
+        "ends": "never",
+    }
+
+    task = Task(
+        title="Midnight Task",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        due_date=original_due_time,
+        recurrence=recurrence_data,
+        recurrence_strategy="rolling",
+    )
+    session.add(task)
+    await session.commit()
+    await session.refresh(task)
+
+    # Mark the task as done
+    headers = get_guild_headers(guild, user)
+    response = await client.patch(
+        f"/api/v1/tasks/{task.id}",
+        headers=headers,
+        json={"task_status_id": done_status.id},
+    )
+
+    assert response.status_code == 200
+
+    # Fetch all tasks
+    response = await client.get(
+        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+    )
+    assert response.status_code == 200
+    tasks = response.json()
+
+    # Find the new task
+    new_task = next((t for t in tasks if t["id"] != task.id), None)
+    assert new_task is not None
+
+    # Parse the due_date and verify midnight time is preserved
+    new_due_date = datetime.fromisoformat(new_task["due_date"].replace("Z", "+00:00"))
+    assert new_due_date.hour == 0
+    assert new_due_date.minute == 0
+    assert new_due_date.second == 0
