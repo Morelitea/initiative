@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Enabled speech-to-text plugin on document editor. Uses browser speech recognition APIs. Tested working on Chrome and Edge.
 - Responsive document editor toolbar
   - Compact overflow menu on screens below 1024px with all formatting options
   - Full inline toolbar on larger screens
