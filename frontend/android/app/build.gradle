@@ -5,6 +5,9 @@ def versionFile = file("../../../VERSION")
 def appVersionName = versionFile.exists() ? versionFile.text.trim() : "0.0.0"
 // Convert semver to versionCode: major*10000 + minor*100 + patch
 def versionParts = appVersionName.split("\\.")
+if (versionParts.size() < 3) {
+    throw new GradleException("VERSION file must contain semver format (e.g., 0.14.1), found: ${appVersionName}")
+}
 def appVersionCode = versionParts[0].toInteger() * 10000 + versionParts[1].toInteger() * 100 + versionParts[2].toInteger()
 
 android {
