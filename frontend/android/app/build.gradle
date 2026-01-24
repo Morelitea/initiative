@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Read version from VERSION file at project root
+def versionFile = file("../../../VERSION")
+def appVersionName = versionFile.exists() ? versionFile.text.trim() : "0.0.0"
+// Convert semver to versionCode: major*10000 + minor*100 + patch
+def versionParts = appVersionName.split("\\.")
+def appVersionCode = versionParts[0].toInteger() * 10000 + versionParts[1].toInteger() * 100 + versionParts[2].toInteger()
+
 android {
     namespace = "com.morelitea.initiative"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +14,8 @@ android {
         applicationId "com.morelitea.initiative"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
