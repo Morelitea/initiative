@@ -259,6 +259,9 @@ See `backend/.env.example` for a complete list of configuration options.
 
 ## Contributing
 
+By contributing to this project, you agree to the terms of the
+[Contributor License Agreement](./CLA.md).
+
 This project uses **bd (beads)** for issue tracking:
 
 ```bash
