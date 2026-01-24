@@ -105,7 +105,6 @@ The fastest way to get Initiative running:
 cp docker-compose.example.yml docker-compose.yml
 
 # 2. Edit configuration (set a secure SECRET_KEY)
-# Also configure env variables according to your preferences, see https://github.com/Morelitea/initiative/blob/main/README.md#key-environment-variables
 nano docker-compose.yml
 
 # 3. Start the application
@@ -113,6 +112,8 @@ docker-compose up -d
 
 # 4. Access Initiative at http://localhost:8173
 ```
+
+Also configure env variables according to your preferences, see #key-environment-variables
 
 **What's included:**
 
