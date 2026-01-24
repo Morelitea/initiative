@@ -33,6 +33,45 @@ const VOICE_COMMANDS: Readonly<
   },
 };
 
+/**
+ * Normalizes speech recognition transcript to handle browser differences:
+ * - Chrome: doesn't add punctuation or capitalization
+ * - Edge: adds punctuation but no spaces between pauses
+ *
+ * This function:
+ * 1. Adds a leading space if needed (previous char isn't whitespace)
+ * 2. Capitalizes first letter after sentence-ending punctuation or at start
+ */
+function normalizeTranscript(transcript: string, textBefore: string): string {
+  let result = transcript;
+
+  // Trim the transcript first
+  result = result.trim();
+
+  if (result.length === 0) {
+    return result;
+  }
+
+  const lastChar = textBefore.slice(-1);
+  const isStartOfDocument = textBefore.length === 0;
+  const isAfterSentenceEnd = /[.!?]$/.test(textBefore.trimEnd());
+  const isAfterNewline = lastChar === "\n" || isStartOfDocument;
+  const needsSpace = lastChar !== "" && !/\s$/.test(textBefore);
+
+  // Add leading space if previous character isn't whitespace
+  if (needsSpace) {
+    result = " " + result;
+  }
+
+  // Capitalize first letter if at start of document, after newline, or after sentence-ending punctuation
+  if (isStartOfDocument || isAfterNewline || isAfterSentenceEnd) {
+    // Find the first letter in the result (accounting for possible leading space)
+    result = result.replace(/^(\s*)([a-z])/, (_, space, letter) => space + letter.toUpperCase());
+  }
+
+  return result;
+}
+
 export const SUPPORT_SPEECH_RECOGNITION: boolean =
   CAN_USE_DOM && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
@@ -74,7 +113,15 @@ function SpeechToTextPluginImpl() {
             } else if (transcript.match(/\s*\n\s*/)) {
               selection.insertParagraph();
             } else {
-              selection.insertText(transcript);
+              // Get text before cursor for normalization
+              // We need the text in the current node up to the cursor position
+              const anchorNode = selection.anchor.getNode();
+              const anchorOffset = selection.anchor.offset;
+              const textContent = anchorNode.getTextContent();
+              const textBefore = textContent.slice(0, anchorOffset);
+
+              const normalizedTranscript = normalizeTranscript(transcript, textBefore);
+              selection.insertText(normalizedTranscript);
             }
           }
         });
