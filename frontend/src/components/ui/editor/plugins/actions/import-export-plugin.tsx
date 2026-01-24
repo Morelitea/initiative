@@ -5,8 +5,17 @@ import { DownloadIcon, UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function ImportExportPlugin() {
+export function ImportExportPlugin({ documentName }: { documentName?: string }) {
   const [editor] = useLexicalComposerContext();
+
+  const getFileName = () => {
+    const timestamp = new Date().toISOString().split("T")[0];
+    if (documentName?.trim()) {
+      return `${documentName.trim()} - ${timestamp}`;
+    }
+    return `Initiative Document - ${timestamp}`;
+  };
+
   return (
     <>
       <Tooltip>
@@ -32,8 +41,8 @@ export function ImportExportPlugin() {
             variant={"ghost"}
             onClick={() =>
               exportFile(editor, {
-                fileName: `Playground ${new Date().toISOString()}`,
-                source: "Playground",
+                fileName: getFileName(),
+                source: "Initiative",
               })
             }
             title="Export"
