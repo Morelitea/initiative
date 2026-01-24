@@ -148,6 +148,12 @@ docker-compose up -d
 - Shadcn/ui for accessible components
 - dnd-kit for drag-and-drop interactions
 
+**Mobile:**
+
+- Capacitor (native iOS and Android apps)
+- Push notifications support
+- Safe area handling for edge-to-edge displays
+
 **Infrastructure:**
 
 - Docker and Docker Compose
@@ -206,6 +212,41 @@ echo "VITE_API_URL=http://localhost:8000/api/v1" > .env
 pnpm dev
 # Frontend available at http://localhost:5173
 ```
+
+### Mobile App Development
+
+Run the backend so that Capacitor apps can connect to it:
+
+```bash
+cd backend
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The frontend includes Capacitor for native iOS and Android apps:
+
+```bash
+cd frontend
+
+# Build the web app first
+pnpm build:capacitor
+
+# Sync web assets to native projects
+npx cap sync
+
+# Open in Android Studio
+npx cap open android
+
+# Open in Xcode (macOS only)
+npx cap open ios
+```
+
+**Requirements:**
+
+- Android: Android Studio with SDK installed
+- iOS: Xcode on macOS
+
+The mobile app connects to your Initiative server URL configured during build. In the android emulator the local backend will be available at http://10.0.0.2:8000
 
 ### Database Migrations
 
