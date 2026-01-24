@@ -11,7 +11,9 @@ export function ImportExportPlugin({ documentName }: { documentName?: string }) 
   const getFileName = () => {
     const timestamp = new Date().toISOString().split("T")[0];
     if (documentName?.trim()) {
-      return `${documentName.trim()} - ${timestamp}`;
+      // Sanitize filename by removing invalid characters
+      const sanitized = documentName.trim().replace(/[/\\:*?"<>|]/g, "-");
+      return `${sanitized} - ${timestamp}`;
     }
     return `Initiative Document - ${timestamp}`;
   };
