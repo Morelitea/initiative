@@ -89,6 +89,9 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Email verification**: Confirm user email addresses before account activation
 - **API keys**: Secure headless integrations with service accounts
 
+**User security settings:**
+<img width="1904" height="1050" alt="image" src="https://github.com/user-attachments/assets/4a1e3f34-fb00-4d07-adfb-bbdbcaec5a61" />
+
 ### Notifications & Activity
 
 - **Real-time updates**: WebSocket-based live updates for collaborative work
