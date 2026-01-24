@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Speech-to-text now normalizes transcripts across browsers (auto-spacing, auto-capitalization)
 - Speech recognition preview bubble no longer hidden behind toolbar
+- Android APK version now syncs with main VERSION file (was stuck at 1.0)
 
 ## [0.14.1] - 2026-01-23
 
