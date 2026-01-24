@@ -30,6 +30,7 @@ export function Editor({
   showToolbar = true,
   className,
   mentionableUsers = [],
+  documentName,
 }: {
   editorState?: EditorState;
   editorSerializedState?: SerializedEditorState;
@@ -39,6 +40,7 @@ export function Editor({
   showToolbar?: boolean;
   className?: string;
   mentionableUsers?: UserPublic[];
+  documentName?: string;
 }) {
   return (
     <div className={cn("bg-background overflow-y-auto rounded-lg border shadow", className)}>
@@ -55,6 +57,7 @@ export function Editor({
             showToolbar={showToolbar}
             readOnly={readOnly}
             mentionableUsers={mentionableUsers}
+            documentName={documentName}
           />
 
           {!readOnly && (

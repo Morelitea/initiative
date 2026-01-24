@@ -114,10 +114,12 @@ export function Plugins({
   showToolbar = true,
   readOnly = false,
   mentionableUsers = [],
+  documentName,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
   mentionableUsers?: UserPublic[];
+  documentName?: string;
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
@@ -315,7 +317,7 @@ export function Plugins({
             <div className="flex flex-1 justify-end">
               <SpeechToTextPlugin />
               {/* <ShareContentPlugin /> */}
-              <ImportExportPlugin />
+              <ImportExportPlugin documentName={documentName} />
               <MarkdownTogglePlugin
                 shouldPreserveNewLinesInMarkdown={true}
                 transformers={[

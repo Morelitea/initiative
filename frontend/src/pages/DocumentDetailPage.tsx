@@ -411,6 +411,7 @@ export const DocumentDetailPage = () => {
             showToolbar={canEditDocument}
             className="max-h-[80vh]"
             mentionableUsers={mentionableUsers}
+            documentName={title}
           />
           <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
