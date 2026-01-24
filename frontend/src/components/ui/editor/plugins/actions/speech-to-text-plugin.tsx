@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import type { LexicalCommand, LexicalEditor, RangeSelection } from "lexical";
+import { $findMatchingParent } from "@lexical/utils";
+import type {
+  ElementNode,
+  LexicalCommand,
+  LexicalEditor,
+  LexicalNode,
+  RangeSelection,
+} from "lexical";
 import {
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
+  $isTextNode,
   COMMAND_PRIORITY_EDITOR,
   createCommand,
   REDO_COMMAND,
@@ -32,6 +41,60 @@ const VOICE_COMMANDS: Readonly<
     editor.dispatchCommand(UNDO_COMMAND, undefined);
   },
 };
+
+/**
+ * Gets text content before the cursor position within the current block element.
+ * Traverses through previous siblings to collect all text, handling cases where
+ * the cursor is after block elements like images or tables.
+ */
+function $getTextBeforeCursor(selection: RangeSelection): string {
+  const anchorNode = selection.anchor.getNode();
+  const anchorOffset = selection.anchor.offset;
+
+  // Find the parent block element (paragraph, heading, list item, etc.)
+  const blockParent = $findMatchingParent(
+    anchorNode,
+    (node): node is ElementNode => $isElementNode(node) && !node.isInline()
+  );
+
+  if (!blockParent) {
+    // Fallback: just use current node's text
+    if ($isTextNode(anchorNode)) {
+      return anchorNode.getTextContent().slice(0, anchorOffset);
+    }
+    return "";
+  }
+
+  // Collect text from all nodes before the cursor within the block
+  let textBefore = "";
+  const collectText = (node: LexicalNode): boolean => {
+    if (node === anchorNode) {
+      // We've reached the anchor node - add text up to cursor position
+      if ($isTextNode(node)) {
+        textBefore += node.getTextContent().slice(0, anchorOffset);
+      }
+      return false; // Stop traversal
+    }
+
+    if ($isTextNode(node)) {
+      textBefore += node.getTextContent();
+    } else if ($isElementNode(node) && node.isInline()) {
+      // For inline elements, recursively collect text from children
+      for (const child of node.getChildren()) {
+        if (!collectText(child)) return false;
+      }
+    }
+    // Skip block elements (images, tables, etc.) - they don't contribute text
+    return true; // Continue traversal
+  };
+
+  // Traverse children of the block parent
+  for (const child of blockParent.getChildren()) {
+    if (!collectText(child)) break;
+  }
+
+  return textBefore;
+}
 
 /**
  * Normalizes speech recognition transcript to handle browser differences:
@@ -113,13 +176,8 @@ function SpeechToTextPluginImpl() {
             } else if (transcript.match(/\s*\n\s*/)) {
               selection.insertParagraph();
             } else {
-              // Get text before cursor for normalization
-              // We need the text in the current node up to the cursor position
-              const anchorNode = selection.anchor.getNode();
-              const anchorOffset = selection.anchor.offset;
-              const textContent = anchorNode.getTextContent();
-              const textBefore = textContent.slice(0, anchorOffset);
-
+              // Get text before cursor for normalization, traversing through the block element
+              const textBefore = $getTextBeforeCursor(selection);
               const normalizedTranscript = normalizeTranscript(transcript, textBefore);
               selection.insertText(normalizedTranscript);
             }
