@@ -30,6 +30,10 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Per-guild administration**: Guild admins manage their workspace without platform-wide access
 - **Controlled creation**: Optionally restrict guild creation for hosted deployments
 
+**Guild settings:**
+<img width="1905" height="1050" alt="Guild settings" src="https://github.com/user-attachments/assets/656b7d08-0a91-48be-868c-29f545a32165" />
+
+
 ### Organized Project Hierarchy
 
 - **Initiatives group related work**: Bundle projects and documents under a common initiative
@@ -37,12 +41,20 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Custom project boards**: Drag-and-drop Kanban boards with customizable task statuses
 - **Color-coded organization**: Visual distinction with initiative-specific colors
 
+**Initiatives page:**
+<img width="1905" height="1049" alt="Initiatives page" src="https://github.com/user-attachments/assets/3ea4f727-4f84-4e75-b860-a5bb17cb9e49" />
+
+
 ### Flexible Permission Model
 
 - **4-layer access control**: Granular permissions cascade from platform to guild to initiative to project
 - **Initiative project managers**: Designated team members control initiative access and project creation
 - **Project-level overrides**: Grant explicit write access to specific users beyond initiative membership
 - **Independent guild administration**: Guild admins manage their workspace without affecting other guilds
+
+**Initiative permission settings:**
+<img width="1920" height="1050" alt="Initiative permission settings" src="https://github.com/user-attachments/assets/10b90a79-4fa2-444a-9d97-29cbb8b58d63" />
+
 
 ### Rich Task Management
 
@@ -53,6 +65,12 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Multiple assignees**: Assign tasks to multiple team members
 - **My Tasks dashboard**: Personal view with filtering by status, priority, and date
 
+**Project Kanban view (Table, Kanban, Calendar, and Gantt views supported):**
+<img width="1905" height="1050" alt="Project Kanban view" src="https://github.com/user-attachments/assets/26d169c7-0415-4ea8-b81d-bd1b8f9a0576" />
+
+**Task details:**
+<img width="1905" height="1050" alt="Task details" src="https://github.com/user-attachments/assets/cdea8e20-a157-48cb-b5bb-2fdd1f5d5228" />
+
 ### Collaborative Documents
 
 - **Rich text editing**: Full-featured documents with JSONB storage for flexibility
@@ -60,6 +78,9 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Independent permissions**: Control document access separately from project permissions
 - **Document templates**: Create reusable document templates for common workflows
 - **Threaded comments**: Discuss documents with team members using nested comments
+
+**Document editor:**
+<img width="1905" height="1050" alt="Document editor" src="https://github.com/user-attachments/assets/b7118ed4-01c1-4ac5-b6b7-c1185455e2a2" />
 
 ### Authentication & Security
 
