@@ -14,6 +14,7 @@ const getElement = (): HTMLElement => {
     element.style.padding = "20px";
     element.style.background = "rgba(240, 240, 240, 0.4)";
     element.style.borderRadius = "20px";
+    element.style.zIndex = "50";
 
     if (document.body) {
       document.body.appendChild(element);

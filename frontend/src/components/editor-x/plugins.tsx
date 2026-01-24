@@ -31,7 +31,7 @@ import { ImportExportPlugin } from "@/components/ui/editor/plugins/actions/impor
 import { MarkdownTogglePlugin } from "@/components/ui/editor/plugins/actions/markdown-toggle-plugin";
 // import { MaxLengthPlugin } from "@/components/ui/editor/plugins/actions/max-length-plugin";
 // import { ShareContentPlugin } from "@/components/ui/editor/plugins/actions/share-content-plugin";
-// import { SpeechToTextPlugin } from "@/components/ui/editor/plugins/actions/speech-to-text-plugin";
+import { SpeechToTextPlugin } from "@/components/ui/editor/plugins/actions/speech-to-text-plugin";
 import { TreeViewPlugin } from "@/components/ui/editor/plugins/actions/tree-view-plugin";
 import { AutoLinkPlugin } from "@/components/ui/editor/plugins/auto-link-plugin";
 // import { AutocompletePlugin } from "@/components/ui/editor/plugins/autocomplete-plugin";
@@ -97,6 +97,7 @@ import { HistoryToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/his
 import { LinkToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/link-toolbar-plugin";
 import { SubSuperToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/subsuper-toolbar-plugin";
 import { ToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/toolbar-plugin";
+import { ToolbarOverflowMenu } from "@/components/ui/editor/plugins/toolbar/toolbar-overflow-menu";
 // import { TypingPerfPlugin } from "@/components/ui/editor/plugins/typing-pref-plugin";
 import { EMOJI } from "@/components/ui/editor/transformers/markdown-emoji-transformer";
 import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer";
@@ -138,47 +139,65 @@ export function Plugins({
       {showToolbar && (
         <ToolbarPlugin>
           {({ blockType }) => (
-            <div className="bg-background vertical-align-middle sticky top-0 z-10 flex flex-wrap items-center gap-2 overflow-auto border-b p-1">
-              <HistoryToolbarPlugin />
-              <Separator orientation="vertical" className="h-7!" />
-              <BlockFormatDropDown>
-                <FormatParagraph />
-                <FormatHeading levels={["h1", "h2", "h3"]} />
-                <FormatNumberedList />
-                <FormatBulletedList />
-                <FormatCheckList />
-                <FormatCodeBlock />
-                <FormatQuote />
-              </BlockFormatDropDown>
-              {blockType === "code" ? (
-                <CodeLanguageToolbarPlugin />
-              ) : (
-                <>
-                  {/* <FontFamilyToolbarPlugin /> */}
-                  <FontSizeToolbarPlugin />
-                  <Separator orientation="vertical" className="h-7!" />
-                  <FontFormatToolbarPlugin />
-                  <Separator orientation="vertical" className="h-7!" />
-                  <SubSuperToolbarPlugin />
-                  <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
-                  <Separator orientation="vertical" className="h-7!" />
-                  <ClearFormattingToolbarPlugin />
-                  <Separator orientation="vertical" className="h-7!" />
-                  <FontColorToolbarPlugin />
-                  <FontBackgroundToolbarPlugin />
-                  <Separator orientation="vertical" className="h-7!" />
-                  <ElementFormatToolbarPlugin />
-                  <Separator orientation="vertical" className="h-7!" />
-                  <BlockInsertPlugin>
-                    <InsertHorizontalRule />
-                    <InsertImage />
-                    <InsertTable />
-                    <InsertColumnsLayout />
-                    <InsertEmbeds />
-                  </BlockInsertPlugin>
-                </>
-              )}
-            </div>
+            <>
+              {/* Desktop toolbar - all options inline */}
+              <div className="bg-background vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b p-1 lg:flex">
+                <HistoryToolbarPlugin />
+                <Separator orientation="vertical" className="h-7!" />
+                <BlockFormatDropDown>
+                  <FormatParagraph />
+                  <FormatHeading levels={["h1", "h2", "h3"]} />
+                  <FormatNumberedList />
+                  <FormatBulletedList />
+                  <FormatCheckList />
+                  <FormatCodeBlock />
+                  <FormatQuote />
+                </BlockFormatDropDown>
+                {blockType === "code" ? (
+                  <CodeLanguageToolbarPlugin />
+                ) : (
+                  <>
+                    <FontSizeToolbarPlugin />
+                    <Separator orientation="vertical" className="h-7!" />
+                    <FontFormatToolbarPlugin />
+                    <Separator orientation="vertical" className="h-7!" />
+                    <SubSuperToolbarPlugin />
+                    <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
+                    <Separator orientation="vertical" className="h-7!" />
+                    <ClearFormattingToolbarPlugin />
+                    <Separator orientation="vertical" className="h-7!" />
+                    <FontColorToolbarPlugin />
+                    <FontBackgroundToolbarPlugin />
+                    <Separator orientation="vertical" className="h-7!" />
+                    <ElementFormatToolbarPlugin />
+                    <Separator orientation="vertical" className="h-7!" />
+                    <BlockInsertPlugin>
+                      <InsertHorizontalRule />
+                      <InsertImage />
+                      <InsertTable />
+                      <InsertColumnsLayout />
+                      <InsertEmbeds />
+                    </BlockInsertPlugin>
+                  </>
+                )}
+              </div>
+
+              {/* Compact toolbar - overflow menu */}
+              <div className="bg-background vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b p-1 lg:hidden">
+                <HistoryToolbarPlugin />
+                <Separator orientation="vertical" className="h-7!" />
+                <BlockFormatDropDown>
+                  <FormatParagraph />
+                  <FormatHeading levels={["h1", "h2", "h3"]} />
+                  <FormatNumberedList />
+                  <FormatBulletedList />
+                  <FormatCheckList />
+                  <FormatCodeBlock />
+                  <FormatQuote />
+                </BlockFormatDropDown>
+                {blockType === "code" ? <CodeLanguageToolbarPlugin /> : <ToolbarOverflowMenu />}
+              </div>
+            </>
           )}
         </ToolbarPlugin>
       )}
@@ -294,7 +313,7 @@ export function Plugins({
               <CounterCharacterPlugin charset="UTF-16" />
             </div>
             <div className="flex flex-1 justify-end">
-              {/* <SpeechToTextPlugin /> */}
+              <SpeechToTextPlugin />
               {/* <ShareContentPlugin /> */}
               <ImportExportPlugin />
               <MarkdownTogglePlugin

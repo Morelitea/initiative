@@ -15,6 +15,7 @@ import {
   AlignJustifyIcon,
   AlignLeftIcon,
   AlignRightIcon,
+  ChevronDownIcon,
   IndentDecreaseIcon,
   IndentIncreaseIcon,
 } from "lucide-react";
@@ -22,34 +23,38 @@ import {
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { useUpdateToolbarHandler } from "@/components/ui/editor/editor-hooks/use-update-toolbar";
 import { getSelectedNode } from "@/components/ui/editor/utils/get-selected-node";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
+type AlignmentType = "left" | "center" | "right" | "justify";
+
 const ELEMENT_FORMAT_OPTIONS: {
-  [key in Exclude<ElementFormatType, "start" | "end" | "">]: {
+  [key in AlignmentType]: {
     icon: React.ReactNode;
-    iconRTL: string;
     name: string;
   };
 } = {
   left: {
     icon: <AlignLeftIcon className="size-4" />,
-    iconRTL: "left-align",
     name: "Left Align",
   },
   center: {
     icon: <AlignCenterIcon className="size-4" />,
-    iconRTL: "center-align",
     name: "Center Align",
   },
   right: {
     icon: <AlignRightIcon className="size-4" />,
-    iconRTL: "right-align",
     name: "Right Align",
   },
   justify: {
     icon: <AlignJustifyIcon className="size-4" />,
-    iconRTL: "justify-align",
     name: "Justify Align",
   },
 } as const;
@@ -83,48 +88,50 @@ export function ElementFormatToolbarPlugin({ separator = true }: { separator?: b
 
   useUpdateToolbarHandler($updateToolbar);
 
-  const handleValueChange = (value: string) => {
-    if (!value) return; // Prevent unselecting current value
+  const handleAlignmentChange = (value: AlignmentType) => {
+    setElementFormat(value);
+    activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, value);
+  };
 
-    setElementFormat(value as ElementFormatType);
-
-    if (value === "indent") {
+  const handleIndent = (direction: "indent" | "outdent") => {
+    if (direction === "indent") {
       activeEditor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
-    } else if (value === "outdent") {
-      activeEditor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
     } else {
-      activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, value as ElementFormatType);
+      activeEditor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
     }
   };
 
+  // Get current alignment, defaulting to "left" if not a standard alignment
+  const currentAlignment: AlignmentType =
+    elementFormat in ELEMENT_FORMAT_OPTIONS ? (elementFormat as AlignmentType) : "left";
+
   return (
     <>
-      <ToggleGroup
-        type="single"
-        value={elementFormat}
-        defaultValue={elementFormat}
-        onValueChange={handleValueChange}
-      >
-        {/* Alignment toggles */}
-        {Object.entries(ELEMENT_FORMAT_OPTIONS).map(([value, option]) => (
-          <ToggleGroupItem
-            key={value}
-            value={value}
-            variant={"outline"}
-            size="sm"
-            aria-label={option.name}
-          >
-            {option.icon}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-1 px-2">
+            {ELEMENT_FORMAT_OPTIONS[currentAlignment].icon}
+            <ChevronDownIcon className="size-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {Object.entries(ELEMENT_FORMAT_OPTIONS).map(([value, option]) => (
+            <DropdownMenuItem
+              key={value}
+              onClick={() => handleAlignmentChange(value as AlignmentType)}
+              className={currentAlignment === value ? "bg-accent" : ""}
+            >
+              {option.icon}
+              <span className="ml-2">{option.name}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {separator && <Separator orientation="vertical" className="h-7!" />}
       {/* Indentation toggles */}
       <ToggleGroup
         type="single"
-        value={elementFormat}
-        defaultValue={elementFormat}
-        onValueChange={handleValueChange}
+        onValueChange={(v) => v && handleIndent(v as "indent" | "outdent")}
       >
         <ToggleGroupItem value="outdent" aria-label="Outdent" variant={"outline"} size="sm">
           <IndentDecreaseIcon className="size-4" />
