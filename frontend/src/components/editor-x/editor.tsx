@@ -92,10 +92,11 @@ export function Editor({
         ? JSON.stringify(editorSerializedState)
         : undefined;
 
-  // Function to bootstrap editor state from provided content when Yjs is empty
-  const getInitialEditorState =
+  // Initial editor state for bootstrapping when Yjs is empty
+  // Must be a string (not a function returning string) for CollaborationPlugin
+  const initialEditorStateForCollab =
     useCollaborativeMode && editorSerializedState
-      ? () => JSON.stringify(editorSerializedState)
+      ? JSON.stringify(editorSerializedState)
       : undefined;
 
   return (
@@ -124,7 +125,7 @@ export function Editor({
               <CollaborationPlugin
                 id="main"
                 providerFactory={providerFactory}
-                initialEditorState={getInitialEditorState}
+                initialEditorState={initialEditorStateForCollab}
                 shouldBootstrap={true}
                 username={userName}
                 cursorColor={userColor.current}

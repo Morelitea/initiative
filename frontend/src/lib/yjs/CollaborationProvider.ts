@@ -486,8 +486,14 @@ export class CollaborationProvider implements Provider {
       case MSG_SYNC_STEP2:
         // Apply server state
         console.log("CollaborationProvider: Received sync response, size:", payload.length);
-        if (payload.length > 0) {
+        // Skip applying essentially empty updates (2 bytes or less = empty Yjs doc)
+        // This allows CollaborationPlugin's shouldBootstrap to work properly
+        if (payload.length > 2) {
           Y.applyUpdate(this.doc, payload, this);
+        } else {
+          console.log(
+            "CollaborationProvider: Skipping empty sync response, letting frontend bootstrap"
+          );
         }
         if (!this._synced) {
           this._synced = true;
