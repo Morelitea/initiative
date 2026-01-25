@@ -85,6 +85,8 @@ export function Editor({
   const { user } = useAuth();
   const userColor = useRef(getRandomColor());
   const userName = user?.full_name || user?.email || "Anonymous";
+  // Ref for the collaboration cursors container - must be inside the scrolling editor content
+  const cursorsContainerRef = useRef<HTMLDivElement>(null!);
 
   // Collaborative mode is active when we have a provider factory
   const useCollaborativeMode = Boolean(collaborative && providerFactory);
@@ -124,6 +126,7 @@ export function Editor({
             mentionableUsers={mentionableUsers}
             documentName={documentName}
             collaborative={useCollaborativeMode}
+            cursorsContainerRef={cursorsContainerRef}
           />
 
           {/* Official Lexical CollaborationPlugin for real-time editing */}
@@ -136,6 +139,7 @@ export function Editor({
                 shouldBootstrap={true}
                 username={userName}
                 cursorColor={userColor.current}
+                cursorsContainerRef={cursorsContainerRef}
               />
             </LexicalCollaboration>
           )}
