@@ -211,3 +211,9 @@ jobs:
             View on Docker Hub: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/initiative
           draft: false
           prerelease: false
+
+      - name: Discord Webhook Action
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.WEBHOOK_URL }}
+          content: ":tada: Initiative ${{ steps.version.outputs.version }} has been published! Download the apk from the [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}) or pull the Docker image with tag `${{ steps.version.outputs.version }}` from Docker Hub."
