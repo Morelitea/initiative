@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Frontend dev
+
+This project uses pnpm, not npm.
+
 ## Issue Tracking with bd (beads)
 
 **IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
@@ -248,19 +252,24 @@ git log --oneline --grep="bump version" -n 1
 ## [Unreleased]
 
 ### Added
+
 - New features go here
 
 ### Changed
+
 - Modifications to existing features
 
 ### Fixed
+
 - Bug fixes
 
 ## [0.7.2] - 2026-01-12
+
 ...existing released versions...
 ```
 
 **Rules:**
+
 - ✅ Update changelog for all feature additions, breaking changes, and bug fixes
 - ✅ Use `[Unreleased]` section if the current VERSION has already been tagged
 - ✅ Keep entries concise and user-focused

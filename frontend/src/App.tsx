@@ -15,6 +15,7 @@ import { useServer } from "@/hooks/useServer";
 import { useSafeArea } from "@/hooks/useSafeArea";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useBackButton } from "@/hooks/useBackButton";
+import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { apiClient } from "@/api/client";
 import type { Project } from "@/types/api";
 import { PageRoutes } from "@/PageRoutes";
@@ -95,6 +96,7 @@ const AppLayout = () => {
   useRealtimeUpdates();
   usePushNotifications(); // Initialize push notifications
   useBackButton(); // Handle Android back button navigation
+  useDeepLinks(); // Handle OIDC deep links on mobile
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   const location = useLocation();

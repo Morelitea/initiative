@@ -241,27 +241,40 @@ async def revoke_device_token(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
 
 
-def _generate_state() -> str:
+def _generate_state(mobile: bool = False) -> str:
     timestamp = str(int(time.time()))
-    signature = hmac.new(settings.SECRET_KEY.encode(), timestamp.encode(), hashlib.sha256).hexdigest()
-    return f"{timestamp}.{signature}"
+    mobile_flag = "1" if mobile else "0"
+    payload = f"{timestamp}.{mobile_flag}"
+    signature = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{signature}"
 
 
-def _validate_state(value: str | None) -> bool:
+def _validate_state(value: str | None) -> tuple[bool, bool]:
+    """Validate OIDC state parameter and extract mobile flag.
+
+    Returns:
+        Tuple of (is_valid, is_mobile)
+    """
     if not value:
-        return False
+        return (False, False)
     try:
-        ts_str, signature = value.split(".", 1)
+        parts = value.split(".")
+        if len(parts) != 3:
+            return (False, False)
+        ts_str, mobile_flag, signature = parts
     except ValueError:
-        return False
-    expected = hmac.new(settings.SECRET_KEY.encode(), ts_str.encode(), hashlib.sha256).hexdigest()
+        return (False, False)
+    payload = f"{ts_str}.{mobile_flag}"
+    expected = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        return False
+        return (False, False)
     try:
         ts = int(ts_str)
     except ValueError:
-        return False
-    return int(time.time()) - ts <= STATE_TTL_SECONDS
+        return (False, False)
+    if int(time.time()) - ts > STATE_TTL_SECONDS:
+        return (False, False)
+    return (True, mobile_flag == "1")
 
 
 def _backend_redirect_uri() -> str:
@@ -322,9 +335,13 @@ async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
 
 @router.get("/oidc/login")
 @limiter.limit("20/minute")
-async def oidc_login(request: Request, session: SessionDep) -> RedirectResponse:
+async def oidc_login(
+    request: Request,
+    session: SessionDep,
+    mobile: bool = Query(default=False),
+) -> RedirectResponse:
     app_settings, metadata = await _get_oidc_runtime_config(session)
-    state = _generate_state()
+    state = _generate_state(mobile=mobile)
     params = {
         "client_id": app_settings.oidc_client_id,
         "response_type": "code",
@@ -334,6 +351,10 @@ async def oidc_login(request: Request, session: SessionDep) -> RedirectResponse:
     }
     authorize_url = f"{metadata['authorization_endpoint']}?{urlencode(params)}"
     return RedirectResponse(authorize_url)
+
+
+def _mobile_redirect_uri() -> str:
+    return "initiative://oidc/callback"
 
 
 @router.get("/oidc/callback")
@@ -346,7 +367,8 @@ async def oidc_callback(
 ):
     if not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing authorization code")
-    if not _validate_state(state):
+    is_valid, is_mobile = _validate_state(state)
+    if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state parameter")
 
     app_settings, metadata = await _get_oidc_runtime_config(session)
@@ -432,7 +454,10 @@ async def oidc_callback(
     app_token = create_access_token(subject=str(user.id))
 
     redirect_params = {"token": app_token}
-    redirect_url = f"{_frontend_redirect_uri()}?{urlencode(redirect_params)}"
+    if is_mobile:
+        redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
+    else:
+        redirect_url = f"{_frontend_redirect_uri()}?{urlencode(redirect_params)}"
     return RedirectResponse(redirect_url)
 
 

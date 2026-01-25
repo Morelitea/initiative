@@ -8,6 +8,7 @@ class OIDCSettingsResponse(BaseModel):
     client_id: Optional[str] = None
     redirect_uri: Optional[str] = None
     post_login_redirect: Optional[str] = None
+    mobile_redirect_uri: Optional[str] = None
     provider_name: Optional[str] = None
     scopes: List[str] = Field(default_factory=list)
 

@@ -36,6 +36,10 @@ def _frontend_redirect_uri() -> str:
     return f"{app_config.APP_URL.rstrip('/')}/oidc/callback"
 
 
+def _mobile_redirect_uri() -> str:
+    return "initiative://oidc/callback"
+
+
 def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     return EmailSettingsResponse(
         host=settings_obj.smtp_host,
@@ -67,6 +71,7 @@ async def get_oidc_settings(
         client_id=settings_obj.oidc_client_id,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),
+        mobile_redirect_uri=_mobile_redirect_uri(),
         provider_name=settings_obj.oidc_provider_name,
         scopes=settings_obj.oidc_scopes,
     )
@@ -93,6 +98,7 @@ async def update_oidc_settings(
         client_id=updated.oidc_client_id,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),
+        mobile_redirect_uri=_mobile_redirect_uri(),
         provider_name=updated.oidc_provider_name,
         scopes=updated.oidc_scopes,
     )

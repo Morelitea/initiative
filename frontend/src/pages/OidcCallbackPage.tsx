@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Browser } from "@capacitor/browser";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { useServer } from "@/hooks/useServer";
 
 export const OidcCallbackPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { completeOidcLogin } = useAuth();
+  const { isNativePlatform } = useServer();
   const [status, setStatus] = useState("Finishing login…");
 
   useEffect(() => {
@@ -24,6 +27,14 @@ export const OidcCallbackPage = () => {
     const run = async () => {
       try {
         await completeOidcLogin(token);
+        // Close the browser on mobile before navigating
+        if (isNativePlatform) {
+          try {
+            await Browser.close();
+          } catch {
+            // Browser may already be closed, ignore
+          }
+        }
         navigate("/", { replace: true });
       } catch (err) {
         console.error(err);
@@ -31,7 +42,7 @@ export const OidcCallbackPage = () => {
       }
     };
     void run();
-  }, [completeOidcLogin, navigate, searchParams]);
+  }, [completeOidcLogin, isNativePlatform, navigate, searchParams]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">

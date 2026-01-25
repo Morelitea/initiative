@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Device } from "@capacitor/device";
+import { Browser } from "@capacitor/browser";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -23,27 +24,24 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login } = useAuth();
-  const { isNativePlatform, isServerConfigured, getServerHostname, clearServerUrl } = useServer();
+  const { isNativePlatform, isServerConfigured, getServerHostname, clearServerUrl, serverUrl } =
+    useServer();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [oidcLoginUrl, setOidcLoginUrl] = useState<string | null>(null);
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
-  // On native, start as "ready" since we skip OIDC; on web start as "loading"
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
-    isNativePlatform ? "ready" : "loading"
+    "loading"
   );
   const inviteCodeParam = useMemo(() => {
     const code = searchParams.get("invite_code");
     return code && code.trim().length > 0 ? code.trim() : null;
   }, [searchParams]);
 
-  // Fetch OIDC status - only on web (mobile doesn't support OIDC redirect flow)
+  // Fetch OIDC status
   useEffect(() => {
-    if (isNativePlatform) {
-      return;
-    }
     const fetchOidcStatus = async () => {
       try {
         const response = await apiClient.get<{
@@ -64,14 +62,10 @@ export const LoginPage = () => {
       }
     };
     void fetchOidcStatus();
-  }, [isNativePlatform]);
+  }, []);
 
-  // Fetch bootstrap status - wait for server to be configured on native
+  // Fetch bootstrap status
   useEffect(() => {
-    // On native, skip bootstrap check (handled by connect page flow)
-    if (isNativePlatform) {
-      return;
-    }
     const fetchBootstrapStatus = async () => {
       try {
         const response = await apiClient.get<{ has_users: boolean }>("/auth/bootstrap");
@@ -81,7 +75,7 @@ export const LoginPage = () => {
       }
     };
     void fetchBootstrapStatus();
-  }, [isNativePlatform, isServerConfigured]);
+  }, [isServerConfigured]);
 
   const handleChangeServer = () => {
     clearServerUrl();
@@ -194,7 +188,18 @@ export const LoginPage = () => {
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => (window.location.href = oidcLoginUrl)}
+                  onClick={async () => {
+                    if (isNativePlatform && serverUrl) {
+                      // On mobile, open in system browser with mobile flag
+                      // serverUrl includes /api/v1, so strip it to get base URL
+                      const baseUrl = serverUrl.replace(/\/api\/v1\/?$/, "");
+                      const mobileLoginUrl = `${baseUrl}${oidcLoginUrl}?mobile=true`;
+                      await Browser.open({ url: mobileLoginUrl });
+                    } else {
+                      // On web, redirect directly
+                      window.location.href = oidcLoginUrl;
+                    }
+                  }}
                 >
                   Continue with {oidcProviderName ?? "Single Sign-On"}
                 </Button>

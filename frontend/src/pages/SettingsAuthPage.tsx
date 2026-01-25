@@ -22,6 +22,7 @@ interface OidcSettings {
   client_id?: string | null;
   redirect_uri?: string | null;
   post_login_redirect?: string | null;
+  mobile_redirect_uri?: string | null;
   provider_name?: string | null;
   scopes: string[];
 }
@@ -203,6 +204,10 @@ export const SettingsAuthPage = () => {
         <div>
           Post-login redirect:{" "}
           <code className="bg-muted rounded px-1 py-0.5">{oidcQuery.data.post_login_redirect}</code>
+        </div>
+        <div>
+          Mobile app callback:{" "}
+          <code className="bg-muted rounded px-1 py-0.5">{oidcQuery.data.mobile_redirect_uri}</code>
         </div>
       </CardFooter>
     </Card>
