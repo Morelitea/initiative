@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set
 
 from fastapi import WebSocket
-from pycrdt import Doc, Text
+from pycrdt import Doc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -60,13 +60,14 @@ class DocumentRoom:
         self._initialized = False
         self._pending_updates: list[bytes] = []
 
-    @property
-    def content(self) -> Text:
-        """Get the shared text content from the Y.Doc."""
-        return self.doc.get("content", type=Text)
-
     async def initialize_from_db(self, yjs_state: Optional[bytes], lexical_content: Optional[dict]) -> None:
-        """Initialize the Y.Doc from database state or Lexical content."""
+        """Initialize the Y.Doc from database state.
+
+        Note: We don't try to convert Lexical content to Yjs here because Lexical's
+        Yjs binding uses a specific structure that's complex to recreate server-side.
+        Instead, the frontend handles migration via CollaborationPlugin's shouldBootstrap
+        and initialEditorState props.
+        """
         async with self._lock:
             if self._initialized:
                 return
@@ -78,48 +79,12 @@ class DocumentRoom:
                     logger.info(f"Document {self.document_id}: restored from Yjs state")
                 except Exception as e:
                     logger.warning(f"Document {self.document_id}: failed to restore Yjs state: {e}")
-                    # Fall back to Lexical content
-                    self._init_from_lexical(lexical_content)
             else:
-                # First time collaborative edit - convert from Lexical
-                self._init_from_lexical(lexical_content)
+                # First time collaborative edit - Yjs doc starts empty
+                # Frontend will bootstrap with existing Lexical content via initialEditorState
+                logger.info(f"Document {self.document_id}: no Yjs state, frontend will bootstrap")
 
             self._initialized = True
-
-    def _init_from_lexical(self, lexical_content: Optional[dict]) -> None:
-        """Initialize Y.Doc from Lexical JSON state (one-time migration)."""
-        if not lexical_content:
-            return
-
-        # Extract plain text from Lexical state for initial Yjs content
-        # The frontend will handle full Lexical <-> Yjs binding
-        try:
-            text_content = self._extract_text_from_lexical(lexical_content)
-            if text_content:
-                self.content += text_content
-                logger.info(f"Document {self.document_id}: initialized from Lexical content")
-        except Exception as e:
-            logger.warning(f"Document {self.document_id}: failed to extract Lexical text: {e}")
-
-    def _extract_text_from_lexical(self, state: dict) -> str:
-        """Extract plain text from Lexical editor state."""
-        texts = []
-
-        def extract_from_node(node: dict) -> None:
-            if node.get("type") == "text":
-                texts.append(node.get("text", ""))
-            elif node.get("type") == "linebreak":
-                texts.append("\n")
-            children = node.get("children", [])
-            for child in children:
-                extract_from_node(child)
-            # Add paragraph breaks
-            if node.get("type") in ("paragraph", "heading", "quote"):
-                texts.append("\n")
-
-        root = state.get("root", {})
-        extract_from_node(root)
-        return "".join(texts).strip()
 
     def get_state(self) -> bytes:
         """Get the current Y.Doc state as an update that can be applied by clients."""

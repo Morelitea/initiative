@@ -54,6 +54,11 @@ const MAX_ATTEMPTS_PER_MINUTE = 5;
 /**
  * Get or create a CollaborationProvider for the given URL.
  * This ensures we only have one active provider per document.
+ *
+ * Important: We only reuse a provider if the Y.Doc matches. If the doc is different
+ * (e.g., after navigation when Lexical creates a fresh yjsDocMap), we create a new provider.
+ * This prevents the issue where the editor appears empty because the old provider's
+ * Y.Doc doesn't match Lexical's new Y.Doc.
  */
 export function getOrCreateProvider(
   wsUrl: string,
@@ -65,15 +70,18 @@ export function getOrCreateProvider(
   const urlObj = new URL(wsUrl);
   const connectionId = urlObj.pathname;
 
-  // Check if there's already an active provider
+  // Check if there's already an active provider with the SAME doc
   const existingProvider = activeProviders.get(connectionId);
-  if (existingProvider && !existingProvider.destroyed) {
+  if (existingProvider && !existingProvider.destroyed && existingProvider.doc === doc) {
+    // Same doc - reuse provider (React Strict Mode case)
     console.log("getOrCreateProvider: Reusing existing provider for", connectionId);
     return existingProvider;
   }
 
-  // Clean up destroyed provider if it exists
+  // Different doc or destroyed provider - clean up old and create new
   if (existingProvider) {
+    console.log("getOrCreateProvider: Doc changed or provider destroyed, creating new provider");
+    existingProvider.destroy();
     activeProviders.delete(connectionId);
   }
 

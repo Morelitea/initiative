@@ -136,6 +136,8 @@ export function useCollaboration({
       // Check if we already have a provider with the same URL
       if (providerRef.current && currentWsUrlRef.current === wsUrl) {
         console.log("useCollaboration: Returning existing provider");
+        // Ensure provider is connected (cancels pending disconnect or reconnects)
+        providerRef.current.connect();
         return providerRef.current;
       }
 
@@ -169,6 +171,9 @@ export function useCollaboration({
       // Use the factory function to get or create a provider
       // This ensures we reuse existing providers for the same document
       const provider = getOrCreateProvider(wsUrl, id, doc, { connect: true });
+
+      // Ensure provider is connected (handles reconnecting after navigation)
+      provider.connect();
 
       // Check if this is a new provider (not already in providerRef.current)
       const existingProvider = providerRef.current;
@@ -223,13 +228,14 @@ export function useCollaboration({
     }
   }, [isReady]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - use disconnect (debounced) instead of destroy
+  // This allows the provider to be reused if the component remounts quickly (React Strict Mode)
+  // The provider will only be destroyed when the document ID changes (via the wsUrl change effect)
   useEffect(() => {
     return () => {
-      console.log("useCollaboration: Cleaning up provider on unmount");
-      providerRef.current?.destroy();
-      providerRef.current = null;
-      currentWsUrlRef.current = null;
+      console.log("useCollaboration: Cleaning up - disconnecting provider");
+      providerRef.current?.disconnect();
+      // Don't null refs - provider may be reused on quick remount
     };
   }, []);
 
