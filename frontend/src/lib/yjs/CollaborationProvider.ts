@@ -536,6 +536,9 @@ export class CollaborationProvider implements Provider {
   };
 
   private handleAwarenessChange = (): void => {
+    // Only send awareness updates after initial sync to avoid accessing uninitialized Yjs types
+    if (!this._synced) return;
+
     // Send awareness update in y-protocols binary format
     // This enables proper cursor synchronization across clients
     const update = awarenessProtocol.encodeAwarenessUpdate(this._awareness, [this.doc.clientID]);
