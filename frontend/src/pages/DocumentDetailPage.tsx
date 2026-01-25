@@ -6,7 +6,7 @@ import type { SerializedEditorState } from "lexical";
 import { ImagePlus, Loader2, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { Editor } from "@/components/editor-x/editor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
@@ -31,13 +31,15 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { CommentSection } from "@/components/comments/CommentSection";
 
 export const DocumentDetailPage = () => {
   const { documentId } = useParams();
   const parsedId = Number(documentId);
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const { activeGuildId } = useGuilds();
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
@@ -46,6 +48,9 @@ export const DocumentDetailPage = () => {
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
+  // Refs for sendBeacon - need latest values in event handlers
+  const contentStateRef = useRef(contentState);
+  const collaboratingRef = useRef(false);
 
   // Collaboration hook - only enable when we have a valid document ID
   const collaboration = useCollaboration({
@@ -208,20 +213,38 @@ export const DocumentDetailPage = () => {
     },
   });
 
-  // Autosave with debounce (disabled when collaboration is active)
+  // Keep refs updated for sendBeacon
   useEffect(() => {
-    // Skip autosave when collaboration is active - Yjs handles sync
+    contentStateRef.current = contentState;
+  }, [contentState]);
+
+  useEffect(() => {
+    collaboratingRef.current = collaboration.isCollaborating;
+  }, [collaboration.isCollaborating]);
+
+  // Autosave with debounce
+  useEffect(() => {
+    if (!autosaveEnabled || !canEditDocument || saveDocument.isPending) {
+      return;
+    }
+    // When collaborating, sync content less frequently (every 10s) to keep content column updated
+    // When not collaborating, use normal autosave behavior (2s debounce when dirty)
     if (collaboration.isCollaborating) {
-      return;
+      const timer = setTimeout(() => {
+        isAutosaveRef.current = true;
+        saveDocument.mutate();
+      }, 10000);
+      return () => clearTimeout(timer);
+    } else {
+      if (!isDirty) {
+        return;
+      }
+      const timer = setTimeout(() => {
+        isAutosaveRef.current = true;
+        saveDocument.mutate();
+      }, 2000);
+      return () => clearTimeout(timer);
     }
-    if (!autosaveEnabled || !isDirty || !canEditDocument || saveDocument.isPending) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      isAutosaveRef.current = true;
-      saveDocument.mutate();
-    }, 2000);
-    return () => clearTimeout(timer);
   }, [
     autosaveEnabled,
     isDirty,
@@ -232,6 +255,52 @@ export const DocumentDetailPage = () => {
     featuredImageUrl,
     collaboration.isCollaborating,
   ]);
+
+  // Sync content via sendBeacon on page unload to ensure content column stays updated
+  // This is critical when users navigate away or close the tab during collaboration
+  useEffect(() => {
+    if (!canEditDocument || !token || !activeGuildId) {
+      return;
+    }
+
+    const syncContentBeacon = () => {
+      // Only sync if we were collaborating (content might have changed via Yjs)
+      if (!collaboratingRef.current) {
+        return;
+      }
+
+      // Build the sync URL
+      const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
+      const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
+      const syncUrl = `${baseUrl}/collaboration/documents/${parsedId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+
+      // Send content via sendBeacon (reliable even on page unload)
+      const content = contentStateRef.current;
+      const blob = new Blob([JSON.stringify(content)], { type: "application/json" });
+      navigator.sendBeacon(syncUrl, blob);
+      console.log("DocumentDetailPage: Sent content sync beacon on unload");
+    };
+
+    // Handle tab close / navigation
+    const handleBeforeUnload = () => {
+      syncContentBeacon();
+    };
+
+    // Handle tab visibility change (switching tabs)
+    const handleVisibilityChange = () => {
+      if (globalThis.document.visibilityState === "hidden") {
+        syncContentBeacon();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [parsedId, token, activeGuildId, canEditDocument]);
 
   const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!canEditDocument) {
@@ -445,6 +514,8 @@ export const DocumentDetailPage = () => {
             documentName={title}
             collaborative={collaborationEnabled && collaboration.isReady}
             providerFactory={collaboration.providerFactory}
+            // Always track changes so contentState stays updated for periodic saves
+            trackChanges={true}
           />
           <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
@@ -487,6 +558,17 @@ export const DocumentDetailPage = () => {
                     ) : null}
                   </>
                 )}
+                {/* Always show collaboration toggle */}
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="collaboration"
+                    checked={collaborationEnabled}
+                    onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
+                  />
+                  <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                    Live collaboration
+                  </Label>
+                </div>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">

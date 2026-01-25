@@ -144,7 +144,11 @@ class DocumentRoom:
         async with self._lock:
             collaborators = list(self.collaborators.values())
 
-        message = json.dumps({"type": "awareness", "data": awareness_data}).encode()
+        # Message format: [MSG_AWARENESS byte] + JSON payload
+        # Must include the type prefix for frontend to process correctly
+        MSG_AWARENESS = 3
+        json_payload = json.dumps({"type": "awareness", "data": awareness_data}).encode()
+        message = bytes([MSG_AWARENESS]) + json_payload
 
         for collaborator in collaborators:
             if collaborator.user_id == origin_user_id:

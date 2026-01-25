@@ -12,7 +12,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect, status
 from jose import JWTError, jwt
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -304,3 +304,56 @@ async def get_document_collaborators(
     if not room:
         return []
     return room.get_collaborator_list()
+
+
+@router.post("/documents/{document_id}/sync-content")
+async def sync_document_content(
+    document_id: int,
+    request: Request,
+    session: SessionDep,
+    token: str = Query(...),
+    guild_id: int = Query(...),
+):
+    """
+    Sync Lexical content from the frontend to the database.
+
+    This endpoint is called via navigator.sendBeacon when the page unloads
+    to ensure the content column stays in sync with yjs_state.
+
+    The request body should contain the Lexical serialized state as JSON.
+    """
+    # Parse the JSON body (sendBeacon sends raw body)
+    try:
+        content = await request.json()
+    except Exception as e:
+        logger.warning(f"Sync content: Failed to parse JSON body: {e}")
+        return {"status": "error", "message": "Invalid JSON body"}
+
+    # Authenticate
+    user = await _get_user_from_token(token, session)
+    if not user:
+        logger.warning(f"Sync content: Auth failed for document {document_id}")
+        return {"status": "error", "message": "Authentication failed"}
+
+    # Get document and check write permission
+    document = await _get_document_with_permissions(session, document_id, guild_id)
+    if not document:
+        logger.warning(f"Sync content: Document {document_id} not found")
+        return {"status": "error", "message": "Document not found"}
+
+    can_read, can_write = await _check_document_access(session, document, user, guild_id)
+    if not can_write:
+        logger.warning(f"Sync content: User {user.email} has no write access to document {document_id}")
+        return {"status": "error", "message": "No write access"}
+
+    # Update the content column
+    try:
+        document.content = content
+        session.add(document)
+        await session.commit()
+        logger.info(f"Sync content: Updated content for document {document_id} by {user.email}")
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Sync content: Failed to update document {document_id}: {e}")
+        await session.rollback()
+        return {"status": "error", "message": str(e)}

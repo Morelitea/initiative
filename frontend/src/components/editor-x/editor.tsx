@@ -60,6 +60,12 @@ export interface EditorProps {
    * Passed to Lexical's CollaborationPlugin.
    */
   providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
+  /**
+   * Whether to track changes via OnChangePlugin.
+   * Set to true when not actively collaborating to enable autosave.
+   * Defaults to true when not in collaborative mode.
+   */
+  trackChanges?: boolean;
 }
 
 export function Editor({
@@ -74,6 +80,7 @@ export function Editor({
   documentName,
   collaborative = false,
   providerFactory,
+  trackChanges,
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(getRandomColor());
@@ -133,8 +140,8 @@ export function Editor({
             </LexicalCollaboration>
           )}
 
-          {/* Standard onChange when not in collaborative mode */}
-          {!readOnly && !useCollaborativeMode && (
+          {/* Standard onChange - enabled when trackChanges is true or when not in collaborative mode */}
+          {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
             <OnChangePlugin
               ignoreSelectionChange={true}
               onChange={(editorState) => {
