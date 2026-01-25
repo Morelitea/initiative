@@ -192,7 +192,7 @@ export const LoginPage = () => {
                     if (isNativePlatform && serverUrl) {
                       // On mobile, open in system browser with mobile flag
                       // serverUrl includes /api/v1, so strip it to get base URL
-                      const baseUrl = serverUrl.replace(/\/api\/v1\/?$/, "");
+                      const baseUrl = serverUrl.replace(/\/api\/v1\/?(\?.*)?$/, "");
                       const mobileLoginUrl = `${baseUrl}${oidcLoginUrl}?mobile=true`;
                       await Browser.open({ url: mobileLoginUrl });
                     } else {
