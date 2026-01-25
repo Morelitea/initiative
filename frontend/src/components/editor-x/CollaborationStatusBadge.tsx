@@ -97,7 +97,7 @@ export function CollaborationStatusBadge({
             )}
           </div>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="max-w-xs">
+        <TooltipContent side="bottom" className="bg-popover text-popover-foreground max-w-xs">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Circle className={cn("h-2 w-2 fill-current", config.color)} />
@@ -105,26 +105,24 @@ export function CollaborationStatusBadge({
             </div>
             {collaborators.length > 0 && (
               <div className="space-y-1">
-                <p className="text-muted-foreground text-xs">Active collaborators:</p>
+                <p className="text-xs opacity-70">Active collaborators:</p>
                 <ul className="space-y-1">
                   {collaborators.map((c) => (
                     <li key={c.user_id} className="flex items-center gap-2 text-sm">
                       <span className="font-medium">{c.name}</span>
-                      {!c.can_write && (
-                        <span className="text-muted-foreground text-xs">(viewing)</span>
-                      )}
+                      {!c.can_write && <span className="text-xs opacity-70">(viewing)</span>}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
             {connectionStatus === "connected" && collaborators.length === 0 && (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs opacity-70">
                 No other collaborators. Changes sync in real-time when others join.
               </p>
             )}
             {connectionStatus === "error" && (
-              <p className="text-destructive text-xs">
+              <p className="text-xs text-red-500">
                 Failed to connect. Changes will be saved locally.
               </p>
             )}
@@ -176,9 +174,9 @@ function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
             {initials}
           </div>
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent className="bg-popover text-popover-foreground">
           <span>{collaborator.name}</span>
-          {!collaborator.can_write && <span className="text-muted-foreground ml-1">(viewing)</span>}
+          {!collaborator.can_write && <span className="ml-1 opacity-70">(viewing)</span>}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -214,7 +212,7 @@ export function CollaborationStatusCompact({
             )}
           </div>
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent className="bg-popover text-popover-foreground">
           {isConnected
             ? `${collaborators.length} collaborator${collaborators.length !== 1 ? "s" : ""}`
             : "Connecting..."}
