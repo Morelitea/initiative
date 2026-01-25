@@ -79,6 +79,7 @@
     "@lexical/yjs": "^0.39.0",
     "lexical": "^0.39.0",
     "lodash": "^4.17.21",
+    "y-protocols": "^1.0.6",
     "yjs": "^13.6.0",
     "lucide-react": "^0.555.0",
     "radix-ui": "^1.4.3",
