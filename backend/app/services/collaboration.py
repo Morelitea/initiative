@@ -227,13 +227,16 @@ class CollaborationManager:
 
     async def persist_room(self, document_id: int, session: AsyncSession) -> None:
         """Persist the current room state to the database."""
+        # Capture state while holding the lock to ensure consistency
         async with self._lock:
             room = self._rooms.get(document_id)
             if not room:
                 return
-
-        try:
+            # Get state snapshot while holding lock to prevent concurrent modifications
             state = room.get_state()
+
+        # Database operations can happen outside the lock
+        try:
             stmt = select(Document).where(Document.id == document_id)
             result = await session.exec(stmt)
             document = result.one_or_none()
