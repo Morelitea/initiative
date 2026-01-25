@@ -36,6 +36,7 @@ const MSG_SYNC_STEP2 = 1;
 const MSG_UPDATE = 2;
 const MSG_AWARENESS = 3;
 const MSG_AWARENESS_BINARY = 4; // y-protocols awareness encoding
+const MSG_AUTH = 5; // Authentication message (sent first after connect)
 
 export interface CollaboratorInfo {
   user_id: number;
@@ -49,6 +50,11 @@ export interface CollaboratorInfo {
 
 export interface CollaborationProviderOptions {
   connect?: boolean;
+  /** Auth params sent via MSG_AUTH message after connection (not in URL for security) */
+  auth?: {
+    token: string;
+    guildId: number;
+  };
 }
 
 // Typed callback signatures matching Lexical's Provider interface
@@ -123,6 +129,7 @@ export class CollaborationProvider implements Provider {
   private _synced = false;
   private shouldConnect: boolean;
   private connectionId: string;
+  private authParams: { token: string; guildId: number } | null = null;
 
   // Typed event handlers
   private syncHandlers: Set<SyncCallback> = new Set();
@@ -147,6 +154,7 @@ export class CollaborationProvider implements Provider {
     this._awareness = new Awareness(doc);
     this.shouldConnect = options.connect !== false;
     this.connectionId = connectionId || new URL(wsUrl).pathname;
+    this.authParams = options.auth || null;
 
     // Create a ProviderAwareness wrapper that matches Lexical's expected interface
     this.awareness = {
@@ -458,6 +466,16 @@ export class CollaborationProvider implements Provider {
 
   private handleOpen = (): void => {
     this.reconnectAttempts = 0;
+
+    // Send authentication message first (required by server)
+    if (this.authParams) {
+      const authPayload = JSON.stringify({
+        token: this.authParams.token,
+        guild_id: this.authParams.guildId,
+      });
+      this.sendMessage(MSG_AUTH, new TextEncoder().encode(authPayload));
+    }
+
     this.emitStatus({ status: "connected" });
 
     // Request initial sync - send empty state vector to get full state

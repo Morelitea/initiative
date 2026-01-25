@@ -84,6 +84,7 @@ export function useCollaboration({
   const isReady = Boolean(enabled && token && activeGuildId && documentId);
 
   // Build the WebSocket URL (memoized to detect changes)
+  // Token is NOT included in URL for security - sent via MSG_AUTH message instead
   const wsUrl = useMemo(() => {
     if (!isReady || !token || !activeGuildId) {
       return null;
@@ -96,10 +97,15 @@ export function useCollaboration({
       ? url.pathname.slice(0, -1)
       : url.pathname || "/api/v1";
     url.pathname = `${normalizedPath}/collaboration/documents/${documentId}/collaborate`;
-    url.searchParams.set("token", token);
-    url.searchParams.set("guild_id", String(activeGuildId));
+    // Note: token and guild_id are sent via MSG_AUTH message, not URL params
     return url.toString();
   }, [isReady, token, activeGuildId, documentId]);
+
+  // Auth params to pass to the provider (sent via MSG_AUTH message)
+  const authParams = useMemo(() => {
+    if (!token || !activeGuildId) return null;
+    return { token, guildId: activeGuildId };
+  }, [token, activeGuildId]);
 
   // Clean up provider when URL changes (token refresh, guild change, etc.)
   useEffect(() => {
@@ -112,7 +118,7 @@ export function useCollaboration({
 
   // Create the provider factory that Lexical's CollaborationPlugin will call
   const providerFactory = useMemo(() => {
-    if (!wsUrl) {
+    if (!wsUrl || !authParams) {
       return null;
     }
 
@@ -140,7 +146,11 @@ export function useCollaboration({
 
       // Use the factory function to get or create a provider
       // This ensures we reuse existing providers for the same document
-      const provider = getOrCreateProvider(wsUrl, id, doc, { connect: true });
+      // Auth is sent via MSG_AUTH message after connection, not in URL
+      const provider = getOrCreateProvider(wsUrl, id, doc, {
+        connect: true,
+        auth: authParams,
+      });
 
       // Ensure provider is connected (handles reconnecting after navigation)
       provider.connect();
@@ -183,7 +193,7 @@ export function useCollaboration({
 
       return provider;
     };
-  }, [wsUrl]);
+  }, [wsUrl, authParams]);
 
   // Reset state when documentId changes or collaboration is disabled
   useEffect(() => {

@@ -39,6 +39,7 @@ MSG_SYNC_STEP2 = 1  # Server sends current state
 MSG_UPDATE = 2  # Incremental Yjs update
 MSG_AWARENESS = 3  # Cursor/selection awareness (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
+MSG_AUTH = 5  # Authentication message (JSON: {token, guild_id})
 
 
 async def _get_user_from_token(token: str, session) -> Optional[User]:
@@ -145,14 +146,12 @@ async def _check_document_access(
 async def websocket_collaborate(
     websocket: WebSocket,
     document_id: int,
-    token: str = Query(...),
-    guild_id: int = Query(...),
 ):
     """
     WebSocket endpoint for collaborative document editing.
 
     Protocol:
-    1. Client connects with JWT token and guild_id
+    1. Client connects and sends MSG_AUTH with {token, guild_id} as first message
     2. Server validates auth and sends current Yjs state (SYNC_STEP2)
     3. Client sends incremental updates (UPDATE)
     4. Server broadcasts updates to other clients
@@ -170,6 +169,30 @@ async def websocket_collaborate(
     # and the client sees an abnormal closure (1006)
     await websocket.accept()
     logger.info(f"Collaboration: WebSocket accepted for document {document_id}")
+
+    # Wait for authentication message (must be first message)
+    try:
+        auth_data = await websocket.receive_bytes()
+        if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
+            logger.warning(f"Collaboration: Expected MSG_AUTH as first message for document {document_id}")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # Parse auth payload
+        try:
+            auth_payload = json.loads(auth_data[1:].decode())
+            token = auth_payload.get("token")
+            guild_id = auth_payload.get("guild_id")
+            if not token or not guild_id:
+                raise ValueError("Missing token or guild_id")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Collaboration: Invalid auth payload for document {document_id}: {e}")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+    except WebSocketDisconnect:
+        logger.info(f"Collaboration: Client disconnected before auth for document {document_id}")
+        return
 
     # Authenticate and check permissions using a short-lived session
     async with AsyncSessionLocal() as session:
