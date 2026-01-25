@@ -19,6 +19,7 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep
 from app.core.config import settings
+from app.db.session import AsyncSessionLocal
 from app.models.document import Document, DocumentPermissionLevel
 from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeRole
@@ -39,7 +40,7 @@ MSG_UPDATE = 2  # Incremental Yjs update
 MSG_AWARENESS = 3  # Cursor/selection awareness
 
 
-async def _get_user_from_token(token: str, session: SessionDep) -> Optional[User]:
+async def _get_user_from_token(token: str, session) -> Optional[User]:
     """Validate JWT token and return the user."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -61,7 +62,7 @@ async def _get_user_from_token(token: str, session: SessionDep) -> Optional[User
 
 
 async def _get_document_with_permissions(
-    session: SessionDep,
+    session,
     document_id: int,
     guild_id: int,
 ) -> Optional[Document]:
@@ -88,7 +89,7 @@ async def _get_document_with_permissions(
 
 
 async def _check_document_access(
-    session: SessionDep,
+    session,
     document: Document,
     user: User,
     guild_id: int,
@@ -143,7 +144,6 @@ async def _check_document_access(
 async def websocket_collaborate(
     websocket: WebSocket,
     document_id: int,
-    session: SessionDep,
     token: str = Query(...),
     guild_id: int = Query(...),
 ):
@@ -160,30 +160,41 @@ async def websocket_collaborate(
     Message format (binary):
     - First byte: message type
     - Rest: payload (Yjs update bytes or JSON for awareness)
+
+    Note: This endpoint manages its own database sessions to avoid holding
+    connections open for the entire WebSocket lifetime.
     """
-    # Authenticate
-    user = await _get_user_from_token(token, session)
-    if not user:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    # Get document and check permissions
-    document = await _get_document_with_permissions(session, document_id, guild_id)
-    if not document:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    can_read, can_write = await _check_document_access(session, document, user, guild_id)
-    if not can_read:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    # Accept the WebSocket connection
+    # Must accept WebSocket before we can close it properly
+    # If we try to close before accept, the HTTP upgrade never completes
+    # and the client sees an abnormal closure (1006)
     await websocket.accept()
-    logger.info(f"Collaboration: {user.email} connected to document {document_id}")
+    logger.info(f"Collaboration: WebSocket accepted for document {document_id}")
 
-    # Get or create the document room
-    room = await collaboration_manager.get_or_create_room(document_id, session)
+    # Authenticate and check permissions using a short-lived session
+    async with AsyncSessionLocal() as session:
+        user = await _get_user_from_token(token, session)
+        if not user:
+            logger.warning(f"Collaboration: Auth failed for document {document_id}")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # Get document and check permissions
+        document = await _get_document_with_permissions(session, document_id, guild_id)
+        if not document:
+            logger.warning(f"Collaboration: Document {document_id} not found or not in guild {guild_id}")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        can_read, can_write = await _check_document_access(session, document, user, guild_id)
+        if not can_read:
+            logger.warning(f"Collaboration: User {user.email} has no read access to document {document_id}")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # Get or create the document room (needs session for initial load)
+        room = await collaboration_manager.get_or_create_room(document_id, session)
+
+    logger.info(f"Collaboration: {user.email} authenticated for document {document_id}")
 
     # Create collaborator info
     collaborator = CollaboratorInfo(
@@ -200,6 +211,7 @@ async def websocket_collaborate(
         # Send initial sync state
         state = room.get_state()
         sync_message = bytes([MSG_SYNC_STEP2]) + state
+        logger.info(f"Collaboration: Sending initial sync to {user.email}, state size: {len(state)} bytes")
         await websocket.send_bytes(sync_message)
 
         # Send current collaborator list
@@ -225,19 +237,23 @@ async def websocket_collaborate(
             payload = data[1:]
 
             if msg_type == MSG_SYNC_STEP1:
-                # Client requesting sync
+                # Client requesting sync with their state vector
+                logger.info(f"Collaboration: Received SYNC_STEP1 from {user.email}, state vector size: {len(payload)}")
                 state = room.get_state()
                 sync_message = bytes([MSG_SYNC_STEP2]) + state
+                logger.info(f"Collaboration: Sending SYNC_STEP2 to {user.email}, state size: {len(state)}")
                 await websocket.send_bytes(sync_message)
 
             elif msg_type == MSG_UPDATE:
                 # Yjs update from client
                 if not can_write:
-                    # Read-only users can't send updates
+                    logger.warning(f"Collaboration: Read-only user {user.email} tried to send update")
                     continue
 
                 try:
+                    logger.info(f"Collaboration: Received MSG_UPDATE from {user.email}, payload size: {len(payload)}")
                     room.apply_update(payload, origin=user.id)
+                    logger.info(f"Collaboration: Applied update, broadcasting to {len(room.collaborators) - 1} other clients")
                     # Broadcast to other clients
                     await room.broadcast_update(
                         bytes([MSG_UPDATE]) + payload,
@@ -272,8 +288,9 @@ async def websocket_collaborate(
             origin_user_id=user.id,
         )
 
-        # Persist and potentially clean up room
-        await collaboration_manager.persist_room(document_id, session)
+        # Persist and potentially clean up room (using a new short-lived session)
+        async with AsyncSessionLocal() as session:
+            await collaboration_manager.persist_room(document_id, session)
         await collaboration_manager.remove_room(document_id)
 
 

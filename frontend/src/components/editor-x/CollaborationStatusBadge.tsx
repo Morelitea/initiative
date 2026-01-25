@@ -6,7 +6,8 @@ import { Circle, CloudOff, Users, Wifi, WifiOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { CollaboratorInfo, ConnectionStatus } from "@/lib/yjs/CollaborationProvider";
+import type { CollaboratorInfo } from "@/lib/yjs/CollaborationProvider";
+import type { ConnectionStatus } from "@/hooks/useCollaboration";
 
 export interface CollaborationStatusBadgeProps {
   connectionStatus: ConnectionStatus;

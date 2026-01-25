@@ -1,7 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import { InitialConfigType, LexicalComposer } from "@lexical/react/LexicalComposer";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
+import { LexicalCollaboration } from "@lexical/react/LexicalCollaborationContext";
 import { EditorState, SerializedEditorState } from "lexical";
 import * as Y from "yjs";
 
@@ -10,10 +13,26 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { nodes } from "./nodes";
 import { Plugins } from "./plugins";
-import { CollaborationPlugin } from "./plugins/collaboration-plugin";
 import { cn } from "@/lib/utils";
 import type { UserPublic } from "@/types/api";
 import type { CollaborationProvider } from "@/lib/yjs/CollaborationProvider";
+import { useAuth } from "@/hooks/useAuth";
+
+// Generate a random color for cursor presence
+function getRandomColor(): string {
+  const colors = [
+    "#f87171", // red
+    "#fb923c", // orange
+    "#fbbf24", // amber
+    "#a3e635", // lime
+    "#34d399", // emerald
+    "#22d3ee", // cyan
+    "#60a5fa", // blue
+    "#a78bfa", // violet
+    "#f472b6", // pink
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
 
 const editorConfig: InitialConfigType = {
   namespace: "Editor",
@@ -36,9 +55,11 @@ export interface EditorProps {
   documentName?: string;
   // Collaboration props
   collaborative?: boolean;
-  yjsDoc?: Y.Doc | null;
-  yjsProvider?: CollaborationProvider | null;
-  isCollaborating?: boolean;
+  /**
+   * Factory function for creating the collaboration provider.
+   * Passed to Lexical's CollaborationPlugin.
+   */
+  providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
 }
 
 export function Editor({
@@ -52,12 +73,30 @@ export function Editor({
   mentionableUsers = [],
   documentName,
   collaborative = false,
-  yjsDoc,
-  yjsProvider,
-  isCollaborating = false,
+  providerFactory,
 }: EditorProps) {
-  // When collaborative mode is active and connected, we need special handling
-  const useCollaborativeMode = Boolean(collaborative && isCollaborating && yjsDoc && yjsProvider);
+  const { user } = useAuth();
+  const userColor = useRef(getRandomColor());
+  const userName = user?.full_name || user?.email || "Anonymous";
+
+  // Collaborative mode is active when we have a provider factory
+  const useCollaborativeMode = Boolean(collaborative && providerFactory);
+
+  // When in collaborative mode, we must set editorState to null
+  // and let CollaborationPlugin manage the state
+  const initialEditorState = useCollaborativeMode
+    ? null
+    : editorState
+      ? editorState
+      : editorSerializedState
+        ? JSON.stringify(editorSerializedState)
+        : undefined;
+
+  // Function to bootstrap editor state from provided content when Yjs is empty
+  const getInitialEditorState =
+    useCollaborativeMode && editorSerializedState
+      ? () => JSON.stringify(editorSerializedState)
+      : undefined;
 
   return (
     <div className={cn("bg-background overflow-y-auto rounded-lg border shadow", className)}>
@@ -65,15 +104,9 @@ export function Editor({
         initialConfig={{
           ...editorConfig,
           editable: !readOnly,
-          // When in collaborative mode, don't set initial state - Yjs handles it
-          ...(useCollaborativeMode
-            ? { editorState: null }
-            : {
-                ...(editorState ? { editorState } : {}),
-                ...(editorSerializedState
-                  ? { editorState: JSON.stringify(editorSerializedState) }
-                  : {}),
-              }),
+          // In collaborative mode, editorState must be null
+          // CollaborationPlugin will handle initialization
+          editorState: initialEditorState,
         }}
       >
         <TooltipProvider>
@@ -85,13 +118,18 @@ export function Editor({
             collaborative={useCollaborativeMode}
           />
 
-          {/* Collaboration plugin when in collaborative mode */}
-          {useCollaborativeMode && yjsDoc && yjsProvider && (
-            <CollaborationPlugin
-              doc={yjsDoc}
-              provider={yjsProvider}
-              isConnected={isCollaborating}
-            />
+          {/* Official Lexical CollaborationPlugin for real-time editing */}
+          {useCollaborativeMode && providerFactory && (
+            <LexicalCollaboration>
+              <CollaborationPlugin
+                id="main"
+                providerFactory={providerFactory}
+                initialEditorState={getInitialEditorState}
+                shouldBootstrap={true}
+                username={userName}
+                cursorColor={userColor.current}
+              />
+            </LexicalCollaboration>
           )}
 
           {/* Standard onChange when not in collaborative mode */}

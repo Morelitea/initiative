@@ -1,6 +1,9 @@
 /**
  * WebSocket provider for Yjs collaboration with our backend.
  *
+ * This provider implements the interface expected by Lexical's CollaborationPlugin,
+ * which is compatible with y-websocket's WebsocketProvider.
+ *
  * Handles:
  * - WebSocket connection lifecycle
  * - Yjs sync protocol
@@ -10,6 +13,7 @@
 
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
+import type { Provider, UserState, ProviderAwareness } from "@lexical/yjs";
 
 // Message types matching the backend protocol
 const MSG_SYNC_STEP1 = 0;
@@ -27,57 +31,212 @@ export interface CollaboratorInfo {
   } | null;
 }
 
-export interface CollaborationProviderConfig {
-  documentId: number;
-  guildId: number;
-  token: string;
-  baseUrl: string;
-  onSynced?: () => void;
-  onDisconnected?: () => void;
-  onCollaboratorsChange?: (collaborators: CollaboratorInfo[]) => void;
-  onConnectionStatusChange?: (status: ConnectionStatus) => void;
+export interface CollaborationProviderOptions {
+  connect?: boolean;
 }
 
-export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+// Typed callback signatures matching Lexical's Provider interface
+type SyncCallback = (isSynced: boolean) => void;
+type StatusCallback = (status: { status: string }) => void;
+type UpdateCallback = (update: unknown) => void;
+type ReloadCallback = (doc: Y.Doc) => void;
+type CollaboratorsCallback = (collaborators: CollaboratorInfo[]) => void;
 
-export class CollaborationProvider {
-  private doc: Y.Doc;
-  private awareness: Awareness;
+/**
+ * WebSocket provider implementing Lexical's Provider interface.
+ * This allows it to work with Lexical's CollaborationPlugin.
+ */
+// Global connection tracking to prevent rapid reconnection loops
+const activeProviders = new Map<string, CollaborationProvider>();
+const connectionAttempts = new Map<string, { count: number; lastAttempt: number }>();
+const MAX_ATTEMPTS_PER_MINUTE = 5;
+
+/**
+ * Get or create a CollaborationProvider for the given URL.
+ * This ensures we only have one active provider per document.
+ */
+export function getOrCreateProvider(
+  wsUrl: string,
+  roomName: string,
+  doc: Y.Doc,
+  options: CollaborationProviderOptions = {}
+): CollaborationProvider {
+  // Create a connection ID based on the path (without token for consistency)
+  const urlObj = new URL(wsUrl);
+  const connectionId = urlObj.pathname;
+
+  // Check if there's already an active provider
+  const existingProvider = activeProviders.get(connectionId);
+  if (existingProvider && !existingProvider.destroyed) {
+    console.log("getOrCreateProvider: Reusing existing provider for", connectionId);
+    return existingProvider;
+  }
+
+  // Clean up destroyed provider if it exists
+  if (existingProvider) {
+    activeProviders.delete(connectionId);
+  }
+
+  console.log("getOrCreateProvider: Creating new provider for", connectionId);
+  const provider = new CollaborationProvider(wsUrl, roomName, doc, options, connectionId);
+  activeProviders.set(connectionId, provider);
+  return provider;
+}
+
+export class CollaborationProvider implements Provider {
+  // Public properties expected by CollaborationPlugin
+  public awareness: ProviderAwareness;
+  public doc: Y.Doc;
+
+  // Internal awareness instance
+  private _awareness: Awareness;
+
   private websocket: WebSocket | null = null;
-  private config: CollaborationProviderConfig;
-  private connectionStatus: ConnectionStatus = "disconnected";
+  private wsUrl: string;
+  private roomName: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-  private collaborators: CollaboratorInfo[] = [];
-  private destroyed = false;
-  private synced = false;
+  private disconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  public destroyed = false;
+  private _synced = false;
+  private shouldConnect: boolean;
+  private connectionId: string;
 
-  constructor(doc: Y.Doc, config: CollaborationProviderConfig) {
+  // Typed event handlers
+  private syncHandlers: Set<SyncCallback> = new Set();
+  private statusHandlers: Set<StatusCallback> = new Set();
+  private updateHandlers: Set<UpdateCallback> = new Set();
+  private reloadHandlers: Set<ReloadCallback> = new Set();
+  private collaboratorsHandlers: Set<CollaboratorsCallback> = new Set();
+
+  // Current collaborators list
+  private _collaborators: CollaboratorInfo[] = [];
+
+  constructor(
+    wsUrl: string,
+    roomName: string,
+    doc: Y.Doc,
+    options: CollaborationProviderOptions = {},
+    connectionId?: string
+  ) {
+    this.wsUrl = wsUrl;
+    this.roomName = roomName;
     this.doc = doc;
-    this.config = config;
-    this.awareness = new Awareness(doc);
+    this._awareness = new Awareness(doc);
+    this.shouldConnect = options.connect !== false;
+    this.connectionId = connectionId || new URL(wsUrl).pathname;
 
-    // Listen for local doc changes
+    // Create a ProviderAwareness wrapper that matches Lexical's expected interface
+    this.awareness = {
+      getLocalState: () => this._awareness.getLocalState() as UserState | null,
+      getStates: () => this._awareness.getStates() as Map<number, UserState>,
+      setLocalState: (state: UserState) => {
+        // Set each field individually
+        Object.entries(state).forEach(([key, value]) => {
+          this._awareness.setLocalStateField(key, value);
+        });
+      },
+      setLocalStateField: (field: string, value: unknown) => {
+        this._awareness.setLocalStateField(field, value);
+      },
+      on: (type: "update", cb: () => void) => {
+        if (type === "update") {
+          this._awareness.on("change", cb);
+        }
+      },
+      off: (type: "update", cb: () => void) => {
+        if (type === "update") {
+          this._awareness.off("change", cb);
+        }
+      },
+    };
+
+    // Listen for local doc changes to send to server
     this.doc.on("update", this.handleDocUpdate);
 
     // Listen for awareness changes
-    this.awareness.on("change", this.handleAwarenessChange);
+    this._awareness.on("change", this.handleAwarenessChange);
+
+    // Auto-connect if not disabled
+    if (this.shouldConnect) {
+      this.connect();
+    }
+  }
+
+  /**
+   * Whether the provider has synced with the server.
+   */
+  get synced(): boolean {
+    return this._synced;
   }
 
   /**
    * Connect to the collaboration WebSocket.
    */
   connect(): void {
-    console.log("CollaborationProvider: connect() called, destroyed:", this.destroyed);
-    if (this.destroyed) return;
+    if (this.destroyed) {
+      console.log("CollaborationProvider: Cannot connect - provider is destroyed");
+      return;
+    }
 
-    this.setConnectionStatus("connecting");
-    const wsUrl = this.buildWebSocketUrl();
-    console.log("CollaborationProvider: WebSocket URL:", wsUrl);
+    // Cancel any pending disconnect (React Strict Mode handling)
+    if (this.cancelPendingDisconnect()) {
+      // If we had a pending disconnect and the websocket is still good, just return
+      if (this.websocket) {
+        const state = this.websocket.readyState;
+        if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
+          console.log("CollaborationProvider: Cancelled disconnect, connection still active");
+          return;
+        }
+      }
+    }
+
+    if (this.websocket) {
+      const state = this.websocket.readyState;
+      if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
+        console.log("CollaborationProvider: Already connected/connecting, skipping");
+        return;
+      }
+      // Close stale WebSocket before creating new one
+      console.log("CollaborationProvider: Closing stale WebSocket");
+      this.websocket.close();
+      this.websocket = null;
+    }
+
+    // Rate limiting: prevent rapid reconnection attempts
+    const now = Date.now();
+    const attempts = connectionAttempts.get(this.connectionId) || { count: 0, lastAttempt: 0 };
+    const timeSinceLastAttempt = now - attempts.lastAttempt;
+
+    // Reset counter after 1 minute
+    if (timeSinceLastAttempt > 60000) {
+      attempts.count = 0;
+    }
+
+    // Check if we've exceeded the rate limit
+    if (attempts.count >= MAX_ATTEMPTS_PER_MINUTE) {
+      console.warn(
+        `CollaborationProvider: Rate limited - ${attempts.count} attempts in the last minute. ` +
+          `Waiting before retry.`
+      );
+      this.emitStatus({ status: "disconnected" });
+      return;
+    }
+
+    // Update attempt tracking
+    attempts.count++;
+    attempts.lastAttempt = now;
+    connectionAttempts.set(this.connectionId, attempts);
+
+    // Log the full URL for debugging (redact token)
+    const debugUrl = this.wsUrl.replace(/token=[^&]+/, "token=REDACTED");
+    console.log("CollaborationProvider: Connecting to", debugUrl, `(attempt ${attempts.count})`);
+    this.emitStatus({ status: "connecting" });
 
     try {
-      this.websocket = new WebSocket(wsUrl);
+      console.log("CollaborationProvider: Creating WebSocket...");
+      this.websocket = new WebSocket(this.wsUrl);
       this.websocket.binaryType = "arraybuffer";
       console.log(
         "CollaborationProvider: WebSocket created, readyState:",
@@ -90,13 +249,13 @@ export class CollaborationProvider {
       this.websocket.onerror = this.handleError;
     } catch (error) {
       console.error("CollaborationProvider: Failed to create WebSocket", error);
-      this.setConnectionStatus("error");
-      this.scheduleReconnect();
+      this.emitStatus({ status: "disconnected" });
     }
   }
 
   /**
    * Disconnect from the collaboration WebSocket.
+   * Uses a small delay to handle React Strict Mode's unmount/remount cycle.
    */
   disconnect(): void {
     if (this.reconnectTimeout) {
@@ -104,144 +263,237 @@ export class CollaborationProvider {
       this.reconnectTimeout = null;
     }
 
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
+    // Debounce disconnect to handle React Strict Mode
+    // If connect() is called within 100ms, we'll cancel this disconnect
+    if (this.disconnectTimeout) {
+      clearTimeout(this.disconnectTimeout);
     }
 
-    this.setConnectionStatus("disconnected");
+    this.disconnectTimeout = setTimeout(() => {
+      this.disconnectTimeout = null;
+      if (this.websocket) {
+        console.log("CollaborationProvider: Closing WebSocket (debounced disconnect)");
+        this.websocket.close();
+        this.websocket = null;
+      }
+      this._synced = false;
+      this.emitStatus({ status: "disconnected" });
+    }, 100);
+  }
+
+  /**
+   * Cancel any pending disconnect (called when connect() is invoked).
+   */
+  private cancelPendingDisconnect(): boolean {
+    if (this.disconnectTimeout) {
+      console.log("CollaborationProvider: Cancelling pending disconnect");
+      clearTimeout(this.disconnectTimeout);
+      this.disconnectTimeout = null;
+      return true;
+    }
+    return false;
   }
 
   /**
    * Clean up all resources.
    */
   destroy(): void {
+    if (this.destroyed) {
+      console.log("CollaborationProvider: Already destroyed, skipping");
+      return;
+    }
+    console.log("CollaborationProvider: Destroying provider for", this.connectionId);
     this.destroyed = true;
-    this.disconnect();
+
+    // Remove from global tracking
+    if (activeProviders.get(this.connectionId) === this) {
+      activeProviders.delete(this.connectionId);
+    }
+
+    // Clear any pending timeouts
+    if (this.disconnectTimeout) {
+      clearTimeout(this.disconnectTimeout);
+      this.disconnectTimeout = null;
+    }
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    // Immediately close WebSocket (no debounce for destroy)
+    if (this.websocket) {
+      this.websocket.close();
+      this.websocket = null;
+    }
+
     this.doc.off("update", this.handleDocUpdate);
-    this.awareness.off("change", this.handleAwarenessChange);
-    this.awareness.destroy();
+    this._awareness.off("change", this.handleAwarenessChange);
+    this._awareness.destroy();
+    this.syncHandlers.clear();
+    this.statusHandlers.clear();
+    this.updateHandlers.clear();
+    this.reloadHandlers.clear();
+    this.collaboratorsHandlers.clear();
+    this._collaborators = [];
   }
 
-  /**
-   * Get the Yjs document.
-   */
-  getDoc(): Y.Doc {
-    return this.doc;
+  // Typed on/off methods matching Lexical's Provider interface
+  on(type: "sync", cb: SyncCallback): void;
+  on(type: "status", cb: StatusCallback): void;
+  on(type: "update", cb: UpdateCallback): void;
+  on(type: "reload", cb: ReloadCallback): void;
+  on(
+    type: "sync" | "status" | "update" | "reload",
+    cb: SyncCallback | StatusCallback | UpdateCallback | ReloadCallback
+  ): void {
+    switch (type) {
+      case "sync":
+        this.syncHandlers.add(cb as SyncCallback);
+        // If already synced, call immediately
+        if (this._synced) {
+          (cb as SyncCallback)(true);
+        }
+        break;
+      case "status":
+        this.statusHandlers.add(cb as StatusCallback);
+        break;
+      case "update":
+        this.updateHandlers.add(cb as UpdateCallback);
+        break;
+      case "reload":
+        this.reloadHandlers.add(cb as ReloadCallback);
+        break;
+    }
   }
 
-  /**
-   * Get the awareness instance for cursor presence.
-   */
-  getAwareness(): Awareness {
-    return this.awareness;
-  }
-
-  /**
-   * Get the current connection status.
-   */
-  getConnectionStatus(): ConnectionStatus {
-    return this.connectionStatus;
+  off(type: "sync", cb: SyncCallback): void;
+  off(type: "status", cb: StatusCallback): void;
+  off(type: "update", cb: UpdateCallback): void;
+  off(type: "reload", cb: ReloadCallback): void;
+  off(
+    type: "sync" | "status" | "update" | "reload",
+    cb: SyncCallback | StatusCallback | UpdateCallback | ReloadCallback
+  ): void {
+    switch (type) {
+      case "sync":
+        this.syncHandlers.delete(cb as SyncCallback);
+        break;
+      case "status":
+        this.statusHandlers.delete(cb as StatusCallback);
+        break;
+      case "update":
+        this.updateHandlers.delete(cb as UpdateCallback);
+        break;
+      case "reload":
+        this.reloadHandlers.delete(cb as ReloadCallback);
+        break;
+    }
   }
 
   /**
    * Get the current list of collaborators.
    */
-  getCollaborators(): CollaboratorInfo[] {
-    return this.collaborators;
+  get collaborators(): CollaboratorInfo[] {
+    return this._collaborators;
   }
 
   /**
-   * Check if the initial sync is complete.
+   * Subscribe to collaborator changes.
    */
-  isSynced(): boolean {
-    return this.synced;
+  onCollaborators(cb: CollaboratorsCallback): void {
+    this.collaboratorsHandlers.add(cb);
+    // Call immediately with current state
+    if (this._collaborators.length > 0) {
+      cb(this._collaborators);
+    }
   }
 
   /**
-   * Set the local user's awareness state (cursor, name, etc.)
+   * Unsubscribe from collaborator changes.
    */
-  setLocalAwareness(state: Record<string, unknown>): void {
-    this.awareness.setLocalStateField("user", state);
+  offCollaborators(cb: CollaboratorsCallback): void {
+    this.collaboratorsHandlers.delete(cb);
   }
 
-  private buildWebSocketUrl(): string {
-    const { baseUrl, documentId, token, guildId } = this.config;
+  // Typed emit methods
+  private emitSync(isSynced: boolean): void {
+    this.syncHandlers.forEach((cb) => {
+      try {
+        cb(isSynced);
+      } catch (e) {
+        console.error("CollaborationProvider: Error in sync handler", e);
+      }
+    });
+  }
 
-    // Handle both absolute and relative URLs
-    // Use window.location.origin as base for relative URLs
-    const isAbsolute = baseUrl.startsWith("http://") || baseUrl.startsWith("https://");
-    const url = isAbsolute ? new URL(baseUrl) : new URL(baseUrl, window.location.origin);
+  private emitStatus(status: { status: string }): void {
+    this.statusHandlers.forEach((cb) => {
+      try {
+        cb(status);
+      } catch (e) {
+        console.error("CollaborationProvider: Error in status handler", e);
+      }
+    });
+  }
 
-    // Convert HTTP to WebSocket protocol
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  private emitUpdate(update: unknown): void {
+    this.updateHandlers.forEach((cb) => {
+      try {
+        cb(update);
+      } catch (e) {
+        console.error("CollaborationProvider: Error in update handler", e);
+      }
+    });
+  }
 
-    // Build the collaboration endpoint path
-    const normalizedPath = url.pathname.endsWith("/")
-      ? url.pathname.slice(0, -1)
-      : url.pathname || "/api/v1";
-
-    url.pathname = `${normalizedPath}/collaboration/documents/${documentId}/collaborate`;
-    url.searchParams.set("token", token);
-    url.searchParams.set("guild_id", String(guildId));
-
-    return url.toString();
+  private emitCollaborators(): void {
+    this.collaboratorsHandlers.forEach((cb) => {
+      try {
+        cb(this._collaborators);
+      } catch (e) {
+        console.error("CollaborationProvider: Error in collaborators handler", e);
+      }
+    });
   }
 
   private handleOpen = (): void => {
-    console.log("CollaborationProvider: WebSocket opened successfully");
+    console.log("CollaborationProvider: WebSocket connected, sending SYNC_STEP1");
     this.reconnectAttempts = 0;
-    this.setConnectionStatus("connected");
-    console.log("CollaborationProvider: Set status to 'connected', requesting initial sync");
+    this.emitStatus({ status: "connected" });
 
-    // Request initial sync
-    this.sendMessage(MSG_SYNC_STEP1, new Uint8Array(0));
+    // Request initial sync - send empty state vector to get full state
+    const stateVector = Y.encodeStateVector(this.doc);
+    console.log("CollaborationProvider: Sending state vector, size:", stateVector.length);
+    this.sendMessage(MSG_SYNC_STEP1, stateVector);
   };
 
   private handleMessage = (event: MessageEvent): void => {
-    console.log("CollaborationProvider: handleMessage called, event.data type:", typeof event.data);
     const data = new Uint8Array(event.data as ArrayBuffer);
-    console.log("CollaborationProvider: Message received, length:", data.length);
     if (data.length < 1) return;
 
     const msgType = data[0];
     const payload = data.slice(1);
-    console.log("CollaborationProvider: Message type:", msgType, "payload length:", payload.length);
 
     switch (msgType) {
       case MSG_SYNC_STEP2:
         // Apply server state
-        console.log("CollaborationProvider: Received sync step 2");
-        console.log("  - payload size:", payload.length);
-        console.log("  - doc clientID:", this.doc.clientID);
+        console.log("CollaborationProvider: Received sync response, size:", payload.length);
         if (payload.length > 0) {
-          Y.applyUpdate(this.doc, payload, "server");
-          const sharedTypes = Array.from(this.doc.share.keys());
-          console.log("  - shared types after sync:", sharedTypes);
+          Y.applyUpdate(this.doc, payload, this);
         }
-        if (!this.synced) {
-          this.synced = true;
-          console.log("CollaborationProvider: Marked as synced");
-          this.config.onSynced?.();
+        if (!this._synced) {
+          this._synced = true;
+          console.log("CollaborationProvider: Initial sync complete");
+          this.emitSync(true);
         }
         break;
 
       case MSG_UPDATE:
-        // Apply incremental update
-        console.log("CollaborationProvider: Received update from server");
-        console.log("  - payload size:", payload.length);
-        console.log("  - doc clientID:", this.doc.clientID);
+        // Apply incremental update from another client
+        console.log("CollaborationProvider: Received update, size:", payload.length);
         if (payload.length > 0) {
-          // Log shared types before
-          const typesBefore = Array.from(this.doc.share.keys());
-          console.log("  - shared types before:", typesBefore);
-
-          Y.applyUpdate(this.doc, payload, "server");
-
-          // Log shared types after
-          const typesAfter = Array.from(this.doc.share.keys());
-          console.log("  - shared types after:", typesAfter);
-          console.log("CollaborationProvider: Applied update to doc successfully");
+          Y.applyUpdate(this.doc, payload, this);
+          this.emitUpdate(payload);
         }
         break;
 
@@ -259,59 +511,52 @@ export class CollaborationProvider {
   };
 
   private handleClose = (event: CloseEvent): void => {
-    console.log("CollaborationProvider: Disconnected", event.code, event.reason);
+    const wasConnected = this._synced;
+    console.log("CollaborationProvider: WebSocket closed", {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+      wasSynced: wasConnected,
+    });
     this.websocket = null;
-    this.synced = false;
+    this._synced = false;
+    this.emitSync(false);
+    this.emitStatus({ status: "disconnected" });
 
-    if (event.code === 1008) {
-      // Policy violation (auth failure) - don't reconnect
-      this.setConnectionStatus("error");
-      this.config.onDisconnected?.();
-      return;
+    // Log specific close codes for debugging
+    switch (event.code) {
+      case 1000:
+        console.log("CollaborationProvider: Normal closure");
+        break;
+      case 1001:
+        console.log("CollaborationProvider: Endpoint going away");
+        break;
+      case 1006:
+        console.log("CollaborationProvider: Abnormal closure (no close frame)");
+        break;
+      case 1008:
+        console.log("CollaborationProvider: Policy violation (auth failure)");
+        break;
+      case 1011:
+        console.log("CollaborationProvider: Server error");
+        break;
     }
-
-    if (event.code === 1006) {
-      // Abnormal closure - server likely unavailable
-      // After a few attempts, give up and switch to autosave mode
-      if (this.reconnectAttempts >= 2) {
-        console.log("CollaborationProvider: Server unavailable, falling back to autosave mode");
-        this.setConnectionStatus("error");
-        this.config.onDisconnected?.();
-        return;
-      }
-    }
-
-    this.setConnectionStatus("disconnected");
-    this.config.onDisconnected?.();
-    this.scheduleReconnect();
   };
 
   private handleError = (event: Event): void => {
     console.error("CollaborationProvider: WebSocket error", event);
-    // The close handler will be called after this
   };
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
-    // Don't echo back updates from the server
-    if (origin === "server") return;
+    // Don't echo back updates from the server (origin === this)
+    if (origin === this) return;
 
-    console.log("CollaborationProvider: Doc updated locally");
-    console.log("  - origin:", origin);
-    console.log("  - origin type:", typeof origin);
-    console.log("  - update size:", update.length);
-    console.log("  - doc clientID:", this.doc.clientID);
-
-    // Log the shared types in the doc
-    const sharedTypes = Array.from(this.doc.share.keys());
-    console.log("  - doc shared types:", sharedTypes);
-
-    // Send to server
+    console.log("CollaborationProvider: Sending local update, size:", update.length);
     this.sendMessage(MSG_UPDATE, update);
   };
 
   private handleAwarenessChange = (): void => {
-    // Send local awareness state to server
-    const localState = this.awareness.getLocalState();
+    const localState = this._awareness.getLocalState();
     if (localState) {
       const json = JSON.stringify(localState);
       const payload = new TextEncoder().encode(json);
@@ -319,83 +564,92 @@ export class CollaborationProvider {
     }
   };
 
-  private handleAwarenessMessage(message: {
-    type: string;
-    data?: CollaboratorInfo[];
-    user_id?: number;
-    user?: { user_id: number; name: string };
-    cursor?: unknown;
-  }): void {
-    switch (message.type) {
-      case "collaborators":
-        // Full collaborator list
-        this.collaborators = message.data || [];
-        this.config.onCollaboratorsChange?.(this.collaborators);
-        break;
+  private handleAwarenessMessage(message: Record<string, unknown>): void {
+    const msgType = message.type as string;
 
-      case "join":
-        // New collaborator joined
-        if (message.user) {
-          const existing = this.collaborators.find((c) => c.user_id === message.user!.user_id);
-          if (!existing) {
-            this.collaborators = [
-              ...this.collaborators,
-              { ...message.user, can_write: true, cursor: null },
+    // Handle wrapped awareness messages from broadcast_awareness
+    // Format: {"type": "awareness", "data": {"type": "join"|"leave"|"cursor", ...}}
+    if (
+      msgType === "awareness" &&
+      message.data &&
+      typeof message.data === "object" &&
+      !Array.isArray(message.data)
+    ) {
+      this.handleInnerAwarenessMessage(message.data as Record<string, unknown>);
+      return;
+    }
+
+    // Handle direct messages (like collaborators list)
+    this.handleInnerAwarenessMessage(message);
+  }
+
+  private handleInnerAwarenessMessage(message: Record<string, unknown>): void {
+    const msgType = message.type as string;
+
+    // Update collaborators based on server messages
+    switch (msgType) {
+      case "collaborators": {
+        // Full collaborator list from server
+        const data = message.data;
+        if (data && Array.isArray(data)) {
+          console.log("CollaborationProvider: Received collaborators list:", data.length);
+          this._collaborators = data as CollaboratorInfo[];
+          this.emitCollaborators();
+        }
+        break;
+      }
+
+      case "join": {
+        // A user joined - add them if not already present
+        const user = message.user as { user_id: number; name: string } | undefined;
+        if (user) {
+          const exists = this._collaborators.some((c) => c.user_id === user.user_id);
+          if (!exists) {
+            console.log("CollaborationProvider: User joined:", user.name);
+            this._collaborators = [
+              ...this._collaborators,
+              {
+                user_id: user.user_id,
+                name: user.name,
+                can_write: true, // Default to true, server will correct if needed
+              },
             ];
-            this.config.onCollaboratorsChange?.(this.collaborators);
+            this.emitCollaborators();
           }
         }
         break;
+      }
 
-      case "leave":
-        // Collaborator left
-        if (message.user_id) {
-          this.collaborators = this.collaborators.filter((c) => c.user_id !== message.user_id);
-          this.config.onCollaboratorsChange?.(this.collaborators);
+      case "leave": {
+        // A user left - remove them from the list
+        const userId = message.user_id as number | undefined;
+        if (userId !== undefined) {
+          const before = this._collaborators.length;
+          this._collaborators = this._collaborators.filter((c) => c.user_id !== userId);
+          if (this._collaborators.length !== before) {
+            console.log("CollaborationProvider: User left:", userId);
+            this.emitCollaborators();
+          }
         }
         break;
+      }
 
       case "cursor":
-        // Cursor position update
-        if (message.user_id) {
-          this.collaborators = this.collaborators.map((c) =>
-            c.user_id === message.user_id
-              ? { ...c, cursor: message.cursor as CollaboratorInfo["cursor"] }
-              : c
-          );
-          this.config.onCollaboratorsChange?.(this.collaborators);
-        }
+        // Cursor position update - could be used for cursor rendering
+        // Currently handled by Lexical's built-in cursor support
         break;
     }
   }
 
   private sendMessage(type: number, payload: Uint8Array): void {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      console.log(
-        "CollaborationProvider: Cannot send, WebSocket not open, readyState:",
-        this.websocket?.readyState
-      );
       return;
     }
 
     const message = new Uint8Array(1 + payload.length);
     message[0] = type;
     message.set(payload, 1);
-    console.log(
-      "CollaborationProvider: Sending message type:",
-      type,
-      "(0=SYNC_REQ, 1=SYNC_RESP, 2=UPDATE, 3=AWARENESS) size:",
-      message.length
-    );
     this.websocket.send(message);
-  }
-
-  private setConnectionStatus(status: ConnectionStatus): void {
-    console.log("CollaborationProvider: setConnectionStatus", this.connectionStatus, "->", status);
-    if (this.connectionStatus !== status) {
-      this.connectionStatus = status;
-      this.config.onConnectionStatusChange?.(status);
-    }
   }
 
   private scheduleReconnect(): void {

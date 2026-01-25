@@ -41,6 +41,21 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      // WebSocket endpoint needs explicit configuration
+      "/api/v1/collaboration": {
+        target: devProxyTarget,
+        changeOrigin: true,
+        ws: true,
+        // Log proxy events for debugging
+        configure: (proxy) => {
+          proxy.on("error", (err) => {
+            console.log("Proxy error:", err);
+          });
+          proxy.on("proxyReqWs", (proxyReq, req) => {
+            console.log("Proxying WebSocket:", req.url);
+          });
+        },
+      },
       "/api": createProxyConfig(true),
       "/uploads": createProxyConfig(),
     },

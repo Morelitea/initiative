@@ -430,6 +430,10 @@ export const DocumentDetailPage = () => {
             readOnly={!canEditDocument}
             showToolbar={canEditDocument}
           /> */}
+          {/*
+            Key is just document.id - we don't remount when entering collaborative mode.
+            The CollaborationPlugin handles syncing the existing content to Yjs.
+          */}
           <Editor
             key={document.id}
             editorSerializedState={normalizedDocumentContent}
@@ -439,10 +443,8 @@ export const DocumentDetailPage = () => {
             className="max-h-[80vh]"
             mentionableUsers={mentionableUsers}
             documentName={title}
-            collaborative={collaborationEnabled}
-            yjsDoc={collaboration.doc}
-            yjsProvider={collaboration.provider}
-            isCollaborating={collaboration.isCollaborating}
+            collaborative={collaborationEnabled && collaboration.isReady}
+            providerFactory={collaboration.providerFactory}
           />
           <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
