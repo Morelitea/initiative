@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { Editor } from "@/components/editor-x/editor";
+import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { findNewMentions } from "@/lib/mentionUtils";
+import { useCollaboration } from "@/hooks/useCollaboration";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -41,8 +43,19 @@ export const DocumentDetailPage = () => {
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Collaboration hook - only enable when we have a valid document ID
+  const collaboration = useCollaboration({
+    documentId: parsedId,
+    enabled: collaborationEnabled && Number.isFinite(parsedId),
+    onError: () => {
+      // Silently fall back to autosave mode on collaboration error
+      setCollaborationEnabled(false);
+    },
+  });
 
   const documentQuery = useQuery<DocumentRead>({
     queryKey: ["documents", parsedId],
@@ -195,8 +208,12 @@ export const DocumentDetailPage = () => {
     },
   });
 
-  // Autosave with debounce
+  // Autosave with debounce (disabled when collaboration is active)
   useEffect(() => {
+    // Skip autosave when collaboration is active - Yjs handles sync
+    if (collaboration.isCollaborating) {
+      return;
+    }
     if (!autosaveEnabled || !isDirty || !canEditDocument || saveDocument.isPending) {
       return;
     }
@@ -213,6 +230,7 @@ export const DocumentDetailPage = () => {
     title,
     contentState,
     featuredImageUrl,
+    collaboration.isCollaborating,
   ]);
 
   const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -289,17 +307,26 @@ export const DocumentDetailPage = () => {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {canEditDocument ? (
-          <Button asChild variant="outline" size="sm">
-            <Link
-              to={`/documents/${document.id}/settings`}
-              className="inline-flex items-center gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Document settings
-            </Link>
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {collaborationEnabled && (
+            <CollaborationStatusBadge
+              connectionStatus={collaboration.connectionStatus}
+              collaborators={collaboration.collaborators}
+              isCollaborating={collaboration.isCollaborating}
+            />
+          )}
+          {canEditDocument ? (
+            <Button asChild variant="outline" size="sm">
+              <Link
+                to={`/documents/${document.id}/settings`}
+                className="inline-flex items-center gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Document settings
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="space-y-2">
         <Input
@@ -412,39 +439,52 @@ export const DocumentDetailPage = () => {
             className="max-h-[80vh]"
             mentionableUsers={mentionableUsers}
             documentName={title}
+            collaborative={collaborationEnabled}
+            yjsDoc={collaboration.doc}
+            yjsProvider={collaboration.provider}
+            isCollaborating={collaboration.isCollaborating}
           />
           <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
               <>
-                <Button
-                  type="button"
-                  onClick={() => saveDocument.mutate()}
-                  disabled={!isDirty || saveDocument.isPending}
-                >
-                  {saveDocument.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    "Save changes"
-                  )}
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="autosave"
-                    checked={autosaveEnabled}
-                    onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
-                  />
-                  <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                    Autosave
-                  </Label>
-                </div>
-                {!isDirty ? (
-                  <span className="text-muted-foreground self-center text-sm">
-                    All changes saved
+                {/* When collaboration is active, changes sync in real-time */}
+                {collaboration.isCollaborating ? (
+                  <span className="text-muted-foreground text-sm">
+                    Changes sync automatically with collaborators
                   </span>
-                ) : null}
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      onClick={() => saveDocument.mutate()}
+                      disabled={!isDirty || saveDocument.isPending}
+                    >
+                      {saveDocument.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        "Save changes"
+                      )}
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="autosave"
+                        checked={autosaveEnabled}
+                        onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                      />
+                      <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                        Autosave
+                      </Label>
+                    </div>
+                    {!isDirty ? (
+                      <span className="text-muted-foreground self-center text-sm">
+                        All changes saved
+                      </span>
+                    ) : null}
+                  </>
+                )}
               </>
             ) : (
               <p className="text-muted-foreground text-sm">

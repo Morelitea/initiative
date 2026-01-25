@@ -115,11 +115,13 @@ export function Plugins({
   readOnly = false,
   mentionableUsers = [],
   documentName,
+  collaborative = false,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
   mentionableUsers?: UserPublic[];
   documentName?: string;
+  collaborative?: boolean;
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
@@ -226,7 +228,8 @@ export function Plugins({
         <ListPlugin />
         <TabIndentationPlugin />
         <HashtagPlugin />
-        <HistoryPlugin />
+        {/* Disable HistoryPlugin when in collaborative mode - Yjs has its own undo manager */}
+        {!collaborative && <HistoryPlugin />}
 
         <MentionsPlugin mentionableUsers={mentionableUsers} />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />

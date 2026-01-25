@@ -89,6 +89,9 @@ importers:
       '@lexical/utils':
         specifier: ^0.39.0
         version: 0.39.0
+      '@lexical/yjs':
+        specifier: ^0.39.0
+        version: 0.39.0(yjs@13.6.27)
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.12(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -230,6 +233,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.17
         version: 4.1.17
+      yjs:
+        specifier: ^13.6.0
+        version: 13.6.27
       zustand:
         specifier: ^4.5.2
         version: 4.5.7(@types/react@18.3.27)(react@18.3.1)

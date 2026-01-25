@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Live collaborative document editing using Yjs CRDT
+  - Multiple users can edit the same document simultaneously in real-time
+  - Collaborator presence indicators showing who is currently editing
+  - WebSocket-based synchronization with automatic reconnection
+  - Graceful fallback to autosave mode if collaboration connection fails
+  - New database column `yjs_state` stores collaborative document state
+
 ## [0.15.2] - 2026-01-24
 
 ### Fixed
