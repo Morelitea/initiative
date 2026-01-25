@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-01-24
+
+### Fixed
+
+- Mobile OIDC deep link handler now works from login page (was only active after authentication)
+
 ## [0.15.1] - 2026-01-24
 
 ### Added
