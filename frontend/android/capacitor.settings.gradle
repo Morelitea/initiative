@@ -8,6 +8,9 @@ project(':capacitor-community-safe-area').projectDir = new File('../node_modules
 include ':capacitor-app'
 project(':capacitor-app').projectDir = new File('../node_modules/.pnpm/@capacitor+app@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/app/android')
 
+include ':capacitor-browser'
+project(':capacitor-browser').projectDir = new File('../node_modules/.pnpm/@capacitor+browser@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/browser/android')
+
 include ':capacitor-device'
 project(':capacitor-device').projectDir = new File('../node_modules/.pnpm/@capacitor+device@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/device/android')
 

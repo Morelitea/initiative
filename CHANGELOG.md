@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Mobile OIDC/SSO login support using deep links
+  - OIDC authentication now works on the mobile app
+  - Uses Capacitor Browser plugin to open system browser for OAuth flow
+  - Custom URL scheme (`initiative://`) handles callback redirect
+  - Mobile redirect URI displayed in auth settings page
+
 ### Fixed
 
 - Document export now uses document title in filename instead of generic timestamp

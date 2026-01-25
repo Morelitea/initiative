@@ -3,7 +3,9 @@
     "allow": [
       "Bash(ruff check:*)",
       "Bash(pnpm run build:*)",
-      "Bash(pnpm run lint:*)"
+      "Bash(pnpm build:*)",
+      "Bash(pnpm run lint:*)",
+      "Bash(pnpm lint:*)"
     ]
   }
 }
