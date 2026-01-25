@@ -242,6 +242,17 @@ export class CollaborationProvider {
       return;
     }
 
+    if (event.code === 1006) {
+      // Abnormal closure - server likely unavailable
+      // After a few attempts, give up and switch to autosave mode
+      if (this.reconnectAttempts >= 2) {
+        console.log("CollaborationProvider: Server unavailable, falling back to autosave mode");
+        this.setConnectionStatus("error");
+        this.config.onDisconnected?.();
+        return;
+      }
+    }
+
     this.setConnectionStatus("disconnected");
     this.config.onDisconnected?.();
     this.scheduleReconnect();
