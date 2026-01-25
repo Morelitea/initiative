@@ -122,8 +122,10 @@ class DocumentRoom:
         return "".join(texts).strip()
 
     def get_state(self) -> bytes:
-        """Get the current Y.Doc state as bytes."""
-        return self.doc.get_state()
+        """Get the current Y.Doc state as an update that can be applied by clients."""
+        # get_update() with empty state vector returns the full document as an update
+        # This is compatible with JavaScript Yjs's Y.applyUpdate()
+        return bytes(self.doc.get_update())
 
     def apply_update(self, update: bytes, origin: Optional[int] = None) -> None:
         """Apply a Yjs update from a client."""
@@ -153,17 +155,24 @@ class DocumentRoom:
         async with self._lock:
             collaborators = list(self.collaborators.values())
 
+        sent_count = 0
         for collaborator in collaborators:
             if collaborator.user_id == origin_user_id:
                 continue
             try:
                 # Send as binary WebSocket message
                 await collaborator.websocket.send_bytes(update)
+                sent_count += 1
+                logger.info(
+                    f"Document {self.document_id}: sent update ({len(update)} bytes) to {collaborator.name}"
+                )
             except Exception as e:
                 logger.warning(
                     f"Document {self.document_id}: failed to send update to "
                     f"{collaborator.name}: {e}"
                 )
+
+        logger.info(f"Document {self.document_id}: broadcast complete, sent to {sent_count} clients")
 
     async def broadcast_awareness(self, awareness_data: dict, origin_user_id: Optional[int] = None) -> None:
         """Broadcast awareness (cursor, selection) updates."""

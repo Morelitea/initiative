@@ -69,14 +69,20 @@ export class CollaborationProvider {
    * Connect to the collaboration WebSocket.
    */
   connect(): void {
+    console.log("CollaborationProvider: connect() called, destroyed:", this.destroyed);
     if (this.destroyed) return;
 
     this.setConnectionStatus("connecting");
     const wsUrl = this.buildWebSocketUrl();
+    console.log("CollaborationProvider: WebSocket URL:", wsUrl);
 
     try {
       this.websocket = new WebSocket(wsUrl);
       this.websocket.binaryType = "arraybuffer";
+      console.log(
+        "CollaborationProvider: WebSocket created, readyState:",
+        this.websocket.readyState
+      );
 
       this.websocket.onopen = this.handleOpen;
       this.websocket.onmessage = this.handleMessage;
@@ -183,37 +189,59 @@ export class CollaborationProvider {
   }
 
   private handleOpen = (): void => {
-    console.log("CollaborationProvider: Connected");
+    console.log("CollaborationProvider: WebSocket opened successfully");
     this.reconnectAttempts = 0;
     this.setConnectionStatus("connected");
+    console.log("CollaborationProvider: Set status to 'connected', requesting initial sync");
 
     // Request initial sync
     this.sendMessage(MSG_SYNC_STEP1, new Uint8Array(0));
   };
 
   private handleMessage = (event: MessageEvent): void => {
+    console.log("CollaborationProvider: handleMessage called, event.data type:", typeof event.data);
     const data = new Uint8Array(event.data as ArrayBuffer);
+    console.log("CollaborationProvider: Message received, length:", data.length);
     if (data.length < 1) return;
 
     const msgType = data[0];
     const payload = data.slice(1);
+    console.log("CollaborationProvider: Message type:", msgType, "payload length:", payload.length);
 
     switch (msgType) {
       case MSG_SYNC_STEP2:
         // Apply server state
+        console.log("CollaborationProvider: Received sync step 2");
+        console.log("  - payload size:", payload.length);
+        console.log("  - doc clientID:", this.doc.clientID);
         if (payload.length > 0) {
           Y.applyUpdate(this.doc, payload, "server");
+          const sharedTypes = Array.from(this.doc.share.keys());
+          console.log("  - shared types after sync:", sharedTypes);
         }
         if (!this.synced) {
           this.synced = true;
+          console.log("CollaborationProvider: Marked as synced");
           this.config.onSynced?.();
         }
         break;
 
       case MSG_UPDATE:
         // Apply incremental update
+        console.log("CollaborationProvider: Received update from server");
+        console.log("  - payload size:", payload.length);
+        console.log("  - doc clientID:", this.doc.clientID);
         if (payload.length > 0) {
+          // Log shared types before
+          const typesBefore = Array.from(this.doc.share.keys());
+          console.log("  - shared types before:", typesBefore);
+
           Y.applyUpdate(this.doc, payload, "server");
+
+          // Log shared types after
+          const typesAfter = Array.from(this.doc.share.keys());
+          console.log("  - shared types after:", typesAfter);
+          console.log("CollaborationProvider: Applied update to doc successfully");
         }
         break;
 
@@ -266,6 +294,16 @@ export class CollaborationProvider {
   private handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
     // Don't echo back updates from the server
     if (origin === "server") return;
+
+    console.log("CollaborationProvider: Doc updated locally");
+    console.log("  - origin:", origin);
+    console.log("  - origin type:", typeof origin);
+    console.log("  - update size:", update.length);
+    console.log("  - doc clientID:", this.doc.clientID);
+
+    // Log the shared types in the doc
+    const sharedTypes = Array.from(this.doc.share.keys());
+    console.log("  - doc shared types:", sharedTypes);
 
     // Send to server
     this.sendMessage(MSG_UPDATE, update);
@@ -333,16 +371,27 @@ export class CollaborationProvider {
 
   private sendMessage(type: number, payload: Uint8Array): void {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.log(
+        "CollaborationProvider: Cannot send, WebSocket not open, readyState:",
+        this.websocket?.readyState
+      );
       return;
     }
 
     const message = new Uint8Array(1 + payload.length);
     message[0] = type;
     message.set(payload, 1);
+    console.log(
+      "CollaborationProvider: Sending message type:",
+      type,
+      "(0=SYNC_REQ, 1=SYNC_RESP, 2=UPDATE, 3=AWARENESS) size:",
+      message.length
+    );
     this.websocket.send(message);
   }
 
   private setConnectionStatus(status: ConnectionStatus): void {
+    console.log("CollaborationProvider: setConnectionStatus", this.connectionStatus, "->", status);
     if (this.connectionStatus !== status) {
       this.connectionStatus = status;
       this.config.onConnectionStatusChange?.(status);

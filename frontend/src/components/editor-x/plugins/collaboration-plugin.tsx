@@ -1,13 +1,22 @@
 /**
  * Lexical plugin for Yjs collaborative editing integration.
  *
- * This plugin wraps Lexical's built-in CollaborationPlugin and adapts
- * our custom WebSocket provider to work with Lexical's expected interface.
+ * This plugin uses @lexical/yjs low-level API to create a binding
+ * between Lexical and our custom Yjs provider.
  */
 
-import { useMemo, useRef } from "react";
-import { CollaborationPlugin as LexicalCollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
-import type { Provider } from "@lexical/yjs";
+import { useEffect, useRef } from "react";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import {
+  createBinding,
+  syncLexicalUpdateToYjs,
+  syncYjsChangesToLexical,
+  initLocalState,
+  type Binding,
+  type Provider,
+} from "@lexical/yjs";
+// Note: We intentionally don't import Lexical node helpers here
+// The sync functions handle all node operations internally
 import * as Y from "yjs";
 
 import { CollaborationProvider as CustomProvider } from "@/lib/yjs/CollaborationProvider";
@@ -30,26 +39,10 @@ function getRandomColor(): string {
 }
 
 /**
- * Creates a Lexical-compatible Provider from our custom CollaborationProvider.
+ * Creates a Lexical-compatible Provider wrapper from our custom CollaborationProvider.
  */
-function createLexicalProvider(customProvider: CustomProvider, doc: Y.Doc): Provider {
+function createProviderWrapper(customProvider: CustomProvider): Provider {
   const awareness = customProvider.getAwareness();
-  const syncCallbacks = new Set<(isSynced: boolean) => void>();
-  const updateCallbacks = new Set<(arg0: unknown) => void>();
-  const statusCallbacks = new Set<(arg0: { status: string }) => void>();
-
-  // Notify sync callbacks when synced
-  if (customProvider.isSynced()) {
-    setTimeout(() => {
-      syncCallbacks.forEach((cb) => cb(true));
-    }, 0);
-  }
-
-  // Listen for doc updates and notify callbacks
-  const handleDocUpdate = (update: Uint8Array, origin: unknown) => {
-    updateCallbacks.forEach((cb) => cb({ update, origin }));
-  };
-  doc.on("update", handleDocUpdate);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const provider: any = {
@@ -77,36 +70,25 @@ function createLexicalProvider(customProvider: CustomProvider, doc: Y.Doc): Prov
       },
     },
     connect: () => {
-      // Already connected via useCollaboration
-      if (customProvider.isSynced()) {
-        syncCallbacks.forEach((cb) => cb(true));
-      }
+      // Already connected
     },
     disconnect: () => {
-      doc.off("update", handleDocUpdate);
+      // Handled by useCollaboration cleanup
     },
     on: (type: string, cb: (...args: unknown[]) => void) => {
       if (type === "sync") {
-        syncCallbacks.add(cb as (isSynced: boolean) => void);
+        // Already synced when we get here
         if (customProvider.isSynced()) {
           (cb as (isSynced: boolean) => void)(true);
         }
-      } else if (type === "update") {
-        updateCallbacks.add(cb as (arg0: unknown) => void);
       } else if (type === "status") {
-        statusCallbacks.add(cb as (arg0: { status: string }) => void);
         const status = customProvider.getConnectionStatus();
         (cb as (arg0: { status: string }) => void)({ status });
       }
+      // We don't need to track these callbacks since we handle updates directly
     },
-    off: (type: string, cb: (...args: unknown[]) => void) => {
-      if (type === "sync") {
-        syncCallbacks.delete(cb as (isSynced: boolean) => void);
-      } else if (type === "update") {
-        updateCallbacks.delete(cb as (arg0: unknown) => void);
-      } else if (type === "status") {
-        statusCallbacks.delete(cb as (arg0: { status: string }) => void);
-      }
+    off: () => {
+      // Cleanup handled elsewhere
     },
   };
 
@@ -133,45 +115,147 @@ export interface CollaborationPluginProps {
 /**
  * Plugin that integrates Lexical with Yjs for collaborative editing.
  *
- * This wraps Lexical's built-in CollaborationPlugin and adapts our
- * custom WebSocket provider to work with it.
+ * Uses @lexical/yjs directly to create a binding between the editor
+ * and the Yjs document.
  *
  * Note: When using this plugin, HistoryPlugin should be disabled
  * as Yjs provides its own undo/redo functionality.
  */
 export function CollaborationPlugin({ doc, provider, isConnected }: CollaborationPluginProps) {
+  const [editor] = useLexicalComposerContext();
   const { user } = useAuth();
   const userColor = useRef(getRandomColor());
-  const lexicalProviderRef = useRef<Provider | null>(null);
+  const bindingRef = useRef<Binding | null>(null);
 
   const userName = user?.full_name || user?.email || "Anonymous";
 
-  // Create a stable provider factory that Lexical's CollaborationPlugin expects
-  const providerFactory = useMemo(() => {
-    return (id: string, yjsDocMap: Map<string, Y.Doc>): Provider => {
-      // Store the doc in the map
-      yjsDocMap.set(id, doc);
+  useEffect(() => {
+    if (!isConnected || !doc || !provider) {
+      console.log("CollaborationPlugin: Not ready, waiting for connection");
+      return;
+    }
 
-      // Create the Lexical-compatible provider
-      const lexicalProvider = createLexicalProvider(provider, doc);
-      lexicalProviderRef.current = lexicalProvider;
+    console.log("CollaborationPlugin: Setting up binding");
+    console.log("  - doc clientID:", doc.clientID);
+    console.log("  - userName:", userName);
 
-      return lexicalProvider;
+    // Create the provider wrapper
+    const providerWrapper = createProviderWrapper(provider);
+
+    // Create the binding between Lexical and Yjs
+    // The binding will create/use a shared XmlText named 'root' in the doc
+    const binding = createBinding(
+      editor,
+      providerWrapper,
+      "root", // ID for the shared type
+      doc,
+      new Map([[doc.clientID.toString(), doc]]) // Document map
+    );
+
+    bindingRef.current = binding;
+
+    // Initialize local awareness state
+    initLocalState(providerWrapper, userName, userColor.current, true, {});
+
+    // Get the shared root from the binding's root CollabElementNode
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sharedRoot = (binding.root as any)._xmlText as Y.XmlElement;
+    console.log(
+      "CollaborationPlugin: sharedRoot type:",
+      sharedRoot?.constructor?.name,
+      "length:",
+      sharedRoot?.length
+    );
+
+    // Always do a full Yjs -> Lexical sync first
+    // If Yjs has content, this populates Lexical from it
+    // If Yjs is empty, this ensures the binding is in a consistent state
+    const hasYjsContent = sharedRoot && sharedRoot.length > 0;
+    console.log(
+      "CollaborationPlugin: hasYjsContent:",
+      hasYjsContent,
+      "sharedRoot length:",
+      sharedRoot?.length
+    );
+
+    // Sync Yjs state to Lexical (initializes the collab node tree)
+    editor.update(
+      () => {
+        syncYjsChangesToLexical(binding, providerWrapper, [], true);
+      },
+      { tag: "collaboration" }
+    );
+    console.log("CollaborationPlugin: Initial sync complete");
+
+    // Now set up Lexical -> Yjs sync for incremental changes
+    const removeUpdateListener = editor.registerUpdateListener(
+      ({ editorState, dirtyElements, dirtyLeaves, prevEditorState, tags }) => {
+        // Skip if this is a collaboration update (to avoid loops)
+        if (tags.has("collaboration") || tags.has("historic")) {
+          return;
+        }
+
+        if (dirtyElements.size === 0 && dirtyLeaves.size === 0) {
+          return;
+        }
+
+        console.log(
+          "CollaborationPlugin: Syncing Lexical -> Yjs, dirty:",
+          dirtyElements.size,
+          "elements,",
+          dirtyLeaves.size,
+          "leaves"
+        );
+
+        doc.transact(() => {
+          syncLexicalUpdateToYjs(
+            binding,
+            providerWrapper,
+            prevEditorState,
+            editorState,
+            dirtyElements,
+            dirtyLeaves,
+            new Set(), // normalizedNodes
+            tags
+          );
+        }, binding);
+      }
+    );
+
+    // Set up Yjs -> Lexical sync using doc update event
+    const onDocUpdate = (update: Uint8Array, origin: unknown) => {
+      // Skip our own changes (from Lexical -> Yjs sync)
+      if (origin === binding) {
+        return;
+      }
+
+      console.log(
+        "CollaborationPlugin: Remote doc update, origin:",
+        origin,
+        "update size:",
+        update.length
+      );
+
+      // Do a full Yjs -> Lexical sync for remote updates
+      editor.update(
+        () => {
+          syncYjsChangesToLexical(binding, providerWrapper, [], true);
+        },
+        { tag: "collaboration" }
+      );
     };
-  }, [doc, provider]);
 
-  // Don't render until connected
-  if (!isConnected || !doc || !provider) {
-    return null;
-  }
+    doc.on("update", onDocUpdate);
 
-  return (
-    <LexicalCollaborationPlugin
-      id="collab-main"
-      providerFactory={providerFactory}
-      shouldBootstrap={false}
-      username={userName}
-      cursorColor={userColor.current}
-    />
-  );
+    console.log("CollaborationPlugin: Binding ready");
+
+    return () => {
+      console.log("CollaborationPlugin: Cleaning up binding");
+      removeUpdateListener();
+      doc.off("update", onDocUpdate);
+    };
+  }, [editor, doc, provider, isConnected, userName]);
+
+  // This plugin doesn't render anything
+  return null;
 }
