@@ -262,10 +262,11 @@ async def websocket_collaborate(
 
             if msg_type == MSG_SYNC_STEP1:
                 # Client requesting sync with their state vector
+                # Use state vector to compute diff - only send updates client is missing
                 logger.info(f"Collaboration: Received SYNC_STEP1 from {user.email}, state vector size: {len(payload)}")
-                state = room.get_state()
+                state = room.get_state_diff(payload) if payload else room.get_state()
                 sync_message = bytes([MSG_SYNC_STEP2]) + state
-                logger.info(f"Collaboration: Sending SYNC_STEP2 to {user.email}, state size: {len(state)}")
+                logger.info(f"Collaboration: Sending SYNC_STEP2 to {user.email}, diff size: {len(state)}")
                 await websocket.send_bytes(sync_message)
 
             elif msg_type == MSG_UPDATE:

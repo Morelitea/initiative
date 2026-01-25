@@ -92,6 +92,16 @@ class DocumentRoom:
         # This is compatible with JavaScript Yjs's Y.applyUpdate()
         return bytes(self.doc.get_update())
 
+    def get_state_diff(self, state_vector: bytes) -> bytes:
+        """Get only the updates the client is missing based on their state vector.
+
+        This is more efficient than get_state() when the client already has
+        some of the document state.
+        """
+        if not state_vector:
+            return self.get_state()
+        return bytes(self.doc.get_update(state_vector))
+
     def apply_update(self, update: bytes, origin: Optional[int] = None) -> None:
         """Apply a Yjs update from a client."""
         self.doc.apply_update(update)
