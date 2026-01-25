@@ -477,10 +477,8 @@ export class CollaborationProvider implements Provider {
 
     switch (msgType) {
       case MSG_SYNC_STEP2:
-        // Apply server state
-        // Skip applying essentially empty updates (2 bytes or less = empty Yjs doc)
-        // This allows CollaborationPlugin's shouldBootstrap to work properly
-        if (payload.length > 2) {
+        // Apply server state - Yjs handles empty/minimal updates gracefully
+        if (payload.length > 0) {
           Y.applyUpdate(this.doc, payload, this);
         }
         if (!this._synced) {
