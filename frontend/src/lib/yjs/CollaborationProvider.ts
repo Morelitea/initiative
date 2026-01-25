@@ -13,13 +13,29 @@
 
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
+// @ts-expect-error - y-protocols types don't export these but they exist at runtime
+import { encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
 import type { Provider, UserState, ProviderAwareness } from "@lexical/yjs";
+
+// Type the imported functions
+const awarenessProtocol = {
+  encodeAwarenessUpdate: encodeAwarenessUpdate as (
+    awareness: Awareness,
+    clients: number[]
+  ) => Uint8Array,
+  applyAwarenessUpdate: applyAwarenessUpdate as (
+    awareness: Awareness,
+    update: Uint8Array,
+    origin: unknown
+  ) => void,
+};
 
 // Message types matching the backend protocol
 const MSG_SYNC_STEP1 = 0;
 const MSG_SYNC_STEP2 = 1;
 const MSG_UPDATE = 2;
 const MSG_AWARENESS = 3;
+const MSG_AWARENESS_BINARY = 4; // y-protocols awareness encoding
 
 export interface CollaboratorInfo {
   user_id: number;
@@ -512,13 +528,27 @@ export class CollaborationProvider implements Provider {
         break;
 
       case MSG_AWARENESS:
-        // Handle awareness message (JSON)
+        // Handle awareness message (JSON) - server-side messages like join/leave
         try {
           const json = new TextDecoder().decode(payload);
           const message = JSON.parse(json);
           this.handleAwarenessMessage(message);
         } catch (e) {
           console.warn("CollaborationProvider: Failed to parse awareness message", e);
+        }
+        break;
+
+      case MSG_AWARENESS_BINARY:
+        // Apply y-protocols awareness update from another client
+        // This enables cursor synchronization
+        try {
+          awarenessProtocol.applyAwarenessUpdate(this._awareness, payload, this);
+          console.log(
+            "CollaborationProvider: Applied awareness update, states:",
+            this._awareness.getStates().size
+          );
+        } catch (e) {
+          console.warn("CollaborationProvider: Failed to apply awareness update", e);
         }
         break;
     }
@@ -570,12 +600,10 @@ export class CollaborationProvider implements Provider {
   };
 
   private handleAwarenessChange = (): void => {
-    const localState = this._awareness.getLocalState();
-    if (localState) {
-      const json = JSON.stringify(localState);
-      const payload = new TextEncoder().encode(json);
-      this.sendMessage(MSG_AWARENESS, payload);
-    }
+    // Send awareness update in y-protocols binary format
+    // This enables proper cursor synchronization across clients
+    const update = awarenessProtocol.encodeAwarenessUpdate(this._awareness, [this.doc.clientID]);
+    this.sendMessage(MSG_AWARENESS_BINARY, update);
   };
 
   private handleAwarenessMessage(message: Record<string, unknown>): void {

@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 MSG_SYNC_STEP1 = 0  # Client requests current state
 MSG_SYNC_STEP2 = 1  # Server sends current state
 MSG_UPDATE = 2  # Incremental Yjs update
-MSG_AWARENESS = 3  # Cursor/selection awareness
+MSG_AWARENESS = 3  # Cursor/selection awareness (JSON)
+MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 
 
 async def _get_user_from_token(token: str, session) -> Optional[User]:
@@ -263,7 +264,7 @@ async def websocket_collaborate(
                     logger.warning(f"Failed to apply Yjs update: {e}")
 
             elif msg_type == MSG_AWARENESS:
-                # Awareness update (cursor position, etc.)
+                # Awareness update (cursor position, etc.) - JSON format
                 try:
                     awareness_data = json.loads(payload.decode())
                     collaborator.cursor_position = awareness_data.get("cursor")
@@ -273,6 +274,14 @@ async def websocket_collaborate(
                     )
                 except json.JSONDecodeError:
                     pass
+
+            elif msg_type == MSG_AWARENESS_BINARY:
+                # y-protocols awareness update - relay as-is to other clients
+                logger.debug(f"Collaboration: Relaying awareness update from {user.email}, size: {len(payload)}")
+                await room.broadcast_update(
+                    bytes([MSG_AWARENESS_BINARY]) + payload,
+                    origin_user_id=user.id,
+                )
 
     except WebSocketDisconnect:
         logger.info(f"Collaboration: {user.email} disconnected from document {document_id}")
