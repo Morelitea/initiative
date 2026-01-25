@@ -73,6 +73,15 @@ const ConnectServerPage = lazy(() =>
 );
 
 /**
+ * Global deep link handler - must be inside BrowserRouter but outside all routes.
+ * Handles deep links from OIDC flow before authentication.
+ */
+const DeepLinkHandler = ({ children }: { children: React.ReactNode }) => {
+  useDeepLinks();
+  return <>{children}</>;
+};
+
+/**
  * Route guard that requires a server to be configured on native platforms.
  * On web, this passes through. On mobile without a configured server, redirects to /connect.
  */
@@ -96,7 +105,6 @@ const AppLayout = () => {
   useRealtimeUpdates();
   usePushNotifications(); // Initialize push notifications
   useBackButton(); // Handle Android back button navigation
-  useDeepLinks(); // Handle OIDC deep links on mobile
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   const location = useLocation();
@@ -189,30 +197,32 @@ export const App = () => {
   useSafeArea();
   return (
     <BrowserRouter>
-      <Suspense
-        fallback={<div className="text-muted-foreground py-10 text-center">Loading...</div>}
-      >
-        <Routes>
-          {/* Server connection page for mobile - doesn't require server to be configured */}
-          <Route path="/connect" element={<ConnectServerPage />} />
+      <DeepLinkHandler>
+        <Suspense
+          fallback={<div className="text-muted-foreground py-10 text-center">Loading...</div>}
+        >
+          <Routes>
+            {/* Server connection page for mobile - doesn't require server to be configured */}
+            <Route path="/connect" element={<ConnectServerPage />} />
 
-          {/* All other routes require server to be configured on mobile */}
-          <Route element={<ServerRequiredRoute />}>
-            <Route path="/welcome" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
-            <Route path="/oidc/callback" element={<OidcCallbackPage />} />
-            <Route path="/invite/:code" element={<GuildInvitePage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/navigate" element={<NavigatePage />} />
-              <Route path="/*" element={<AppLayout />} />
+            {/* All other routes require server to be configured on mobile */}
+            <Route element={<ServerRequiredRoute />}>
+              <Route path="/welcome" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/oidc/callback" element={<OidcCallbackPage />} />
+              <Route path="/invite/:code" element={<GuildInvitePage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/navigate" element={<NavigatePage />} />
+                <Route path="/*" element={<AppLayout />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
-      </Suspense>
+          </Routes>
+        </Suspense>
+      </DeepLinkHandler>
     </BrowserRouter>
   );
 };
