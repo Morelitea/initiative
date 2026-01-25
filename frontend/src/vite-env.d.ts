@@ -18,4 +18,19 @@ declare module "y-protocols/awareness" {
     off(event: "change" | "update", callback: (...args: unknown[]) => void): void;
     destroy(): void;
   }
+
+  /**
+   * Encode awareness update for the given clients.
+   * Used to broadcast cursor/selection state to other collaborators.
+   */
+  export function encodeAwarenessUpdate(awareness: Awareness, clients: number[]): Uint8Array;
+
+  /**
+   * Apply an awareness update received from another client.
+   */
+  export function applyAwarenessUpdate(
+    awareness: Awareness,
+    update: Uint8Array,
+    origin: unknown
+  ): void;
 }

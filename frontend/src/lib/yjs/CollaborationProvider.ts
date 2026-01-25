@@ -12,23 +12,8 @@
  */
 
 import * as Y from "yjs";
-import { Awareness } from "y-protocols/awareness";
-// @ts-expect-error - y-protocols types don't export these but they exist at runtime
-import { encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
+import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
 import type { Provider, UserState, ProviderAwareness } from "@lexical/yjs";
-
-// Type the imported functions
-const awarenessProtocol = {
-  encodeAwarenessUpdate: encodeAwarenessUpdate as (
-    awareness: Awareness,
-    clients: number[]
-  ) => Uint8Array,
-  applyAwarenessUpdate: applyAwarenessUpdate as (
-    awareness: Awareness,
-    update: Uint8Array,
-    origin: unknown
-  ) => void,
-};
 
 // Message types matching the backend protocol
 const MSG_SYNC_STEP1 = 0;
@@ -527,7 +512,7 @@ export class CollaborationProvider implements Provider {
         // Apply y-protocols awareness update from another client
         // This enables cursor synchronization
         try {
-          awarenessProtocol.applyAwarenessUpdate(this._awareness, payload, this);
+          applyAwarenessUpdate(this._awareness, payload, this);
         } catch {
           // Ignore awareness update errors
         }
@@ -559,7 +544,7 @@ export class CollaborationProvider implements Provider {
 
     // Send awareness update in y-protocols binary format
     // This enables proper cursor synchronization across clients
-    const update = awarenessProtocol.encodeAwarenessUpdate(this._awareness, [this.doc.clientID]);
+    const update = encodeAwarenessUpdate(this._awareness, [this.doc.clientID]);
     this.sendMessage(MSG_AWARENESS_BINARY, update);
   };
 
