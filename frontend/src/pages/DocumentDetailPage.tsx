@@ -376,13 +376,6 @@ export const DocumentDetailPage = () => {
           </BreadcrumbList>
         </Breadcrumb>
         <div className="flex items-center gap-3">
-          {collaborationEnabled && (
-            <CollaborationStatusBadge
-              connectionStatus={collaboration.connectionStatus}
-              collaborators={collaboration.collaborators}
-              isCollaborating={collaboration.isCollaborating}
-            />
-          )}
           {canEditDocument ? (
             <Button asChild variant="outline" size="sm">
               <Link
@@ -490,6 +483,14 @@ export const DocumentDetailPage = () => {
               </div>
             </CardContent>
           </Card>
+          {/* Collaboration status - shown between featured image and editor */}
+          {collaborationEnabled && (
+            <CollaborationStatusBadge
+              connectionStatus={collaboration.connectionStatus}
+              collaborators={collaboration.collaborators}
+              isCollaborating={collaboration.isCollaborating}
+            />
+          )}
           {/* <DocumentEditor
             key={document.id}
             initialState={normalizedDocumentContent}
