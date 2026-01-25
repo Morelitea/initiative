@@ -162,8 +162,12 @@ export class CollaborationProvider {
   private buildWebSocketUrl(): string {
     const { baseUrl, documentId, token, guildId } = this.config;
 
-    // Convert HTTP URL to WebSocket URL
-    const url = new URL(baseUrl);
+    // Handle both absolute and relative URLs
+    // Use window.location.origin as base for relative URLs
+    const isAbsolute = baseUrl.startsWith("http://") || baseUrl.startsWith("https://");
+    const url = isAbsolute ? new URL(baseUrl) : new URL(baseUrl, window.location.origin);
+
+    // Convert HTTP to WebSocket protocol
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 
     // Build the collaboration endpoint path
