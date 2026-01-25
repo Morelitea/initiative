@@ -90,18 +90,15 @@ export function getOrCreateProvider(
   const existingProvider = activeProviders.get(connectionId);
   if (existingProvider && !existingProvider.destroyed && existingProvider.doc === doc) {
     // Same doc - reuse provider (React Strict Mode case)
-    console.log("getOrCreateProvider: Reusing existing provider for", connectionId);
     return existingProvider;
   }
 
   // Different doc or destroyed provider - clean up old and create new
   if (existingProvider) {
-    console.log("getOrCreateProvider: Doc changed or provider destroyed, creating new provider");
     existingProvider.destroy();
     activeProviders.delete(connectionId);
   }
 
-  console.log("getOrCreateProvider: Creating new provider for", connectionId);
   const provider = new CollaborationProvider(wsUrl, roomName, doc, options, connectionId);
   activeProviders.set(connectionId, provider);
   return provider;
@@ -200,7 +197,6 @@ export class CollaborationProvider implements Provider {
    */
   connect(): void {
     if (this.destroyed) {
-      console.log("CollaborationProvider: Cannot connect - provider is destroyed");
       return;
     }
 
@@ -210,7 +206,6 @@ export class CollaborationProvider implements Provider {
       if (this.websocket) {
         const state = this.websocket.readyState;
         if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
-          console.log("CollaborationProvider: Cancelled disconnect, connection still active");
           return;
         }
       }
@@ -219,11 +214,9 @@ export class CollaborationProvider implements Provider {
     if (this.websocket) {
       const state = this.websocket.readyState;
       if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
-        console.log("CollaborationProvider: Already connected/connecting, skipping");
         return;
       }
       // Close stale WebSocket before creating new one
-      console.log("CollaborationProvider: Closing stale WebSocket");
       this.websocket.close();
       this.websocket = null;
     }
@@ -240,10 +233,6 @@ export class CollaborationProvider implements Provider {
 
     // Check if we've exceeded the rate limit
     if (attempts.count >= MAX_ATTEMPTS_PER_MINUTE) {
-      console.warn(
-        `CollaborationProvider: Rate limited - ${attempts.count} attempts in the last minute. ` +
-          `Waiting before retry.`
-      );
       this.emitStatus({ status: "disconnected" });
       return;
     }
@@ -253,26 +242,17 @@ export class CollaborationProvider implements Provider {
     attempts.lastAttempt = now;
     connectionAttempts.set(this.connectionId, attempts);
 
-    // Log the full URL for debugging (redact token)
-    const debugUrl = this.wsUrl.replace(/token=[^&]+/, "token=REDACTED");
-    console.log("CollaborationProvider: Connecting to", debugUrl, `(attempt ${attempts.count})`);
     this.emitStatus({ status: "connecting" });
 
     try {
-      console.log("CollaborationProvider: Creating WebSocket...");
       this.websocket = new WebSocket(this.wsUrl);
       this.websocket.binaryType = "arraybuffer";
-      console.log(
-        "CollaborationProvider: WebSocket created, readyState:",
-        this.websocket.readyState
-      );
 
       this.websocket.onopen = this.handleOpen;
       this.websocket.onmessage = this.handleMessage;
       this.websocket.onclose = this.handleClose;
       this.websocket.onerror = this.handleError;
-    } catch (error) {
-      console.error("CollaborationProvider: Failed to create WebSocket", error);
+    } catch {
       this.emitStatus({ status: "disconnected" });
     }
   }
@@ -296,7 +276,6 @@ export class CollaborationProvider implements Provider {
     this.disconnectTimeout = setTimeout(() => {
       this.disconnectTimeout = null;
       if (this.websocket) {
-        console.log("CollaborationProvider: Closing WebSocket (debounced disconnect)");
         this.websocket.close();
         this.websocket = null;
       }
@@ -310,7 +289,6 @@ export class CollaborationProvider implements Provider {
    */
   private cancelPendingDisconnect(): boolean {
     if (this.disconnectTimeout) {
-      console.log("CollaborationProvider: Cancelling pending disconnect");
       clearTimeout(this.disconnectTimeout);
       this.disconnectTimeout = null;
       return true;
@@ -323,10 +301,8 @@ export class CollaborationProvider implements Provider {
    */
   destroy(): void {
     if (this.destroyed) {
-      console.log("CollaborationProvider: Already destroyed, skipping");
       return;
     }
-    console.log("CollaborationProvider: Destroying provider for", this.connectionId);
     this.destroyed = true;
 
     // Remove from global tracking
@@ -444,8 +420,8 @@ export class CollaborationProvider implements Provider {
     this.syncHandlers.forEach((cb) => {
       try {
         cb(isSynced);
-      } catch (e) {
-        console.error("CollaborationProvider: Error in sync handler", e);
+      } catch {
+        // Ignore handler errors
       }
     });
   }
@@ -454,8 +430,8 @@ export class CollaborationProvider implements Provider {
     this.statusHandlers.forEach((cb) => {
       try {
         cb(status);
-      } catch (e) {
-        console.error("CollaborationProvider: Error in status handler", e);
+      } catch {
+        // Ignore handler errors
       }
     });
   }
@@ -464,8 +440,8 @@ export class CollaborationProvider implements Provider {
     this.updateHandlers.forEach((cb) => {
       try {
         cb(update);
-      } catch (e) {
-        console.error("CollaborationProvider: Error in update handler", e);
+      } catch {
+        // Ignore handler errors
       }
     });
   }
@@ -474,20 +450,18 @@ export class CollaborationProvider implements Provider {
     this.collaboratorsHandlers.forEach((cb) => {
       try {
         cb(this._collaborators);
-      } catch (e) {
-        console.error("CollaborationProvider: Error in collaborators handler", e);
+      } catch {
+        // Ignore handler errors
       }
     });
   }
 
   private handleOpen = (): void => {
-    console.log("CollaborationProvider: WebSocket connected, sending SYNC_STEP1");
     this.reconnectAttempts = 0;
     this.emitStatus({ status: "connected" });
 
     // Request initial sync - send empty state vector to get full state
     const stateVector = Y.encodeStateVector(this.doc);
-    console.log("CollaborationProvider: Sending state vector, size:", stateVector.length);
     this.sendMessage(MSG_SYNC_STEP1, stateVector);
   };
 
@@ -501,26 +475,19 @@ export class CollaborationProvider implements Provider {
     switch (msgType) {
       case MSG_SYNC_STEP2:
         // Apply server state
-        console.log("CollaborationProvider: Received sync response, size:", payload.length);
         // Skip applying essentially empty updates (2 bytes or less = empty Yjs doc)
         // This allows CollaborationPlugin's shouldBootstrap to work properly
         if (payload.length > 2) {
           Y.applyUpdate(this.doc, payload, this);
-        } else {
-          console.log(
-            "CollaborationProvider: Skipping empty sync response, letting frontend bootstrap"
-          );
         }
         if (!this._synced) {
           this._synced = true;
-          console.log("CollaborationProvider: Initial sync complete");
           this.emitSync(true);
         }
         break;
 
       case MSG_UPDATE:
         // Apply incremental update from another client
-        console.log("CollaborationProvider: Received update, size:", payload.length);
         if (payload.length > 0) {
           Y.applyUpdate(this.doc, payload, this);
           this.emitUpdate(payload);
@@ -533,8 +500,8 @@ export class CollaborationProvider implements Provider {
           const json = new TextDecoder().decode(payload);
           const message = JSON.parse(json);
           this.handleAwarenessMessage(message);
-        } catch (e) {
-          console.warn("CollaborationProvider: Failed to parse awareness message", e);
+        } catch {
+          // Ignore parse errors
         }
         break;
 
@@ -543,59 +510,28 @@ export class CollaborationProvider implements Provider {
         // This enables cursor synchronization
         try {
           awarenessProtocol.applyAwarenessUpdate(this._awareness, payload, this);
-          console.log(
-            "CollaborationProvider: Applied awareness update, states:",
-            this._awareness.getStates().size
-          );
-        } catch (e) {
-          console.warn("CollaborationProvider: Failed to apply awareness update", e);
+        } catch {
+          // Ignore awareness update errors
         }
         break;
     }
   };
 
-  private handleClose = (event: CloseEvent): void => {
-    const wasConnected = this._synced;
-    console.log("CollaborationProvider: WebSocket closed", {
-      code: event.code,
-      reason: event.reason,
-      wasClean: event.wasClean,
-      wasSynced: wasConnected,
-    });
+  private handleClose = (): void => {
     this.websocket = null;
     this._synced = false;
     this.emitSync(false);
     this.emitStatus({ status: "disconnected" });
-
-    // Log specific close codes for debugging
-    switch (event.code) {
-      case 1000:
-        console.log("CollaborationProvider: Normal closure");
-        break;
-      case 1001:
-        console.log("CollaborationProvider: Endpoint going away");
-        break;
-      case 1006:
-        console.log("CollaborationProvider: Abnormal closure (no close frame)");
-        break;
-      case 1008:
-        console.log("CollaborationProvider: Policy violation (auth failure)");
-        break;
-      case 1011:
-        console.log("CollaborationProvider: Server error");
-        break;
-    }
   };
 
-  private handleError = (event: Event): void => {
-    console.error("CollaborationProvider: WebSocket error", event);
+  private handleError = (): void => {
+    // Error handling - connection will close after this
   };
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
     // Don't echo back updates from the server (origin === this)
     if (origin === this) return;
 
-    console.log("CollaborationProvider: Sending local update, size:", update.length);
     this.sendMessage(MSG_UPDATE, update);
   };
 
@@ -634,7 +570,6 @@ export class CollaborationProvider implements Provider {
         // Full collaborator list from server
         const data = message.data;
         if (data && Array.isArray(data)) {
-          console.log("CollaborationProvider: Received collaborators list:", data.length);
           this._collaborators = data as CollaboratorInfo[];
           this.emitCollaborators();
         }
@@ -647,7 +582,6 @@ export class CollaborationProvider implements Provider {
         if (user) {
           const exists = this._collaborators.some((c) => c.user_id === user.user_id);
           if (!exists) {
-            console.log("CollaborationProvider: User joined:", user.name);
             this._collaborators = [
               ...this._collaborators,
               {
@@ -669,7 +603,6 @@ export class CollaborationProvider implements Provider {
           const before = this._collaborators.length;
           this._collaborators = this._collaborators.filter((c) => c.user_id !== userId);
           if (this._collaborators.length !== before) {
-            console.log("CollaborationProvider: User left:", userId);
             this.emitCollaborators();
           }
         }
@@ -677,8 +610,7 @@ export class CollaborationProvider implements Provider {
       }
 
       case "cursor":
-        // Cursor position update - could be used for cursor rendering
-        // Currently handled by Lexical's built-in cursor support
+        // Cursor position update - handled by Lexical's built-in cursor support
         break;
     }
   }
@@ -701,10 +633,6 @@ export class CollaborationProvider implements Provider {
 
     this.reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
-
-    console.log(
-      `CollaborationProvider: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
-    );
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;

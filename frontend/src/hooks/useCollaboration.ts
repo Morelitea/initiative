@@ -60,17 +60,8 @@ export function useCollaboration({
   onSynced,
   onError,
 }: UseCollaborationOptions): UseCollaborationResult {
-  console.log("useCollaboration: Hook called with documentId:", documentId, "enabled:", enabled);
-
   const { token } = useAuth();
   const { activeGuildId } = useGuilds();
-
-  console.log(
-    "useCollaboration: token:",
-    token ? "present" : "missing",
-    "activeGuildId:",
-    activeGuildId
-  );
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isSynced, setIsSynced] = useState(false);
@@ -113,7 +104,6 @@ export function useCollaboration({
   // Clean up provider when URL changes (token refresh, guild change, etc.)
   useEffect(() => {
     if (currentWsUrlRef.current && currentWsUrlRef.current !== wsUrl) {
-      console.log("useCollaboration: WebSocket URL changed, destroying old provider");
       providerRef.current?.destroy();
       providerRef.current = null;
     }
@@ -123,19 +113,13 @@ export function useCollaboration({
   // Create the provider factory that Lexical's CollaborationPlugin will call
   const providerFactory = useMemo(() => {
     if (!wsUrl) {
-      console.log("useCollaboration: Not ready, providerFactory is null");
       return null;
     }
 
-    console.log("useCollaboration: Creating providerFactory for documentId:", documentId);
-
     // Return the factory function that CollaborationPlugin expects
     return (id: string, yjsDocMap: Map<string, Y.Doc>): CollaborationProvider => {
-      console.log("useCollaboration: providerFactory called with id:", id);
-
       // Check if we already have a provider with the same URL
       if (providerRef.current && currentWsUrlRef.current === wsUrl) {
-        console.log("useCollaboration: Returning existing provider");
         // Ensure provider is connected (cancels pending disconnect or reconnects)
         providerRef.current.connect();
         return providerRef.current;
@@ -143,7 +127,6 @@ export function useCollaboration({
 
       // Destroy any existing provider first
       if (providerRef.current) {
-        console.log("useCollaboration: Destroying stale provider before creating new one");
         providerRef.current.destroy();
         providerRef.current = null;
       }
@@ -153,20 +136,7 @@ export function useCollaboration({
       if (doc === undefined) {
         doc = new Y.Doc();
         yjsDocMap.set(id, doc);
-        console.log("useCollaboration: Created new Y.Doc, clientID:", doc.clientID);
-      } else {
-        console.log("useCollaboration: Using existing Y.Doc, clientID:", doc.clientID);
       }
-
-      // Log URL details for debugging
-      const urlObj = new URL(wsUrl);
-      console.log("useCollaboration: Getting/creating provider", {
-        protocol: urlObj.protocol,
-        host: urlObj.host,
-        pathname: urlObj.pathname,
-        hasToken: urlObj.searchParams.has("token"),
-        guildId: urlObj.searchParams.get("guild_id"),
-      });
 
       // Use the factory function to get or create a provider
       // This ensures we reuse existing providers for the same document
@@ -186,7 +156,6 @@ export function useCollaboration({
         // Set up event listeners to track state
         provider.on("status", (statusObj: { status: string }) => {
           const status = statusObj.status;
-          console.log("useCollaboration: Provider status changed:", status);
           if (status === "connected") {
             setConnectionStatus("connected");
           } else if (status === "connecting") {
@@ -197,7 +166,6 @@ export function useCollaboration({
         });
 
         provider.on("sync", (synced: boolean) => {
-          console.log("useCollaboration: Provider sync event:", synced);
           setIsSynced(synced);
           if (synced) {
             onSyncedRef.current?.();
@@ -206,18 +174,16 @@ export function useCollaboration({
 
         // Listen for collaborator changes
         provider.onCollaborators((newCollaborators) => {
-          console.log("useCollaboration: Collaborators updated:", newCollaborators.length);
           setCollaborators(newCollaborators);
         });
       } else {
         // For an existing provider, sync current state to React
-        // Use providerRef.current which we know is non-null here
         setCollaborators(providerRef.current!.collaborators);
       }
 
       return provider;
     };
-  }, [wsUrl, documentId]);
+  }, [wsUrl]);
 
   // Reset state when documentId changes or collaboration is disabled
   useEffect(() => {
@@ -233,7 +199,6 @@ export function useCollaboration({
   // The provider will only be destroyed when the document ID changes (via the wsUrl change effect)
   useEffect(() => {
     return () => {
-      console.log("useCollaboration: Cleaning up - disconnecting provider");
       providerRef.current?.disconnect();
       // Don't null refs - provider may be reused on quick remount
     };
@@ -248,16 +213,6 @@ export function useCollaboration({
   }, []);
 
   const isCollaborating = connectionStatus === "connected" && isSynced;
-
-  // Debug log on every render
-  console.log("useCollaboration RENDER:", {
-    connectionStatus,
-    isSynced,
-    isCollaborating,
-    isReady,
-    hasProviderFactory: !!providerFactory,
-    hasProvider: !!providerRef.current,
-  });
 
   return useMemo(
     () => ({

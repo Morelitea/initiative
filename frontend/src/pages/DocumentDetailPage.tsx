@@ -278,7 +278,6 @@ export const DocumentDetailPage = () => {
       const content = contentStateRef.current;
       const blob = new Blob([JSON.stringify(content)], { type: "application/json" });
       navigator.sendBeacon(syncUrl, blob);
-      console.log("DocumentDetailPage: Sent content sync beacon on unload");
     };
 
     // Handle tab close / navigation
