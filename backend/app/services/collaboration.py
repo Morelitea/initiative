@@ -181,8 +181,13 @@ class DocumentRoom:
         ]
 
     def is_empty(self) -> bool:
-        """Check if the room has no collaborators."""
+        """Check if the room has no collaborators (non-locking, for quick checks)."""
         return len(self.collaborators) == 0
+
+    async def is_empty_locked(self) -> bool:
+        """Check if the room has no collaborators (with lock for safe concurrent access)."""
+        async with self._lock:
+            return len(self.collaborators) == 0
 
 
 class CollaborationManager:
@@ -228,12 +233,21 @@ class CollaborationManager:
             return self._rooms[document_id]
 
     async def remove_room(self, document_id: int) -> None:
-        """Remove a room if it exists and is empty."""
+        """Remove a room if it exists and is empty.
+
+        Uses two-phase check to prevent race condition where a collaborator
+        joins between checking is_empty() and deleting the room.
+        """
         async with self._lock:
             room = self._rooms.get(document_id)
-            if room and room.is_empty():
-                del self._rooms[document_id]
-                logger.info(f"Removed empty collaboration room for document {document_id}")
+            if not room:
+                return
+            # Acquire room lock to ensure no collaborator is joining concurrently
+            # This prevents the race where add_collaborator runs between our check and delete
+            async with room._lock:
+                if room.is_empty():
+                    del self._rooms[document_id]
+                    logger.info(f"Removed empty collaboration room for document {document_id}")
 
     async def persist_room(self, document_id: int, session: AsyncSession) -> None:
         """Persist the current room state to the database."""
