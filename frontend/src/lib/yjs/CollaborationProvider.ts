@@ -477,10 +477,8 @@ export class CollaborationProvider implements Provider {
 
     switch (msgType) {
       case MSG_SYNC_STEP2:
-        // Apply server state - Yjs handles empty/minimal updates gracefully
-        if (payload.length > 0) {
-          Y.applyUpdate(this.doc, payload, this);
-        }
+        // Apply server state - always call applyUpdate, Yjs handles empty updates gracefully
+        Y.applyUpdate(this.doc, payload, this);
         if (!this._synced) {
           this._synced = true;
           this.emitSync(true);
