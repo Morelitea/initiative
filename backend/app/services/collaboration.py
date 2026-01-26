@@ -131,6 +131,7 @@ class DocumentRoom:
             collaborators = list(self.collaborators.values())
 
         sent_count = 0
+        failed_user_ids: list[int] = []
         for collaborator in collaborators:
             if collaborator.user_id == origin_user_id:
                 continue
@@ -146,6 +147,17 @@ class DocumentRoom:
                     f"Document {self.document_id}: failed to send update to "
                     f"{collaborator.name}: {e}"
                 )
+                failed_user_ids.append(collaborator.user_id)
+
+        # Remove stale collaborators whose connections have failed
+        if failed_user_ids:
+            async with self._lock:
+                for user_id in failed_user_ids:
+                    if user_id in self.collaborators:
+                        collaborator = self.collaborators.pop(user_id)
+                        logger.info(
+                            f"Document {self.document_id}: removed stale collaborator {collaborator.name}"
+                        )
 
         logger.info(f"Document {self.document_id}: broadcast complete, sent to {sent_count} clients")
 
@@ -160,13 +172,24 @@ class DocumentRoom:
         json_payload = json.dumps({"type": "awareness", "data": awareness_data}).encode()
         message = bytes([MSG_AWARENESS]) + json_payload
 
+        failed_user_ids: list[int] = []
         for collaborator in collaborators:
             if collaborator.user_id == origin_user_id:
                 continue
             try:
                 await collaborator.websocket.send_bytes(message)
             except Exception:
-                pass  # Ignore send errors for awareness
+                failed_user_ids.append(collaborator.user_id)
+
+        # Remove stale collaborators whose connections have failed
+        if failed_user_ids:
+            async with self._lock:
+                for user_id in failed_user_ids:
+                    if user_id in self.collaborators:
+                        collaborator = self.collaborators.pop(user_id)
+                        logger.info(
+                            f"Document {self.document_id}: removed stale collaborator {collaborator.name}"
+                        )
 
     def get_collaborator_list(self) -> list[dict]:
         """Get list of current collaborators for awareness."""
