@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, String, text
+from sqlalchemy import Boolean, Column, DateTime, LargeBinary, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -38,6 +38,14 @@ class Document(SQLModel, table=True):
     is_template: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    yjs_state: Optional[bytes] = Field(
+        default=None,
+        sa_column=Column(LargeBinary, nullable=True),
+    )
+    yjs_updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="documents")

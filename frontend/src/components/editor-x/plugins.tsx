@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import {
   CHECK_LIST,
   ELEMENT_TRANSFORMERS,
@@ -115,11 +115,15 @@ export function Plugins({
   readOnly = false,
   mentionableUsers = [],
   documentName,
+  collaborative = false,
+  cursorsContainerRef,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
   mentionableUsers?: UserPublic[];
   documentName?: string;
+  collaborative?: boolean;
+  cursorsContainerRef?: RefObject<HTMLDivElement>;
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
@@ -207,13 +211,15 @@ export function Plugins({
         {/* <AutoFocusPlugin /> */}
         <RichTextPlugin
           contentEditable={
-            <div className="">
+            <div className="relative">
               <div className="" ref={onRef}>
                 <ContentEditable
                   placeholder={placeholder}
                   className="ContentEditable__root relative block min-h-72 px-8 py-4 focus:outline-none"
                 />
               </div>
+              {/* Collaboration cursors container - must be inside the content area for proper positioning */}
+              {collaborative && <div ref={cursorsContainerRef} className="collaboration-cursors" />}
             </div>
           }
           ErrorBoundary={LexicalErrorBoundary}
@@ -226,7 +232,8 @@ export function Plugins({
         <ListPlugin />
         <TabIndentationPlugin />
         <HashtagPlugin />
-        <HistoryPlugin />
+        {/* Disable HistoryPlugin when in collaborative mode - Yjs has its own undo manager */}
+        {!collaborative && <HistoryPlugin />}
 
         <MentionsPlugin mentionableUsers={mentionableUsers} />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />

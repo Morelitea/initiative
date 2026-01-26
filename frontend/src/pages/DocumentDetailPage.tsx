@@ -6,10 +6,12 @@ import type { SerializedEditorState } from "lexical";
 import { ImagePlus, Loader2, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { Editor } from "@/components/editor-x/editor";
+import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { findNewMentions } from "@/lib/mentionUtils";
+import { useCollaboration } from "@/hooks/useCollaboration";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,20 +31,36 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { CommentSection } from "@/components/comments/CommentSection";
 
 export const DocumentDetailPage = () => {
   const { documentId } = useParams();
   const parsedId = Number(documentId);
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const { activeGuildId } = useGuilds();
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
+  const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
+  // Refs for sendBeacon - need latest values in event handlers
+  const contentStateRef = useRef(contentState);
+  const collaboratingRef = useRef(false);
+
+  // Collaboration hook - only enable when we have a valid document ID
+  const collaboration = useCollaboration({
+    documentId: parsedId,
+    enabled: collaborationEnabled && Number.isFinite(parsedId),
+    onError: () => {
+      // Silently fall back to autosave mode on collaboration error
+      setCollaborationEnabled(false);
+    },
+  });
 
   const documentQuery = useQuery<DocumentRead>({
     queryKey: ["documents", parsedId],
@@ -195,16 +213,38 @@ export const DocumentDetailPage = () => {
     },
   });
 
+  // Keep refs updated for sendBeacon
+  useEffect(() => {
+    contentStateRef.current = contentState;
+  }, [contentState]);
+
+  useEffect(() => {
+    collaboratingRef.current = collaboration.isCollaborating;
+  }, [collaboration.isCollaborating]);
+
   // Autosave with debounce
   useEffect(() => {
-    if (!autosaveEnabled || !isDirty || !canEditDocument || saveDocument.isPending) {
+    if (!autosaveEnabled || !canEditDocument || saveDocument.isPending) {
       return;
     }
-    const timer = setTimeout(() => {
-      isAutosaveRef.current = true;
-      saveDocument.mutate();
-    }, 2000);
-    return () => clearTimeout(timer);
+    // When collaborating, sync content less frequently (every 10s) to keep content column updated
+    // When not collaborating, use normal autosave behavior (2s debounce when dirty)
+    if (collaboration.isCollaborating) {
+      const timer = setTimeout(() => {
+        isAutosaveRef.current = true;
+        saveDocument.mutate();
+      }, 10000);
+      return () => clearTimeout(timer);
+    } else {
+      if (!isDirty) {
+        return;
+      }
+      const timer = setTimeout(() => {
+        isAutosaveRef.current = true;
+        saveDocument.mutate();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
   }, [
     autosaveEnabled,
     isDirty,
@@ -213,7 +253,53 @@ export const DocumentDetailPage = () => {
     title,
     contentState,
     featuredImageUrl,
+    collaboration.isCollaborating,
   ]);
+
+  // Sync content via sendBeacon on page unload to ensure content column stays updated
+  // This is critical when users navigate away or close the tab during collaboration
+  useEffect(() => {
+    if (!canEditDocument || !token || !activeGuildId) {
+      return;
+    }
+
+    const syncContentBeacon = () => {
+      // Only sync if we were collaborating (content might have changed via Yjs)
+      if (!collaboratingRef.current) {
+        return;
+      }
+
+      // Build the sync URL
+      const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
+      const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
+      const syncUrl = `${baseUrl}/collaboration/documents/${parsedId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+
+      // Send content via sendBeacon (reliable even on page unload)
+      const content = contentStateRef.current;
+      const blob = new Blob([JSON.stringify(content)], { type: "application/json" });
+      navigator.sendBeacon(syncUrl, blob);
+    };
+
+    // Handle tab close / navigation
+    const handleBeforeUnload = () => {
+      syncContentBeacon();
+    };
+
+    // Handle tab visibility change (switching tabs)
+    const handleVisibilityChange = () => {
+      if (globalThis.document.visibilityState === "hidden") {
+        syncContentBeacon();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [parsedId, token, activeGuildId, canEditDocument]);
 
   const handleFeaturedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!canEditDocument) {
@@ -289,17 +375,19 @@ export const DocumentDetailPage = () => {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {canEditDocument ? (
-          <Button asChild variant="outline" size="sm">
-            <Link
-              to={`/documents/${document.id}/settings`}
-              className="inline-flex items-center gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Document settings
-            </Link>
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {canEditDocument ? (
+            <Button asChild variant="outline" size="sm">
+              <Link
+                to={`/documents/${document.id}/settings`}
+                className="inline-flex items-center gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Document settings
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="space-y-2">
         <Input
@@ -395,6 +483,14 @@ export const DocumentDetailPage = () => {
               </div>
             </CardContent>
           </Card>
+          {/* Collaboration status - shown between featured image and editor */}
+          {collaborationEnabled && (
+            <CollaborationStatusBadge
+              connectionStatus={collaboration.connectionStatus}
+              collaborators={collaboration.collaborators}
+              isCollaborating={collaboration.isCollaborating}
+            />
+          )}
           {/* <DocumentEditor
             key={document.id}
             initialState={normalizedDocumentContent}
@@ -403,6 +499,10 @@ export const DocumentDetailPage = () => {
             readOnly={!canEditDocument}
             showToolbar={canEditDocument}
           /> */}
+          {/*
+            Key is just document.id - we don't remount when entering collaborative mode.
+            The CollaborationPlugin handles syncing the existing content to Yjs.
+          */}
           <Editor
             key={document.id}
             editorSerializedState={normalizedDocumentContent}
@@ -412,39 +512,63 @@ export const DocumentDetailPage = () => {
             className="max-h-[80vh]"
             mentionableUsers={mentionableUsers}
             documentName={title}
+            collaborative={collaborationEnabled && collaboration.isReady}
+            providerFactory={collaboration.providerFactory}
+            // Always track changes so contentState stays updated for periodic saves
+            trackChanges={true}
           />
           <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (
               <>
-                <Button
-                  type="button"
-                  onClick={() => saveDocument.mutate()}
-                  disabled={!isDirty || saveDocument.isPending}
-                >
-                  {saveDocument.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    "Save changes"
-                  )}
-                </Button>
+                {/* When collaboration is active, changes sync in real-time */}
+                {collaboration.isCollaborating ? (
+                  <span className="text-muted-foreground text-sm">
+                    Changes sync automatically with collaborators
+                  </span>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      onClick={() => saveDocument.mutate()}
+                      disabled={!isDirty || saveDocument.isPending}
+                    >
+                      {saveDocument.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        "Save changes"
+                      )}
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="autosave"
+                        checked={autosaveEnabled}
+                        onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                      />
+                      <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                        Autosave
+                      </Label>
+                    </div>
+                    {!isDirty ? (
+                      <span className="text-muted-foreground self-center text-sm">
+                        All changes saved
+                      </span>
+                    ) : null}
+                  </>
+                )}
+                {/* Always show collaboration toggle */}
                 <div className="flex items-center gap-2">
                   <Checkbox
-                    id="autosave"
-                    checked={autosaveEnabled}
-                    onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                    id="collaboration"
+                    checked={collaborationEnabled}
+                    onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
                   />
-                  <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                    Autosave
+                  <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                    Live collaboration
                   </Label>
                 </div>
-                {!isDirty ? (
-                  <span className="text-muted-foreground self-center text-sm">
-                    All changes saved
-                  </span>
-                ) : null}
               </>
             ) : (
               <p className="text-muted-foreground text-sm">

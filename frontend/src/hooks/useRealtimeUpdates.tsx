@@ -53,7 +53,10 @@ const invalidateCommentsByPayload = (payload?: Record<string, unknown>) => {
   }
 };
 
-const buildWebsocketUrl = (token: string) => {
+// Message type for authentication (must match backend)
+const MSG_AUTH = 5;
+
+const buildWebsocketUrl = () => {
   if (typeof window === "undefined") {
     return null;
   }
@@ -71,12 +74,25 @@ const buildWebsocketUrl = (token: string) => {
     base.pathname = `${normalizedPath}/events/updates`;
     base.search = "";
     base.hash = "";
-    base.searchParams.set("token", token);
+    // Token is sent via MSG_AUTH message, not URL params (for security)
     return base.toString();
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    return `${protocol}://${window.location.host}/api/v1/events/updates?token=${encodeURIComponent(token)}`;
+    return `${protocol}://${window.location.host}/api/v1/events/updates`;
   }
+};
+
+/**
+ * Send authentication message over WebSocket.
+ * Must be sent immediately after connection opens.
+ */
+const sendAuthMessage = (websocket: WebSocket, token: string) => {
+  const payload = JSON.stringify({ token });
+  const payloadBytes = new TextEncoder().encode(payload);
+  const message = new Uint8Array(1 + payloadBytes.length);
+  message[0] = MSG_AUTH;
+  message.set(payloadBytes, 1);
+  websocket.send(message);
 };
 
 export const useRealtimeUpdates = () => {
@@ -115,15 +131,18 @@ export const useRealtimeUpdates = () => {
       if (!isActive) {
         return;
       }
-      const wsUrl = buildWebsocketUrl(token);
+      const wsUrl = buildWebsocketUrl();
       if (!wsUrl) {
         scheduleReconnect();
         return;
       }
       const websocket = new WebSocket(wsUrl);
+      websocket.binaryType = "arraybuffer";
       websocketRef.current = websocket;
 
       websocket.onopen = () => {
+        // Send auth message immediately after connection (token not in URL for security)
+        sendAuthMessage(websocket, token);
         // Reset failure count on successful connection
         authFailureCountRef.current = 0;
       };

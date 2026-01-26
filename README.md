@@ -74,6 +74,7 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 ### Collaborative Documents
 
 - **Rich text editing**: Full-featured documents with JSONB storage for flexibility
+- **Live collaboration**: Collaborate on documents in real time between multiple users
 - **Link to projects**: Attach documents to multiple projects for cross-referencing
 - **Independent permissions**: Control document access separately from project permissions
 - **Document templates**: Create reusable document templates for common workflows
