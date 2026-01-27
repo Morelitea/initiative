@@ -228,6 +228,8 @@ async def update_users_me(
             setattr(current_user, field, new_value)
             if field == "notify_task_assignment" and not new_value:
                 await notifications_service.clear_task_assignment_queue_for_user(session, current_user.id)
+    if "color_theme" in update_data:
+        current_user.color_theme = update_data["color_theme"]
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)

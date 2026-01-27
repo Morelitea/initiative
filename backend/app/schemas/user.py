@@ -32,6 +32,7 @@ class UserUpdate(BaseModel):
     notify_task_assignment: Optional[bool] = None
     notify_project_added: Optional[bool] = None
     notify_overdue_tasks: Optional[bool] = None
+    color_theme: Optional[str] = None
 
 
 class UserPublic(BaseModel):
@@ -76,6 +77,7 @@ class UserRead(UserBase):
     notify_overdue_tasks: bool = True
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
+    color_theme: str = "kobold"
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
@@ -109,6 +111,7 @@ class UserSelfUpdate(BaseModel):
     notify_task_assignment: Optional[bool] = None
     notify_project_added: Optional[bool] = None
     notify_overdue_tasks: Optional[bool] = None
+    color_theme: Optional[str] = None
 
 
 class ProjectBasic(BaseModel):

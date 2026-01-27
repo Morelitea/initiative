@@ -303,7 +303,7 @@ export const GuildSidebar = () => {
   }, []);
 
   return (
-    <aside className="bg-card/80 sticky top-0 flex max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4">
+    <aside className="bg-sidebar sticky top-0 flex max-h-screen w-20 flex-col items-center gap-3 border-r px-2 py-4">
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
