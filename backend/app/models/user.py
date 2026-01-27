@@ -104,6 +104,12 @@ class User(SQLModel, table=True):
     ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(1000), nullable=True))
     ai_model: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
 
+    # UI Preferences
+    color_theme: str = Field(
+        default="kobold",
+        sa_column=Column(String(50), nullable=False, server_default="kobold"),
+    )
+
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
     project_permissions: List["ProjectPermission"] = Relationship(back_populates="user")

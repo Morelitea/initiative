@@ -10,6 +10,7 @@ import { VersionDialog } from "@/components/VersionDialog";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
+import { useColorTheme } from "@/hooks/useColorTheme";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { useServer } from "@/hooks/useServer";
 import { useSafeArea } from "@/hooks/useSafeArea";
@@ -206,6 +207,7 @@ const AppLayout = () => {
 
 export const App = () => {
   useInterfaceColors();
+  useColorTheme();
   useSafeArea();
   return (
     <BrowserRouter>
