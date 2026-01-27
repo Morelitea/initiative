@@ -183,32 +183,63 @@ jobs:
       - name: Image digest
         run: echo "Image pushed with digest ${{ steps.build.outputs.digest }}"
 
+      - name: Extract changelog for version
+        id: changelog
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "Extracting changelog for version $VERSION"
+
+          # Extract the section for this version from CHANGELOG.md
+          # Matches ## [X.Y.Z] and captures until the next ## [ or end of file
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]") || index($0, "[v" ver "]")) {
+                found = 1
+                next
+              }
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          # If no version-specific section found, provide fallback
+          if [ -z "$CHANGELOG" ]; then
+            echo "No changelog section found for version $VERSION"
+            CHANGELOG="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+          fi
+
+          # Build full release body with changelog + download info
+          cat > release_body.md << ENDOFBODY
+          $CHANGELOG
+
+          ---
+
+          ## Downloads
+
+          ### Android App
+          Download the APK from the assets below and install on your Android device.
+
+          ### Docker Image
+          \`\`\`bash
+          docker pull ${IMAGE_NAME}:${VERSION}
+          \`\`\`
+
+          Or use \`latest\` tag. View on [Docker Hub](https://hub.docker.com/r/${DOCKERHUB_USERNAME}/initiative).
+          ENDOFBODY
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' release_body.md
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          generate_release_notes: true
           files: artifacts/*.apk
-          body: |
-            ## Downloads
-
-            ### Android App
-            Download the APK from the assets below and install on your Android device.
-
-            ### Docker Image
-            This release is available as a Docker image:
-
-            ```bash
-            docker pull ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-            ```
-
-            Or use the latest tag:
-
-            ```bash
-            docker pull ${{ env.IMAGE_NAME }}:latest
-            ```
-
-            View on Docker Hub: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/initiative
+          body_path: release_body.md
           draft: false
           prerelease: false
 
