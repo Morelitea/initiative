@@ -226,25 +226,40 @@ export const VersionDialog = ({
           ) : (
             <p className="text-muted-foreground text-sm">No changelog available.</p>
           )}
-          <div className="shrink-0 border-t pt-3">
-            <Button variant="outline" size="sm" className="w-full" asChild>
-              <a
-                href="https://github.com/Morelitea/initiative/blob/main/CHANGELOG.md"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2"
-              >
-                View all changes
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </Button>
-          </div>
+          {/* View all changes link - only in info mode */}
+          {mode === "info" && (
+            <div className="shrink-0 border-t pt-3">
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <a
+                  href="https://github.com/Morelitea/initiative/blob/main/CHANGELOG.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2"
+                >
+                  View all changes
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Footer with buttons - only in update mode */}
       {mode === "update" && (
-        <DialogFooter className="shrink-0 px-6 pb-6">
+        <DialogFooter className="shrink-0 border-t pt-4">
+          <Button variant="ghost" size="sm" asChild>
+            <a
+              href="https://github.com/Morelitea/initiative/blob/main/CHANGELOG.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1"
+            >
+              View all changes
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </Button>
+          <div className="flex-1" />
           <Button variant="outline" onClick={onClose}>
             Later
           </Button>
