@@ -192,6 +192,75 @@ export const THEMES: Record<string, ThemeDefinition> = {
       sidebarRing: "0.530 0.044 275", // Overlay0 #6e738d
     },
   },
+  strahd: {
+    id: "strahd",
+    name: "Strahd",
+    description: "Dark gothic theme with purple accents (Dracula/Alucard)",
+    light: {
+      // Alucard variant
+      background: "0.99 0.02 95", // #fffbeb
+      foreground: "0.22 0 0", // #1f1f1f
+      card: "0.99 0.02 95", // #fffbeb
+      cardForeground: "0.22 0 0", // #1f1f1f
+      popover: "0.99 0.02 95", // #fffbeb
+      popoverForeground: "0.22 0 0", // #1f1f1f
+      secondary: "0.94 0.02 95", // slightly darker
+      secondaryForeground: "0.22 0 0", // #1f1f1f
+      muted: "0.94 0.02 95", // slightly darker
+      mutedForeground: "0.52 0.04 260", // muted text
+      accent: "0.94 0.02 95", // slightly darker
+      accentForeground: "0.22 0 0", // #1f1f1f
+      destructive: "0.52 0.19 25", // Red #cb3a2a
+      border: "0.90 0.02 95", // border
+      input: "0.90 0.02 95", // input
+      ring: "0.48 0.19 290", // Purple #644ac9
+      chart1: "0.48 0.13 50", // Orange #a34d14
+      chart2: "0.47 0.10 230", // Cyan #036a96
+      chart3: "0.48 0.19 290", // Purple #644ac9
+      chart4: "0.52 0.11 85", // Yellow #846e15
+      chart5: "0.44 0.14 140", // Green #14710a
+      sidebar: "0.96 0.02 95", // slightly darker than background
+      sidebarForeground: "0.22 0 0", // #1f1f1f
+      sidebarPrimary: "0.48 0.19 290", // Purple #644ac9
+      sidebarPrimaryForeground: "0.99 0.02 95", // light
+      sidebarAccent: "0.94 0.02 95", // slightly darker
+      sidebarAccentForeground: "0.22 0 0", // #1f1f1f
+      sidebarBorder: "0.90 0.02 95", // border
+      sidebarRing: "0.52 0.04 260", // muted
+    },
+    dark: {
+      // Dracula
+      background: "0.25 0.03 280", // Background #282a36
+      foreground: "0.97 0.01 105", // Foreground #f8f8f2
+      card: "0.36 0.03 275", // Current Line #44475a
+      cardForeground: "0.97 0.01 105", // Foreground #f8f8f2
+      popover: "0.36 0.03 275", // Current Line #44475a
+      popoverForeground: "0.97 0.01 105", // Foreground #f8f8f2
+      secondary: "0.42 0.03 275", // slightly lighter than current line
+      secondaryForeground: "0.97 0.01 105", // Foreground #f8f8f2
+      muted: "0.42 0.03 275", // slightly lighter than current line
+      mutedForeground: "0.65 0.07 260", // Comment #6272a4 (lightened for contrast)
+      accent: "0.42 0.03 275", // slightly lighter than current line
+      accentForeground: "0.97 0.01 105", // Foreground #f8f8f2
+      destructive: "0.68 0.24 25", // Red #ff5555
+      border: "0.42 0.03 275", // border
+      input: "0.42 0.03 275", // input
+      ring: "0.72 0.15 300", // Purple #bd93f9
+      chart1: "0.73 0.20 350", // Pink #ff79c6
+      chart2: "0.88 0.11 205", // Cyan #8be9fd
+      chart3: "0.72 0.15 300", // Purple #bd93f9
+      chart4: "0.82 0.14 65", // Orange #ffb86c
+      chart5: "0.88 0.25 145", // Green #50fa7b
+      sidebar: "0.22 0.03 280", // slightly darker than background
+      sidebarForeground: "0.97 0.01 105", // Foreground #f8f8f2
+      sidebarPrimary: "0.72 0.15 300", // Purple #bd93f9
+      sidebarPrimaryForeground: "0.25 0.03 280", // Background
+      sidebarAccent: "0.36 0.03 275", // Current Line #44475a
+      sidebarAccentForeground: "0.97 0.01 105", // Foreground #f8f8f2
+      sidebarBorder: "0.42 0.03 275", // border
+      sidebarRing: "0.65 0.07 260", // Comment #6272a4 (lightened)
+    },
+  },
 };
 
 export const DEFAULT_THEME = "kobold";
