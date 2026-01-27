@@ -21,7 +21,17 @@ import type { Project } from "@/types/api";
 import { PageRoutes } from "@/PageRoutes";
 import { AppSidebar } from "./components/AppSidebar";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
-import { Menu } from "lucide-react";
+import { Loader2, Menu } from "lucide-react";
+
+/**
+ * Loading fallback for lazy-loaded pages inside the main layout.
+ * Shows a centered spinner while preserving the sidebar and header.
+ */
+const PageLoader = () => (
+  <div className="flex items-center justify-center py-20">
+    <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+  </div>
+);
 
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((module) => ({ default: module.LoginPage }))
@@ -174,7 +184,9 @@ const AppLayout = () => {
             </div>
             <div className="flex justify-between">
               <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
-                <PageRoutes />
+                <Suspense fallback={<PageLoader />}>
+                  <PageRoutes />
+                </Suspense>
               </main>
             </div>
           </div>
@@ -198,9 +210,7 @@ export const App = () => {
   return (
     <BrowserRouter>
       <DeepLinkHandler>
-        <Suspense
-          fallback={<div className="text-muted-foreground py-10 text-center">Loading...</div>}
-        >
+        <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Server connection page for mobile - doesn't require server to be configured */}
             <Route path="/connect" element={<ConnectServerPage />} />
