@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Switchable color themes with user preference persistence
+  - Theme selector in Settings → Interface
+  - Three built-in themes: Kobold (default indigo), Displacer (Catppuccin pastels), Strahd (Dracula gothic)
+  - Extensible theme system for adding custom themes
+  - Themes apply to both light and dark modes
 - Spell check suggestions in document editor context menu
   - Right-click on misspelled words to see correction suggestions
   - Uses Typo.js with dictionaries loaded from CDN on first use
