@@ -123,9 +123,9 @@ export const THEMES: Record<string, ThemeDefinition> = {
       sidebarRing: "0.551 0.027 264.364",
     },
   },
-  catppuccin: {
-    id: "catppuccin",
-    name: "Catppuccin",
+  displacer: {
+    id: "displacer",
+    name: "Displacer",
     description: "Soothing pastel theme (Latte/Macchiato)",
     light: {
       // Latte flavor
@@ -167,11 +167,11 @@ export const THEMES: Record<string, ThemeDefinition> = {
       cardForeground: "0.863 0.049 275", // Text #cad3f5
       popover: "0.298 0.040 275", // Surface0 #363a4f
       popoverForeground: "0.863 0.049 275", // Text #cad3f5
-      secondary: "0.298 0.040 275", // Surface0 #363a4f
+      secondary: "0.378 0.043 275", // Surface1 #494d64
       secondaryForeground: "0.863 0.049 275", // Text #cad3f5
-      muted: "0.298 0.040 275", // Surface0 #363a4f
+      muted: "0.378 0.043 275", // Surface1 #494d64
       mutedForeground: "0.730 0.043 273", // Subtext0 #a5adcb
-      accent: "0.298 0.040 275", // Surface0 #363a4f
+      accent: "0.378 0.043 275", // Surface1 #494d64
       accentForeground: "0.863 0.049 275", // Text #cad3f5
       destructive: "0.721 0.135 15", // Red #ed8796
       border: "0.378 0.043 275", // Surface1 #494d64
