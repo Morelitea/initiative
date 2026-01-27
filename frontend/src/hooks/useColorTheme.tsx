@@ -65,12 +65,7 @@ export const useColorTheme = () => {
     // Apply each color to its CSS variable
     for (const [key, cssVar] of Object.entries(CSS_VAR_MAP)) {
       const colorValue = colors[key as keyof ThemeColors];
-      // Handle values with alpha (e.g., "1 0 0 / 10%")
-      if (colorValue.includes("/")) {
-        root.style.setProperty(cssVar, `oklch(${colorValue})`);
-      } else {
-        root.style.setProperty(cssVar, `oklch(${colorValue})`);
-      }
+      root.style.setProperty(cssVar, `oklch(${colorValue})`);
     }
   }, [colorThemeId, resolvedTheme]);
 };
