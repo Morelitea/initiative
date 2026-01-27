@@ -72,12 +72,18 @@ export const VersionDialog = ({
     window.location.reload();
   };
 
-  // Parse changelog markdown into sections
+  interface ChangelogItem {
+    text: string;
+    children: string[];
+  }
+
+  // Parse changelog markdown into sections with nested items
   const parseChangelog = (text: string) => {
-    const sections: { title: string; items: string[] }[] = [];
+    const sections: { title: string; items: ChangelogItem[] }[] = [];
     const lines = text.split("\n");
 
-    let currentSection: { title: string; items: string[] } | null = null;
+    let currentSection: { title: string; items: ChangelogItem[] } | null = null;
+    let currentItem: ChangelogItem | null = null;
 
     for (const line of lines) {
       const trimmed = line.trim();
@@ -85,6 +91,10 @@ export const VersionDialog = ({
       // Section headers like "### Added"
       if (trimmed.startsWith("### ")) {
         if (currentSection) {
+          if (currentItem) {
+            currentSection.items.push(currentItem);
+            currentItem = null;
+          }
           sections.push(currentSection);
         }
         currentSection = {
@@ -92,13 +102,27 @@ export const VersionDialog = ({
           items: [],
         };
       }
-      // List items
+      // Nested list items (indented with spaces before "- ")
+      else if (line.match(/^\s{2,}- /) && currentItem && currentSection) {
+        currentItem.children.push(trimmed.replace("- ", ""));
+      }
+      // Top-level list items
       else if (trimmed.startsWith("- ") && currentSection) {
-        currentSection.items.push(trimmed.replace("- ", ""));
+        if (currentItem) {
+          currentSection.items.push(currentItem);
+        }
+        currentItem = {
+          text: trimmed.replace("- ", ""),
+          children: [],
+        };
       }
     }
 
+    // Don't forget the last item and section
     if (currentSection) {
+      if (currentItem) {
+        currentSection.items.push(currentItem);
+      }
       sections.push(currentSection);
     }
 
@@ -204,9 +228,23 @@ export const VersionDialog = ({
                               <h5 className="mb-2 text-sm font-semibold">{section.title}</h5>
                               <ul className="text-muted-foreground space-y-1 text-sm">
                                 {section.items.map((item, itemIdx) => (
-                                  <li key={itemIdx} className="flex gap-2">
-                                    <span className="text-primary shrink-0">•</span>
-                                    <span>{item}</span>
+                                  <li key={itemIdx}>
+                                    <div className="flex gap-2">
+                                      <span className="text-primary shrink-0">•</span>
+                                      <span>{item.text}</span>
+                                    </div>
+                                    {item.children.length > 0 && (
+                                      <ul className="mt-1 ml-4 space-y-1">
+                                        {item.children.map((child, childIdx) => (
+                                          <li key={childIdx} className="flex gap-2">
+                                            <span className="text-muted-foreground shrink-0">
+                                              ◦
+                                            </span>
+                                            <span>{child}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
