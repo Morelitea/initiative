@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Right-click on misspelled words to see correction suggestions
   - Uses Typo.js with dictionaries loaded from CDN on first use
   - Works consistently across Chrome, Firefox, and other browsers
+- Priority badge is now a clickable dropdown to change task priority inline
 
 ### Fixed
 

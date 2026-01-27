@@ -13,12 +13,12 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
 
-import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
+import type { ProjectTaskStatus, Task } from "@/types/api";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import {
   Select,
   SelectContent,
@@ -45,7 +45,6 @@ type ProjectTasksListViewProps = {
   canEditTaskDetails: boolean;
   canOpenTask: boolean;
   taskActionsDisabled: boolean;
-  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
@@ -122,7 +121,6 @@ const ProjectTasksTableViewComponent = ({
   canEditTaskDetails,
   canOpenTask,
   taskActionsDisabled,
-  priorityVariant,
   onDragStart,
   onDragEnd,
   onDragCancel,
@@ -294,11 +292,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ row }) => {
           const task = row.original;
-          return (
-            <Badge variant={priorityVariant[task.priority]}>
-              {task.priority.replace("_", " ")}
-            </Badge>
-          );
+          return <TaskPrioritySelector task={task} disabled={statusDisabled} />;
         },
         sortingFn: prioritySortingFn,
       },
@@ -353,15 +347,7 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: false,
       },
     ],
-    [
-      canOpenTask,
-      onStatusChange,
-      onTaskClick,
-      priorityVariant,
-      statusDisabled,
-      taskStatuses,
-      statusLookup,
-    ]
+    [canOpenTask, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup]
   );
   const groupingOptions = useMemo(() => [{ id: "date group", label: "Date" }], []);
 
@@ -440,8 +426,7 @@ export const ProjectTasksTableView = memo(
       prevProps.canReorderTasks === nextProps.canReorderTasks &&
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.canOpenTask === nextProps.canOpenTask &&
-      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
-      prevProps.priorityVariant === nextProps.priorityVariant
+      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }
