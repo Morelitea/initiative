@@ -624,7 +624,13 @@ export const MyTasksPage = () => {
           </div>
         );
       },
-      cell: ({ row }) => <DateCell date={row.original.due_date} isPastVariant="destructive" />,
+      cell: ({ row }) => (
+        <DateCell
+          date={row.original.due_date}
+          isPastVariant="destructive"
+          isDone={row.original.task_status?.category === "done"}
+        />
+      ),
       sortingFn: dateSortingFn,
     },
     {

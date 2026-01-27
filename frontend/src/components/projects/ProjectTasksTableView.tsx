@@ -268,7 +268,13 @@ const ProjectTasksTableViewComponent = ({
             </div>
           );
         },
-        cell: ({ row }) => <DateCell date={row.original.due_date} isPastVariant="destructive" />,
+        cell: ({ row }) => (
+          <DateCell
+            date={row.original.due_date}
+            isPastVariant="destructive"
+            isDone={row.original.task_status?.category === "done"}
+          />
+        ),
         enableSorting: true,
         sortingFn: dateSortingFn,
       },
@@ -457,7 +463,7 @@ const DragHandleCell = () => {
       disabled={dragDisabled}
       aria-label="Reorder task"
     >
-      <GripVertical className="mt-1 h-4 w-4" />
+      <GripVertical className="h-4 w-4 cursor-grab" />
     </button>
   );
 };

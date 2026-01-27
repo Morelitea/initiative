@@ -6,12 +6,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 type DateCellProps = {
   date: string | null | undefined;
   isPastVariant?: "primary" | "destructive";
+  isDone?: boolean;
 };
 
 /**
  * Memoized date cell to avoid re-computing formatDistance on every render
  */
-export const DateCell = memo(({ date, isPastVariant }: DateCellProps) => {
+export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) => {
   const dateObj = useMemo(() => (date ? new Date(date) : null), [date]);
   const isPastDate = useMemo(() => (dateObj ? isPast(dateObj) : false), [dateObj]);
   const relativeDate = useMemo(
@@ -27,10 +28,21 @@ export const DateCell = memo(({ date, isPastVariant }: DateCellProps) => {
     return <span className="text-muted-foreground">—</span>;
   }
 
-  const className =
-    isPastDate && isPastVariant
-      ? `min-w-30 ${isPastVariant === "destructive" ? "text-destructive" : "text-primary"}`
-      : "min-w-30 text-muted-foreground";
+  const className = (() => {
+    if (!isPastDate || !isPastVariant) {
+      return "min-w-30 text-muted-foreground";
+    }
+    // Past due and done = green (success)
+    if (isPastVariant === "destructive" && isDone) {
+      return "min-w-30 text-green-600 dark:text-green-400";
+    }
+    // Past due and not done = red (destructive)
+    if (isPastVariant === "destructive") {
+      return "min-w-30 text-destructive";
+    }
+    // Past start date = primary
+    return "min-w-30 text-primary";
+  })();
 
   return (
     <div className={className}>

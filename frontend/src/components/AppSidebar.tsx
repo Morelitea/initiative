@@ -12,6 +12,9 @@ import {
   Users,
   ListTodo,
   MoreVertical,
+  ChartColumn,
+  SquareCheckBig,
+  UserCog,
 } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
@@ -307,19 +310,32 @@ export const AppSidebar = () => {
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/user-stats">My Stats</Link>
+                    <Link to="/">
+                      <SquareCheckBig className="h-4 w-4" /> My Tasks
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/profile">User Settings</Link>
+                    <Link to="/user-stats">
+                      <ChartColumn className="h-4 w-4" /> My Stats
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile">
+                      <UserCog className="h-4 w-4" /> User Settings
+                    </Link>
                   </DropdownMenuItem>
                   {isGuildAdmin && (
                     <DropdownMenuItem asChild>
-                      <Link to="/settings/guild">Guild Settings</Link>
+                      <Link to="/settings/guild">
+                        <Settings className="h-4 w-4" /> Guild Settings
+                      </Link>
                     </DropdownMenuItem>
                   )}
                   {isSuperUser && (
                     <DropdownMenuItem asChild>
-                      <Link to="/settings/admin">Platform Settings</Link>
+                      <Link to="/settings/admin">
+                        <Settings className="h-4 w-4" /> Platform Settings
+                      </Link>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />

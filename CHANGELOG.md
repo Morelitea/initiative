@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Past due dates now show green (success) when task is completed instead of always showing red
+- Bulk edit dialog now correctly uses "Urgent" priority value instead of invalid "Critical"
 - URLs in comments are now clickable and properly wrap instead of overflowing the container
 - URLs in task descriptions (markdown) now properly wrap instead of overflowing
 - Layout no longer disappears when navigating to lazy-loaded pages (shows spinner in content area)
