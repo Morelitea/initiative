@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { summarizeRecurrence } from "@/lib/recurrence";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -21,7 +20,6 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
-import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
@@ -39,6 +37,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { DateCell } from "@/components/tasks/TaskDateCell";
+import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -624,7 +623,13 @@ export const MyTasksPage = () => {
           </div>
         );
       },
-      cell: ({ row }) => <DateCell date={row.original.due_date} isPastVariant="destructive" />,
+      cell: ({ row }) => (
+        <DateCell
+          date={row.original.due_date}
+          isPastVariant="destructive"
+          isDone={row.original.task_status?.category === "done"}
+        />
+      ),
       sortingFn: dateSortingFn,
     },
     {
@@ -710,7 +715,11 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         return (
-          <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
+          <TaskPrioritySelector
+            task={task}
+            guildId={task.guild_id ?? activeGuildId}
+            disabled={isUpdatingTaskStatus}
+          />
         );
       },
       sortingFn: prioritySortingFn,

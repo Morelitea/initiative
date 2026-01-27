@@ -951,7 +951,6 @@ export const ProjectTasksSection = ({
             canEditTaskDetails={canEditTaskDetails}
             canOpenTask={canViewTaskDetails}
             taskActionsDisabled={taskActionsDisabled}
-            priorityVariant={priorityVariant}
             onDragStart={handleTaskDragStart}
             onDragEnd={handleListDragEnd}
             onDragCancel={handleListDragCancel}

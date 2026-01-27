@@ -18,9 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Right-click on misspelled words to see correction suggestions
   - Uses Typo.js with dictionaries loaded from CDN on first use
   - Works consistently across Chrome, Firefox, and other browsers
+- Priority badge is now a clickable dropdown to change task priority inline
 
 ### Fixed
 
+- Document page comments now wrap below editor at larger screen widths for better readability
+- Past due dates now show green (success) when task is completed instead of always showing red
+- Bulk edit dialog now correctly uses "Urgent" priority value instead of invalid "Critical"
 - URLs in comments are now clickable and properly wrap instead of overflowing the container
 - URLs in task descriptions (markdown) now properly wrap instead of overflowing
 - Layout no longer disappears when navigating to lazy-loaded pages (shows spinner in content area)

@@ -413,7 +413,7 @@ export const DocumentDetailPage = () => {
           {document.is_template ? <Badge variant="outline">Template</Badge> : null}
         </div>
       </div>
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-6 xl:flex-row">
         <div className="flex-1 space-y-6">
           <Card>
             <CardHeader>
@@ -612,7 +612,7 @@ export const DocumentDetailPage = () => {
             </CardContent>
           </Card>
         </div>
-        <div className="space-y-2 lg:w-96">
+        <div className="space-y-2 xl:w-96">
           {commentsQuery.isError ? (
             <p className="text-destructive text-sm">Unable to load comments right now.</p>
           ) : null}
