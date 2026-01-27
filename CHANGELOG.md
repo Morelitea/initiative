@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Spell check suggestions in document editor context menu
+  - Right-click on misspelled words to see correction suggestions
+  - Uses Typo.js with dictionaries loaded from CDN on first use
+  - Works consistently across Chrome, Firefox, and other browsers
+
 ### Fixed
 
 - URLs in comments are now clickable and properly wrap instead of overflowing the container
