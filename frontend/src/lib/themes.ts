@@ -123,6 +123,75 @@ export const THEMES: Record<string, ThemeDefinition> = {
       sidebarRing: "0.551 0.027 264.364",
     },
   },
+  catppuccin: {
+    id: "catppuccin",
+    name: "Catppuccin",
+    description: "Soothing pastel theme (Latte/Macchiato)",
+    light: {
+      // Latte flavor
+      background: "0.959 0.009 255", // Base #eff1f5
+      foreground: "0.413 0.043 277", // Text #4c4f69
+      card: "0.959 0.009 255", // Base #eff1f5
+      cardForeground: "0.413 0.043 277", // Text #4c4f69
+      popover: "0.959 0.009 255", // Base #eff1f5
+      popoverForeground: "0.413 0.043 277", // Text #4c4f69
+      secondary: "0.862 0.016 264", // Surface0 #ccd0da
+      secondaryForeground: "0.413 0.043 277", // Text #4c4f69
+      muted: "0.862 0.016 264", // Surface0 #ccd0da
+      mutedForeground: "0.524 0.035 274", // Subtext0 #6c6f85
+      accent: "0.862 0.016 264", // Surface0 #ccd0da
+      accentForeground: "0.413 0.043 277", // Text #4c4f69
+      destructive: "0.528 0.239 17", // Red #d20f39
+      border: "0.806 0.019 265", // Surface1 #bcc0cc
+      input: "0.806 0.019 265", // Surface1 #bcc0cc
+      ring: "0.621 0.184 271", // Lavender #7287fd
+      chart1: "0.661 0.224 42", // Peach #fe640b
+      chart2: "0.575 0.111 195", // Teal #179299
+      chart3: "0.498 0.261 303", // Mauve #8839ef
+      chart4: "0.700 0.170 70", // Yellow #df8e1d
+      chart5: "0.595 0.180 142", // Green #40a02b
+      sidebar: "0.934 0.011 262", // Mantle #e6e9ef
+      sidebarForeground: "0.413 0.043 277", // Text #4c4f69
+      sidebarPrimary: "0.498 0.261 303", // Mauve #8839ef
+      sidebarPrimaryForeground: "0.959 0.009 255", // Base #eff1f5
+      sidebarAccent: "0.862 0.016 264", // Surface0 #ccd0da
+      sidebarAccentForeground: "0.413 0.043 277", // Text #4c4f69
+      sidebarBorder: "0.806 0.019 265", // Surface1 #bcc0cc
+      sidebarRing: "0.635 0.028 272", // Overlay0 #9ca0b0
+    },
+    dark: {
+      // Macchiato flavor
+      background: "0.224 0.036 277", // Base #24273a
+      foreground: "0.863 0.049 275", // Text #cad3f5
+      card: "0.298 0.040 275", // Surface0 #363a4f
+      cardForeground: "0.863 0.049 275", // Text #cad3f5
+      popover: "0.298 0.040 275", // Surface0 #363a4f
+      popoverForeground: "0.863 0.049 275", // Text #cad3f5
+      secondary: "0.298 0.040 275", // Surface0 #363a4f
+      secondaryForeground: "0.863 0.049 275", // Text #cad3f5
+      muted: "0.298 0.040 275", // Surface0 #363a4f
+      mutedForeground: "0.730 0.043 273", // Subtext0 #a5adcb
+      accent: "0.298 0.040 275", // Surface0 #363a4f
+      accentForeground: "0.863 0.049 275", // Text #cad3f5
+      destructive: "0.721 0.135 15", // Red #ed8796
+      border: "0.378 0.043 275", // Surface1 #494d64
+      input: "0.378 0.043 275", // Surface1 #494d64
+      ring: "0.798 0.080 275", // Lavender #b7bdf8
+      chart1: "0.787 0.120 48", // Peach #f5a97f
+      chart2: "0.820 0.075 175", // Teal #8bd5ca
+      chart3: "0.755 0.130 303", // Mauve #c6a0f6
+      chart4: "0.877 0.085 85", // Yellow #eed49f
+      chart5: "0.832 0.105 135", // Green #a6da95
+      sidebar: "0.192 0.033 277", // Mantle #1e2030
+      sidebarForeground: "0.863 0.049 275", // Text #cad3f5
+      sidebarPrimary: "0.755 0.130 303", // Mauve #c6a0f6
+      sidebarPrimaryForeground: "0.166 0.027 277", // Crust #181926
+      sidebarAccent: "0.298 0.040 275", // Surface0 #363a4f
+      sidebarAccentForeground: "0.863 0.049 275", // Text #cad3f5
+      sidebarBorder: "0.378 0.043 275", // Surface1 #494d64
+      sidebarRing: "0.530 0.044 275", // Overlay0 #6e738d
+    },
+  },
 };
 
 export const DEFAULT_THEME = "kobold";
