@@ -133,10 +133,17 @@ function parseContent(content: string): MentionPart[] {
     URL_PATTERN.lastIndex = 0;
     let urlMatch: RegExpExecArray | null;
     while ((urlMatch = URL_PATTERN.exec(text)) !== null) {
+      // Strip trailing punctuation that's likely sentence punctuation, not part of the URL
+      let url = urlMatch[0];
+      const trailingPunctuation = /[.,;:!?)\]]+$/;
+      const trailingMatch = url.match(trailingPunctuation);
+      if (trailingMatch) {
+        url = url.slice(0, -trailingMatch[0].length);
+      }
       urlMatches.push({
-        url: urlMatch[0],
+        url,
         start: urlMatch.index,
-        end: urlMatch.index + urlMatch[0].length,
+        end: urlMatch.index + url.length,
       });
     }
 
