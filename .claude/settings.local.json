@@ -5,7 +5,12 @@
       "Bash(pnpm run build:*)",
       "Bash(pnpm build:*)",
       "Bash(pnpm run lint:*)",
-      "Bash(pnpm lint:*)"
+      "Bash(pnpm lint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(pnpm eslint:*)",
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm exec eslint:*)"
     ]
   }
 }

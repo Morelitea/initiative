@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Spell check suggestions in document editor context menu
+  - Right-click on misspelled words to see correction suggestions
+  - Uses Typo.js with dictionaries loaded from CDN on first use
+  - Works consistently across Chrome, Firefox, and other browsers
+
 ### Fixed
 
 - URLs in comments are now clickable and properly wrap instead of overflowing the container
+- URLs in task descriptions (markdown) now properly wrap instead of overflowing
+- Layout no longer disappears when navigating to lazy-loaded pages (shows spinner in content area)
+- Version update popup no longer appears when client version is ahead of server
+- Dismissed version popup no longer reappears on page refresh (persisted to localStorage)
+- Fixed footer alignment in version update dialog
+- Version dialog changelog now renders nested list items
 
 ## [0.16.0] - 2026-01-25
 

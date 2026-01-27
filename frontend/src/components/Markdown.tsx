@@ -15,7 +15,7 @@ export const Markdown = ({ content, className }: MarkdownProps) => {
   return (
     <div
       className={cn(
-        "text-muted-foreground space-y-3 text-sm [&_*]:leading-relaxed [&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-6",
+        "text-muted-foreground [&_a]:text-primary space-y-3 text-sm break-words [&_*]:leading-relaxed [&_a]:break-all [&_a:hover]:underline [&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-6",
         className
       )}
     >

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/api/client";
+import { compareVersions } from "@/hooks/useDockerHubVersion";
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const CURRENT_VERSION = __APP_VERSION__;
+const DISMISSED_VERSION_KEY = "initiative-dismissed-version";
 
 interface VersionResponse {
   version: string;
@@ -21,7 +23,19 @@ export const useVersionCheck = () => {
         const response = await apiClient.get<VersionResponse>("/version");
         const serverVersion = response.data.version;
 
-        if (serverVersion !== CURRENT_VERSION && !hasShownNotification.current) {
+        // Only show update popup if server version is newer than client version
+        const isServerNewer = compareVersions(serverVersion, CURRENT_VERSION) > 0;
+        if (!isServerNewer) {
+          return;
+        }
+
+        // Check if user already dismissed this specific version
+        const dismissedVersion = localStorage.getItem(DISMISSED_VERSION_KEY);
+        if (dismissedVersion === serverVersion) {
+          return;
+        }
+
+        if (!hasShownNotification.current) {
           hasShownNotification.current = true;
           setUpdateAvailable({ show: true, version: serverVersion });
         }
@@ -43,6 +57,10 @@ export const useVersionCheck = () => {
   }, []);
 
   const closeDialog = () => {
+    // Persist the dismissed version so it doesn't reappear on refresh
+    if (updateAvailable.version) {
+      localStorage.setItem(DISMISSED_VERSION_KEY, updateAvailable.version);
+    }
     setUpdateAvailable({ show: false, version: "" });
   };
 

@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -8,22 +8,187 @@ import {
   NodeContextMenuSeparator,
 } from "@lexical/react/LexicalNodeContextMenuPlugin";
 import {
+  $createTextNode,
   $getSelection,
   $isDecoratorNode,
   $isNodeSelection,
   $isRangeSelection,
+  $isTextNode,
   COPY_COMMAND,
   CUT_COMMAND,
   PASTE_COMMAND,
   type LexicalNode,
 } from "lexical";
-import { Clipboard, ClipboardType, Copy, Link2Off, Scissors, Trash2 } from "lucide-react";
+import {
+  Clipboard,
+  ClipboardType,
+  Copy,
+  Link2Off,
+  Scissors,
+  SpellCheck,
+  Trash2,
+} from "lucide-react";
+import { checkWord, getSuggestions, initSpellCheck, isSpellCheckReady } from "@/lib/spell-check";
+
+interface WordAtCursor {
+  word: string;
+  startOffset: number;
+  endOffset: number;
+}
+
+function getWordAtCursor(): WordAtCursor | null {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) return null;
+
+  const anchor = selection.anchor;
+  const node = anchor.getNode();
+
+  if (!$isTextNode(node)) return null;
+
+  const textContent = node.getTextContent();
+  const offset = anchor.offset;
+
+  // Find word boundaries
+  let start = offset;
+  let end = offset;
+
+  // Move start backwards to find word start
+  while (start > 0 && /\w/.test(textContent[start - 1])) {
+    start--;
+  }
+
+  // Move end forward to find word end
+  while (end < textContent.length && /\w/.test(textContent[end])) {
+    end++;
+  }
+
+  if (start === end) return null;
+
+  const word = textContent.slice(start, end);
+  // Skip if the word contains numbers or is too short
+  if (/\d/.test(word) || word.length < 2) return null;
+
+  return { word, startOffset: start, endOffset: end };
+}
+
+// Maximum number of spell suggestions to show
+const MAX_SUGGESTIONS = 5;
 
 export function ContextMenuPlugin(): JSX.Element {
   const [editor] = useLexicalComposerContext();
 
+  // Use refs to store spell data so it's available synchronously in $showOn
+  const spellDataRef = useRef<{
+    suggestions: string[];
+    wordInfo: WordAtCursor | null;
+  }>({ suggestions: [], wordInfo: null });
+
+  // Initialize spell checker on mount
+  useEffect(() => {
+    initSpellCheck().catch(() => {
+      // Spell check failed to load, continue without it
+    });
+  }, []);
+
+  // Update spell data when context menu is about to show
+  // This is called synchronously by NodeContextMenuPlugin's onContextMenu
+  const updateSpellData = useCallback(() => {
+    if (!isSpellCheckReady()) {
+      spellDataRef.current = { suggestions: [], wordInfo: null };
+      return;
+    }
+
+    const wordInfo = getWordAtCursor();
+    if (wordInfo && !checkWord(wordInfo.word)) {
+      const suggestions = getSuggestions(wordInfo.word, MAX_SUGGESTIONS);
+      spellDataRef.current = { suggestions, wordInfo };
+    } else {
+      spellDataRef.current = { suggestions: [], wordInfo: null };
+    }
+  }, []);
+
+  // Listen for context menu events to update spell data before menu renders
+  useEffect(() => {
+    const rootElement = editor.getRootElement();
+    if (!rootElement) return;
+
+    const handler = () => {
+      editor.getEditorState().read(() => {
+        updateSpellData();
+      });
+    };
+
+    // Use capture phase to run before NodeContextMenuPlugin's handler
+    rootElement.addEventListener("contextmenu", handler, true);
+    return () => {
+      rootElement.removeEventListener("contextmenu", handler, true);
+    };
+  }, [editor, updateSpellData]);
+
+  // Store spell option refs for title mutation
+  const spellOptionsRef = useRef<NodeContextMenuOption[]>([]);
+
+  // Create menu items - includes spell placeholders that show/hide via $showOn
   const items = useMemo(() => {
-    return [
+    // Create spell suggestion items for each slot
+    const spellItems: (NodeContextMenuOption | NodeContextMenuSeparator)[] = [];
+    spellOptionsRef.current = [];
+
+    for (let i = 0; i < MAX_SUGGESTIONS; i++) {
+      const option = new NodeContextMenuOption(`spell-suggestion-${i}`, {
+        $onSelect: () => {
+          const { suggestions, wordInfo } = spellDataRef.current;
+          const suggestion = suggestions[i];
+          if (!suggestion || !wordInfo) return;
+
+          editor.update(() => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return;
+
+            const node = selection.anchor.getNode();
+            if (!$isTextNode(node)) return;
+
+            const textContent = node.getTextContent();
+            const before = textContent.slice(0, wordInfo.startOffset);
+            const after = textContent.slice(wordInfo.endOffset);
+            const newText = before + suggestion + after;
+
+            // Replace the text content
+            const textNode = $createTextNode(newText);
+            node.replace(textNode);
+
+            // Position cursor after the replacement
+            textNode.select(
+              wordInfo.startOffset + suggestion.length,
+              wordInfo.startOffset + suggestion.length
+            );
+          });
+        },
+        $showOn: () => {
+          // Show this item only if we have a suggestion at this index
+          const { suggestions } = spellDataRef.current;
+          if (suggestions.length > i) {
+            // Update the title dynamically when showing
+            option.title = suggestions[i];
+            return true;
+          }
+          return false;
+        },
+        disabled: false,
+        icon: <SpellCheck className="h-4 w-4" />,
+      });
+      spellOptionsRef.current.push(option);
+      spellItems.push(option);
+    }
+
+    // Add separator after spell suggestions (only shows if there are suggestions)
+    spellItems.push(
+      new NodeContextMenuSeparator({
+        $showOn: () => spellDataRef.current.suggestions.length > 0,
+      })
+    );
+
+    const baseItems = [
       new NodeContextMenuOption(`Remove Link`, {
         $onSelect: () => {
           editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
@@ -129,6 +294,8 @@ export function ContextMenuPlugin(): JSX.Element {
         icon: <Trash2 className="h-4 w-4" />,
       }),
     ];
+
+    return [...spellItems, ...baseItems];
   }, [editor]);
 
   return (
