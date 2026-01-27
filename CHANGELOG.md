@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Document page comments now wrap below editor at larger screen widths for better readability
 - Past due dates now show green (success) when task is completed instead of always showing red
 - Bulk edit dialog now correctly uses "Urgent" priority value instead of invalid "Critical"
 - URLs in comments are now clickable and properly wrap instead of overflowing the container
