@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     DATABASE_URL: str = "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
+    DATABASE_URL_ADMIN: str | None = None  # Admin connection with BYPASSRLS for migrations
+    ENABLE_RLS: bool = True  # Feature flag to enable/disable Row Level Security context injection
 
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

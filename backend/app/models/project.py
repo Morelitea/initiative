@@ -13,12 +13,14 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.initiative import Initiative
     from app.models.project_activity import ProjectFavorite, RecentProjectView
     from app.models.document import ProjectDocument
+    from app.models.guild import Guild
 
 
 class Project(SQLModel, table=True):
     __tablename__ = "projects"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     name: str = Field(index=True, nullable=False)
     icon: Optional[str] = Field(default=None, max_length=8)
     description: Optional[str] = Field(default=None)
@@ -49,6 +51,7 @@ class Project(SQLModel, table=True):
 
     owner: Optional["User"] = Relationship(back_populates="projects_owned")
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")
+    guild: Optional["Guild"] = Relationship()
     tasks: List["Task"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -89,6 +92,7 @@ class ProjectPermission(SQLModel, table=True):
 
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     level: ProjectPermissionLevel = Field(
         default=ProjectPermissionLevel.write,
         sa_column=Column(

@@ -14,6 +14,7 @@ class ProjectFavorite(SQLModel, table=True):
 
     user_id: int = Field(foreign_key="users.id", primary_key=True)
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -28,6 +29,7 @@ class RecentProjectView(SQLModel, table=True):
 
     user_id: int = Field(foreign_key="users.id", primary_key=True)
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     last_viewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

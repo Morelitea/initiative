@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- PostgreSQL Row Level Security (RLS) for guild data isolation
+  - Database-level access control ensures users can only access data within their current guild
+  - Defense-in-depth protection in addition to application-level access controls
+  - Denormalized `guild_id` columns added to all tier 2/3 tables for efficient policy evaluation
+  - Automatic triggers maintain guild_id consistency when parent relationships change
+  - New `RLSSessionDep` dependency for routes that need database-level access control
+  - Admin bypass role (`app_admin`) for migrations and background jobs
+
+### Changed
+
+- **Docker users**: `DATABASE_URL_ADMIN` environment variable is now required for RLS migrations
+  - RLS migrations need superuser privileges to create the `app_admin` role with `BYPASSRLS`
+  - Add to your docker-compose: `DATABASE_URL_ADMIN: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-initiative}@db:5432/initiative`
+  - This URL uses the `postgres` superuser; the regular `DATABASE_URL` continues using the restricted `initiative` user
+
 ## [0.17.0] - 2026-01-27
 
 ### Added

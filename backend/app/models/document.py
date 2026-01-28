@@ -15,6 +15,7 @@ class Document(SQLModel, table=True):
     __tablename__ = "documents"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
     title: str = Field(nullable=False, index=True, max_length=255)
     content: dict = Field(
@@ -64,6 +65,7 @@ class ProjectDocument(SQLModel, table=True):
 
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     attached_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
     attached_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -84,6 +86,7 @@ class DocumentPermission(SQLModel, table=True):
 
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     level: DocumentPermissionLevel = Field(
         default=DocumentPermissionLevel.write,
         sa_column=Column(
