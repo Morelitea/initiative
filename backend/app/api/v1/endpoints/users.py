@@ -376,8 +376,8 @@ async def delete_own_account(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
-    # Prevent last platform admin deletion
-    if await users_service.is_last_platform_admin(session, current_user.id):
+    # Prevent last platform admin deletion (use FOR UPDATE to prevent race condition)
+    if await users_service.is_last_platform_admin(session, current_user.id, for_update=True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot delete the last platform admin account",
@@ -494,7 +494,8 @@ async def delete_user(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
-    if await users_service.is_last_platform_admin(session, user_id):
+    # Use FOR UPDATE to prevent race condition when checking last admin
+    if await users_service.is_last_platform_admin(session, user_id, for_update=True):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the last platform admin")
     if user_id == current_admin.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")

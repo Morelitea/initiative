@@ -261,24 +261,47 @@ async def reassign_user_content(
     await session.flush()
 
 
-async def count_platform_admins(session: AsyncSession) -> int:
-    """Count active platform admin users."""
-    stmt = select(func.count(User.id)).where(
-        User.role == UserRole.admin,
-        User.is_active == True,  # noqa: E712
-    )
-    result = await session.exec(stmt)
-    return result.one()
+async def count_platform_admins(session: AsyncSession, *, for_update: bool = False) -> int:
+    """Count active platform admin users.
+
+    Args:
+        session: Database session
+        for_update: If True, lock the admin user rows to prevent race conditions
+    """
+    if for_update:
+        # Lock all admin users to prevent race condition when demoting
+        stmt = select(User).where(
+            User.role == UserRole.admin,
+            User.is_active == True,  # noqa: E712
+        ).with_for_update()
+        result = await session.exec(stmt)
+        admins = result.all()
+        return len(admins)
+    else:
+        stmt = select(func.count(User.id)).where(
+            User.role == UserRole.admin,
+            User.is_active == True,  # noqa: E712
+        )
+        result = await session.exec(stmt)
+        return result.one()
 
 
-async def is_last_platform_admin(session: AsyncSession, user_id: int) -> bool:
-    """Check if user is the last remaining platform admin."""
+async def is_last_platform_admin(
+    session: AsyncSession, user_id: int, *, for_update: bool = False
+) -> bool:
+    """Check if user is the last remaining platform admin.
+
+    Args:
+        session: Database session
+        user_id: User ID to check
+        for_update: If True, lock rows to prevent race conditions during demotion
+    """
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user or user.role != UserRole.admin:
         return False
-    return await count_platform_admins(session) <= 1
+    return await count_platform_admins(session, for_update=for_update) <= 1
 
 
 async def hard_delete_user(
