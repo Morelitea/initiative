@@ -44,7 +44,7 @@ def upgrade() -> None:
         # Create the admin role with BYPASSRLS
         # Note: LOGIN allows direct connection, BYPASSRLS skips RLS policies
         try:
-            connection.execute(text("CREATE ROLE app_admin WITH BYPASSRLS"))
+            connection.execute(text("CREATE ROLE app_admin WITH LOGIN BYPASSRLS"))
         except Exception:
             # If we can't create the role (insufficient privileges), that's OK
             # The admin will need to create it manually
