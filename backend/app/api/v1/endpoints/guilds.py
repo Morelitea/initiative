@@ -268,11 +268,11 @@ async def update_guild_membership(
             detail="Cannot change your own guild role",
         )
 
-    target_membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id)
+    target_membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id, for_update=True)
     if target_membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in guild")
 
-    # Check if demoting the last guild admin (use FOR UPDATE to prevent race condition)
+    # Check if demoting the last guild admin (FOR UPDATE already acquired above)
     if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
         from app.services.users import is_last_admin_of_guild
         if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
