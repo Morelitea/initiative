@@ -59,6 +59,62 @@ async def get_or_create_system_user(session: AsyncSession) -> User:
     return system_user
 
 
+async def is_last_admin_of_guild(
+    session: AsyncSession, guild_id: int, user_id: int, *, for_update: bool = False
+) -> bool:
+    """
+    Check if user is the last admin of a specific guild.
+
+    Args:
+        session: Database session
+        guild_id: Guild ID to check
+        user_id: User ID to check
+        for_update: If True, lock rows to prevent race conditions during demotion
+    """
+    # Check if user is an admin of this guild
+    if for_update:
+        membership_stmt = (
+            select(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+            .with_for_update()
+        )
+    else:
+        membership_stmt = select(GuildMembership).where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.user_id == user_id,
+        )
+    result = await session.exec(membership_stmt)
+    membership = result.one_or_none()
+
+    if not membership or membership.role != GuildRole.admin:
+        return False
+
+    # Count all admins in this guild (with lock if for_update)
+    if for_update:
+        admin_stmt = (
+            select(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.admin,
+            )
+            .with_for_update()
+        )
+        admin_result = await session.exec(admin_stmt)
+        admin_count = len(admin_result.all())
+    else:
+        count_stmt = select(func.count(GuildMembership.user_id)).where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.role == GuildRole.admin,
+        )
+        count_result = await session.exec(count_stmt)
+        admin_count = count_result.one()
+
+    return admin_count <= 1
+
+
 async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
     """
     Check if user is the last admin of any guild.
@@ -296,7 +352,10 @@ async def is_last_platform_admin(
         user_id: User ID to check
         for_update: If True, lock rows to prevent race conditions during demotion
     """
-    stmt = select(User).where(User.id == user_id)
+    if for_update:
+        stmt = select(User).where(User.id == user_id).with_for_update()
+    else:
+        stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user or user.role != UserRole.admin:

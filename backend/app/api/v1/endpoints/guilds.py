@@ -272,12 +272,10 @@ async def update_guild_membership(
     if target_membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in guild")
 
-    # Check if demoting the last guild admin
+    # Check if demoting the last guild admin (use FOR UPDATE to prevent race condition)
     if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
-        from app.services.users import is_last_guild_admin
-        last_admin_guilds = await is_last_guild_admin(session, user_id)
-        guild = await guilds_service.get_guild(session, guild_id=guild_id)
-        if guild.name in last_admin_guilds:
+        from app.services.users import is_last_admin_of_guild
+        if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot demote the last guild admin",
