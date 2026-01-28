@@ -84,3 +84,8 @@ class GuildSummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class GuildMembershipUpdate(BaseModel):
+    """Schema for updating a user's guild membership role."""
+    role: GuildRole

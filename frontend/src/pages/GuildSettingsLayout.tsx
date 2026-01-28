@@ -1,7 +1,6 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 
 const guildSettingsTabs = [
@@ -11,9 +10,8 @@ const guildSettingsTabs = [
 ];
 
 export const GuildSettingsLayout = () => {
-  const { user } = useAuth();
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.role === "admin";
   const location = useLocation();
   const navigate = useNavigate();
 

@@ -10,7 +10,8 @@
       "Bash(npx eslint:*)",
       "Bash(pnpm eslint:*)",
       "Bash(pnpm tsc:*)",
-      "Bash(pnpm exec eslint:*)"
+      "Bash(pnpm exec eslint:*)",
+      "Bash(python -m ruff check:*)"
     ]
   }
 }

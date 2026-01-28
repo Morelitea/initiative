@@ -49,7 +49,8 @@ class UserPublic(BaseModel):
 
 class UserGuildMember(UserPublic):
     """User information for guild member management (includes role/status but not personal settings)"""
-    role: UserRole
+    role: UserRole  # Platform role
+    guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
     is_active: bool
     email_verified: bool
     created_at: datetime

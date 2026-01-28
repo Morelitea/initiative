@@ -29,7 +29,7 @@ interface OidcSettings {
 
 export const SettingsAuthPage = () => {
   const { user } = useAuth();
-  const isSuperUser = user?.id === 1;
+  const isPlatformAdmin = user?.role === "admin";
   const [clientSecret, setClientSecret] = useState("");
   const [formState, setFormState] = useState({
     enabled: false,
@@ -41,7 +41,7 @@ export const SettingsAuthPage = () => {
 
   const oidcQuery = useQuery<OidcSettings>({
     queryKey: ["settings", "oidc"],
-    enabled: isSuperUser,
+    enabled: isPlatformAdmin,
     queryFn: async () => {
       const response = await apiClient.get<OidcSettings>("/settings/auth");
       return response.data;
@@ -73,20 +73,20 @@ export const SettingsAuthPage = () => {
   }, [oidcQuery.data]);
 
   if (oidcQuery.isLoading) {
-    if (!isSuperUser) {
+    if (!isPlatformAdmin) {
       return (
         <p className="text-muted-foreground text-sm">
-          Only the initial super user can manage authentication settings.
+          Only platform admins can manage authentication settings.
         </p>
       );
     }
     return <p className="text-muted-foreground text-sm">Loading auth settings…</p>;
   }
 
-  if (!isSuperUser) {
+  if (!isPlatformAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
-        Only the initial super user can manage authentication settings.
+        Only platform admins can manage authentication settings.
       </p>
     );
   }

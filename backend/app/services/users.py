@@ -20,6 +20,7 @@ from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.api_key import UserApiKey
 from app.models.user_token import UserToken
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.user import UserRole
 
 SYSTEM_USER_EMAIL = "deleted-user@system.internal"
 SYSTEM_USER_FULL_NAME = "[Deleted User]"
@@ -258,6 +259,26 @@ async def reassign_user_content(
     )
 
     await session.flush()
+
+
+async def count_platform_admins(session: AsyncSession) -> int:
+    """Count active platform admin users."""
+    stmt = select(func.count(User.id)).where(
+        User.role == UserRole.admin,
+        User.is_active == True,  # noqa: E712
+    )
+    result = await session.exec(stmt)
+    return result.one()
+
+
+async def is_last_platform_admin(session: AsyncSession, user_id: int) -> bool:
+    """Check if user is the last remaining platform admin."""
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user or user.role != UserRole.admin:
+        return False
+    return await count_platform_admins(session) <= 1
 
 
 async def hard_delete_user(

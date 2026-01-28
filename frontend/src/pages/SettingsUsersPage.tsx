@@ -18,7 +18,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
-import type { GuildInviteRead, User, UserRole } from "@/types/api";
+import type { GuildInviteRead, GuildRole, UserGuildMember } from "@/types/api";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -26,8 +26,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Copy, RefreshCcw, Trash2 } from "lucide-react";
 
 const USERS_QUERY_KEY = ["users"];
-const ROLE_OPTIONS: UserRole[] = ["admin", "member"];
-const SUPER_USER_ID = 1;
+const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
   const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
   const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
@@ -37,9 +36,9 @@ const inviteLinkForCode = (code: string) => {
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
 
-  const isAdmin = user?.role === "admin";
   const { activeGuild } = useGuilds();
-  const isGuildAdmin = isAdmin || activeGuild?.role === "admin";
+  // Guild admin check is based on guild membership role only (independent from platform role)
+  const isGuildAdmin = activeGuild?.role === "admin";
 
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);
@@ -82,11 +81,11 @@ export const SettingsUsersPage = () => {
 
   const inviteRows = useMemo(() => invites, [invites]);
 
-  const usersQuery = useQuery<User[]>({
+  const usersQuery = useQuery<UserGuildMember[]>({
     queryKey: USERS_QUERY_KEY,
     enabled: isGuildAdmin,
     queryFn: async () => {
-      const response = await apiClient.get<User[]>("/users/");
+      const response = await apiClient.get<UserGuildMember[]>("/users/");
       return response.data;
     },
   });
@@ -100,19 +99,18 @@ export const SettingsUsersPage = () => {
     },
   });
 
-  const updateUser = useMutation({
-    mutationFn: async ({
-      userId,
-      data,
-    }: {
-      userId: number;
-      data: Partial<User> & { password?: string };
-    }) => {
-      const response = await apiClient.patch<User>(`/users/${userId}`, data);
-      return response.data;
+  const updateGuildMembership = useMutation({
+    mutationFn: async ({ userId, role }: { userId: number; role: GuildRole }) => {
+      await apiClient.patch(`/guilds/${activeGuildId}/members/${userId}`, { role });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        "Failed to update role";
+      toast.error(message);
     },
   });
 
@@ -125,19 +123,13 @@ export const SettingsUsersPage = () => {
     },
   });
 
-  const handleRoleChange = (userId: number, role: UserRole) => {
-    if (userId === SUPER_USER_ID) {
-      toast.error("You can't change the super user's role");
-      return;
-    }
-    updateUser.mutate({ userId, data: { role } });
+  const handleRoleChange = (userId: number, role: GuildRole) => {
+    // Update guild membership role
+    updateGuildMembership.mutate({ userId, role });
   };
 
   const handleDeleteUser = (userId: number, email: string) => {
-    if (userId === SUPER_USER_ID) {
-      toast.error("You can't delete the super user");
-      return;
-    }
+    // Backend handles validation (e.g., cannot delete last platform admin)
     setDeleteUserConfirm({ userId, email });
   };
 
@@ -164,13 +156,13 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">Unable to load settings.</p>;
   }
 
-  const userColumns: ColumnDef<User>[] = [
+  const userColumns: ColumnDef<UserGuildMember>[] = [
     {
       id: "user",
       header: "User",
       cell: ({ row }) => {
-        const workspaceUser = row.original;
-        const displayName = workspaceUser.full_name?.trim() || "—";
+        const guildMember = row.original;
+        const displayName = guildMember.full_name?.trim() || "—";
         return (
           <div>
             <p className="font-medium">{displayName}</p>
@@ -182,28 +174,29 @@ export const SettingsUsersPage = () => {
       accessorKey: "email",
       header: "Email",
       cell: ({ row }) => {
-        const workspaceUser = row.original;
-        return <p className="text-muted-foreground text-sm">{workspaceUser.email}</p>;
+        const guildMember = row.original;
+        return <p className="text-muted-foreground text-sm">{guildMember.email}</p>;
       },
     },
     {
-      accessorKey: "role",
-      header: "Role",
+      accessorKey: "guild_role",
+      header: "Guild Role",
       cell: ({ row }) => {
-        const workspaceUser = row.original;
-        const isSuperUser = workspaceUser.id === SUPER_USER_ID;
+        const guildMember = row.original;
+        const isSelf = guildMember.id === user?.id;
+        const currentGuildRole = guildMember.guild_role ?? "member";
         return (
           <div className="flex flex-col gap-1">
             <Select
-              value={workspaceUser.role}
-              onValueChange={(value) => handleRoleChange(workspaceUser.id, value as UserRole)}
-              disabled={isSuperUser}
+              value={currentGuildRole}
+              onValueChange={(value) => handleRoleChange(guildMember.id, value as GuildRole)}
+              disabled={isSelf || updateGuildMembership.isPending}
             >
-              <SelectTrigger disabled={isSuperUser} className="min-w-40">
+              <SelectTrigger disabled={isSelf} className="min-w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((roleOption) => (
+                {GUILD_ROLE_OPTIONS.map((roleOption) => (
                   <SelectItem key={roleOption} value={roleOption}>
                     {getRoleLabel(roleOption, roleLabels)}
                   </SelectItem>
@@ -218,16 +211,15 @@ export const SettingsUsersPage = () => {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
-        const workspaceUser = row.original;
-        const isSuperUser = workspaceUser.id === SUPER_USER_ID;
-        const isSelf = workspaceUser.id === user?.id;
+        const guildMember = row.original;
+        const isSelf = guildMember.id === user?.id;
         return (
           <div className="flex flex-wrap gap-2">
-            {!workspaceUser.is_active ? (
+            {!guildMember.is_active ? (
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => approveUser.mutate(workspaceUser.id)}
+                onClick={() => approveUser.mutate(guildMember.id)}
                 disabled={approveUser.isPending}
               >
                 Reactivate
@@ -236,8 +228,8 @@ export const SettingsUsersPage = () => {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => handleDeleteUser(workspaceUser.id, workspaceUser.email)}
-              disabled={isSuperUser || deleteUser.isPending || isSelf}
+              onClick={() => handleDeleteUser(guildMember.id, guildMember.email)}
+              disabled={deleteUser.isPending || isSelf}
             >
               Remove from guild
             </Button>

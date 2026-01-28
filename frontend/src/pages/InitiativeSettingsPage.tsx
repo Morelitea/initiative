@@ -80,7 +80,7 @@ export const InitiativeSettingsPage = () => {
       ? (initiativesQuery.data.find((item) => item.id === initiativeId) ?? null)
       : null;
 
-  const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.role === "admin";
   const initiativeMembership = initiative?.members.find((member) => member.user.id === user?.id);
   const isInitiativeManager = initiativeMembership?.role === "project_manager";
   const canManageMembers = Boolean(isGuildAdmin || isInitiativeManager);

@@ -15,9 +15,9 @@ export const AdminSettingsLayout = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const isSuperUser = user?.id === 1;
+  const isPlatformAdmin = user?.role === "admin";
 
-  if (!isSuperUser) {
+  if (!isPlatformAdmin) {
     return <Navigate to="/settings/guild" replace />;
   }
 
