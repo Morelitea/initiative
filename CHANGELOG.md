@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic triggers maintain guild_id consistency when parent relationships change
   - New `RLSSessionDep` dependency for routes that need database-level access control
   - Admin bypass role (`app_admin`) for migrations and background jobs
+- Role-based platform admin system with promote/demote functionality
+  - Multiple users can now be platform admins (no longer limited to user ID 1)
+  - Platform admins can promote/demote other users via Platform Users settings page
+  - Protection against demoting the last platform admin
+  - Platform roles and guild roles are now completely independent
+  - Guild Users page now manages guild roles separately from platform roles
 
 ### Changed
 

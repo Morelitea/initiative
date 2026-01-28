@@ -38,7 +38,7 @@ const INTERFACE_SETTINGS_QUERY_KEY = ["interface-settings"];
 
 export const SettingsBrandingPage = () => {
   const { user } = useAuth();
-  const isSuperUser = user?.id === 1;
+  const isPlatformAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
 
   const [lightColor, setLightColor] = useState("#2563eb");
@@ -48,7 +48,7 @@ export const SettingsBrandingPage = () => {
 
   const interfaceQuery = useQuery<InterfaceSettings>({
     queryKey: INTERFACE_SETTINGS_QUERY_KEY,
-    enabled: isSuperUser,
+    enabled: isPlatformAdmin,
     queryFn: async () => {
       const response = await apiClient.get<InterfaceSettings>("/settings/interface");
       return response.data;
@@ -110,10 +110,10 @@ export const SettingsBrandingPage = () => {
     updateRoleLabels.mutate(roleFormState);
   };
 
-  if (!isSuperUser) {
+  if (!isPlatformAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
-        Only the initial super user can manage branding settings.
+        Only platform admins can manage branding settings.
       </p>
     );
   }

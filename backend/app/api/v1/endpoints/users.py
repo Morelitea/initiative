@@ -16,7 +16,7 @@ from app.api.deps import (
 )
 from app.core.security import get_password_hash, verify_password
 from app.models.guild import GuildRole, GuildMembership
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.user import (
     UserCreate,
     UserGuildMember,
@@ -46,7 +46,6 @@ router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
-SUPER_USER_ID = 1
 TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
@@ -120,17 +119,27 @@ async def list_users(
     session: SessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> List[User]:
+) -> List[UserGuildMember]:
     stmt = (
-        select(User)
+        select(User, GuildMembership.role)
         .join(GuildMembership, GuildMembership.user_id == User.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
         .order_by(User.created_at.asc())
     )
     result = await session.exec(stmt)
-    users = result.all()
+    rows = result.all()
+    users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
-    return users
+
+    # Build response with guild_role
+    response = []
+    for user, guild_role in rows:
+        member = UserGuildMember.model_validate(user)
+        member.guild_role = guild_role.value
+        # Copy initiative_roles from loaded user
+        member.initiative_roles = getattr(user, "initiative_roles", [])
+        response.append(member)
+    return response
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -158,14 +167,13 @@ async def create_user(
     )
     session.add(user)
     await session.flush()
+    # Platform role and guild role are independent - new users join as guild members
     await guilds_service.ensure_membership(
         session,
         guild_id=guild_id,
         user_id=user.id,
-        role=GuildRole.admin if user.role == UserRole.admin else GuildRole.member,
+        role=GuildRole.member,
     )
-    if user.role == UserRole.admin:
-        await initiatives_service.ensure_default_initiative(session, user, guild_id=guild_id)
     await session.commit()
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
@@ -261,12 +269,12 @@ async def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     update_data = user_in.dict(exclude_unset=True)
-    if user.id == SUPER_USER_ID and "role" in update_data:
+    # Platform role changes are not allowed via this endpoint - use /admin/users/{id}/platform-role
+    if "role" in update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot change the super user's role",
+            detail="Platform role changes must use the /admin/users/{id}/platform-role endpoint",
         )
-    updated_role_value = update_data.get("role")
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
     if "avatar_base64" in update_data:
@@ -297,16 +305,6 @@ async def update_user(
             await notifications_service.clear_task_assignment_queue_for_user(session, user.id)
         setattr(user, field, value)
     user.updated_at = datetime.now(timezone.utc)
-
-    if updated_role_value is not None:
-        guild_role = GuildRole.admin if updated_role_value == UserRole.admin else GuildRole.member
-        await guilds_service.ensure_membership(
-            session,
-            guild_id=guild_context.guild_id,
-            user_id=user.id,
-            role=guild_role,
-            force_role=True,
-        )
 
     session.add(user)
     await session.commit()
@@ -378,11 +376,11 @@ async def delete_own_account(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
-    # Prevent super user deletion
-    if current_user.id == SUPER_USER_ID:
+    # Prevent last platform admin deletion (use FOR UPDATE to prevent race condition)
+    if await users_service.is_last_platform_admin(session, current_user.id, for_update=True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot delete super user account",
+            detail="Cannot delete the last platform admin account",
         )
 
     # Verify password
@@ -496,8 +494,9 @@ async def delete_user(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
-    if user_id == SUPER_USER_ID:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the super user")
+    # Use FOR UPDATE to prevent race condition when checking last admin
+    if await users_service.is_last_platform_admin(session, user_id, for_update=True):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the last platform admin")
     if user_id == current_admin.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
 

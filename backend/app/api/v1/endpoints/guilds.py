@@ -10,6 +10,7 @@ from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User
 from app.schemas.guild import (
     GuildCreate,
+    GuildMembershipUpdate,
     GuildRead,
     GuildInviteAcceptRequest,
     GuildInviteCreate,
@@ -243,3 +244,44 @@ async def accept_invite(
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Guild membership missing")
     return _serialize_guild(guild, membership, current_user.active_guild_id)
+
+
+@router.patch("/{guild_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def update_guild_membership(
+    guild_id: int,
+    user_id: int,
+    payload: GuildMembershipUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    """Update a user's guild membership role. Guild admin only.
+
+    Restrictions:
+    - Cannot change your own role
+    - Cannot demote the last guild admin
+    """
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own guild role",
+        )
+
+    target_membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id, for_update=True)
+    if target_membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in guild")
+
+    # Check if demoting the last guild admin (FOR UPDATE already acquired above)
+    if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
+        from app.services.users import is_last_admin_of_guild
+        if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the last guild admin",
+            )
+
+    target_membership.role = payload.role
+    session.add(target_membership)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

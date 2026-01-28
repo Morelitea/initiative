@@ -9,9 +9,11 @@ from app.models.user import User, UserRole
 from app.models.user_token import UserTokenPurpose
 from app.schemas.user import UserRead
 from app.schemas.auth import VerificationSendResponse
+from app.schemas.admin import PlatformRoleUpdate, PlatformAdminCountResponse
 from app.services import user_tokens
 from app.services import email as email_service
 from app.services import initiatives as initiatives_service
+from app.services import users as users_service
 
 router = APIRouter()
 
@@ -87,6 +89,58 @@ async def reactivate_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already active")
 
     user.is_active = True
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
+    return user
+
+
+@router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
+async def get_platform_admin_count(
+    session: SessionDep,
+    _current_user: AdminUserDep,
+) -> PlatformAdminCountResponse:
+    """Get the count of platform admins (admin only)."""
+    count = await users_service.count_platform_admins(session)
+    return PlatformAdminCountResponse(count=count)
+
+
+@router.patch("/users/{user_id}/platform-role", response_model=UserRead)
+async def update_platform_role(
+    user_id: int,
+    payload: PlatformRoleUpdate,
+    session: SessionDep,
+    current_user: AdminUserDep,
+) -> User:
+    """Update a user's platform role (admin only).
+
+    Restrictions:
+    - Cannot change your own role
+    - Cannot demote the last platform admin
+    """
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own platform role",
+        )
+
+    stmt = select(User).where(User.id == user_id).with_for_update()
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Check if demoting the last admin (FOR UPDATE already acquired above)
+    if user.role == UserRole.admin and payload.role != UserRole.admin:
+        if await users_service.is_last_platform_admin(session, user_id, for_update=True):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the last platform admin",
+            )
+
+    user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()

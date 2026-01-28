@@ -20,6 +20,7 @@ from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.api_key import UserApiKey
 from app.models.user_token import UserToken
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.user import UserRole
 
 SYSTEM_USER_EMAIL = "deleted-user@system.internal"
 SYSTEM_USER_FULL_NAME = "[Deleted User]"
@@ -56,6 +57,62 @@ async def get_or_create_system_user(session: AsyncSession) -> User:
     session.add(system_user)
     await session.flush()
     return system_user
+
+
+async def is_last_admin_of_guild(
+    session: AsyncSession, guild_id: int, user_id: int, *, for_update: bool = False
+) -> bool:
+    """
+    Check if user is the last admin of a specific guild.
+
+    Args:
+        session: Database session
+        guild_id: Guild ID to check
+        user_id: User ID to check
+        for_update: If True, lock rows to prevent race conditions during demotion
+    """
+    # Check if user is an admin of this guild
+    if for_update:
+        membership_stmt = (
+            select(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == user_id,
+            )
+            .with_for_update()
+        )
+    else:
+        membership_stmt = select(GuildMembership).where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.user_id == user_id,
+        )
+    result = await session.exec(membership_stmt)
+    membership = result.one_or_none()
+
+    if not membership or membership.role != GuildRole.admin:
+        return False
+
+    # Count all admins in this guild (with lock if for_update)
+    if for_update:
+        admin_stmt = (
+            select(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.admin,
+            )
+            .with_for_update()
+        )
+        admin_result = await session.exec(admin_stmt)
+        admin_count = len(admin_result.all())
+    else:
+        count_stmt = select(func.count(GuildMembership.user_id)).where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.role == GuildRole.admin,
+        )
+        count_result = await session.exec(count_stmt)
+        admin_count = count_result.one()
+
+    return admin_count <= 1
 
 
 async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
@@ -258,6 +315,52 @@ async def reassign_user_content(
     )
 
     await session.flush()
+
+
+async def count_platform_admins(session: AsyncSession, *, for_update: bool = False) -> int:
+    """Count active platform admin users.
+
+    Args:
+        session: Database session
+        for_update: If True, lock the admin user rows to prevent race conditions
+    """
+    if for_update:
+        # Lock all admin users to prevent race condition when demoting
+        stmt = select(User).where(
+            User.role == UserRole.admin,
+            User.is_active == True,  # noqa: E712
+        ).with_for_update()
+        result = await session.exec(stmt)
+        admins = result.all()
+        return len(admins)
+    else:
+        stmt = select(func.count(User.id)).where(
+            User.role == UserRole.admin,
+            User.is_active == True,  # noqa: E712
+        )
+        result = await session.exec(stmt)
+        return result.one()
+
+
+async def is_last_platform_admin(
+    session: AsyncSession, user_id: int, *, for_update: bool = False
+) -> bool:
+    """Check if user is the last remaining platform admin.
+
+    Args:
+        session: Database session
+        user_id: User ID to check
+        for_update: If True, lock rows to prevent race conditions during demotion
+    """
+    if for_update:
+        stmt = select(User).where(User.id == user_id).with_for_update()
+    else:
+        stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user or user.role != UserRole.admin:
+        return False
+    return await count_platform_admins(session, for_update=for_update) <= 1
 
 
 async def hard_delete_user(

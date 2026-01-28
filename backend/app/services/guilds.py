@@ -165,11 +165,14 @@ async def get_membership(
     *,
     guild_id: int,
     user_id: int,
+    for_update: bool = False,
 ) -> GuildMembership | None:
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user_id,
     )
+    if for_update:
+        stmt = stmt.with_for_update()
     result = await session.exec(stmt)
     return result.one_or_none()
 

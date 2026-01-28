@@ -33,13 +33,13 @@ const DEFAULT_STATE = {
 
 export const SettingsEmailPage = () => {
   const { user } = useAuth();
-  const isSuperUser = user?.id === 1;
+  const isPlatformAdmin = user?.role === "admin";
   const [formState, setFormState] = useState(DEFAULT_STATE);
   const [password, setPassword] = useState("");
   const [testRecipient, setTestRecipient] = useState("");
   const emailQuery = useQuery<EmailSettings>({
     queryKey: ["settings", "email"],
-    enabled: isSuperUser,
+    enabled: isPlatformAdmin,
     queryFn: async () => {
       const response = await apiClient.get<EmailSettings>("/settings/email");
       return response.data;
@@ -85,10 +85,10 @@ export const SettingsEmailPage = () => {
     onError: () => toast.error("Unable to send test email"),
   });
 
-  if (!isSuperUser) {
+  if (!isPlatformAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
-        Only the initial super user can manage email settings.
+        Only platform admins can manage email settings.
       </p>
     );
   }

@@ -15,6 +15,7 @@ export interface UserPublic {
 
 export interface UserGuildMember extends UserPublic {
   role: UserRole;
+  guild_role?: GuildRole;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;

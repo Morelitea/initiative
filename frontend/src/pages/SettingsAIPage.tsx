@@ -48,14 +48,14 @@ const DEFAULT_STATE: FormState = {
 
 export const SettingsAIPage = () => {
   const { user } = useAuth();
-  const isSuperUser = user?.id === 1;
+  const isPlatformAdmin = user?.role === "admin";
   const [formState, setFormState] = useState<FormState>(DEFAULT_STATE);
   const [hasExistingKey, setHasExistingKey] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const settingsQuery = useQuery<PlatformAISettings>({
     queryKey: ["settings", "ai", "platform"],
-    enabled: isSuperUser,
+    enabled: isPlatformAdmin,
     queryFn: async () => {
       const response = await apiClient.get<PlatformAISettings>("/settings/ai/platform");
       return response.data;
@@ -137,10 +137,10 @@ export const SettingsAIPage = () => {
     },
   });
 
-  if (!isSuperUser) {
+  if (!isPlatformAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
-        Only the initial super user can manage platform AI settings.
+        Only platform admins can manage platform AI settings.
       </p>
     );
   }

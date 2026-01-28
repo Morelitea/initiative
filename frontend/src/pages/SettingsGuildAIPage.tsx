@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
 import type {
@@ -48,9 +47,8 @@ const DEFAULT_STATE: FormState = {
 };
 
 export const SettingsGuildAIPage = () => {
-  const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
-  const isAdmin = user?.role === "admin" || activeGuild?.role === "admin";
+  const isGuildAdmin = activeGuild?.role === "admin";
   const guildId = activeGuildId;
   const [formState, setFormState] = useState<FormState>(DEFAULT_STATE);
   const [hasExistingKey, setHasExistingKey] = useState(false);
@@ -58,7 +56,7 @@ export const SettingsGuildAIPage = () => {
 
   const settingsQuery = useQuery<GuildAISettings>({
     queryKey: ["settings", "ai", "guild", guildId],
-    enabled: isAdmin && !!guildId,
+    enabled: isGuildAdmin && !!guildId,
     queryFn: async () => {
       const response = await apiClient.get<GuildAISettings>("/settings/ai/guild");
       return response.data;
@@ -162,7 +160,7 @@ export const SettingsGuildAIPage = () => {
     },
   });
 
-  if (!isAdmin) {
+  if (!isGuildAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
         Only guild administrators can manage AI settings.
