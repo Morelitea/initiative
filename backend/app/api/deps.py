@@ -9,7 +9,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.db.session import get_session
+from app.db.session import get_session, set_rls_context
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.user import User, UserRole
 from app.schemas.token import TokenPayload
@@ -139,3 +139,29 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
         return context
 
     return dependency
+
+
+async def get_guild_session(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> AsyncSession:
+    """Get a session with RLS context set for the current user and guild.
+
+    This dependency injects PostgreSQL session variables that RLS policies
+    use to filter data. Use this instead of SessionDep when you need
+    database-level access control.
+
+    The RLS context is set using SET LOCAL, so it only applies to the
+    current transaction and is automatically cleared when the transaction ends.
+    """
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
+    return session
+
+
+# Dependency for routes that need RLS-aware database access
+RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]

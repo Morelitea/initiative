@@ -22,6 +22,7 @@ class InitiativeMember(SQLModel, table=True):
 
     initiative_id: int = Field(foreign_key="initiatives.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     role: InitiativeRole = Field(
         default=InitiativeRole.member,
         sa_column=Column(

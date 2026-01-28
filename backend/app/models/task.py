@@ -28,6 +28,7 @@ class TaskStatus(SQLModel, table=True):
     __tablename__ = "task_statuses"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
@@ -53,12 +54,14 @@ class TaskAssignee(SQLModel, table=True):
 
     task_id: int = Field(foreign_key="tasks.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
 
 
 class Subtask(SQLModel, table=True):
     __tablename__ = "subtasks"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     task_id: int = Field(foreign_key="tasks.id", nullable=False)
     content: str = Field(sa_column=Column(Text, nullable=False))
     is_completed: bool = Field(
@@ -85,6 +88,7 @@ class Task(SQLModel, table=True):
     __tablename__ = "tasks"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     task_status_id: int = Field(foreign_key="task_statuses.id", nullable=False)
     title: str = Field(nullable=False)

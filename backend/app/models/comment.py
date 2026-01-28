@@ -17,6 +17,10 @@ class Comment(SQLModel, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    guild_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("guilds.id"), nullable=True),
+    )
     content: str = Field(sa_column=Column(Text, nullable=False))
     author_id: int = Field(
         sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
