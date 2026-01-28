@@ -126,13 +126,13 @@ async def update_platform_role(
             detail="Cannot change your own platform role",
         )
 
-    stmt = select(User).where(User.id == user_id)
+    stmt = select(User).where(User.id == user_id).with_for_update()
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Check if demoting the last admin (use FOR UPDATE to prevent race condition)
+    # Check if demoting the last admin (FOR UPDATE already acquired above)
     if user.role == UserRole.admin and payload.role != UserRole.admin:
         if await users_service.is_last_platform_admin(session, user_id, for_update=True):
             raise HTTPException(
