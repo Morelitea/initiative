@@ -36,10 +36,33 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const [inviteStatus, setInviteStatus] = useState<GuildInviteStatus | null>(null);
   const [inviteStatusError, setInviteStatusError] = useState<string | null>(null);
   const [inviteStatusLoading, setInviteStatusLoading] = useState(false);
+  const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
   const inviteCode = useMemo(() => {
     const code = searchParams.get("invite_code");
     return code && code.trim().length > 0 ? code.trim() : undefined;
   }, [searchParams]);
+
+  // Fetch bootstrap status to check if public registration is enabled
+  useEffect(() => {
+    if (bootstrapMode) {
+      // Bootstrap mode always allows registration
+      setPublicRegistrationEnabled(true);
+      return;
+    }
+    const fetchBootstrapStatus = async () => {
+      try {
+        const response = await apiClient.get<{
+          has_users: boolean;
+          public_registration_enabled: boolean;
+        }>("/auth/bootstrap");
+        setPublicRegistrationEnabled(response.data.public_registration_enabled);
+      } catch {
+        // Default to enabled if we can't fetch
+        setPublicRegistrationEnabled(true);
+      }
+    };
+    void fetchBootstrapStatus();
+  }, [bootstrapMode]);
 
   useEffect(() => {
     let ignore = false;
@@ -126,6 +149,51 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   };
 
   const isDark = document.documentElement.classList.contains("dark");
+
+  // Show loading state while checking registration status
+  if (publicRegistrationEnabled === null) {
+    return (
+      <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
+        <p className="text-muted-foreground text-sm">Loading…</p>
+      </div>
+    );
+  }
+
+  // Show invite required message if public registration is disabled and no invite code
+  if (!publicRegistrationEnabled && !inviteCode) {
+    return (
+      <div
+        style={{
+          backgroundImage: `url(${isDark ? "/images/gridWhite.svg" : "/images/gridBlack.svg"})`,
+          backgroundPosition: "center",
+          backgroundBlendMode: "screen",
+          backgroundSize: "96px 96px",
+        }}
+      >
+        <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
+          <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
+            <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+            initiative
+          </div>
+          <Card className="w-full max-w-md shadow-lg">
+            <CardHeader>
+              <CardTitle>Invite required</CardTitle>
+              <CardDescription>
+                Public registration is not available. Please ask an existing member for an invite
+                link to join.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className="text-muted-foreground text-sm">
+              Already have an account?{" "}
+              <Link className="text-primary ml-1 underline-offset-4 hover:underline" to="/login">
+                Sign in
+              </Link>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

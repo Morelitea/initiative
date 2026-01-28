@@ -71,7 +71,11 @@ async def register_user(
         user_count = user_count_result.one()
         is_first_user = user_count == 0
 
-        if settings.DISABLE_GUILD_CREATION and not normalized_invite and not is_first_user:
+        # Block registration if:
+        # - Public registration disabled OR guild creation disabled
+        # - AND no invite code provided
+        # - AND not the first user (bootstrap always allowed)
+        if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not normalized_invite and not is_first_user:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration requires an invite code")
 
         if normalized_invite:
@@ -150,7 +154,10 @@ async def register_user(
 async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     result = await session.exec(select(func.count(User.id)))
     count = result.one()
-    return {"has_users": count > 0}
+    return {
+        "has_users": count > 0,
+        "public_registration_enabled": settings.ENABLE_PUBLIC_REGISTRATION,
+    }
 
 
 @router.post("/token", response_model=Token)

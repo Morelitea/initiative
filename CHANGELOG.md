@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Protection against demoting the last platform admin
   - Platform roles and guild roles are now completely independent
   - Guild Users page now manages guild roles separately from platform roles
+- `ENABLE_PUBLIC_REGISTRATION` environment variable to control public registration
+  - When set to `false`, all new users must register via an invite link
+  - Bootstrap (first user) registration is always allowed regardless of setting
+  - Landing page and register page adapt UI based on this setting
 
 ### Changed
 

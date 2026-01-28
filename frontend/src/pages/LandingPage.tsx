@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Users, ListTodo, FileText, Swords, Map, Calendar, Shield, Sparkles } from "lucide-react";
 import { SiDocker, SiGithub } from "@icons-pack/react-simple-icons";
 
+import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogoIcon } from "@/components/LogoIcon";
@@ -55,12 +56,30 @@ export const LandingPage = () => {
   const { token, loading } = useAuth();
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
+  const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!loading && token) {
       navigate("/tasks", { replace: true });
     }
   }, [token, loading, navigate]);
+
+  // Fetch bootstrap status to check if public registration is enabled
+  useEffect(() => {
+    const fetchBootstrapStatus = async () => {
+      try {
+        const response = await apiClient.get<{
+          has_users: boolean;
+          public_registration_enabled: boolean;
+        }>("/auth/bootstrap");
+        setPublicRegistrationEnabled(response.data.public_registration_enabled);
+      } catch {
+        // Default to enabled if we can't fetch
+        setPublicRegistrationEnabled(true);
+      }
+    };
+    void fetchBootstrapStatus();
+  }, []);
 
   if (loading) {
     return (
@@ -98,9 +117,11 @@ export const LandingPage = () => {
             <Button variant="ghost" asChild>
               <Link to="/login">Sign in</Link>
             </Button>
-            <Button asChild>
-              <Link to="/register">Get started</Link>
-            </Button>
+            {publicRegistrationEnabled !== false && (
+              <Button asChild>
+                <Link to="/register">Get started</Link>
+              </Button>
+            )}
           </div>
         </nav>
 
@@ -122,15 +143,17 @@ export const LandingPage = () => {
               their own private workspace.
             </p>
             <div className="animate-in fade-in slide-in-from-bottom-4 flex flex-col items-center justify-center gap-4 delay-500 duration-700 sm:flex-row">
-              <Button size="lg" className="transition-transform hover:scale-105" asChild>
-                <Link to="/register">
-                  <Shield className="mr-2 h-5 w-5" />
-                  Start your adventure
-                </Link>
-              </Button>
+              {publicRegistrationEnabled !== false && (
+                <Button size="lg" className="transition-transform hover:scale-105" asChild>
+                  <Link to="/register">
+                    <Shield className="mr-2 h-5 w-5" />
+                    Start your adventure
+                  </Link>
+                </Button>
+              )}
               <Button
                 size="lg"
-                variant="outline"
+                variant={publicRegistrationEnabled === false ? "default" : "outline"}
                 className="transition-transform hover:scale-105"
                 asChild
               >
@@ -197,32 +220,36 @@ export const LandingPage = () => {
                 manage projects, and keep your community engaged.
               </p>
             </div>
-            <Button size="lg" className="transition-transform hover:scale-105" asChild>
-              <Link to="/register">Create your guild</Link>
-            </Button>
+            {publicRegistrationEnabled !== false && (
+              <Button size="lg" className="transition-transform hover:scale-105" asChild>
+                <Link to="/register">Create your guild</Link>
+              </Button>
+            )}
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="container mx-auto px-4 py-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold tracking-tight">Ready to level up?</h2>
-          <p className="text-muted-foreground mx-auto mb-8 max-w-xl">
-            Join gaming groups already using Initiative to stay organized and have more fun
-            together.
-          </p>
-          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button
-              size="lg"
-              className="group transition-all duration-300 hover:scale-105 hover:shadow-lg"
-              asChild
-            >
-              <Link to="/register">
-                Get started for free
-                <Sparkles className="ml-2 h-4 w-4 transition-transform group-hover:rotate-12" />
-              </Link>
-            </Button>
-          </div>
-        </section>
+        {publicRegistrationEnabled !== false && (
+          <section className="container mx-auto px-4 py-16 text-center">
+            <h2 className="mb-4 text-3xl font-bold tracking-tight">Ready to level up?</h2>
+            <p className="text-muted-foreground mx-auto mb-8 max-w-xl">
+              Join gaming groups already using Initiative to stay organized and have more fun
+              together.
+            </p>
+            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Button
+                size="lg"
+                className="group transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                asChild
+              >
+                <Link to="/register">
+                  Get started for free
+                  <Sparkles className="ml-2 h-4 w-4 transition-transform group-hover:rotate-12" />
+                </Link>
+              </Button>
+            </div>
+          </section>
+        )}
 
         {/* Footer */}
         <footer className="border-t">
