@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - When set to `false`, all new users must register via an invite link
   - Bootstrap (first user) registration is always allowed regardless of setting
   - Landing page and register page adapt UI based on this setting
+- Platform admins can now create guilds when `DISABLE_GUILD_CREATION=true`
+  - Regular users are still blocked from creating guilds when this flag is enabled
+  - The `can_create_guilds` field in user responses now reflects platform admin status
 
 ### Changed
 

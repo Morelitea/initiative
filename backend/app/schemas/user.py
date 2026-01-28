@@ -84,7 +84,10 @@ class UserRead(UserBase):
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
     def can_create_guilds(self) -> bool:
-        return not settings.DISABLE_GUILD_CREATION
+        if not settings.DISABLE_GUILD_CREATION:
+            return True
+        # When disabled, only platform admins can create guilds
+        return self.role == UserRole.admin
 
     class Config:
         from_attributes = True
