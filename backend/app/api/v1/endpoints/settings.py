@@ -1,10 +1,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
+from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles, require_roles
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.app_setting import AppSetting
 from app.models.guild import GuildRole
 from app.schemas.settings import (
@@ -25,7 +25,7 @@ from app.services import email as email_service
 router = APIRouter()
 
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
-SUPER_USER_ID = 1
+AppAdminDep = Annotated[User, Depends(require_roles(UserRole.admin))]
 
 
 def _backend_redirect_uri() -> str:
@@ -53,16 +53,10 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
     )
 
 
-def _require_super_user(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
-    if current_user.id != SUPER_USER_ID:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super user access required")
-    return current_user
-
-
 @router.get("/auth", response_model=OIDCSettingsResponse)
 async def get_oidc_settings(
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> OIDCSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return OIDCSettingsResponse(
@@ -81,7 +75,7 @@ async def get_oidc_settings(
 async def update_oidc_settings(
     payload: OIDCSettingsUpdate,
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> OIDCSettingsResponse:
     updated = await app_settings_service.update_oidc_settings(
         session,
@@ -128,7 +122,7 @@ async def get_role_labels(
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.update_interface_colors(
         session,
@@ -145,7 +139,7 @@ async def update_interface_settings(
 async def update_role_labels(
     payload: RoleLabelsUpdate,
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> RoleLabelsResponse:
     updated = await app_settings_service.update_role_labels(
         session,
@@ -157,7 +151,7 @@ async def update_role_labels(
 @router.get("/email", response_model=EmailSettingsResponse)
 async def get_email_settings(
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> EmailSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return _email_settings_payload(settings_obj)
@@ -167,7 +161,7 @@ async def get_email_settings(
 async def update_email_settings(
     payload: EmailSettingsUpdate,
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> EmailSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
     password_provided = "password" in data
@@ -190,7 +184,7 @@ async def update_email_settings(
 async def send_test_email(
     payload: EmailTestRequest,
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> dict:
     settings_obj = await app_settings_service.get_app_settings(session)
     recipient = payload.recipient or settings_obj.smtp_test_recipient

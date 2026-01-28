@@ -146,3 +146,8 @@ class AccountDeletionResponse(BaseModel):
     success: bool
     deletion_type: str
     message: str
+
+
+class UserRoleUpdate(BaseModel):
+    """Request to update a user's platform role"""
+    role: UserRole

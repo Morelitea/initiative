@@ -16,7 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic triggers maintain guild_id consistency when parent relationships change
   - New `RLSSessionDep` dependency for routes that need database-level access control
   - Admin bypass role (`app_admin`) for migrations and background jobs
-  - Feature flag `ENABLE_RLS` to disable RLS context injection if needed
+- Platform admin role management in Settings > Platform > Users
+  - Admins can promote/demote other users to/from admin role
+  - Protection prevents demoting the last admin
+  - Visual role indicators with badges
+
+### Changed
+
+- Platform settings access now uses role-based checks instead of hardcoded user ID
+  - Any user with admin role can access platform settings (OIDC, SMTP, AI, interface)
+  - Previously restricted to user ID 1 only
 
 ## [0.17.0] - 2026-01-27
 

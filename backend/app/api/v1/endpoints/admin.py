@@ -7,11 +7,12 @@ from sqlmodel import select
 from app.api.deps import SessionDep, require_roles
 from app.models.user import User, UserRole
 from app.models.user_token import UserTokenPurpose
-from app.schemas.user import UserRead
+from app.schemas.user import UserRead, UserRoleUpdate
 from app.schemas.auth import VerificationSendResponse
 from app.services import user_tokens
 from app.services import email as email_service
 from app.services import initiatives as initiatives_service
+from app.services import users as users_service
 
 router = APIRouter()
 
@@ -87,6 +88,48 @@ async def reactivate_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already active")
 
     user.is_active = True
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
+    return user
+
+
+@router.patch("/users/{user_id}/role", response_model=UserRead)
+async def update_user_role(
+    user_id: int,
+    payload: UserRoleUpdate,
+    session: SessionDep,
+    current_user: AdminUserDep,
+) -> User:
+    """Update a user's platform role (admin only).
+
+    Cannot change your own role or demote the last platform admin.
+    """
+    # Prevent changing own role
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own role. Another admin must do this.",
+        )
+
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # If demoting an admin, check if they're the last one
+    if user.role == UserRole.admin and payload.role != UserRole.admin:
+        is_last = await users_service.is_last_platform_admin(session, user_id)
+        if is_last:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the last platform admin. Promote another user first.",
+            )
+
+    user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()

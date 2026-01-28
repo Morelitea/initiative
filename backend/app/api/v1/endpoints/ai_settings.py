@@ -10,9 +10,9 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
-from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
+from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles, require_roles
 from app.models.guild import GuildRole
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.ai_settings import (
     AIModelsRequest,
     AIModelsResponse,
@@ -31,20 +31,14 @@ from app.services import ai_settings as ai_settings_service
 router = APIRouter()
 
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
-SUPER_USER_ID = 1
-
-
-def _require_super_user(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
-    if current_user.id != SUPER_USER_ID:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super user access required")
-    return current_user
+AppAdminDep = Annotated[User, Depends(require_roles(UserRole.admin))]
 
 
 # Platform-level endpoints (super user only)
 @router.get("/ai/platform", response_model=PlatformAISettingsResponse)
 async def get_platform_ai_settings(
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> PlatformAISettingsResponse:
     """Get platform-level AI settings. Super user only."""
     return await ai_settings_service.get_platform_ai_settings(session)
@@ -54,7 +48,7 @@ async def get_platform_ai_settings(
 async def update_platform_ai_settings(
     payload: PlatformAISettingsUpdate,
     session: SessionDep,
-    _super_user: Annotated[User, Depends(_require_super_user)],
+    _super_user: AppAdminDep,
 ) -> PlatformAISettingsResponse:
     """Update platform-level AI settings. Super user only."""
     data = payload.model_dump(exclude_unset=True)

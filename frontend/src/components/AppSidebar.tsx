@@ -68,7 +68,7 @@ export const AppSidebar = () => {
   useAutoCloseSidebar();
 
   const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
-  const isSuperUser = user?.id === 1;
+  const isPlatformAdmin = user?.role === "admin";
 
   // Extract active project ID from URL
   const activeProjectId = useMemo(() => {
@@ -331,7 +331,7 @@ export const AppSidebar = () => {
                       </Link>
                     </DropdownMenuItem>
                   )}
-                  {isSuperUser && (
+                  {isPlatformAdmin && (
                     <DropdownMenuItem asChild>
                       <Link to="/settings/admin">
                         <Settings className="h-4 w-4" /> Platform Settings
