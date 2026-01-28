@@ -2,9 +2,10 @@ import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Mail, Shield, ShieldOff, UserCheck } from "lucide-react";
+import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
 import { apiClient } from "@/api/client";
+import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ export const SettingsPlatformUsersPage = () => {
     currentRole: UserRole;
     newRole: UserRole;
   } | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -293,6 +295,18 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? "Sending..." : "Reset password"}
               </Button>
             )}
+            {!isSelf && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteUserTarget(platformUser)}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            )}
           </div>
         );
       },
@@ -348,6 +362,18 @@ export const SettingsPlatformUsersPage = () => {
         onConfirm={confirmRoleChange}
         isLoading={updatePlatformRole.isPending}
       />
+
+      {deleteUserTarget && (
+        <AdminDeleteUserDialog
+          open={deleteUserTarget !== null}
+          onOpenChange={(open) => !open && setDeleteUserTarget(null)}
+          onSuccess={() => {
+            void queryClient.invalidateQueries({ queryKey: PLATFORM_USERS_QUERY_KEY });
+            void queryClient.invalidateQueries({ queryKey: ADMIN_COUNT_QUERY_KEY });
+          }}
+          targetUser={deleteUserTarget}
+        />
+      )}
     </div>
   );
 };
