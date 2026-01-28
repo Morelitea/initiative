@@ -107,7 +107,9 @@ ALEMBIC_SCRIPT_LOCATION = BACKEND_DIR / "alembic"
 def _get_alembic_config() -> Config:
     config = Config(str(ALEMBIC_INI_PATH))
     config.set_main_option("script_location", str(ALEMBIC_SCRIPT_LOCATION))
-    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+    # Use admin URL for migrations (has BYPASSRLS privilege), fall back to regular URL
+    migration_url = settings.DATABASE_URL_ADMIN or settings.DATABASE_URL
+    config.set_main_option("sqlalchemy.url", migration_url)
     config.attributes["configure_logger"] = False
     return config
 

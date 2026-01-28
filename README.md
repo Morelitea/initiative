@@ -25,6 +25,7 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 ### Multi-Tenant Workspaces (Guilds)
 
 - **Workspace isolation**: Each guild operates independently with its own teams, projects, and data
+- **Database-level security**: PostgreSQL Row Level Security (RLS) enforces guild boundaries at the database layer, preventing cross-guild data access even in the event of application bugs
 - **Switch contexts seamlessly**: Join multiple guilds and move between them instantly
 - **Guild invitations**: Share invitation links with optional expiry dates and usage limits
 - **Per-guild administration**: Guild admins manage their workspace without platform-wide access
@@ -32,7 +33,6 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 
 **Guild settings:**
 <img width="1905" height="1050" alt="Guild settings" src="https://github.com/user-attachments/assets/656b7d08-0a91-48be-868c-29f545a32165" />
-
 
 ### Organized Project Hierarchy
 
@@ -44,7 +44,6 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 **Initiatives page:**
 <img width="1905" height="1049" alt="Initiatives page" src="https://github.com/user-attachments/assets/3ea4f727-4f84-4e75-b860-a5bb17cb9e49" />
 
-
 ### Flexible Permission Model
 
 - **4-layer access control**: Granular permissions cascade from platform to guild to initiative to project
@@ -54,7 +53,6 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 
 **Initiative permission settings:**
 <img width="1920" height="1050" alt="Initiative permission settings" src="https://github.com/user-attachments/assets/10b90a79-4fa2-444a-9d97-29cbb8b58d63" />
-
 
 ### Rich Task Management
 
@@ -297,26 +295,27 @@ For detailed development guidelines, coding standards, and workflow, see [AGENTS
 
 ### Key Environment Variables
 
-| Variable                   | Description                                                                            | Example                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `DATABASE_URL`             | PostgreSQL connection string                                                           | `postgresql+asyncpg://user:pass@localhost:5432/initiative` |
-| `SECRET_KEY`               | JWT signing key (use a secure random string)                                           | `your-secret-key-here`                                     |
-| `APP_URL`                  | Public base URL (required for OIDC callbacks)                                          | `https://initiative.example.com`                           |
-| `DISABLE_GUILD_CREATION`   | Restrict guild creation to super admin only. Restricts registration without an invite. | `true` or `false`                                          |
-| `BEHIND_PROXY`             | Trust X-Forwarded-For headers (set when behind nginx/load balancer)                    | `true` or `false`                                          |
-| `FIRST_SUPERUSER_EMAIL`    | Bootstrap admin email                                                                  | `admin@example.com`                                        |
-| `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password                                                               | `secure-password`                                          |
-| `SMTP_HOST`                | SMTP server hostname                                                                   | `smtp.gmail.com`                                           |
-| `SMTP_PORT`                | SMTP server port                                                                       | `587`                                                      |
-| `SMTP_USERNAME`            | SMTP authentication username                                                           | `your-email@gmail.com`                                     |
-| `SMTP_PASSWORD`            | SMTP authentication password                                                           | `your-app-password`                                        |
-| `SMTP_FROM_ADDRESS`        | Email sender address                                                                   | `Initiative <noreply@example.com>`                         |
-| `FCM_ENABLED`              | Enable Firebase Cloud Messaging for mobile push notifications                          | `true` or `false`                                          |
-| `FCM_PROJECT_ID`           | Firebase project ID                                                                    | `my-project-id`                                            |
-| `FCM_APPLICATION_ID`       | Firebase app ID from google-services.json                                              | `1:123456:android:abc123`                                  |
-| `FCM_API_KEY`              | Firebase Web API key (from Firebase Console)                                           | `AIzaSy...`                                                |
-| `FCM_SENDER_ID`            | FCM sender ID (project_number from google-services.json)                               | `123456789`                                                |
-| `FCM_SERVICE_ACCOUNT_JSON` | Service account JSON for backend (minified, keep secure)                               | `{"type":"service_account",...}`                           |
+| Variable                   | Description                                                                            | Example                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `DATABASE_URL`             | PostgreSQL connection string                                                           | `postgresql+asyncpg://user:pass@localhost:5432/initiative`     |
+| `DATABASE_URL_ADMIN`       | Superuser connection for migrations (required for RLS setup)                           | `postgresql+asyncpg://postgres:pass@localhost:5432/initiative` |
+| `SECRET_KEY`               | JWT signing key (use a secure random string)                                           | `your-secret-key-here`                                         |
+| `APP_URL`                  | Public base URL (required for OIDC callbacks)                                          | `https://initiative.example.com`                               |
+| `DISABLE_GUILD_CREATION`   | Restrict guild creation to super admin only. Restricts registration without an invite. | `true` or `false`                                              |
+| `BEHIND_PROXY`             | Trust X-Forwarded-For headers (set when behind nginx/load balancer)                    | `true` or `false`                                              |
+| `FIRST_SUPERUSER_EMAIL`    | Bootstrap admin email                                                                  | `admin@example.com`                                            |
+| `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password                                                               | `secure-password`                                              |
+| `SMTP_HOST`                | SMTP server hostname                                                                   | `smtp.gmail.com`                                               |
+| `SMTP_PORT`                | SMTP server port                                                                       | `587`                                                          |
+| `SMTP_USERNAME`            | SMTP authentication username                                                           | `your-email@gmail.com`                                         |
+| `SMTP_PASSWORD`            | SMTP authentication password                                                           | `your-app-password`                                            |
+| `SMTP_FROM_ADDRESS`        | Email sender address                                                                   | `Initiative <noreply@example.com>`                             |
+| `FCM_ENABLED`              | Enable Firebase Cloud Messaging for mobile push notifications                          | `true` or `false`                                              |
+| `FCM_PROJECT_ID`           | Firebase project ID                                                                    | `my-project-id`                                                |
+| `FCM_APPLICATION_ID`       | Firebase app ID from google-services.json                                              | `1:123456:android:abc123`                                      |
+| `FCM_API_KEY`              | Firebase Web API key (from Firebase Console)                                           | `AIzaSy...`                                                    |
+| `FCM_SENDER_ID`            | FCM sender ID (project_number from google-services.json)                               | `123456789`                                                    |
+| `FCM_SERVICE_ACCOUNT_JSON` | Service account JSON for backend (minified, keep secure)                               | `{"type":"service_account",...}`                               |
 
 For detailed Firebase/FCM setup instructions, see [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md).
 
