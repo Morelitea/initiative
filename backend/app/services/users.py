@@ -8,7 +8,7 @@ from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import get_password_hash
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.guild import GuildMembership, GuildRole
 from app.models.project import Project, ProjectPermission
 from app.models.task import TaskAssignee
@@ -23,32 +23,6 @@ from app.models.task_assignment_digest import TaskAssignmentDigestItem
 
 SYSTEM_USER_EMAIL = "deleted-user@system.internal"
 SYSTEM_USER_FULL_NAME = "[Deleted User]"
-
-
-async def count_platform_admins(session: AsyncSession) -> int:
-    """Count the number of active platform admins."""
-    stmt = (
-        select(func.count(User.id))
-        .where(
-            User.role == UserRole.admin,
-            User.is_active.is_(True),
-        )
-    )
-    result = await session.exec(stmt)
-    return result.one()
-
-
-async def is_last_platform_admin(session: AsyncSession, user_id: int) -> bool:
-    """Check if the given user is the last active platform admin."""
-    # First check if the user is actually an admin
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user or user.role != UserRole.admin:
-        return False
-
-    admin_count = await count_platform_admins(session)
-    return admin_count == 1
 
 
 class DeletionBlocker(Exception):

@@ -46,6 +46,7 @@ router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
+SUPER_USER_ID = 1
 TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
@@ -260,15 +261,11 @@ async def update_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     update_data = user_in.dict(exclude_unset=True)
-    if "role" in update_data and update_data["role"] != user.role:
-        # Check if demoting an admin to a non-admin role
-        if user.role == UserRole.admin and update_data["role"] != UserRole.admin:
-            is_last = await users_service.is_last_platform_admin(session, user.id)
-            if is_last:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot demote the last platform admin. Promote another user first.",
-                )
+    if user.id == SUPER_USER_ID and "role" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change the super user's role",
+        )
     updated_role_value = update_data.get("role")
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
@@ -381,14 +378,12 @@ async def delete_own_account(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
-    # Prevent last platform admin from deleting themselves
-    if current_user.role == UserRole.admin:
-        is_last = await users_service.is_last_platform_admin(session, current_user.id)
-        if is_last:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot delete the last platform admin account. Promote another user first.",
-            )
+    # Prevent super user deletion
+    if current_user.id == SUPER_USER_ID:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete super user account",
+        )
 
     # Verify password
     if not verify_password(request.password, current_user.hashed_password):
@@ -501,17 +496,8 @@ async def delete_user(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
-    # Check if trying to delete a platform admin who is the last one
-    target_stmt = select(User).where(User.id == user_id)
-    target_result = await session.exec(target_stmt)
-    target_user = target_result.one_or_none()
-    if target_user and target_user.role == UserRole.admin:
-        is_last = await users_service.is_last_platform_admin(session, user_id)
-        if is_last:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete the last platform admin. Promote another user first.",
-            )
+    if user_id == SUPER_USER_ID:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the super user")
     if user_id == current_admin.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
 

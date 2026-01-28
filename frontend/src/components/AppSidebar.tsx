@@ -68,7 +68,9 @@ export const AppSidebar = () => {
   useAutoCloseSidebar();
 
   const isGuildAdmin = user?.role === "admin" || activeGuild?.role === "admin";
-  const isPlatformAdmin = user?.role === "admin";
+  // Only the bootstrap super user (ID 1) can access platform settings.
+  // TODO: Add proper platform admin role separate from guild admin role
+  const isPlatformAdmin = user?.id === 1;
 
   // Extract active project ID from URL
   const activeProjectId = useMemo(() => {

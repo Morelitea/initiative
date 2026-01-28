@@ -43,6 +43,7 @@ router = APIRouter()
 
 STATE_TTL_SECONDS = 600
 _oidc_metadata_cache: dict[str, dict[str, Any]] = {}
+SUPER_USER_ID = 1
 logger = logging.getLogger(__name__)
 
 
