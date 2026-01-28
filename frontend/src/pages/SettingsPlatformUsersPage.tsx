@@ -7,6 +7,7 @@ import { Mail, UserCheck } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type { User } from "@/types/api";
@@ -20,6 +21,10 @@ export const SettingsPlatformUsersPage = () => {
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);
   const [resettingUserId, setResettingUserId] = useState<number | null>(null);
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState<{
+    userId: number;
+    email: string;
+  } | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -70,11 +75,15 @@ export const SettingsPlatformUsersPage = () => {
   });
 
   const handleResetPassword = (userId: number, email: string) => {
-    if (!window.confirm(`Send password reset email to ${email}?`)) {
-      return;
+    setResetPasswordConfirm({ userId, email });
+  };
+
+  const confirmResetPassword = () => {
+    if (resetPasswordConfirm) {
+      setResettingUserId(resetPasswordConfirm.userId);
+      resetPassword.mutate(resetPasswordConfirm.userId);
+      setResetPasswordConfirm(null);
     }
-    setResettingUserId(userId);
-    resetPassword.mutate(userId);
   };
 
   if (!isAdmin) {
@@ -202,6 +211,16 @@ export const SettingsPlatformUsersPage = () => {
           />
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={resetPasswordConfirm !== null}
+        onOpenChange={(open) => !open && setResetPasswordConfirm(null)}
+        title="Send password reset email?"
+        description={`This will send a password reset email to ${resetPasswordConfirm?.email ?? "this user"}.`}
+        confirmLabel="Send"
+        onConfirm={confirmResetPassword}
+        isLoading={resetPassword.isPending}
+      />
     </div>
   );
 };

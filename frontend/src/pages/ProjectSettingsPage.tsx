@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -59,6 +60,7 @@ export const ProjectSettingsPage = () => {
   const [selectedWriterId, setSelectedWriterId] = useState<string>("");
   const [membersWriteMessage, setMembersWriteMessage] = useState<string | null>(null);
   const [membersWriteError, setMembersWriteError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { data: roleLabels } = useRoleLabels();
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -803,11 +805,7 @@ export const ProjectSettingsPage = () => {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => {
-                if (window.confirm("Delete this project? This cannot be undone.")) {
-                  deleteProject.mutate();
-                }
-              }}
+              onClick={() => setShowDeleteConfirm(true)}
               disabled={deleteProject.isPending}
             >
               Delete project
@@ -815,6 +813,20 @@ export const ProjectSettingsPage = () => {
           </CardFooter>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete project?"
+        description="This will permanently delete the project and all of its tasks. This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          deleteProject.mutate();
+          setShowDeleteConfirm(false);
+        }}
+        isLoading={deleteProject.isPending}
+        destructive
+      />
     </div>
   );
 };

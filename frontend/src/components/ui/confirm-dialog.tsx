@@ -8,6 +8,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -18,6 +20,7 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   onConfirm: () => void;
   isLoading?: boolean;
+  destructive?: boolean;
 };
 
 export const ConfirmDialog = ({
@@ -29,6 +32,7 @@ export const ConfirmDialog = ({
   cancelLabel = "Cancel",
   onConfirm,
   isLoading,
+  destructive,
 }: ConfirmDialogProps) => {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -39,7 +43,11 @@ export const ConfirmDialog = ({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>{cancelLabel}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={isLoading}>
+          <AlertDialogAction
+            onClick={onConfirm}
+            disabled={isLoading}
+            className={cn(destructive && buttonVariants({ variant: "destructive" }))}
+          >
             {isLoading ? "Please wait..." : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

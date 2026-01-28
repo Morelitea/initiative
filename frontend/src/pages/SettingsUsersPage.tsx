@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -50,6 +51,10 @@ export const SettingsUsersPage = () => {
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteMaxUses, setInviteMaxUses] = useState<number>(1);
   const [inviteExpiresDays, setInviteExpiresDays] = useState<number>(7);
+  const [deleteUserConfirm, setDeleteUserConfirm] = useState<{
+    userId: number;
+    email: string;
+  } | null>(null);
 
   const loadInvites = useCallback(async () => {
     if (!activeGuildId) {
@@ -133,10 +138,14 @@ export const SettingsUsersPage = () => {
       toast.error("You can't delete the super user");
       return;
     }
-    if (!window.confirm(`Remove user ${email} from guild? This cannot be undone.`)) {
-      return;
+    setDeleteUserConfirm({ userId, email });
+  };
+
+  const confirmDeleteUser = () => {
+    if (deleteUserConfirm) {
+      deleteUser.mutate(deleteUserConfirm.userId);
+      setDeleteUserConfirm(null);
     }
-    deleteUser.mutate(userId);
   };
 
   if (!isGuildAdmin) {
@@ -389,6 +398,17 @@ export const SettingsUsersPage = () => {
           />
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={deleteUserConfirm !== null}
+        onOpenChange={(open) => !open && setDeleteUserConfirm(null)}
+        title="Remove user from guild?"
+        description={`This will remove ${deleteUserConfirm?.email ?? "this user"} from the guild. This cannot be undone.`}
+        confirmLabel="Remove"
+        onConfirm={confirmDeleteUser}
+        isLoading={deleteUser.isPending}
+        destructive
+      />
     </div>
   );
 };
