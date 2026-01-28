@@ -2,6 +2,8 @@
 
 A self-hosted, multi-tenant project management platform built for teams that need workspace isolation, granular permissions, and rich collaboration features.
 
+🚨 THIS PROJECT HAS NOT YET REACHED A STABLE RELEASE. THE API CAN AND WILL CHANGE BETWEEN MINOR VERSION RELEASES. 🚨
+
 <img width="2264" height="1315" alt="initiative screenshot" src="https://github.com/user-attachments/assets/c2c6b9c8-3f6f-4d17-a1ba-9338c033674d" />
 
 ---
