@@ -7,6 +7,7 @@ import { apiClient } from "@/api/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -18,14 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import type {
   User,
   DeletionEligibilityResponse,
@@ -317,6 +311,14 @@ export function AdminDeleteUserDialog({
 
   const displayName = targetUser.full_name || targetUser.email;
 
+  // Helper to format member for combobox display
+  const formatMemberLabel = (member: { full_name?: string | null; email: string }) => {
+    if (member.full_name) {
+      return `${member.full_name} (${member.email})`;
+    }
+    return member.email;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -496,24 +498,20 @@ export function AdminDeleteUserDialog({
                           {guildBlocker.other_members.length > 0 ? (
                             <div className="space-y-2">
                               <Label className="text-sm">Or promote a member to admin:</Label>
-                              <div className="flex gap-2">
-                                <Select
+                              <div className="flex items-center gap-2">
+                                <SearchableCombobox
+                                  items={guildBlocker.other_members.map((member) => ({
+                                    value: member.id.toString(),
+                                    label: formatMemberLabel(member),
+                                  }))}
                                   onValueChange={(value) =>
                                     handlePromoteGuildMember(guildBlocker.guild_id, parseInt(value))
                                   }
+                                  placeholder="Select member to promote..."
+                                  emptyMessage="No members found."
                                   disabled={isResolvingBlocker}
-                                >
-                                  <SelectTrigger className="flex-1">
-                                    <SelectValue placeholder="Select member to promote..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {guildBlocker.other_members.map((member) => (
-                                      <SelectItem key={member.id} value={member.id.toString()}>
-                                        {member.full_name || member.email}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                  className="flex-1"
+                                />
                                 {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
                               </div>
                             </div>
@@ -551,27 +549,23 @@ export function AdminDeleteUserDialog({
                                   <Label className="text-sm">
                                     Promote a member to project manager:
                                   </Label>
-                                  <div className="flex gap-2">
-                                    <Select
+                                  <div className="flex items-center gap-2">
+                                    <SearchableCombobox
+                                      items={initBlocker.other_members.map((member) => ({
+                                        value: member.id.toString(),
+                                        label: formatMemberLabel(member),
+                                      }))}
                                       onValueChange={(value) =>
                                         handlePromoteInitiativeMember(
                                           initBlocker.initiative_id,
                                           parseInt(value)
                                         )
                                       }
+                                      placeholder="Select member to promote..."
+                                      emptyMessage="No members found."
                                       disabled={isResolvingBlocker}
-                                    >
-                                      <SelectTrigger className="flex-1">
-                                        <SelectValue placeholder="Select member to promote..." />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {initBlocker.other_members.map((member) => (
-                                          <SelectItem key={member.id} value={member.id.toString()}>
-                                            {member.full_name || member.email}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                      className="flex-1"
+                                    />
                                     {isResolvingBlocker && (
                                       <Loader2 className="h-5 w-5 animate-spin" />
                                     )}
@@ -612,10 +606,14 @@ export function AdminDeleteUserDialog({
 
               {eligibility.owned_projects.map((project) => (
                 <div key={project.id} className="space-y-2 rounded-lg border p-4">
-                  <Label htmlFor={`project-${project.id}`} className="font-medium">
-                    {project.name}
-                  </Label>
-                  <Select
+                  <Label className="font-medium">{project.name}</Label>
+                  <SearchableCombobox
+                    items={
+                      initiativeMembers[project.initiative_id]?.map((member) => ({
+                        value: member.id.toString(),
+                        label: formatMemberLabel(member),
+                      })) ?? []
+                    }
                     value={projectTransfers[project.id]?.toString()}
                     onValueChange={(value) =>
                       setProjectTransfers((prev) => ({
@@ -623,18 +621,9 @@ export function AdminDeleteUserDialog({
                         [project.id]: parseInt(value),
                       }))
                     }
-                  >
-                    <SelectTrigger id={`project-${project.id}`}>
-                      <SelectValue placeholder="Select new owner..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {initiativeMembers[project.initiative_id]?.map((member) => (
-                        <SelectItem key={member.id} value={member.id.toString()}>
-                          {member.full_name || member.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select new owner..."
+                    emptyMessage="No members found."
+                  />
                 </div>
               ))}
             </div>
