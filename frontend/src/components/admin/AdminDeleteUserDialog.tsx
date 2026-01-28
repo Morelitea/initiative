@@ -432,102 +432,165 @@ export function AdminDeleteUserDialog({
                 </AlertDescription>
               </Alert>
 
-              {/* Guild Blockers */}
-              {eligibility.guild_blockers.map((blocker: GuildBlockerInfo) => (
-                <div key={blocker.guild_id} className="space-y-3 rounded-lg border p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Guild: {blocker.guild_name}</h4>
-                      <p className="text-muted-foreground text-sm">
-                        User is the last admin of this guild
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => setGuildDeleteConfirm(blocker)}
-                      disabled={isResolvingBlocker}
-                    >
-                      <Trash2 className="mr-1 h-4 w-4" />
-                      Delete Guild
-                    </Button>
-                  </div>
+              {/* Group blockers by guild */}
+              {(() => {
+                // Build a map of guild_id -> { guildBlocker?, initiativeBlockers[] }
+                const guildGroups = new Map<
+                  number,
+                  {
+                    guildBlocker: GuildBlockerInfo | null;
+                    guildName: string;
+                    initiativeBlockers: InitiativeBlockerInfo[];
+                  }
+                >();
 
-                  {blocker.other_members.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label className="text-sm">Or promote a member to admin:</Label>
-                      <div className="flex gap-2">
-                        <Select
-                          onValueChange={(value) =>
-                            handlePromoteGuildMember(blocker.guild_id, parseInt(value))
+                // Add guild blockers
+                for (const blocker of eligibility.guild_blockers) {
+                  guildGroups.set(blocker.guild_id, {
+                    guildBlocker: blocker,
+                    guildName: blocker.guild_name,
+                    initiativeBlockers: [],
+                  });
+                }
+
+                // Add initiative blockers, grouped by guild
+                for (const blocker of eligibility.initiative_blockers) {
+                  const existing = guildGroups.get(blocker.guild_id);
+                  if (existing) {
+                    existing.initiativeBlockers.push(blocker);
+                  } else {
+                    // Initiative blocker without a guild blocker - need to get guild name from initiative
+                    guildGroups.set(blocker.guild_id, {
+                      guildBlocker: null,
+                      guildName: "", // Will show just initiatives
+                      initiativeBlockers: [blocker],
+                    });
+                  }
+                }
+
+                return Array.from(guildGroups.entries()).map(
+                  ([guildId, { guildBlocker, initiativeBlockers }]) => (
+                    <div key={guildId} className="space-y-3 rounded-lg border p-4">
+                      {/* Guild blocker section */}
+                      {guildBlocker && (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium">Guild: {guildBlocker.guild_name}</h4>
+                              <p className="text-muted-foreground text-sm">
+                                User is the last admin of this guild
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setGuildDeleteConfirm(guildBlocker)}
+                              disabled={isResolvingBlocker}
+                            >
+                              <Trash2 className="mr-1 h-4 w-4" />
+                              Delete Guild
+                            </Button>
+                          </div>
+
+                          {guildBlocker.other_members.length > 0 ? (
+                            <div className="space-y-2">
+                              <Label className="text-sm">Or promote a member to admin:</Label>
+                              <div className="flex gap-2">
+                                <Select
+                                  onValueChange={(value) =>
+                                    handlePromoteGuildMember(guildBlocker.guild_id, parseInt(value))
+                                  }
+                                  disabled={isResolvingBlocker}
+                                >
+                                  <SelectTrigger className="flex-1">
+                                    <SelectValue placeholder="Select member to promote..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {guildBlocker.other_members.map((member) => (
+                                      <SelectItem key={member.id} value={member.id.toString()}>
+                                        {member.full_name || member.email}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground text-sm italic">
+                              No other members in this guild to promote. You must delete the guild.
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {/* Initiative blockers nested under the guild */}
+                      {initiativeBlockers.length > 0 && (
+                        <div
+                          className={
+                            guildBlocker ? "border-l-muted ml-4 space-y-3 border-l-2 pl-4" : ""
                           }
-                          disabled={isResolvingBlocker}
                         >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select member to promote..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {blocker.other_members.map((member) => (
-                              <SelectItem key={member.id} value={member.id.toString()}>
-                                {member.full_name || member.email}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">
-                      No other members in this guild to promote. You must delete the guild.
-                    </p>
-                  )}
-                </div>
-              ))}
+                          {initiativeBlockers.map((initBlocker) => (
+                            <div
+                              key={initBlocker.initiative_id}
+                              className={guildBlocker ? "space-y-2" : "space-y-3"}
+                            >
+                              <div>
+                                <h4 className="font-medium">
+                                  Initiative: {initBlocker.initiative_name}
+                                </h4>
+                                <p className="text-muted-foreground text-sm">
+                                  User is the sole project manager of this initiative
+                                </p>
+                              </div>
 
-              {/* Initiative Blockers */}
-              {eligibility.initiative_blockers.map((blocker: InitiativeBlockerInfo) => (
-                <div key={blocker.initiative_id} className="space-y-3 rounded-lg border p-4">
-                  <div>
-                    <h4 className="font-medium">Initiative: {blocker.initiative_name}</h4>
-                    <p className="text-muted-foreground text-sm">
-                      User is the sole project manager of this initiative
-                    </p>
-                  </div>
-
-                  {blocker.other_members.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label className="text-sm">Promote a member to project manager:</Label>
-                      <div className="flex gap-2">
-                        <Select
-                          onValueChange={(value) =>
-                            handlePromoteInitiativeMember(blocker.initiative_id, parseInt(value))
-                          }
-                          disabled={isResolvingBlocker}
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select member to promote..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {blocker.other_members.map((member) => (
-                              <SelectItem key={member.id} value={member.id.toString()}>
-                                {member.full_name || member.email}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {isResolvingBlocker && <Loader2 className="h-5 w-5 animate-spin" />}
-                      </div>
+                              {initBlocker.other_members.length > 0 ? (
+                                <div className="space-y-2">
+                                  <Label className="text-sm">
+                                    Promote a member to project manager:
+                                  </Label>
+                                  <div className="flex gap-2">
+                                    <Select
+                                      onValueChange={(value) =>
+                                        handlePromoteInitiativeMember(
+                                          initBlocker.initiative_id,
+                                          parseInt(value)
+                                        )
+                                      }
+                                      disabled={isResolvingBlocker}
+                                    >
+                                      <SelectTrigger className="flex-1">
+                                        <SelectValue placeholder="Select member to promote..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {initBlocker.other_members.map((member) => (
+                                          <SelectItem key={member.id} value={member.id.toString()}>
+                                            {member.full_name || member.email}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {isResolvingBlocker && (
+                                      <Loader2 className="h-5 w-5 animate-spin" />
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground text-sm italic">
+                                  No other members in this initiative. You must delete the parent
+                                  guild to remove this initiative.
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">
-                      No other members in this initiative. You must delete the parent guild to
-                      remove this initiative.
-                    </p>
-                  )}
-                </div>
-              ))}
+                  )
+                );
+              })()}
 
               {eligibility.can_delete && (
                 <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
