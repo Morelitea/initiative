@@ -158,6 +158,129 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
     return last_admin_guild_names
 
 
+async def get_guild_blocker_details(
+    session: AsyncSession, user_id: int
+) -> List[dict]:
+    """
+    Get detailed info about guilds where user is the last admin.
+    Returns list of dicts with guild_id, guild_name, and other_members who could be promoted.
+    """
+    from app.models.guild import Guild
+
+    stmt = (
+        select(GuildMembership)
+        .where(
+            GuildMembership.user_id == user_id,
+            GuildMembership.role == GuildRole.admin,
+        )
+    )
+    result = await session.exec(stmt)
+    user_admin_memberships = result.all()
+
+    blockers = []
+
+    for membership in user_admin_memberships:
+        # Count other admins in this guild
+        count_stmt = (
+            select(func.count(GuildMembership.user_id))
+            .where(
+                GuildMembership.guild_id == membership.guild_id,
+                GuildMembership.role == GuildRole.admin,
+                GuildMembership.user_id != user_id,
+            )
+        )
+        count_result = await session.exec(count_stmt)
+        other_admin_count = count_result.one()
+
+        if other_admin_count == 0:
+            # User is the last admin - get guild info and other members
+            guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
+            guild_result = await session.exec(guild_stmt)
+            guild = guild_result.one_or_none()
+            if not guild:
+                continue
+
+            # Get other members who could be promoted
+            members_stmt = (
+                select(User)
+                .join(GuildMembership, GuildMembership.user_id == User.id)
+                .where(
+                    GuildMembership.guild_id == membership.guild_id,
+                    GuildMembership.user_id != user_id,
+                    User.is_active == True,  # noqa: E712
+                )
+            )
+            members_result = await session.exec(members_stmt)
+            other_members = members_result.all()
+
+            blockers.append({
+                "guild_id": guild.id,
+                "guild_name": guild.name,
+                "other_members": other_members,
+            })
+
+    return blockers
+
+
+async def get_initiative_blocker_details(
+    session: AsyncSession, user_id: int
+) -> List[dict]:
+    """
+    Get detailed info about initiatives where user is the sole PM.
+    Returns list of dicts with initiative_id, initiative_name, guild_id, and other_members.
+    """
+    from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+
+    # Find initiatives where user is sole PM
+    subquery = (
+        select(
+            InitiativeMember.initiative_id,
+            func.count().label("pm_count"),
+        )
+        .where(InitiativeMember.role == InitiativeRole.project_manager)
+        .group_by(InitiativeMember.initiative_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(Initiative)
+        .join(InitiativeMember, InitiativeMember.initiative_id == Initiative.id)
+        .join(subquery, subquery.c.initiative_id == Initiative.id)
+        .where(
+            InitiativeMember.user_id == user_id,
+            InitiativeMember.role == InitiativeRole.project_manager,
+            subquery.c.pm_count == 1,
+        )
+    )
+    result = await session.exec(stmt)
+    initiatives = result.unique().all()
+
+    blockers = []
+
+    for initiative in initiatives:
+        # Get other members who could be promoted to PM
+        members_stmt = (
+            select(User)
+            .join(InitiativeMember, InitiativeMember.user_id == User.id)
+            .where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id != user_id,
+                User.is_active == True,  # noqa: E712
+            )
+        )
+        members_result = await session.exec(members_stmt)
+        other_members = members_result.all()
+
+        blockers.append({
+            "initiative_id": initiative.id,
+            "initiative_name": initiative.name,
+            "guild_id": initiative.guild_id,
+            "other_members": other_members,
+        })
+
+    return blockers
+
+
 async def get_owned_projects(session: AsyncSession, user_id: int) -> List[Project]:
     """Get all projects owned by the user."""
     stmt = select(Project).where(Project.owner_id == user_id)
@@ -168,10 +291,17 @@ async def get_owned_projects(session: AsyncSession, user_id: int) -> List[Projec
 async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,
+    *,
+    admin_context: bool = False,
 ) -> tuple[bool, List[str], List[str], List[Project]]:
     """
     Check if user can be deleted.
     Returns: (can_delete, blockers, warnings, owned_projects)
+
+    Args:
+        session: Database session
+        user_id: ID of the user to check
+        admin_context: If True, adjust message wording for admin perspective
     """
     from app.services import initiatives as initiatives_service
 
@@ -182,10 +312,16 @@ async def check_deletion_eligibility(
     last_admin_guilds = await is_last_guild_admin(session, user_id)
     if last_admin_guilds:
         for guild_name in last_admin_guilds:
-            blockers.append(
-                f"You are the last admin of guild '{guild_name}'. "
-                f"Promote another user to admin or delete the guild before deleting your account."
-            )
+            if admin_context:
+                blockers.append(
+                    f"User is the last admin of guild '{guild_name}'. "
+                    f"Another user must be promoted to admin or the guild must be deleted first."
+                )
+            else:
+                blockers.append(
+                    f"You are the last admin of guild '{guild_name}'. "
+                    f"Promote another user to admin or delete the guild before deleting your account."
+                )
 
     # Check if user is sole PM of any initiative
     sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
@@ -193,15 +329,24 @@ async def check_deletion_eligibility(
     )
     if sole_pm_initiatives:
         for initiative in sole_pm_initiatives:
-            blockers.append(
-                f"You are the sole project manager of initiative '{initiative.name}'. "
-                f"Promote another member to project manager or delete the initiative before deleting your account."
-            )
+            if admin_context:
+                blockers.append(
+                    f"User is the sole project manager of initiative '{initiative.name}'. "
+                    f"Another member must be promoted to project manager or the initiative must be deleted first."
+                )
+            else:
+                blockers.append(
+                    f"You are the sole project manager of initiative '{initiative.name}'. "
+                    f"Promote another member to project manager or delete the initiative before deleting your account."
+                )
 
     # Get owned projects
     owned_projects = await get_owned_projects(session, user_id)
     if owned_projects:
-        warnings.append(f"You own {len(owned_projects)} project(s) that must be transferred")
+        if admin_context:
+            warnings.append(f"User owns {len(owned_projects)} project(s) that must be transferred")
+        else:
+            warnings.append(f"You own {len(owned_projects)} project(s) that must be transferred")
 
     can_delete = len(blockers) == 0
 

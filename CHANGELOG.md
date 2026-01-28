@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Platform admin blocker resolution for user deletion
+  - New admin endpoints to delete guilds, promote guild members, and promote initiative members
+  - Enhanced deletion eligibility response includes detailed blocker info with promotable members
+  - Delete user dialog now shows "Resolve Blockers" step with inline actions
+  - Admins can promote another member to guild admin or delete the guild entirely
+  - Admins can promote another member to project manager for initiatives
+  - Auto-advances to next step when all blockers are resolved
 - PostgreSQL Row Level Security (RLS) for guild data isolation
   - Database-level access control ensures users can only access data within their current guild
   - Defense-in-depth protection in addition to application-level access controls
@@ -22,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Protection against demoting the last platform admin
   - Platform roles and guild roles are now completely independent
   - Guild Users page now manages guild roles separately from platform roles
+- `ENABLE_PUBLIC_REGISTRATION` environment variable to control public registration
+  - When set to `false`, all new users must register via an invite link
+  - Bootstrap (first user) registration is always allowed regardless of setting
+  - Landing page and register page adapt UI based on this setting
+- Platform admins can now create guilds when `DISABLE_GUILD_CREATION=true`
+  - Regular users are still blocked from creating guilds when this flag is enabled
+  - The `can_create_guilds` field in user responses now reflects platform admin status
 
 ### Changed
 

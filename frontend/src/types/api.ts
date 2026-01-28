@@ -575,3 +575,51 @@ export interface GenerateSubtasksResponse {
 export interface GenerateDescriptionResponse {
   description: string;
 }
+
+// Admin deletion types
+export interface ProjectBasic {
+  id: number;
+  name: string;
+  initiative_id: number;
+}
+
+export interface GuildBlockerInfo {
+  guild_id: number;
+  guild_name: string;
+  other_members: UserPublic[];
+}
+
+export interface InitiativeBlockerInfo {
+  initiative_id: number;
+  initiative_name: string;
+  guild_id: number;
+  other_members: UserPublic[];
+}
+
+export interface DeletionEligibilityResponse {
+  can_delete: boolean;
+  blockers: string[];
+  warnings: string[];
+  owned_projects: ProjectBasic[];
+  guild_blockers: GuildBlockerInfo[];
+  initiative_blockers: InitiativeBlockerInfo[];
+}
+
+export interface AdminUserDeleteRequest {
+  deletion_type: "soft" | "hard";
+  project_transfers?: Record<number, number>;
+}
+
+export interface AccountDeletionResponse {
+  success: boolean;
+  deletion_type: string;
+  message: string;
+}
+
+export interface AdminGuildRoleUpdate {
+  role: GuildRole;
+}
+
+export interface AdminInitiativeRoleUpdate {
+  role: InitiativeRole;
+}

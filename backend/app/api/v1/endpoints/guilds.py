@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from app.api.deps import SessionDep, get_current_active_user
 from app.core.config import settings
 from app.models.guild import GuildRole, GuildMembership, Guild
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.guild import (
     GuildCreate,
     GuildMembershipUpdate,
@@ -101,7 +101,7 @@ async def create_guild(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
-    if settings.DISABLE_GUILD_CREATION:
+    if settings.DISABLE_GUILD_CREATION and current_user.role != UserRole.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild creation is disabled")
     name = guild_in.name.strip()
     if not name:

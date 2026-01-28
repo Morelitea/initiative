@@ -28,6 +28,7 @@ async def test_bootstrap_status_no_users(client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert data["has_users"] is False
+    assert "public_registration_enabled" in data
 
 
 @pytest.mark.integration
@@ -41,6 +42,7 @@ async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSe
     assert response.status_code == 200
     data = response.json()
     assert data["has_users"] is True
+    assert "public_registration_enabled" in data
 
 
 @pytest.mark.integration

@@ -1,19 +1,31 @@
 from typing import Annotated, List
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlmodel import select
 
 from app.api.deps import SessionDep, require_roles
+from app.models.guild import Guild, GuildRole
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User, UserRole
 from app.models.user_token import UserTokenPurpose
-from app.schemas.user import UserRead
+from app.schemas.user import UserRead, AccountDeletionResponse, ProjectBasic, UserPublic
 from app.schemas.auth import VerificationSendResponse
-from app.schemas.admin import PlatformRoleUpdate, PlatformAdminCountResponse
+from app.schemas.admin import (
+    PlatformRoleUpdate,
+    PlatformAdminCountResponse,
+    AdminUserDeleteRequest,
+    AdminDeletionEligibilityResponse,
+    AdminGuildRoleUpdate,
+    AdminInitiativeRoleUpdate,
+    GuildBlockerInfo,
+    InitiativeBlockerInfo,
+)
 from app.services import user_tokens
 from app.services import email as email_service
 from app.services import initiatives as initiatives_service
 from app.services import users as users_service
+from app.services import guilds as guilds_service
 
 router = APIRouter()
 
@@ -147,3 +159,296 @@ async def update_platform_role(
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
+
+
+@router.get("/users/{user_id}/deletion-eligibility", response_model=AdminDeletionEligibilityResponse)
+async def check_user_deletion_eligibility(
+    user_id: int,
+    session: SessionDep,
+    current_user: AdminUserDep,
+) -> AdminDeletionEligibilityResponse:
+    """Check if a user can be deleted (admin only).
+
+    Returns blockers, warnings, owned projects, and detailed blocker info
+    with lists of members who could be promoted to resolve blockers.
+    """
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use /users/me/deletion-eligibility for self-deletion",
+        )
+
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    can_delete, blockers, warnings, owned_projects = await users_service.check_deletion_eligibility(
+        session, user_id, admin_context=True
+    )
+
+    # Check if target is the last platform admin
+    if user.role == UserRole.admin:
+        if await users_service.is_last_platform_admin(session, user_id):
+            blockers.append("User is the last platform admin. Promote another user first.")
+            can_delete = False
+
+    # Get detailed blocker info for guild and initiative blockers
+    guild_blocker_details = await users_service.get_guild_blocker_details(session, user_id)
+    initiative_blocker_details = await users_service.get_initiative_blocker_details(session, user_id)
+
+    return AdminDeletionEligibilityResponse(
+        can_delete=can_delete,
+        blockers=blockers,
+        warnings=warnings,
+        owned_projects=[
+            ProjectBasic(id=p.id, name=p.name, initiative_id=p.initiative_id)
+            for p in owned_projects
+        ],
+        guild_blockers=[
+            GuildBlockerInfo(
+                guild_id=gb["guild_id"],
+                guild_name=gb["guild_name"],
+                other_members=[
+                    UserPublic(
+                        id=m.id,
+                        email=m.email,
+                        full_name=m.full_name,
+                        avatar_base64=m.avatar_base64,
+                        avatar_url=m.avatar_url,
+                    )
+                    for m in gb["other_members"]
+                ],
+            )
+            for gb in guild_blocker_details
+        ],
+        initiative_blockers=[
+            InitiativeBlockerInfo(
+                initiative_id=ib["initiative_id"],
+                initiative_name=ib["initiative_name"],
+                guild_id=ib["guild_id"],
+                other_members=[
+                    UserPublic(
+                        id=m.id,
+                        email=m.email,
+                        full_name=m.full_name,
+                        avatar_base64=m.avatar_base64,
+                        avatar_url=m.avatar_url,
+                    )
+                    for m in ib["other_members"]
+                ],
+            )
+            for ib in initiative_blocker_details
+        ],
+    )
+
+
+@router.delete("/users/{user_id}", response_model=AccountDeletionResponse)
+async def delete_user(
+    user_id: int,
+    payload: AdminUserDeleteRequest,
+    session: SessionDep,
+    current_user: AdminUserDep,
+) -> AccountDeletionResponse:
+    """Delete a user account (admin only).
+
+    Supports soft delete (deactivation) or hard delete (permanent removal).
+
+    Restrictions:
+    - Cannot delete yourself (use /users/me/delete-account)
+    - Cannot delete the last platform admin
+    """
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account through admin endpoint. Use /users/me/delete-account instead.",
+        )
+
+    stmt = select(User).where(User.id == user_id).with_for_update()
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Check if target is the last platform admin
+    if user.role == UserRole.admin:
+        if await users_service.is_last_platform_admin(session, user_id, for_update=True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot delete the last platform admin",
+            )
+
+    # Check deletion eligibility
+    can_delete, blockers, _, owned_projects = await users_service.check_deletion_eligibility(
+        session, user_id, admin_context=True
+    )
+
+    if not can_delete:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=blockers[0] if blockers else "User cannot be deleted",
+        )
+
+    if payload.deletion_type == "soft":
+        await users_service.soft_delete_user(session, user_id)
+        return AccountDeletionResponse(
+            success=True,
+            deletion_type="soft",
+            message=f"User {user.email} has been deactivated",
+        )
+    else:
+        # Hard delete - validate project transfers
+        if owned_projects:
+            if not payload.project_transfers:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Project transfers required for hard delete when user owns projects",
+                )
+
+            missing = [p.id for p in owned_projects if p.id not in payload.project_transfers]
+            if missing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Missing transfer recipients for projects: {missing}",
+                )
+
+        await users_service.hard_delete_user(
+            session, user_id, payload.project_transfers or {}
+        )
+        return AccountDeletionResponse(
+            success=True,
+            deletion_type="hard",
+            message=f"User {user.email} has been permanently deleted",
+        )
+
+
+@router.delete("/guilds/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def admin_delete_guild(
+    guild_id: int,
+    session: SessionDep,
+    _current_user: AdminUserDep,
+) -> Response:
+    """Delete a guild (platform admin only).
+
+    This allows platform admins to delete any guild, even if they're not a member.
+    All initiatives, projects, tasks, and memberships within the guild will be deleted.
+    """
+    stmt = select(Guild).where(Guild.id == guild_id)
+    result = await session.exec(stmt)
+    guild = result.one_or_none()
+    if not guild:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild not found")
+
+    await guilds_service.delete_guild(session, guild)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/guilds/{guild_id}/members/{user_id}/role",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def admin_update_guild_member_role(
+    guild_id: int,
+    user_id: int,
+    payload: AdminGuildRoleUpdate,
+    session: SessionDep,
+    _current_user: AdminUserDep,
+) -> Response:
+    """Update a guild member's role (platform admin only).
+
+    This allows platform admins to change guild member roles in any guild,
+    even if they're not a member. Useful for resolving "last admin" blockers.
+
+    Restrictions:
+    - Cannot demote the last guild admin
+    """
+    # Check guild exists
+    stmt = select(Guild).where(Guild.id == guild_id)
+    result = await session.exec(stmt)
+    guild = result.one_or_none()
+    if not guild:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild not found")
+
+    # Get target membership with lock
+    target_membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user_id, for_update=True
+    )
+    if target_membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in guild")
+
+    # Check if demoting the last guild admin
+    if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
+        if await users_service.is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the last guild admin",
+            )
+
+    target_membership.role = payload.role
+    session.add(target_membership)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/initiatives/{initiative_id}/members/{user_id}/role",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def admin_update_initiative_member_role(
+    initiative_id: int,
+    user_id: int,
+    payload: AdminInitiativeRoleUpdate,
+    session: SessionDep,
+    _current_user: AdminUserDep,
+) -> Response:
+    """Update an initiative member's role (platform admin only).
+
+    This allows platform admins to change initiative member roles in any initiative,
+    even if they're not a member. Useful for resolving "sole PM" blockers.
+
+    Restrictions:
+    - Cannot demote the last project manager
+    """
+    # Check initiative exists
+    stmt = select(Initiative).where(Initiative.id == initiative_id)
+    result = await session.exec(stmt)
+    initiative = result.one_or_none()
+    if not initiative:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
+
+    # Get target membership with lock
+    membership_stmt = (
+        select(InitiativeMember)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    membership_result = await session.exec(membership_stmt)
+    target_membership = membership_result.one_or_none()
+    if target_membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in initiative")
+
+    # Check if demoting the last PM
+    if target_membership.role == InitiativeRole.project_manager and payload.role != InitiativeRole.project_manager:
+        try:
+            await initiatives_service.ensure_managers_remain(
+                session,
+                initiative_id=initiative_id,
+                excluded_user_ids=[user_id],
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the last project manager",
+            )
+
+    target_membership.role = payload.role
+    session.add(target_membership)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
