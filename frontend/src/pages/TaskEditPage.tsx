@@ -48,6 +48,7 @@ import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSele
 import { CommentSection } from "@/components/comments/CommentSection";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Archive,
   ArchiveRestore,
@@ -100,6 +101,7 @@ export const TaskEditPage = () => {
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const taskQuery = useQuery({
     queryKey: ["task", parsedTaskId],
@@ -733,11 +735,7 @@ export const TaskEditPage = () => {
                     <Button
                       type="button"
                       variant="destructive"
-                      onClick={() => {
-                        if (window.confirm("Delete this task? This cannot be undone.")) {
-                          deleteTask.mutate();
-                        }
-                      }}
+                      onClick={() => setShowDeleteConfirm(true)}
                       disabled={deleteTask.isPending}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -771,6 +769,20 @@ export const TaskEditPage = () => {
           />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete task?"
+        description="This will permanently delete the task and all of its subtasks. This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          deleteTask.mutate();
+          setShowDeleteConfirm(false);
+        }}
+        isLoading={deleteTask.isPending}
+        destructive
+      />
     </div>
   );
 };

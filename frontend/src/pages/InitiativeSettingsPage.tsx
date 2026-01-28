@@ -15,13 +15,21 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
@@ -30,6 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -80,6 +90,8 @@ export const InitiativeSettingsPage = () => {
   const [description, setDescription] = useState(initiative?.description ?? "");
   const [color, setColor] = useState(initiative?.color ?? DEFAULT_INITIATIVE_COLOR);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   useEffect(() => {
     if (initiative) {
@@ -218,13 +230,17 @@ export const InitiativeSettingsPage = () => {
     if (initiative?.is_default) {
       return;
     }
-    const confirmed = window.confirm(
-      `Deleting "${initiative?.name}" removes all projects, tasks, and documents. Continue?`
-    );
-    if (confirmed) {
-      deleteInitiative.mutate();
-    }
+    setDeleteConfirmText("");
+    setShowDeleteConfirm(true);
   };
+
+  const confirmDeleteInitiative = () => {
+    deleteInitiative.mutate();
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText("");
+  };
+
+  const canConfirmDelete = deleteConfirmText === initiative?.name;
 
   const memberColumns: ColumnDef<InitiativeMember>[] = useMemo(
     () => [
@@ -541,6 +557,46 @@ export const InitiativeSettingsPage = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          setShowDeleteConfirm(open);
+          if (!open) setDeleteConfirmText("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete initiative?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deleting <strong>{initiative?.name}</strong> will permanently remove all projects,
+              tasks, and documents within it. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="delete-confirm-input">
+              Type <strong>{initiative?.name}</strong> to confirm:
+            </Label>
+            <Input
+              id="delete-confirm-input"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={initiative?.name}
+              autoComplete="off"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteInitiative.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteInitiative}
+              disabled={!canConfirmDelete || deleteInitiative.isPending}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+            >
+              {deleteInitiative.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
