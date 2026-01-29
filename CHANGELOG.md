@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Guild sidebar context menu (right-click)
+  - All members: View initiatives, Copy guild ID, Leave guild
+  - Guild admins: View members, Invite members (creates & copies invite link), Create initiative, Guild settings
+  - Leave guild checks eligibility (last admin, sole PM of initiatives) before allowing departure
+  - Actions automatically switch to the target guild's context when needed
+
 ## [0.18.0] - 2026-01-28
 
 ### Added

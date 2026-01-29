@@ -89,3 +89,10 @@ class GuildSummary(BaseModel):
 class GuildMembershipUpdate(BaseModel):
     """Schema for updating a user's guild membership role."""
     role: GuildRole
+
+
+class LeaveGuildEligibilityResponse(BaseModel):
+    """Response for checking if a user can leave a guild."""
+    can_leave: bool
+    is_last_admin: bool
+    sole_pm_initiatives: list[str] = []

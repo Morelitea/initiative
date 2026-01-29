@@ -154,6 +154,12 @@ export interface GuildInviteRead {
   created_at: string;
 }
 
+export interface LeaveGuildEligibilityResponse {
+  can_leave: boolean;
+  is_last_admin: boolean;
+  sole_pm_initiatives: string[];
+}
+
 export interface Project {
   id: number;
   name: string;

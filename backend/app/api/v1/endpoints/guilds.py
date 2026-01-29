@@ -18,6 +18,7 @@ from app.schemas.guild import (
     GuildInviteStatus,
     GuildOrderUpdate,
     GuildUpdate,
+    LeaveGuildEligibilityResponse,
 )
 from app.services import guilds as guilds_service
 from app.services import initiatives as initiatives_service
@@ -283,5 +284,84 @@ async def update_guild_membership(
 
     target_membership.role = payload.role
     session.add(target_membership)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{guild_id}/leave/eligibility", response_model=LeaveGuildEligibilityResponse)
+async def check_leave_eligibility(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> LeaveGuildEligibilityResponse:
+    """Check if the current user can leave a guild.
+
+    Returns information about blockers:
+    - is_last_admin: User is the last admin of the guild
+    - sole_pm_initiatives: List of initiative names where user is the sole PM
+    """
+    membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this guild")
+
+    from app.services.users import is_last_admin_of_guild
+
+    is_last_admin = await is_last_admin_of_guild(session, guild_id, current_user.id)
+
+    sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
+        session, current_user.id, guild_id=guild_id
+    )
+    sole_pm_names = [initiative.name for initiative in sole_pm_initiatives]
+
+    can_leave = not is_last_admin and len(sole_pm_names) == 0
+
+    return LeaveGuildEligibilityResponse(
+        can_leave=can_leave,
+        is_last_admin=is_last_admin,
+        sole_pm_initiatives=sole_pm_names,
+    )
+
+
+@router.delete("/{guild_id}/leave", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def leave_guild(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    """Leave a guild.
+
+    Restrictions:
+    - Cannot leave if you are the last admin of the guild
+    - Cannot leave if you are the sole PM of any initiative in the guild
+    """
+    membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this guild")
+
+    from app.services.users import is_last_admin_of_guild
+
+    if await is_last_admin_of_guild(session, guild_id, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot leave guild: you are the last admin. Promote another user to admin first.",
+        )
+
+    sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
+        session, current_user.id, guild_id=guild_id
+    )
+    if sole_pm_initiatives:
+        names = ", ".join(initiative.name for initiative in sole_pm_initiatives)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot leave guild: you are the sole project manager of: {names}. Promote another member first.",
+        )
+
+    await guilds_service.remove_user_from_guild(session, guild_id=guild_id, user_id=current_user.id)
+
+    # Clear active guild if leaving the active one
+    if current_user.active_guild_id == guild_id:
+        current_user.active_guild_id = None
+        session.add(current_user)
+
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
