@@ -340,7 +340,7 @@ async def leave_guild(
 
     from app.services.users import is_last_admin_of_guild
 
-    if await is_last_admin_of_guild(session, guild_id, current_user.id):
+    if await is_last_admin_of_guild(session, guild_id, current_user.id, for_update=True):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot leave guild: you are the last admin. Promote another user to admin first.",
