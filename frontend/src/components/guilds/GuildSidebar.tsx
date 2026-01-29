@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Guild } from "@/types/api";
 import { LogoIcon } from "../LogoIcon";
+import { GuildContextMenu } from "./GuildContextMenu";
 
 const CreateGuildButton = () => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
@@ -189,30 +190,32 @@ const SortableGuildButton = ({
     style.opacity = 0.4;
   }
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          ref={setNodeRef}
-          onClick={() => onSelect(guild.id)}
-          className={cn(
-            "focus-visible:ring-ring flex h-12 w-12 cursor-grab items-center justify-center rounded-2xl border-3 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:cursor-grabbing",
-            isActive
-              ? "border-primary/60 bg-primary/10 text-primary"
-              : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
-          )}
-          aria-label={`Switch to ${guild.name}`}
-          style={style}
-          {...attributes}
-          {...listeners}
-        >
-          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right" sideOffset={12}>
-        {guild.name}
-      </TooltipContent>
-    </Tooltip>
+    <GuildContextMenu guild={guild}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            ref={setNodeRef}
+            onClick={() => onSelect(guild.id)}
+            className={cn(
+              "focus-visible:ring-ring flex h-12 w-12 cursor-grab items-center justify-center rounded-2xl border-3 transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:cursor-grabbing",
+              isActive
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
+            )}
+            aria-label={`Switch to ${guild.name}`}
+            style={style}
+            {...attributes}
+            {...listeners}
+          >
+            <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>
+          {guild.name}
+        </TooltipContent>
+      </Tooltip>
+    </GuildContextMenu>
   );
 };
 

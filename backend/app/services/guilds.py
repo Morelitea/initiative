@@ -411,3 +411,27 @@ async def describe_invite_code(
     elif invite.max_uses is not None and invite.uses >= invite.max_uses:
         reason = "Invite has already been used"
     return invite, guild, False, reason
+
+
+async def remove_user_from_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> None:
+    """Remove a user from a guild and all its initiatives."""
+    from app.services import initiatives as initiatives_service
+
+    # Remove from all initiatives in this guild
+    await initiatives_service.remove_user_from_guild_initiatives(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+    )
+
+    # Remove guild membership
+    stmt = delete(GuildMembership).where(
+        GuildMembership.guild_id == guild_id,
+        GuildMembership.user_id == user_id,
+    )
+    await session.exec(stmt)
