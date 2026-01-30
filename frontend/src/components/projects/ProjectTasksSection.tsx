@@ -130,7 +130,7 @@ export const ProjectTasksSection = ({
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
-  const [filtersLoaded, setFiltersLoaded] = useState(false);
+  const [filtersLoadedForProject, setFiltersLoadedForProject] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -163,7 +163,7 @@ export const ProjectTasksSection = ({
       const response = await apiClient.get<Task[]>("/tasks/", { params });
       return response.data;
     },
-    enabled: Number.isFinite(projectId) && filtersLoaded,
+    enabled: Number.isFinite(projectId) && filtersLoadedForProject === projectId,
   });
 
   const projectTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
@@ -222,9 +222,16 @@ export const ProjectTasksSection = ({
   }, []);
 
   useEffect(() => {
-    if (!filterStorageKey || filtersLoaded) {
+    if (!filterStorageKey || filtersLoadedForProject === projectId) {
       return;
     }
+    // Reset to defaults first, then load saved values
+    setViewMode("table");
+    setAssigneeFilters([]);
+    setDueFilter("all");
+    setStatusFilters([]);
+    setShowArchived(false);
+
     try {
       const raw = localStorage.getItem(filterStorageKey);
       if (raw) {
@@ -253,12 +260,12 @@ export const ProjectTasksSection = ({
     } catch {
       // ignore parse errors
     } finally {
-      setFiltersLoaded(true);
+      setFiltersLoadedForProject(projectId);
     }
-  }, [filterStorageKey, filtersLoaded]);
+  }, [filterStorageKey, filtersLoadedForProject, projectId]);
 
   useEffect(() => {
-    if (!filterStorageKey || !filtersLoaded) {
+    if (!filterStorageKey || filtersLoadedForProject !== projectId) {
       return;
     }
     const payload: StoredFilters = {
@@ -271,7 +278,8 @@ export const ProjectTasksSection = ({
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
   }, [
     filterStorageKey,
-    filtersLoaded,
+    filtersLoadedForProject,
+    projectId,
     viewMode,
     assigneeFilters,
     dueFilter,
