@@ -208,7 +208,7 @@ export const MyTasksPage = () => {
   });
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects"],
+    queryKey: ["projects", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/");
       return response.data;
@@ -216,7 +216,7 @@ export const MyTasksPage = () => {
   });
 
   const templatesQuery = useQuery<Project[]>({
-    queryKey: ["projects", "templates"],
+    queryKey: ["projects", "templates", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/", { params: { template: true } });
       return response.data;
@@ -224,7 +224,7 @@ export const MyTasksPage = () => {
   });
 
   const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "archived"],
+    queryKey: ["projects", "archived", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/", { params: { archived: true } });
       return response.data;
