@@ -172,6 +172,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   );
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const lastConsumedFilterParams = useRef<string>("");
+  const prevGuildIdRef = useRef<number | null>(activeGuildId);
 
   // Check for query params to filter by initiative (consume once)
   useEffect(() => {
@@ -194,6 +195,19 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
       setInitiativeId(lockedValue);
     }
   }, [lockedInitiativeId]);
+
+  // Reset initiative filter when guild changes (initiative IDs are guild-specific)
+  useEffect(() => {
+    const prevGuildId = prevGuildIdRef.current;
+    prevGuildIdRef.current = activeGuildId;
+    // Only reset if guild actually changed (not on initial mount)
+    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
+      setInitiativeFilter(INITIATIVE_FILTER_ALL);
+      setInitiativeId("");
+      lastConsumedFilterParams.current = "";
+    }
+  }, [activeGuildId, lockedInitiativeId]);
+
   const unarchiveProject = useMutation({
     mutationFn: async (projectId: number) => {
       await apiClient.post(`/projects/${projectId}/unarchive`, {});

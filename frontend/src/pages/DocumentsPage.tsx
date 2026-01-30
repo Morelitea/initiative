@@ -151,6 +151,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
   );
   const lastConsumedParams = useRef<string>("");
+  const prevGuildIdRef = useRef<number | null>(activeGuildId);
 
   // Check for query params to filter by initiative (consume once)
   useEffect(() => {
@@ -178,6 +179,17 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
       setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
     }
   }, [lockedInitiativeId]);
+
+  // Reset initiative filter when guild changes (initiative IDs are guild-specific)
+  useEffect(() => {
+    const prevGuildId = prevGuildIdRef.current;
+    prevGuildIdRef.current = activeGuildId;
+    // Only reset if guild actually changed (not on initial mount)
+    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
+      setInitiativeFilter(INITIATIVE_FILTER_ALL);
+      lastConsumedParams.current = "";
+    }
+  }, [activeGuildId, lockedInitiativeId]);
 
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: [
