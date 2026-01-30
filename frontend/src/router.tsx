@@ -64,7 +64,7 @@ export const router = createRouter({
     server: undefined,
   },
   defaultPreload: "intent",
-  defaultPreloadStaleTime: 0,
+  defaultPreloadStaleTime: 30_000,
   defaultStaleTime: 0,
   scrollRestoration: true,
   defaultViewTransition: true,
