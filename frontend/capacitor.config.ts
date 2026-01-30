@@ -7,12 +7,12 @@ const config: CapacitorConfig = {
   webDir: "dist",
   server: {
     // Use HTTP scheme to avoid mixed content issues with self-hosted HTTP servers (LOCAL development and LAN testing)
-    androidScheme: "http",
+    // androidScheme: "http",
     hostname: "com.morelitea.initiative",
   },
   android: {
     // Allow HTTP requests (for self-hosted servers without HTTPS) (LOCAL development and LAN testing)
-    allowMixedContent: true,
+    // allowMixedContent: true,
   },
   plugins: {
     // Disable built-in SystemBars insets handling - safe-area plugin handles it
