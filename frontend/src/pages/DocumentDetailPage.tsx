@@ -196,8 +196,8 @@ export const DocumentDetailPage = () => {
       }
       isAutosaveRef.current = false;
       queryClient.setQueryData(["documents", parsedId], updated);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      // Only invalidate the documents list (for sidebar title updates), not all project queries
+      void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {

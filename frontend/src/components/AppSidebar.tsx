@@ -85,6 +85,7 @@ export const AppSidebar = () => {
       return response.data;
     },
     enabled: Boolean(activeGuild),
+    staleTime: 60_000,
   });
 
   const projectsQuery = useQuery<Project[]>({
@@ -94,6 +95,7 @@ export const AppSidebar = () => {
       return response.data;
     },
     enabled: Boolean(activeGuild),
+    staleTime: 60_000,
   });
 
   const favoritesQuery = useQuery<Project[]>({
@@ -113,6 +115,7 @@ export const AppSidebar = () => {
       return response.data;
     },
     enabled: Boolean(activeGuild),
+    staleTime: 60_000,
   });
 
   const projectsByInitiative = useMemo(() => {
