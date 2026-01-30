@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,12 +12,12 @@ const userSettingsTabs = [
   { value: "import", label: "Import", path: "/profile/import" },
   { value: "security", label: "Security", path: "/profile/security" },
   { value: "danger", label: "Danger Zone", path: "/profile/danger" },
-];
+] as const;
 
 export const UserSettingsLayout = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   if (!user) {
     return (
@@ -50,7 +50,7 @@ export const UserSettingsLayout = () => {
         onValueChange={(value) => {
           const tab = userSettingsTabs.find((item) => item.value === value);
           if (tab) {
-            navigate(tab.path);
+            router.navigate({ to: tab.path });
           }
         }}
       >

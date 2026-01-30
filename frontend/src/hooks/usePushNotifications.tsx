@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 import { PushNotifications, type PermissionStatus } from "@capacitor/push-notifications";
 import { Capacitor } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
@@ -20,7 +20,7 @@ interface UsePushNotificationsReturn {
 export const usePushNotifications = (): UsePushNotificationsReturn => {
   const { user } = useAuth();
   const { isNativePlatform, serverUrl } = useServer();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [permissionStatus, setPermissionStatus] = useState<PermissionState>("prompt");
   const [fcmEnabled, setFcmEnabled] = useState<boolean>(false);
 
@@ -110,7 +110,10 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             if (data.target_path && data.guild_id) {
               const targetPath = data.target_path as string;
               const guildId = data.guild_id as string;
-              navigate(`/navigate?guild_id=${guildId}&target=${encodeURIComponent(targetPath)}`);
+              router.navigate({
+                to: "/navigate",
+                search: { guild_id: guildId, target: targetPath },
+              });
             }
           }
         );
@@ -142,7 +145,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
       void pushReceivedListener?.remove();
       void pushActionListener?.remove();
     };
-  }, [user, isNativePlatform, serverUrl, navigate]);
+  }, [user, isNativePlatform, serverUrl, router]);
 
   const requestPermission = async () => {
     if (!isNativePlatform) {

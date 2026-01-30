@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronRight, MessageSquare } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
 import type { ProjectActivityEntry, ProjectActivityResponse } from "@/types/api";
@@ -118,7 +118,8 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                       <p className="text-foreground text-sm">
                         commented on{" "}
                         <Link
-                          to={`/tasks/${entry.task_id}`}
+                          to="/tasks/$taskId"
+                          params={{ taskId: String(entry.task_id) }}
                           className="font-medium hover:underline"
                         >
                           {entry.task_title}

@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { useServer } from "@/hooks/useServer";
 
 export const ConnectServerPage = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { setServerUrl, testServerConnection } = useServer();
   const [serverUrlInput, setServerUrlInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +39,8 @@ export const ConnectServerPage = () => {
       // Connection successful, save the URL
       await setServerUrl(trimmedUrl);
 
-      // Navigate to login
-      navigate("/login", { replace: true });
+      // Navigate to login with search param indicating we just connected
+      router.navigate({ to: "/login", search: { connected: "1" }, replace: true });
     } catch (err) {
       console.error(err);
       setError("An unexpected error occurred");

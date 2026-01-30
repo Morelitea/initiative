@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -7,13 +7,13 @@ const guildSettingsTabs = [
   { value: "guild", label: "Guild", path: "/settings/guild" },
   { value: "ai", label: "AI", path: "/settings/guild/ai" },
   { value: "users", label: "Users", path: "/settings/guild/users" },
-];
+] as const;
 
 export const GuildSettingsLayout = () => {
   const { activeGuild } = useGuilds();
   const isGuildAdmin = activeGuild?.role === "admin";
   const location = useLocation();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const canViewSettings = isGuildAdmin;
   const availableTabs = isGuildAdmin ? guildSettingsTabs : [];
@@ -31,8 +31,7 @@ export const GuildSettingsLayout = () => {
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
   const activeTab =
-    availableTabs
-      .slice()
+    [...availableTabs]
       .sort((a, b) => b.path.length - a.path.length)
       .find((tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`))
       ?.value ??
@@ -50,7 +49,7 @@ export const GuildSettingsLayout = () => {
         onValueChange={(value) => {
           const tab = guildSettingsTabs.find((item) => item.value === value);
           if (tab) {
-            navigate(tab.path);
+            router.navigate({ to: tab.path });
           }
         }}
       >

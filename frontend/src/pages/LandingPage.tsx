@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useRouter } from "@tanstack/react-router";
 import { Users, ListTodo, FileText, Swords, Map, Calendar, Shield, Sparkles } from "lucide-react";
 import { SiDocker, SiGithub } from "@icons-pack/react-simple-icons";
 
@@ -55,14 +55,14 @@ const features = [
 export const LandingPage = () => {
   const { token, loading } = useAuth();
   const { resolvedTheme } = useTheme();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!loading && token) {
-      navigate("/tasks", { replace: true });
+      router.navigate({ to: "/tasks", replace: true });
     }
-  }, [token, loading, navigate]);
+  }, [token, loading, router]);
 
   // Fetch bootstrap status to check if public registration is enabled
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useRouter, useLocation, Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import {
   DndContext,
@@ -51,7 +51,7 @@ const CreateGuildButton = () => {
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   if (!canCreateGuilds) {
     return null;
@@ -74,7 +74,7 @@ const CreateGuildButton = () => {
       toast.error(message);
     } finally {
       setSubmitting(false);
-      navigate("/");
+      router.navigate({ to: "/" });
     }
   };
 
@@ -221,7 +221,7 @@ const SortableGuildButton = ({
 
 export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
-  const navigate = useNavigate();
+  const router = useRouter();
   const location = useLocation();
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const sensors = useSensors(
@@ -267,7 +267,7 @@ export const GuildSidebar = () => {
 
     if (targetPath !== "/") {
       // My tasks is global, don't navigate/refresh
-      navigate(targetPath);
+      router.navigate({ to: targetPath });
     }
   };
 

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
@@ -14,11 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { Project } from "@/types/api";
 
 export const ArchivePage = () => {
   const { user } = useAuth();
+  const { activeGuildId } = useGuilds();
   const managedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
@@ -27,7 +29,7 @@ export const ArchivePage = () => {
   const canManageProjects = user?.role === "admin" || managedInitiatives.length > 0;
 
   const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "archived"],
+    queryKey: ["projects", "archived", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/", { params: { archived: true } });
       return response.data;
@@ -87,7 +89,9 @@ export const ArchivePage = () => {
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">
                 <Button asChild variant="link" className="px-0">
-                  <Link to={`/projects/${project.id}`}>View details</Link>
+                  <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
+                    View details
+                  </Link>
                 </Button>
                 {canManageProjects ? (
                   <Button

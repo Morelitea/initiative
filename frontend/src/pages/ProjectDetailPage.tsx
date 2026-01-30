@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useRouter, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 
@@ -23,8 +23,8 @@ import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus, User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
-  const { projectId } = useParams();
-  const navigate = useNavigate();
+  const { projectId } = useParams({ strict: false }) as { projectId: string };
+  const router = useRouter();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
@@ -175,7 +175,7 @@ export const ProjectDetailPage = () => {
     if (!canViewTaskDetails) {
       return;
     }
-    navigate(`/tasks/${taskId}`);
+    router.navigate({ to: "/tasks/$taskId", params: { taskId: String(taskId) } });
   };
 
   return (
@@ -188,7 +188,10 @@ export const ProjectDetailPage = () => {
                 <>
                   <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                      <Link to={`/initiatives/${project.initiative.id}`}>
+                      <Link
+                        to="/initiatives/$initiativeId"
+                        params={{ initiativeId: String(project.initiative.id) }}
+                      >
                         {project.initiative.name}
                       </Link>
                     </BreadcrumbLink>
@@ -203,7 +206,7 @@ export const ProjectDetailPage = () => {
           </Breadcrumb>
           {canManageSettings ? (
             <Button asChild variant="outline" size="sm" aria-label="Open project settings">
-              <Link to={`/projects/${project.id}/settings`}>
+              <Link to="/projects/$projectId/settings" params={{ projectId: String(project.id) }}>
                 <Settings className="h-5 w-5" /> Project Settings
               </Link>
             </Button>

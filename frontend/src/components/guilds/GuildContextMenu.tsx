@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 import { Settings, Plus, Copy, LogOut, UserPlus, Users, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,7 +24,7 @@ interface GuildContextMenuProps {
 }
 
 export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { switchGuild, activeGuildId } = useGuilds();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
@@ -51,14 +51,14 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    navigate("/settings/guild/users");
+    router.navigate({ to: "/settings/guild/users" });
   };
 
   const handleViewInitiatives = async () => {
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    navigate("/initiatives");
+    router.navigate({ to: "/initiatives" });
   };
 
   const handleGuildSettings = async () => {
@@ -66,7 +66,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    navigate("/settings/guild");
+    router.navigate({ to: "/settings/guild" });
   };
 
   const handleCreateInitiative = async () => {
@@ -74,7 +74,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    navigate("/initiatives?create=true");
+    router.navigate({ to: "/initiatives", search: { create: "true" } });
   };
 
   const handleCopyGuildId = () => {

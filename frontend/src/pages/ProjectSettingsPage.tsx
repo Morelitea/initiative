@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/api/client";
@@ -42,9 +42,9 @@ import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskSta
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 
 export const ProjectSettingsPage = () => {
-  const { projectId } = useParams();
+  const { projectId } = useParams({ strict: false }) as { projectId: string };
   const parsedProjectId = Number(projectId);
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string>("");
   const [initiativeMessage, setInitiativeMessage] = useState<string | null>(null);
@@ -208,7 +208,7 @@ export const ProjectSettingsPage = () => {
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
       });
-      navigate(`/projects/${data.id}`);
+      router.navigate({ to: "/projects/$projectId", params: { projectId: String(data.id) } });
     },
   });
 
@@ -242,7 +242,7 @@ export const ProjectSettingsPage = () => {
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
       });
-      navigate("/");
+      router.navigate({ to: "/" });
     },
   });
 
@@ -373,7 +373,9 @@ export const ProjectSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button asChild variant="link" className="px-0">
-          <Link to={`/projects/${project.id}`}>← Back to project</Link>
+          <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
+            ← Back to project
+          </Link>
         </Button>
         <Card className="shadow-sm">
           <CardHeader>
@@ -393,7 +395,10 @@ export const ProjectSettingsPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to={`/initiatives/${project.initiative.id}`}>
+                  <Link
+                    to="/initiatives/$initiativeId"
+                    params={{ initiativeId: String(project.initiative.id) }}
+                  >
                     {project.initiative.name}
                   </Link>
                 </BreadcrumbLink>
@@ -403,7 +408,9 @@ export const ProjectSettingsPage = () => {
           )}
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={`/projects/${project.id}`}>{project.name}</Link>
+              <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
+                {project.name}
+              </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -725,7 +732,7 @@ export const ProjectSettingsPage = () => {
           )}
           {project.is_template ? (
             <Button asChild variant="link" className="px-0">
-              <Link to="/templates">View all templates</Link>
+              <Link to="/projects">View all templates</Link>
             </Button>
           ) : null}
         </CardFooter>

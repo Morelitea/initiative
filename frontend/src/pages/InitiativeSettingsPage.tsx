@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
@@ -51,11 +51,13 @@ const USERS_QUERY_KEY = ["users"];
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsPage = () => {
-  const { initiativeId: initiativeIdParam } = useParams();
+  const { initiativeId: initiativeIdParam } = useParams({ strict: false }) as {
+    initiativeId: string;
+  };
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
-  const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { user } = useAuth();
@@ -142,7 +144,7 @@ export const InitiativeSettingsPage = () => {
     onSuccess: () => {
       toast.success("Initiative deleted.");
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
-      navigate("/initiatives");
+      router.navigate({ to: "/initiatives" });
     },
     onError: (error) => {
       const message =
@@ -350,7 +352,9 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={`/initiatives/${initiative.id}`}>← Back to initiative</Link>
+          <Link to="/initiatives/$initiativeId" params={{ initiativeId: String(initiative.id) }}>
+            ← Back to initiative
+          </Link>
         </Button>
         <Card>
           <CardHeader>
@@ -370,7 +374,12 @@ export const InitiativeSettingsPage = () => {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={`/initiatives/${initiative.id}`}>{initiative.name}</Link>
+              <Link
+                to="/initiatives/$initiativeId"
+                params={{ initiativeId: String(initiative.id) }}
+              >
+                {initiative.name}
+              </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

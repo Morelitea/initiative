@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
@@ -220,7 +220,8 @@ export const AppSidebar = () => {
                           <SidebarMenuItem key={project.id}>
                             <SidebarMenuButton asChild isActive={project.id === activeProjectId}>
                               <Link
-                                to={`/projects/${project.id}`}
+                                to="/projects/$projectId"
+                                params={{ projectId: String(project.id) }}
                                 className="flex min-w-0 items-center gap-2"
                               >
                                 {project.icon ? (
@@ -273,7 +274,7 @@ export const AppSidebar = () => {
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton asChild size="sm">
-                          <Link to="/initiatives?create=true">
+                          <Link to="/initiatives" search={{ create: "true" }}>
                             <Plus className="h-4 w-4" />
                             <span>Add initiative</span>
                           </Link>
@@ -458,7 +459,11 @@ const InitiativeSection = ({
             className="hover:bg-accent min-w-0 flex-1 justify-start px-0 py-1.5 text-sm font-medium"
             asChild
           >
-            <Link to={`/initiatives/${initiative.id}`} className="flex min-w-0 items-center">
+            <Link
+              to="/initiatives/$initiativeId"
+              params={{ initiativeId: String(initiative.id) }}
+              className="flex min-w-0 items-center"
+            >
               <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
             </Link>
           </Button>
@@ -474,7 +479,10 @@ const InitiativeSection = ({
                   className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/initiative:opacity-100 lg:flex"
                   asChild
                 >
-                  <Link to={`/initiatives/${initiative.id}/settings`}>
+                  <Link
+                    to="/initiatives/$initiativeId/settings"
+                    params={{ initiativeId: String(initiative.id) }}
+                  >
                     <Settings className="h-3 w-3" />
                   </Link>
                 </Button>
@@ -498,19 +506,28 @@ const InitiativeSection = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
-                  <Link to={`/initiatives/${initiative.id}/settings`}>
+                  <Link
+                    to="/initiatives/$initiativeId/settings"
+                    params={{ initiativeId: String(initiative.id) }}
+                  >
                     <Settings className="mr-2 h-4 w-4" />
                     Initiative Settings
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={`/documents?create=true&initiativeId=${initiative.id}`}>
+                  <Link
+                    to="/documents"
+                    search={{ create: "true", initiativeId: String(initiative.id) }}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Create Document
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={`/projects?create=true&initiativeId=${initiative.id}`}>
+                  <Link
+                    to="/projects"
+                    search={{ create: "true", initiativeId: String(initiative.id) }}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Create Project
                   </Link>
@@ -530,7 +547,8 @@ const InitiativeSection = ({
             <div className="group/documents flex w-full min-w-0 items-center gap-1">
               <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                 <Link
-                  to={`/documents?initiativeId=${initiative.id}`}
+                  to="/documents"
+                  search={{ initiativeId: String(initiative.id) }}
                   className="flex items-center gap-2"
                 >
                   <FileText className="h-4 w-4" />
@@ -547,7 +565,10 @@ const InitiativeSection = ({
                       className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/documents:opacity-100 lg:flex"
                       asChild
                     >
-                      <Link to={`/documents?create=true&initiativeId=${initiative.id}`}>
+                      <Link
+                        to="/documents"
+                        search={{ create: "true", initiativeId: String(initiative.id) }}
+                      >
                         <Plus className="h-3 w-3" />
                       </Link>
                     </Button>
@@ -565,7 +586,8 @@ const InitiativeSection = ({
             <div className="group/projects flex w-full min-w-0 items-center gap-1">
               <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                 <Link
-                  to={`/projects?initiativeId=${initiative.id}`}
+                  to="/projects"
+                  search={{ initiativeId: String(initiative.id) }}
                   className="flex items-center gap-2"
                 >
                   <ListTodo className="h-4 w-4" />
@@ -582,7 +604,10 @@ const InitiativeSection = ({
                       className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/projects:opacity-100 lg:flex"
                       asChild
                     >
-                      <Link to={`/projects?create=true&initiativeId=${initiative.id}`}>
+                      <Link
+                        to="/projects"
+                        search={{ create: "true", initiativeId: String(initiative.id) }}
+                      >
                         <Plus className="h-3 w-3" />
                       </Link>
                     </Button>
@@ -605,7 +630,11 @@ const InitiativeSection = ({
                   className="min-w-0 flex-1"
                   isActive={project.id === activeProjectId}
                 >
-                  <Link to={`/projects/${project.id}`} className="flex min-w-0 items-center gap-2">
+                  <Link
+                    to="/projects/$projectId"
+                    params={{ projectId: String(project.id) }}
+                    className="flex min-w-0 items-center gap-2"
+                  >
                     {project.icon ? (
                       <span className="shrink-0 text-base">{project.icon}</span>
                     ) : null}
@@ -623,7 +652,10 @@ const InitiativeSection = ({
                           className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
                           asChild
                         >
-                          <Link to={`/projects/${project.id}/settings`}>
+                          <Link
+                            to="/projects/$projectId/settings"
+                            params={{ projectId: String(project.id) }}
+                          >
                             <Settings className="h-3 w-3" />
                           </Link>
                         </Button>
@@ -647,7 +679,10 @@ const InitiativeSection = ({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem asChild>
-                          <Link to={`/projects/${project.id}/settings`}>
+                          <Link
+                            to="/projects/$projectId/settings"
+                            params={{ projectId: String(project.id) }}
+                          >
                             <Settings className="mr-2 h-4 w-4" />
                             Project Settings
                           </Link>

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { App, URLOpenListenerEvent } from "@capacitor/app";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 import { useServer } from "./useServer";
 
 /**
@@ -8,7 +8,7 @@ import { useServer } from "./useServer";
  * Listens for app URL open events and routes them appropriately.
  */
 export function useDeepLinks() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { isNativePlatform } = useServer();
 
   useEffect(() => {
@@ -27,7 +27,11 @@ export function useDeepLinks() {
         ) {
           const token = url.searchParams.get("token");
           if (token) {
-            navigate(`/oidc/callback?token=${encodeURIComponent(token)}`, { replace: true });
+            router.navigate({
+              to: "/oidc/callback",
+              search: { token },
+              replace: true,
+            });
           }
         }
       } catch (err) {
@@ -38,5 +42,5 @@ export function useDeepLinks() {
     return () => {
       listener.then((l) => l.remove());
     };
-  }, [isNativePlatform, navigate]);
+  }, [isNativePlatform, router]);
 }

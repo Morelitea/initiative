@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -75,7 +76,8 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
       return (
         <div className="min-w-[220px] sm:min-w-0">
           <Link
-            to={`/documents/${document.id}`}
+            to="/documents/$documentId"
+            params={{ documentId: String(document.id) }}
             className="text-primary font-medium hover:underline"
           >
             {document.title}
@@ -139,10 +141,11 @@ type DocumentsViewProps = {
 };
 
 export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const { activeGuildId } = useGuilds();
+  const searchParams = useSearch({ strict: false }) as { initiativeId?: string; create?: string };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
@@ -151,7 +154,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
 
   // Check for query params to filter by initiative (consume once)
   useEffect(() => {
-    const urlInitiativeId = searchParams.get("initiativeId");
+    const urlInitiativeId = searchParams.initiativeId;
     const paramKey = urlInitiativeId || "";
 
     if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedParams.current) {
@@ -177,7 +180,10 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   }, [lockedInitiativeId]);
 
   const documentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", { initiative: initiativeFilter, search: searchQuery }],
+    queryKey: [
+      "documents",
+      { guildId: activeGuildId, initiative: initiativeFilter, search: searchQuery },
+    ],
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
@@ -192,7 +198,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   });
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives"],
+    queryKey: ["initiatives", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
@@ -230,8 +236,8 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
 
   // Check for query params to open create dialog (consume once)
   useEffect(() => {
-    const shouldCreate = searchParams.get("create") === "true";
-    const urlInitiativeId = searchParams.get("initiativeId");
+    const shouldCreate = searchParams.create === "true";
+    const urlInitiativeId = searchParams.initiativeId;
     const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
 
     if (shouldCreate && paramKey !== lastConsumedCreateParams.current) {
@@ -244,7 +250,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   }, [searchParams, lockedInitiativeId]);
 
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "templates"],
+    queryKey: ["documents", "templates", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<DocumentSummary[]>("/documents/");
       return response.data;
@@ -361,7 +367,10 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
       setIsTemplateDocument(false);
       setSelectedTemplateId("");
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      navigate(`/documents/${document.id}`);
+      router.navigate({
+        to: "/documents/$documentId",
+        params: { documentId: String(document.id) },
+      });
     },
     onError: (error) => {
       const message =

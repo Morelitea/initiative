@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 
 import {
   fetchNotifications,
@@ -126,7 +126,7 @@ const notificationText = (notification: Notification): string => {
 
 export const NotificationBell = () => {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const isEnabled = Boolean(user && token);
@@ -170,7 +170,7 @@ export const NotificationBell = () => {
     }
     const target = notificationLink(notification);
     if (target) {
-      navigate(target);
+      router.navigate({ to: target });
       setOpen(false);
     }
   };

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -64,6 +64,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { Project, ProjectReorderPayload, Initiative } from "@/types/api";
 import {
@@ -92,7 +93,8 @@ type ProjectsViewProps = {
 
 export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const { activeGuildId } = useGuilds();
+  const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const localQueryClient = useQueryClient();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
@@ -114,8 +116,8 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
 
   // Check for query params to open create dialog (consume once)
   useEffect(() => {
-    const shouldCreate = searchParams.get("create") === "true";
-    const urlInitiativeId = searchParams.get("initiativeId");
+    const shouldCreate = searchParams.create === "true";
+    const urlInitiativeId = searchParams.initiativeId;
     const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
 
     if (shouldCreate && paramKey !== lastConsumedParams.current) {
@@ -173,7 +175,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
 
   // Check for query params to filter by initiative (consume once)
   useEffect(() => {
-    const urlInitiativeId = searchParams.get("initiativeId");
+    const urlInitiativeId = searchParams.initiativeId;
     const paramKey = urlInitiativeId || "";
 
     if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedFilterParams.current) {
@@ -215,7 +217,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects"],
+    queryKey: ["projects", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/");
       return response.data;
@@ -223,7 +225,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   });
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives"],
+    queryKey: ["initiatives", { guildId: activeGuildId }],
     enabled: user?.role === "admin" || hasClaimedManagerRole,
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
@@ -245,7 +247,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const canPinProjects = user?.role === "admin" || isProjectManager;
 
   const templatesQuery = useQuery<Project[]>({
-    queryKey: ["projects", "templates"],
+    queryKey: ["projects", "templates", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/", {
         params: { template: true },
@@ -254,7 +256,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
     },
   });
   const archivedQuery = useQuery<Project[]>({
-    queryKey: ["projects", "archived"],
+    queryKey: ["projects", "archived", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/", {
         params: { archived: true },
@@ -270,7 +272,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
       return;
     }
     // Don't override if we're opening from URL params
-    const urlInitiativeId = searchParams.get("initiativeId");
+    const urlInitiativeId = searchParams.initiativeId;
     if (initiativeId || urlInitiativeId) {
       return;
     }
@@ -823,7 +825,9 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to={`/projects/${template.id}`}>View template</Link>
+                        <Link to="/projects/$projectId" params={{ projectId: String(template.id) }}>
+                          View template
+                        </Link>
                       </Button>
                       {canManageProjects ? (
                         <Button
@@ -877,7 +881,9 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to={`/projects/${archived.id}`}>View details</Link>
+                        <Link to="/projects/$projectId" params={{ projectId: String(archived.id) }}>
+                          View details
+                        </Link>
                       </Button>
                       {canManageProjects ? (
                         <Button

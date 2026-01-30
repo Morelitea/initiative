@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { AxiosError } from "axios";
 
 import { apiClient } from "@/api/client";
@@ -23,8 +23,8 @@ interface RegisterPageProps {
 }
 
 export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const router = useRouter();
+  const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { register, login } = useAuth();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -38,7 +38,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const [inviteStatusLoading, setInviteStatusLoading] = useState(false);
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
   const inviteCode = useMemo(() => {
-    const code = searchParams.get("invite_code");
+    const code = searchParams.invite_code;
     return code && code.trim().length > 0 ? code.trim() : undefined;
   }, [searchParams]);
 
@@ -128,7 +128,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       });
       if (createdUser.is_active && createdUser.email_verified) {
         await login({ email: email.toLowerCase().trim(), password });
-        navigate("/", { replace: true });
+        router.navigate({ to: "/", replace: true });
       } else if (createdUser.is_active && !createdUser.email_verified) {
         setInfoMessage("Thanks! Check your inbox to verify your email before signing in.");
         setPassword("");

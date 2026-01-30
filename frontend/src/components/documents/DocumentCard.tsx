@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ScrollText } from "lucide-react";
 
@@ -21,7 +21,8 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
 
   return (
     <Link
-      to={`/documents/${document.id}`}
+      to="/documents/$documentId"
+      params={{ documentId: String(document.id) }}
       className={cn(
         "group bg-card text-card-foreground hover:border-primary/50 block w-full overflow-hidden rounded-2xl border shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg",
         className
@@ -72,7 +73,8 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           </p>
           {document.initiative && !hideInitiative ? (
             <Link
-              to={`/initiatives/${document.initiative.id}`}
+              to="/initiatives/$initiativeId"
+              params={{ initiativeId: String(document.initiative.id) }}
               className="text-muted-foreground inline-flex items-center gap-2 text-sm"
             >
               <InitiativeColorDot color={document.initiative.color} />

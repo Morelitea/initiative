@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";

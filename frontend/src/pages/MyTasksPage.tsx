@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
@@ -59,7 +59,6 @@ const MY_TASKS_FILTERS_KEY = "initiative-my-tasks-filters";
 const FILTER_DEFAULTS = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
   priorityFilters: [] as TaskPriority[],
-  initiativeFilters: [] as number[],
   guildFilters: [] as number[],
 };
 
@@ -80,9 +79,6 @@ const readStoredFilters = () => {
       priorityFilters: Array.isArray(parsed?.priorityFilters)
         ? parsed.priorityFilters
         : FILTER_DEFAULTS.priorityFilters,
-      initiativeFilters: Array.isArray(parsed?.initiativeFilters)
-        ? parsed.initiativeFilters
-        : FILTER_DEFAULTS.initiativeFilters,
       guildFilters: Array.isArray(parsed?.guildFilters)
         ? parsed.guildFilters
         : FILTER_DEFAULTS.guildFilters,
@@ -169,7 +165,7 @@ const TaskStatusSelector = ({
 
 export const MyTasksPage = () => {
   const { guilds, activeGuildId, switchGuild } = useGuilds();
-  const navigate = useNavigate();
+  const router = useRouter();
   const localQueryClient = useQueryClient();
   const projectStatusCache = useRef<
     Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
@@ -187,15 +183,12 @@ export const MyTasksPage = () => {
     () => readStoredFilters().priorityFilters
   );
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [initiativeFilters, setInitiativeFilters] = useState<number[]>(
-    () => readStoredFilters().initiativeFilters
-  );
   const [guildFilters, setGuildFilters] = useState<number[]>(
     () => readStoredFilters().guildFilters
   );
 
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "global", statusFilters, priorityFilters, initiativeFilters, guildFilters],
+    queryKey: ["tasks", "global", statusFilters, priorityFilters, guildFilters],
     queryFn: async () => {
       const params: Record<string, string | string[] | number[]> = { scope: "global" };
 
@@ -204,9 +197,6 @@ export const MyTasksPage = () => {
       }
       if (priorityFilters.length > 0) {
         params.priorities = priorityFilters;
-      }
-      if (initiativeFilters.length > 0) {
-        params.initiative_ids = initiativeFilters;
       }
       if (guildFilters.length > 0) {
         params.guild_ids = guildFilters;
@@ -285,19 +275,6 @@ export const MyTasksPage = () => {
     return result;
   }, [projectsQuery.data]);
 
-  const initiativeOptions = useMemo(() => {
-    const map = new Map<number, string>();
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
-    projects.forEach((project) => {
-      if (project.initiative_id && project.initiative?.name) {
-        map.set(project.initiative_id, project.initiative.name);
-      }
-    });
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id: String(id), name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [projectsQuery.data]);
-
   const tasks = useMemo(
     () => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []),
     [tasksQuery.data]
@@ -325,11 +302,10 @@ export const MyTasksPage = () => {
     const payload = {
       statusFilters,
       priorityFilters,
-      initiativeFilters,
       guildFilters,
     };
     window.localStorage.setItem(MY_TASKS_FILTERS_KEY, JSON.stringify(payload));
-  }, [statusFilters, priorityFilters, initiativeFilters, guildFilters]);
+  }, [statusFilters, priorityFilters, guildFilters]);
 
   const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {
     const cached = projectStatusCache.current.get(projectId);
@@ -443,10 +419,10 @@ export const MyTasksPage = () => {
     async (task: Task, targetPath: string) => {
       const ready = await ensureTaskGuildContext(task);
       if (ready) {
-        navigate(targetPath);
+        router.navigate({ to: targetPath });
       }
     },
-    [ensureTaskGuildContext, navigate]
+    [ensureTaskGuildContext, router]
   );
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
@@ -565,7 +541,8 @@ export const MyTasksPage = () => {
           <div className="flex min-w-60 flex-col text-left">
             <div className="flex">
               <Link
-                to={`/tasks/${task.id}`}
+                to="/tasks/$taskId"
+                params={{ taskId: String(task.id) }}
                 className="text-foreground flex w-full items-center gap-2 font-medium hover:underline"
                 onClick={(event) => {
                   event.preventDefault();
@@ -644,15 +621,15 @@ export const MyTasksPage = () => {
         if (!initiativeId || !initiativeName) {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
-        const initiativePath = `/initiatives/${initiativeId}`;
         return (
           <div className="min-w-40">
             <Link
-              to={initiativePath}
+              to="/initiatives/$initiativeId"
+              params={{ initiativeId: String(initiativeId) }}
               className="text-foreground flex items-center gap-2 text-sm font-medium"
               onClick={(event) => {
                 event.preventDefault();
-                void handleCrossGuildNavigation(task, initiativePath);
+                void handleCrossGuildNavigation(task, `/initiatives/${initiativeId}`);
               }}
             >
               <InitiativeColorDot color={initiativeColor ?? undefined} />
@@ -670,7 +647,6 @@ export const MyTasksPage = () => {
         const project = projectsById[task.project_id];
         const projectLabel = task.project_name ?? project?.name ?? `Project #${task.project_id}`;
         const projectIdentifier = project?.id ?? task.project_id;
-        const projectPath = `/projects/${projectIdentifier}`;
         const guildName = task.guild_name;
         return (
           <div className="min-w-30">
@@ -684,11 +660,12 @@ export const MyTasksPage = () => {
                 </>
               ) : null}
               <Link
-                to={projectPath}
+                to="/projects/$projectId"
+                params={{ projectId: String(projectIdentifier) }}
                 className="text-primary text-sm font-medium hover:underline"
                 onClick={(event) => {
                   event.preventDefault();
-                  void handleCrossGuildNavigation(task, projectPath);
+                  void handleCrossGuildNavigation(task, `/projects/${projectIdentifier}`);
                 }}
               >
                 {projectLabel}
@@ -865,27 +842,6 @@ export const MyTasksPage = () => {
                   }}
                   placeholder="All guilds"
                   emptyMessage="No guilds available"
-                />
-              </div>
-              <div className="w-full sm:w-60 lg:flex-1">
-                <Label
-                  htmlFor="task-initiative-filter"
-                  className="text-muted-foreground mb-2 block text-xs font-medium"
-                >
-                  Initiative
-                </Label>
-                <MultiSelect
-                  selectedValues={initiativeFilters.map(String)}
-                  options={initiativeOptions.map((initiative) => ({
-                    value: initiative.id,
-                    label: initiative.name,
-                  }))}
-                  onChange={(values) => {
-                    const numericValues = values.map(Number).filter(Number.isFinite);
-                    setInitiativeFilters(numericValues);
-                  }}
-                  placeholder="All initiatives"
-                  emptyMessage="No initiatives available"
                 />
               </div>
             </div>
