@@ -11,7 +11,8 @@
       "Bash(pnpm eslint:*)",
       "Bash(pnpm tsc:*)",
       "Bash(pnpm exec eslint:*)",
-      "Bash(python -m ruff check:*)"
+      "Bash(python -m ruff check:*)",
+      "Bash(bd create:*)"
     ]
   }
 }
