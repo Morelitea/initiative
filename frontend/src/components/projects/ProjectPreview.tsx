@@ -1,5 +1,5 @@
 import { HTMLAttributes } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +46,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, canPinProjects }: Pr
           </button>
         ) : null}
       </div>
-      <Link to={`/projects/${project.id}`} className="block">
+      <Link to="/projects/$projectId" params={{ projectId: String(project.id) }} className="block">
         <Card className="overflow-hidden shadow-sm">
           {initiativeColor ? (
             <div
@@ -111,7 +111,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, canPinProjects }: Pro
           />
         </div>
       </div>
-      <Link to={`/projects/${project.id}`} className="block">
+      <Link to="/projects/$projectId" params={{ projectId: String(project.id) }} className="block">
         <Card
           className={`p-4 pr-16 shadow-sm ${initiativeColor ? "border-l-4" : ""}`}
           style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
@@ -145,7 +145,8 @@ export const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null
   }
   return (
     <Link
-      to={`/initiatives/${initiative.id}`}
+      to="/initiatives/$initiativeId"
+      params={{ initiativeId: String(initiative.id) }}
       className="text-muted-foreground flex items-center gap-2 text-xs font-medium"
     >
       <InitiativeColorDot color={initiative.color} />

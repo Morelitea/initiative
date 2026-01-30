@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "@tanstack/react-router";
 import type { AxiosError } from "axios";
 
 import { apiClient } from "@/api/client";
@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 import { LogoIcon } from "@/components/LogoIcon";
 
 export const GuildInvitePage = () => {
-  const { code = "" } = useParams<{ code: string }>();
+  const { code = "" } = useParams({ strict: false }) as { code: string };
   const normalizedCode = code.trim();
   const registerLink = useMemo(
     () => `/register${normalizedCode ? `?invite_code=${encodeURIComponent(normalizedCode)}` : ""}`,
@@ -174,7 +174,8 @@ export const GuildInvitePage = () => {
                   {!user ? (
                     <Link
                       className="text-primary text-center text-sm underline-offset-4 hover:underline"
-                      to={`/login${normalizedCode ? `?invite_code=${encodeURIComponent(normalizedCode)}` : ""}`}
+                      to="/login"
+                      search={normalizedCode ? { invite_code: normalizedCode } : undefined}
                     >
                       Sign in to accept
                     </Link>

@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
@@ -35,7 +35,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { CommentSection } from "@/components/comments/CommentSection";
 
 export const DocumentDetailPage = () => {
-  const { documentId } = useParams();
+  const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
@@ -196,8 +196,8 @@ export const DocumentDetailPage = () => {
       }
       isAutosaveRef.current = false;
       queryClient.setQueryData(["documents", parsedId], updated);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      // Only invalidate the documents list (for sidebar title updates), not all project queries
+      void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
@@ -362,7 +362,10 @@ export const DocumentDetailPage = () => {
               <>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link to={`/initiatives/${document.initiative.id}`}>
+                    <Link
+                      to="/initiatives/$initiativeId"
+                      params={{ initiativeId: String(document.initiative.id) }}
+                    >
                       {document.initiative.name}
                     </Link>
                   </BreadcrumbLink>
@@ -379,7 +382,8 @@ export const DocumentDetailPage = () => {
           {canEditDocument ? (
             <Button asChild variant="outline" size="sm">
               <Link
-                to={`/documents/${document.id}/settings`}
+                to="/documents/$documentId/settings"
+                params={{ documentId: String(document.id) }}
                 className="inline-flex items-center gap-2"
               >
                 <Settings className="h-4 w-4" />
@@ -400,7 +404,8 @@ export const DocumentDetailPage = () => {
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
           {document.initiative ? (
             <Link
-              to={`/initiatives/${document.initiative.id}`}
+              to="/initiatives/$initiativeId"
+              params={{ initiativeId: String(document.initiative.id) }}
               className="inline-flex items-center gap-1 rounded-full border px-3 py-1"
             >
               <InitiativeColorDot color={document.initiative.color} />
@@ -595,7 +600,8 @@ export const DocumentDetailPage = () => {
                     >
                       <div className="space-y-0.5">
                         <Link
-                          to={`/projects/${link.project_id}`}
+                          to="/projects/$projectId"
+                          params={{ projectId: String(link.project_id) }}
                           className="font-medium hover:underline"
                         >
                           {link.project_name ?? `Project #${link.project_id}`}

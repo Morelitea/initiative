@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useRouter, useSearch } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -17,13 +17,13 @@ const normalizeTarget = (raw: string): string => {
 export const NavigatePage = () => {
   const { user, loading: authLoading } = useAuth();
   const { activeGuildId, switchGuild } = useGuilds();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false }) as { guild_id?: string; target?: string };
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(true);
 
-  const guildParam = searchParams.get("guild_id");
-  const targetParam = searchParams.get("target");
+  const guildParam = searchParams.guild_id;
+  const targetParam = searchParams.target;
 
   const destination = useMemo(() => {
     if (!targetParam) {
@@ -67,7 +67,7 @@ export const NavigatePage = () => {
         if (activeGuildId !== parsedGuildId) {
           await switchGuild(parsedGuildId);
         }
-        navigate(destination, { replace: true });
+        router.navigate({ to: destination, replace: true });
       } catch (err) {
         console.error("Failed to follow smart link", err);
         setError("Unable to switch guild for this link.");
@@ -75,13 +75,13 @@ export const NavigatePage = () => {
       }
     };
     void performNavigation();
-  }, [authLoading, user, guildParam, activeGuildId, switchGuild, navigate, destination]);
+  }, [authLoading, user, guildParam, activeGuildId, switchGuild, router, destination]);
 
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-destructive text-base font-medium">{error}</p>
-        <Button onClick={() => navigate("/", { replace: true })}>Go back home</Button>
+        <Button onClick={() => router.navigate({ to: "/", replace: true })}>Go back home</Button>
       </div>
     );
   }

@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
+import { useRouter } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,11 +39,18 @@ export const SortableTaskRow = ({
   onTaskClick,
   canOpenTask,
 }: SortableTaskRowProps) => {
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "list-task" },
     disabled: dragDisabled,
   });
+
+  const handlePrefetch = () => {
+    if (canOpenTask) {
+      router.preloadRoute({ to: "/tasks/$taskId", params: { taskId: String(task.id) } });
+    }
+  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -117,6 +125,7 @@ export const SortableTaskRow = ({
               }
               onTaskClick(task.id);
             }}
+            onMouseEnter={handlePrefetch}
             disabled={!canOpenTask}
           >
             <p className="font-medium">{task.title}</p>

@@ -1,5 +1,5 @@
 import { Fragment, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 import { useGuilds } from "@/hooks/useGuilds";
 

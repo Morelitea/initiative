@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const ResetPasswordPage = () => {
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
-  const token = params.get("token") ?? "";
+  const searchParams = useSearch({ strict: false }) as { token?: string };
+  const router = useRouter();
+  const token = searchParams.token ?? "";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
@@ -74,7 +74,7 @@ export const ResetPasswordPage = () => {
           {status === "success" ? (
             <div className="text-primary space-y-4 text-sm">
               <p>Password updated successfully.</p>
-              <Button className="w-full" onClick={() => navigate("/login")}>
+              <Button className="w-full" onClick={() => router.navigate({ to: "/login" })}>
                 Go to sign in
               </Button>
             </div>

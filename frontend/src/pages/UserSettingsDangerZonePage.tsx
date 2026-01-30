@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 import { AlertTriangle, Unplug } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,19 +15,19 @@ interface UserSettingsDangerZonePageProps {
 
 export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZonePageProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
   const { isNativePlatform, getServerHostname, clearServerUrl } = useServer();
 
   const handleDeleteSuccess = () => {
     setDeleteDialogOpen(false);
     logout();
-    navigate("/login");
+    router.navigate({ to: "/login" });
   };
 
   const handleDisconnectServer = async () => {
     await logout();
     clearServerUrl();
-    navigate("/connect", { replace: true });
+    router.navigate({ to: "/connect", replace: true });
   };
 
   return (

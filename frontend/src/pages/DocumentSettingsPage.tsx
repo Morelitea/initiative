@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useRouter, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
@@ -41,9 +41,9 @@ import type { DocumentRead, Initiative } from "@/types/api";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 
 export const DocumentSettingsPage = () => {
-  const { documentId } = useParams();
+  const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
-  const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: roleLabels } = useRoleLabels();
@@ -161,7 +161,10 @@ export const DocumentSettingsPage = () => {
       toast.success("Document duplicated");
       setDuplicateDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      navigate(`/documents/${duplicated.id}`);
+      router.navigate({
+        to: "/documents/$documentId",
+        params: { documentId: String(duplicated.id) },
+      });
     },
     onError: (error) => {
       const message =
@@ -196,7 +199,7 @@ export const DocumentSettingsPage = () => {
       toast.success("Document copied");
       setCopyDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      navigate(`/documents/${copied.id}`);
+      router.navigate({ to: "/documents/$documentId", params: { documentId: String(copied.id) } });
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Unable to copy document right now.";
@@ -212,7 +215,7 @@ export const DocumentSettingsPage = () => {
       toast.success("Document deleted");
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       setDeleteDialogOpen(false);
-      navigate("/documents");
+      router.navigate({ to: "/documents" });
     },
     onError: () => {
       toast.error("Unable to delete document right now.");
@@ -313,7 +316,10 @@ export const DocumentSettingsPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to={`/initiatives/${document.initiative.id}`}>
+                  <Link
+                    to="/initiatives/$initiativeId"
+                    params={{ initiativeId: String(document.initiative.id) }}
+                  >
                     {document.initiative.name}
                   </Link>
                 </BreadcrumbLink>
@@ -323,7 +329,9 @@ export const DocumentSettingsPage = () => {
           )}
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={`/documents/${document.id}`}>{document.title}</Link>
+              <Link to="/documents/$documentId" params={{ documentId: String(document.id) }}>
+                {document.title}
+              </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

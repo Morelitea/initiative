@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { isAxiosError } from "axios";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -82,9 +82,9 @@ type MoveTaskVariables = {
 };
 
 export const TaskEditPage = () => {
-  const { taskId } = useParams();
+  const { taskId } = useParams({ strict: false }) as { taskId: string };
   const parsedTaskId = Number(taskId);
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -214,7 +214,7 @@ export const TaskEditPage = () => {
       toast.success("Task duplicated");
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
-      navigate(`/tasks/${newTask.id}`);
+      router.navigate({ to: "/tasks/$taskId", params: { taskId: String(newTask.id) } });
     },
   });
 
@@ -226,7 +226,7 @@ export const TaskEditPage = () => {
       toast.success("Task deleted");
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
-      navigate(projectLink);
+      router.navigate({ to: "/projects/$projectId", params: { projectId: String(projectId) } });
     },
   });
 
@@ -359,7 +359,6 @@ export const TaskEditPage = () => {
   }, [users, project]);
 
   const task = taskQuery.data;
-  const projectLink = `/projects/${task?.project_id}`;
   const initiativeMembership = project?.initiative?.members?.find(
     (member) => member.user.id === user?.id
   );
@@ -415,7 +414,7 @@ export const TaskEditPage = () => {
   }, [isReadOnly]);
 
   const handleBackClick = () => {
-    navigate(-1);
+    router.history.back();
   };
 
   if (!Number.isFinite(parsedTaskId)) {
@@ -467,7 +466,10 @@ export const TaskEditPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to={`/initiatives/${project.initiative.id}`}>
+                  <Link
+                    to="/initiatives/$initiativeId"
+                    params={{ initiativeId: String(project.initiative.id) }}
+                  >
                     {project.initiative.name}
                   </Link>
                 </BreadcrumbLink>
@@ -479,7 +481,9 @@ export const TaskEditPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to={`/projects/${project.id}`}>{project.name}</Link>
+                  <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
+                    {project.name}
+                  </Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
@@ -681,7 +685,16 @@ export const TaskEditPage = () => {
                   <Save className="h-4 w-4" />
                   {updateTask.isPending ? "Saving…" : "Save task"}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => navigate(projectLink)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    router.navigate({
+                      to: "/projects/$projectId",
+                      params: { projectId: String(projectId) },
+                    })
+                  }
+                >
                   <X className="h-4 w-4" />
                   Cancel
                 </Button>

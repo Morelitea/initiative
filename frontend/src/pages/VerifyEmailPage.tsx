@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearch } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,8 @@ import {
 type VerificationStatus = "pending" | "success" | "error";
 
 export const VerifyEmailPage = () => {
-  const [params] = useSearchParams();
-  const token = params.get("token");
+  const searchParams = useSearch({ strict: false }) as { token?: string };
+  const token = searchParams.token;
   const [status, setStatus] = useState<VerificationStatus>("pending");
   const [message, setMessage] = useState("Verifying your email…");
 

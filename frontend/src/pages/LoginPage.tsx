@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { Device } from "@capacitor/device";
 import { Browser } from "@capacitor/browser";
 
@@ -21,8 +21,8 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
 
 export const LoginPage = () => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const router = useRouter();
+  const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { login } = useAuth();
   const { isNativePlatform, isServerConfigured, getServerHostname, clearServerUrl, serverUrl } =
     useServer();
@@ -36,7 +36,7 @@ export const LoginPage = () => {
     "loading"
   );
   const inviteCodeParam = useMemo(() => {
-    const code = searchParams.get("invite_code");
+    const code = searchParams.invite_code;
     return code && code.trim().length > 0 ? code.trim() : null;
   }, [searchParams]);
 
@@ -79,7 +79,7 @@ export const LoginPage = () => {
 
   const handleChangeServer = () => {
     clearServerUrl();
-    navigate("/connect", { replace: true });
+    router.navigate({ to: "/connect", replace: true });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -98,9 +98,14 @@ export const LoginPage = () => {
       }
       await login({ email: email.toLowerCase().trim(), password, deviceName });
       if (inviteCodeParam) {
-        navigate(`/invite/${encodeURIComponent(inviteCodeParam)}`, { replace: true });
+        router.navigate({
+          to: "/invite/$code",
+          params: { code: encodeURIComponent(inviteCodeParam) },
+          search: { authenticated: "1" },
+          replace: true,
+        });
       } else {
-        navigate("/", { replace: true });
+        router.navigate({ to: "/", search: { authenticated: "1" }, replace: true });
       }
     } catch (err) {
       console.error(err);
@@ -225,11 +230,8 @@ export const LoginPage = () => {
               Need an account?{" "}
               <Link
                 className="text-primary underline-offset-4 hover:underline"
-                to={
-                  inviteCodeParam
-                    ? `/register?invite_code=${encodeURIComponent(inviteCodeParam)}`
-                    : "/register"
-                }
+                to="/register"
+                search={inviteCodeParam ? { invite_code: inviteCodeParam } : undefined}
               >
                 Register
               </Link>

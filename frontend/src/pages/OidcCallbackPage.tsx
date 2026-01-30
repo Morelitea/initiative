@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useRouter, useSearch } from "@tanstack/react-router";
 import { Browser } from "@capacitor/browser";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,15 +7,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 
 export const OidcCallbackPage = () => {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false }) as { token?: string; error?: string };
+  const router = useRouter();
   const { completeOidcLogin } = useAuth();
   const { isNativePlatform } = useServer();
   const [status, setStatus] = useState("Finishing login…");
 
   useEffect(() => {
-    const token = searchParams.get("token");
-    const error = searchParams.get("error");
+    const token = searchParams.token;
+    const error = searchParams.error;
     if (error) {
       setStatus(`OIDC login failed: ${error}`);
       return;
@@ -35,14 +35,14 @@ export const OidcCallbackPage = () => {
             // Browser may already be closed, ignore
           }
         }
-        navigate("/", { replace: true });
+        router.navigate({ to: "/", replace: true });
       } catch (err) {
         console.error(err);
         setStatus("Unable to complete OIDC login.");
       }
     };
     void run();
-  }, [completeOidcLogin, isNativePlatform, navigate, searchParams]);
+  }, [completeOidcLogin, isNativePlatform, router, searchParams]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Settings } from "lucide-react";
 
@@ -17,19 +17,21 @@ import { Markdown } from "@/components/Markdown";
 import type { Initiative } from "@/types/api";
 
 export const InitiativeDetailPage = () => {
-  const { initiativeId: initiativeIdParam } = useParams();
+  const { initiativeId: initiativeIdParam } = useParams({ strict: false }) as {
+    initiativeId: string;
+  };
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const { user } = useAuth();
-  const { activeGuild } = useGuilds();
+  const { activeGuild, activeGuildId } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
   const memberLabel = getRoleLabel("member", roleLabels);
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives"],
+    queryKey: ["initiatives", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
@@ -115,7 +117,10 @@ export const InitiativeDetailPage = () => {
         <div className="flex flex-wrap gap-2">
           {canManageInitiative ? (
             <Button variant="outline" asChild>
-              <Link to={`/initiatives/${initiative.id}/settings`}>
+              <Link
+                to="/initiatives/$initiativeId/settings"
+                params={{ initiativeId: String(initiative.id) }}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 Initiative settings
               </Link>

@@ -2,6 +2,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare, Archive } from "lucide-react";
+import { useRouter } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -193,11 +194,18 @@ const KanbanTaskCard = ({
   onTaskClick,
   canOpenTask,
 }: KanbanTaskCardProps) => {
+  const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "task", statusId: task.task_status_id },
     disabled: !canWrite,
   });
+
+  const handlePrefetch = () => {
+    if (canOpenTask) {
+      router.preloadRoute({ to: "/tasks/$taskId", params: { taskId: String(task.id) } });
+    }
+  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -237,6 +245,7 @@ const KanbanTaskCard = ({
           }
           onTaskClick(task.id);
         }}
+        onMouseEnter={handlePrefetch}
         disabled={!canOpenTask}
         className={`flex w-full flex-col items-start gap-1 text-left ${
           canOpenTask ? "" : "cursor-not-allowed opacity-70"

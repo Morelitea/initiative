@@ -69,7 +69,9 @@
     "@radix-ui/react-tooltip": "^1.1.7",
     "@tailwindcss/vite": "^4.1.17",
     "@tanstack/react-query": "^5.32.0",
+    "@tanstack/react-router": "^1.157.16",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/router-devtools": "^1.157.16",
     "axios": "^1.6.8",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
@@ -86,7 +88,6 @@
     "react-day-picker": "^9.11.2",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^6.23.0",
     "recharts": "2.15.4",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
@@ -104,6 +105,7 @@
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/postcss": "^4.1.17",
     "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/router-plugin": "^1.157.16",
     "@types/color": "^4.2.0",
     "@types/lodash": "^4.17.23",
     "@types/node": "^20.12.7",
@@ -132,7 +134,7 @@
     "*.css": "prettier --write",
     "*.{ts,tsx}": [
       "eslint --report-unused-disable-directives --max-warnings 0 --no-warn-ignored --fix",
-      "prettier --write"
+      "prettier --write --ignore-path .prettierignore"
     ]
   }
 }

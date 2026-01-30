@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -35,7 +35,8 @@ export const ProjectTabsBar = ({
             return (
               <div key={project.id} className="flex items-center">
                 <Link
-                  to={`/projects/${project.id}`}
+                  to="/projects/$projectId"
+                  params={{ projectId: String(project.id) }}
                   className={cn(
                     "group inline-flex items-center gap-2 rounded-t-md border border-transparent px-3 py-2 text-sm transition",
                     isActive

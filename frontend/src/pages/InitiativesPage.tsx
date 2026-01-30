@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -35,19 +35,21 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import type { DocumentSummary, Initiative, Project } from "@/types/api";
 
-const INITIATIVES_QUERY_KEY = ["initiatives"];
+const getInitiativesQueryKey = (guildId: number | null) => ["initiatives", { guildId }] as const;
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativesPage = () => {
   const { user } = useAuth();
-  const { activeGuild } = useGuilds();
+  const { activeGuild, activeGuildId } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const searchParams = useSearch({ strict: false }) as { create?: string };
+
+  const initiativesQueryKey = getInitiativesQueryKey(activeGuildId);
 
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
-  }, [queryClient]);
+    await queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
+  }, [queryClient, initiativesQueryKey]);
 
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
@@ -57,7 +59,7 @@ export const InitiativesPage = () => {
   const canCreateInitiatives = Boolean(activeGuild && isGuildAdmin);
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: INITIATIVES_QUERY_KEY,
+    queryKey: initiativesQueryKey,
     queryFn: async () => {
       const response = await apiClient.get<Initiative[]>("/initiatives/");
       return response.data;
@@ -66,7 +68,7 @@ export const InitiativesPage = () => {
   });
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "initiative-counts"],
+    queryKey: ["projects", "initiative-counts", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Project[]>("/projects/");
       return response.data;
@@ -76,7 +78,7 @@ export const InitiativesPage = () => {
   });
 
   const documentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "initiative-counts"],
+    queryKey: ["documents", "initiative-counts", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<DocumentSummary[]>("/documents/");
       return response.data;
@@ -125,7 +127,7 @@ export const InitiativesPage = () => {
 
   // Check for query params to open create dialog (consume once)
   useEffect(() => {
-    const shouldCreate = searchParams.get("create") === "true";
+    const shouldCreate = searchParams.create === "true";
     const paramKey = `${shouldCreate}`;
 
     if (shouldCreate && paramKey !== lastConsumedParams.current) {
@@ -145,7 +147,7 @@ export const InitiativesPage = () => {
       setNewName("");
       setNewDescription("");
       setNewColor(DEFAULT_INITIATIVE_COLOR);
-      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
     },
     onError: (error) => {
       const message =
@@ -262,7 +264,12 @@ export const InitiativesPage = () => {
                   </CardContent>
                   <CardFooter>
                     <Button asChild variant="outline" size="sm">
-                      <Link to={`/initiatives/${initiative.id}`}>Open initiative</Link>
+                      <Link
+                        to="/initiatives/$initiativeId"
+                        params={{ initiativeId: String(initiative.id) }}
+                      >
+                        Open initiative
+                      </Link>
                     </Button>
                   </CardFooter>
                 </Card>

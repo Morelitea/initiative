@@ -1,4 +1,4 @@
-import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation, useRouter } from "@tanstack/react-router";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,12 +9,12 @@ const adminTabs = [
   { value: "email", label: "Email", path: "/settings/admin/email" },
   { value: "ai", label: "AI", path: "/settings/admin/ai" },
   { value: "users", label: "Users", path: "/settings/admin/users" },
-];
+] as const;
 
 export const AdminSettingsLayout = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
+  const router = useRouter();
   const isPlatformAdmin = user?.role === "admin";
 
   if (!isPlatformAdmin) {
@@ -23,8 +23,7 @@ export const AdminSettingsLayout = () => {
 
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
   const activeTab =
-    adminTabs
-      .slice()
+    [...adminTabs]
       .sort((a, b) => b.path.length - a.path.length)
       .find((tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`))
       ?.value ?? "auth";
@@ -42,7 +41,7 @@ export const AdminSettingsLayout = () => {
         onValueChange={(value) => {
           const tab = adminTabs.find((item) => item.value === value);
           if (tab) {
-            navigate(tab.path);
+            router.navigate({ to: tab.path });
           }
         }}
       >

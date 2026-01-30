@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Leave guild checks eligibility (last admin, sole PM of initiatives) before allowing departure
   - Actions automatically switch to the target guild's context when needed
 
+### Changed
+
+- Migrated frontend routing from React Router to TanStack Router
+  - Type-safe routing with validated route params and search params
+  - Improved React Query integration for data prefetching
+- Removed initiative filter from My Tasks page (was showing only active guild's initiatives, making it redundant)
+
+### Fixed
+
+- Switching guilds now properly refreshes project, initiative, and document lists
+- Connect and login pages no longer require double-clicking to navigate on mobile
+
 ## [0.18.0] - 2026-01-28
 
 ### Added
