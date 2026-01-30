@@ -50,28 +50,33 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/projects_/
     if (statusFilters.length > 0) taskParams.task_status_ids = statusFilters;
     if (showArchived) taskParams.include_archived = true;
 
-    await Promise.all([
-      queryClient.ensureQueryData({
-        queryKey: ["project", projectId],
-        queryFn: () => apiClient.get(`/projects/${projectId}`).then((r) => r.data),
-        staleTime: 30_000,
-      }),
-      queryClient.ensureQueryData({
-        queryKey: ["projects", projectId, "task-statuses"],
-        queryFn: () => apiClient.get(`/projects/${projectId}/task-statuses/`).then((r) => r.data),
-        staleTime: 60_000,
-      }),
-      queryClient.ensureQueryData({
-        queryKey: ["users"],
-        queryFn: () => apiClient.get("/users/").then((r) => r.data),
-        staleTime: 60_000,
-      }),
-      queryClient.ensureQueryData({
-        queryKey: ["tasks", projectId, assigneeFilters, statusFilters, showArchived],
-        queryFn: () => apiClient.get("/tasks/", { params: taskParams }).then((r) => r.data),
-        staleTime: 30_000,
-      }),
-    ]);
+    // Prefetch in background - don't block navigation on failure
+    try {
+      await Promise.all([
+        queryClient.ensureQueryData({
+          queryKey: ["project", projectId],
+          queryFn: () => apiClient.get(`/projects/${projectId}`).then((r) => r.data),
+          staleTime: 30_000,
+        }),
+        queryClient.ensureQueryData({
+          queryKey: ["projects", projectId, "task-statuses"],
+          queryFn: () => apiClient.get(`/projects/${projectId}/task-statuses/`).then((r) => r.data),
+          staleTime: 60_000,
+        }),
+        queryClient.ensureQueryData({
+          queryKey: ["users"],
+          queryFn: () => apiClient.get("/users/").then((r) => r.data),
+          staleTime: 60_000,
+        }),
+        queryClient.ensureQueryData({
+          queryKey: ["tasks", projectId, assigneeFilters, statusFilters, showArchived],
+          queryFn: () => apiClient.get("/tasks/", { params: taskParams }).then((r) => r.data),
+          staleTime: 30_000,
+        }),
+      ]);
+    } catch {
+      // Silently fail - component will fetch its own data
+    }
   },
   component: lazyRouteComponent(() =>
     import("@/pages/ProjectDetailPage").then((m) => ({ default: m.ProjectDetailPage }))
