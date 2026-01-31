@@ -331,7 +331,7 @@ export const ProjectSettingsPage = () => {
           userId: permission.user_id,
           displayName,
           level: permission.level,
-          isOwner: permission.level === "owner",
+          isOwner: permission.user_id === project?.owner_id,
         };
       }),
     [project?.permissions, project?.owner, project?.owner_id, initiativeMembers]
