@@ -308,6 +308,7 @@ async def remove_initiative_member(
         if membership.role == InitiativeRole.project_manager:
             await _ensure_remaining_manager(session, initiative, exclude_user_ids={user_id})
         await session.delete(membership)
+        await session.flush()
 
         # Handle orphaned documents when owner is removed
         await documents_service.handle_owner_removal(
