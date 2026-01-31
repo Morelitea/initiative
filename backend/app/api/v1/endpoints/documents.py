@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -123,6 +123,17 @@ async def _require_document_write_access(
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Document write access required")
 
 
+def _get_loaded_permissions(document: Document) -> list[DocumentPermission]:
+    """Get permissions from document, asserting they were eagerly loaded."""
+    state = inspect(document)
+    if "permissions" not in state.dict or state.attrs.permissions.loaded_value is None:
+        raise RuntimeError(
+            f"Document {document.id} permissions not loaded. "
+            "Use selectinload(Document.permissions) in query."
+        )
+    return document.permissions or []
+
+
 async def _require_document_access(
     session: SessionDep,
     document: Document,
@@ -158,8 +169,7 @@ async def _require_document_access(
         return
 
     # 3. Check explicit permission
-    permissions = getattr(document, "permissions", None) or []
-    permission = next((p for p in permissions if p.user_id == user.id), None)
+    permission = next((p for p in _get_loaded_permissions(document) if p.user_id == user.id), None)
 
     if require_owner:
         if not permission or permission.level != DocumentPermissionLevel.owner:
@@ -178,8 +188,7 @@ async def _require_document_access(
 
 def _get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
     """Get a user's permission for a document from the loaded permissions."""
-    permissions = getattr(document, "permissions", None) or []
-    return next((p for p in permissions if p.user_id == user_id), None)
+    return next((p for p in _get_loaded_permissions(document) if p.user_id == user_id), None)
 
 
 @router.get("/", response_model=List[DocumentSummary])
