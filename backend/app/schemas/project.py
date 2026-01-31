@@ -45,6 +45,11 @@ class ProjectPermissionCreate(ProjectPermissionBase):
     pass
 
 
+class ProjectPermissionBulkCreate(BaseModel):
+    user_ids: List[int]
+    level: ProjectPermissionLevel = ProjectPermissionLevel.read
+
+
 class ProjectPermissionUpdate(BaseModel):
     level: ProjectPermissionLevel
 
