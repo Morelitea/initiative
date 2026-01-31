@@ -20,6 +20,7 @@ from app.schemas.document import (
     DocumentCreate,
     DocumentCopyRequest,
     DocumentDuplicateRequest,
+    DocumentPermissionBulkCreate,
     DocumentPermissionCreate,
     DocumentPermissionRead,
     DocumentPermissionUpdate,
@@ -548,6 +549,74 @@ async def add_document_member(
     await session.commit()
     await session.refresh(permission)
     return permission
+
+
+@router.post("/{document_id}/members/bulk", response_model=List[DocumentPermissionRead], status_code=status.HTTP_201_CREATED)
+async def add_document_members_bulk(
+    document_id: int,
+    bulk_in: DocumentPermissionBulkCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[DocumentPermission]:
+    """Add multiple members to a document with the same permission level."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_access(
+        session,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
+    )
+    if bulk_in.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+
+    if not bulk_in.user_ids:
+        return []
+
+    # Get all initiative members in one query
+    initiative_members_result = await session.exec(
+        select(InitiativeMember.user_id).where(
+            InitiativeMember.initiative_id == document.initiative_id,
+            InitiativeMember.user_id.in_(bulk_in.user_ids),
+        )
+    )
+    valid_member_ids = set(initiative_members_result.all())
+
+    # Get existing permissions
+    existing_user_ids = {p.user_id for p in (document.permissions or [])}
+    owner_ids = {p.user_id for p in (document.permissions or []) if p.level == DocumentPermissionLevel.owner}
+
+    created_permissions: List[DocumentPermission] = []
+    for user_id in bulk_in.user_ids:
+        # Skip invalid users (not initiative members)
+        if user_id not in valid_member_ids:
+            continue
+        # Skip owners - cannot modify their permission
+        if user_id in owner_ids:
+            continue
+        # Update existing permission
+        if user_id in existing_user_ids:
+            existing = next((p for p in document.permissions if p.user_id == user_id), None)
+            if existing and existing.level != DocumentPermissionLevel.owner:
+                existing.level = bulk_in.level
+                session.add(existing)
+                created_permissions.append(existing)
+            continue
+        # Create new permission
+        permission = DocumentPermission(
+            document_id=document_id,
+            user_id=user_id,
+            level=bulk_in.level,
+            guild_id=guild_context.guild_id,
+        )
+        session.add(permission)
+        created_permissions.append(permission)
+
+    await session.commit()
+    for permission in created_permissions:
+        await session.refresh(permission)
+    return created_permissions
 
 
 @router.patch("/{document_id}/members/{user_id}", response_model=DocumentPermissionRead)

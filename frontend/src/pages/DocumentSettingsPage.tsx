@@ -75,6 +75,7 @@ export const DocumentSettingsPage = () => {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [selectedNewUserId, setSelectedNewUserId] = useState<string>("");
   const [selectedNewLevel, setSelectedNewLevel] = useState<DocumentPermissionLevel>("read");
+  const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
 
   const documentQuery = useQuery<DocumentRead>({
     queryKey: ["documents", parsedId],
@@ -258,6 +259,52 @@ export const DocumentSettingsPage = () => {
     onError: () => {
       setAccessMessage(null);
       setAccessError("Unable to remove access");
+    },
+  });
+
+  const addAllMembers = useMutation({
+    mutationFn: async (level: DocumentPermissionLevel) => {
+      const userIds = availableMembers.map((member) => member.user.id);
+      await apiClient.post(`/documents/${parsedId}/members/bulk`, {
+        user_ids: userIds,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access granted to all members");
+      setAccessError(null);
+      setSelectedNewUserId("");
+      setSelectedNewLevel("read");
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to grant access to all members");
+    },
+  });
+
+  const bulkUpdateLevel = useMutation({
+    mutationFn: async ({
+      userIds,
+      level,
+    }: {
+      userIds: number[];
+      level: DocumentPermissionLevel;
+    }) => {
+      await apiClient.post(`/documents/${parsedId}/members/bulk`, {
+        user_ids: userIds,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access updated for selected members");
+      setAccessError(null);
+      setSelectedMembers([]);
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to update access for selected members");
     },
   });
 
@@ -548,6 +595,33 @@ export const DocumentSettingsPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Bulk action bar */}
+            {selectedMembers.length > 0 && (
+              <div className="bg-muted flex items-center gap-3 rounded-md p-3">
+                <span className="text-sm font-medium">{selectedMembers.length} selected</span>
+                <Select
+                  onValueChange={(level) => {
+                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
+                    if (userIds.length > 0) {
+                      bulkUpdateLevel.mutate({
+                        userIds,
+                        level: level as DocumentPermissionLevel,
+                      });
+                    }
+                  }}
+                  disabled={bulkUpdateLevel.isPending}
+                >
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Change access..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                    <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Access table */}
             <DataTable
               columns={permissionColumns}
@@ -556,6 +630,10 @@ export const DocumentSettingsPage = () => {
               enableFilterInput
               filterInputColumnKey="displayName"
               filterInputPlaceholder="Filter by name"
+              enableRowSelection
+              onRowSelectionChange={setSelectedMembers}
+              onExitSelection={() => setSelectedMembers([])}
+              getRowId={(row) => String(row.userId)}
             />
 
             {/* Add member form */}
@@ -604,8 +682,18 @@ export const DocumentSettingsPage = () => {
                       <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button type="submit" disabled={addMember.isPending}>
+                  <Button type="submit" disabled={addMember.isPending || addAllMembers.isPending}>
                     {addMember.isPending ? "Adding..." : "Add"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => addAllMembers.mutate(selectedNewLevel)}
+                    disabled={addMember.isPending || addAllMembers.isPending}
+                  >
+                    {addAllMembers.isPending
+                      ? "Adding all..."
+                      : `Add all (${availableMembers.length})`}
                   </Button>
                 </form>
               )}
