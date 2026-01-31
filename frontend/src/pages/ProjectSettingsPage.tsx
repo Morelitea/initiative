@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ColumnDef } from "@tanstack/react-table";
 
 import { apiClient } from "@/api/client";
 import {
@@ -21,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -46,6 +48,13 @@ const PERMISSION_LABELS: Record<ProjectPermissionLevel, string> = {
   write: "Can edit",
   read: "Can view",
 };
+
+interface PermissionRow {
+  userId: number;
+  displayName: string;
+  level: ProjectPermissionLevel;
+  isOwner: boolean;
+}
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId: string };
@@ -300,6 +309,114 @@ export const ProjectSettingsPage = () => {
     },
   });
 
+  const project = projectQuery.data;
+  const initiativeMembers = useMemo(
+    () => project?.initiative?.members ?? [],
+    [project?.initiative?.members]
+  );
+
+  // Build permission rows with user info
+  const permissionRows: PermissionRow[] = useMemo(
+    () =>
+      (project?.permissions ?? []).map((permission) => {
+        const member = initiativeMembers.find((entry) => entry.user.id === permission.user_id);
+        const ownerInfo = project?.owner;
+        const displayName =
+          member?.user.full_name?.trim() ||
+          member?.user.email ||
+          (permission.user_id === project?.owner_id
+            ? ownerInfo?.full_name?.trim() || ownerInfo?.email || "Project owner"
+            : `User ${permission.user_id}`);
+        return {
+          userId: permission.user_id,
+          displayName,
+          level: permission.level,
+          isOwner: permission.level === "owner",
+        };
+      }),
+    [project?.permissions, project?.owner, project?.owner_id, initiativeMembers]
+  );
+
+  // Column definitions for the permissions table
+  const permissionColumns: ColumnDef<PermissionRow>[] = useMemo(
+    () => [
+      {
+        accessorKey: "displayName",
+        header: "Name",
+        cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
+      },
+      {
+        accessorKey: "level",
+        header: "Access",
+        cell: ({ row }) => {
+          if (row.original.isOwner) {
+            return <span className="text-muted-foreground">Owner</span>;
+          }
+          return (
+            <Select
+              value={row.original.level}
+              onValueChange={(value) => {
+                setAccessMessage(null);
+                setAccessError(null);
+                updateMemberLevel.mutate({
+                  userId: row.original.userId,
+                  level: value as ProjectPermissionLevel,
+                });
+              }}
+              disabled={updateMemberLevel.isPending}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+              </SelectContent>
+            </Select>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => {
+          if (row.original.isOwner) {
+            return <div className="text-muted-foreground text-right text-xs">-</div>;
+          }
+          return (
+            <div className="text-right">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                onClick={() => {
+                  setAccessMessage(null);
+                  setAccessError(null);
+                  removeMember.mutate(row.original.userId);
+                }}
+                disabled={removeMember.isPending}
+              >
+                Remove
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [updateMemberLevel, removeMember]
+  );
+
+  // Initiative members who don't have permissions yet
+  const availableMembers = useMemo(
+    () =>
+      initiativeMembers.filter(
+        (member) =>
+          !(project?.permissions ?? []).some((permission) => permission.user_id === member.user.id)
+      ),
+    [initiativeMembers, project?.permissions]
+  );
+
   if (!Number.isFinite(parsedProjectId)) {
     return <p className="text-destructive">Invalid project id.</p>;
   }
@@ -310,7 +427,7 @@ export const ProjectSettingsPage = () => {
     return <p className="text-muted-foreground text-sm">Loading project settings...</p>;
   }
 
-  if (projectQuery.isError || !projectQuery.data) {
+  if (projectQuery.isError || !project) {
     return (
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
@@ -321,32 +438,8 @@ export const ProjectSettingsPage = () => {
     );
   }
 
-  const project = projectQuery.data;
   const initiativeMembership = project.initiative?.members?.find(
     (member) => member.user.id === user?.id
-  );
-  const initiativeMembers = project.initiative?.members ?? [];
-
-  // Build permission rows with user info
-  const permissionRows = project.permissions.map((permission) => {
-    const member = initiativeMembers.find((entry) => entry.user.id === permission.user_id);
-    const ownerInfo = project.owner;
-    const displayName =
-      member?.user.full_name?.trim() ||
-      member?.user.email ||
-      (permission.user_id === project.owner_id
-        ? ownerInfo?.full_name?.trim() || ownerInfo?.email || "Project owner"
-        : `User ${permission.user_id}`);
-    return {
-      permission,
-      displayName,
-      isOwner: permission.level === "owner",
-    };
-  });
-
-  // Initiative members who don't have permissions yet
-  const availableMembers = initiativeMembers.filter(
-    (member) => !project.permissions.some((permission) => permission.user_id === member.user.id)
   );
 
   const isOwner = project.owner_id === user?.id;
@@ -583,78 +676,14 @@ export const ProjectSettingsPage = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Access table */}
-            <div className="rounded-md border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b">
-                    <th className="px-4 py-2 text-left font-medium">Name</th>
-                    <th className="px-4 py-2 text-left font-medium">Access</th>
-                    <th className="px-4 py-2 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {permissionRows.map(({ permission, displayName, isOwner }) => (
-                    <tr key={permission.user_id} className="border-b last:border-b-0">
-                      <td className="px-4 py-3">
-                        <span className="font-medium">{displayName}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {isOwner ? (
-                          <span className="text-muted-foreground">Owner</span>
-                        ) : (
-                          <Select
-                            value={permission.level}
-                            onValueChange={(value) => {
-                              setAccessMessage(null);
-                              setAccessError(null);
-                              updateMemberLevel.mutate({
-                                userId: permission.user_id,
-                                level: value as ProjectPermissionLevel,
-                              });
-                            }}
-                            disabled={updateMemberLevel.isPending}
-                          >
-                            <SelectTrigger className="w-[130px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                              <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {!isOwner ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setAccessMessage(null);
-                              setAccessError(null);
-                              removeMember.mutate(permission.user_id);
-                            }}
-                            disabled={removeMember.isPending}
-                          >
-                            Remove
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {permissionRows.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="text-muted-foreground px-4 py-6 text-center">
-                        No permissions configured yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              columns={permissionColumns}
+              data={permissionRows}
+              enablePagination
+              enableFilterInput
+              filterInputColumnKey="displayName"
+              filterInputPlaceholder="Filter by name"
+            />
 
             {/* Add member form */}
             <div className="space-y-2 pt-2">
