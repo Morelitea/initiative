@@ -31,6 +31,7 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectDuplicateRequest,
     ProjectPermissionBulkCreate,
+    ProjectPermissionBulkDelete,
     ProjectPermissionCreate,
     ProjectPermissionRead,
     ProjectPermissionUpdate,
@@ -1483,6 +1484,47 @@ async def add_project_members_bulk(
     for permission in created_permissions:
         await session.refresh(permission)
     return created_permissions
+
+
+@router.post("/{project_id}/members/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_members_bulk(
+    project_id: int,
+    bulk_in: ProjectPermissionBulkDelete,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Remove multiple members from a project."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
+    _ensure_not_archived(project)
+
+    if not bulk_in.user_ids:
+        return
+
+    # Get existing permissions to delete
+    permissions_result = await session.exec(
+        select(ProjectPermission).where(
+            ProjectPermission.project_id == project_id,
+            ProjectPermission.user_id.in_(bulk_in.user_ids),
+        )
+    )
+    permissions = permissions_result.all()
+
+    for permission in permissions:
+        # Skip owner - cannot remove them
+        if permission.user_id == project.owner_id:
+            continue
+        await session.delete(permission)
+
+    await session.commit()
 
 
 @router.patch("/{project_id}/members/{user_id}", response_model=ProjectPermissionRead)

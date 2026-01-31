@@ -21,6 +21,7 @@ from app.schemas.document import (
     DocumentCopyRequest,
     DocumentDuplicateRequest,
     DocumentPermissionBulkCreate,
+    DocumentPermissionBulkDelete,
     DocumentPermissionCreate,
     DocumentPermissionRead,
     DocumentPermissionUpdate,
@@ -617,6 +618,41 @@ async def add_document_members_bulk(
     for permission in created_permissions:
         await session.refresh(permission)
     return created_permissions
+
+
+@router.post("/{document_id}/members/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_document_members_bulk(
+    document_id: int,
+    bulk_in: DocumentPermissionBulkDelete,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Remove multiple members from a document."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_access(
+        session,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
+    )
+
+    if not bulk_in.user_ids:
+        return
+
+    # Get owner IDs to exclude from deletion
+    owner_ids = {p.user_id for p in (document.permissions or []) if p.level == DocumentPermissionLevel.owner}
+
+    for user_id in bulk_in.user_ids:
+        # Skip owners - cannot remove them
+        if user_id in owner_ids:
+            continue
+        permission = _get_document_permission(document, user_id)
+        if permission:
+            await session.delete(permission)
+
+    await session.commit()
 
 
 @router.patch("/{document_id}/members/{user_id}", response_model=DocumentPermissionRead)

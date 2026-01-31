@@ -62,6 +62,10 @@ class DocumentPermissionBulkCreate(BaseModel):
     level: DocumentPermissionLevel = DocumentPermissionLevel.read
 
 
+class DocumentPermissionBulkDelete(BaseModel):
+    user_ids: List[int]
+
+
 class DocumentPermissionUpdate(BaseModel):
     level: DocumentPermissionLevel
 

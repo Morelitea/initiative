@@ -308,6 +308,24 @@ export const DocumentSettingsPage = () => {
     },
   });
 
+  const bulkRemoveMembers = useMutation({
+    mutationFn: async (userIds: number[]) => {
+      await apiClient.post(`/documents/${parsedId}/members/bulk-delete`, {
+        user_ids: userIds,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access removed for selected members");
+      setAccessError(null);
+      setSelectedMembers([]);
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to remove access for selected members");
+    },
+  });
+
   const duplicateDocument = useMutation({
     mutationFn: async () => {
       if (!document) {
@@ -609,7 +627,7 @@ export const DocumentSettingsPage = () => {
                       });
                     }
                   }}
-                  disabled={bulkUpdateLevel.isPending}
+                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
                 >
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="Change access..." />
@@ -619,6 +637,20 @@ export const DocumentSettingsPage = () => {
                     <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
+                    if (userIds.length > 0) {
+                      bulkRemoveMembers.mutate(userIds);
+                    }
+                  }}
+                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                >
+                  {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                </Button>
               </div>
             )}
 
