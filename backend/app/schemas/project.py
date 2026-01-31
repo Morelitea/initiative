@@ -14,7 +14,6 @@ class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
     icon: Optional[str] = None
-    members_can_write: bool = False
 
 
 class ProjectCreate(ProjectBase):
@@ -29,7 +28,6 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     icon: Optional[str] = None
     initiative_id: Optional[int] = None
-    members_can_write: Optional[bool] = None
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
 
@@ -45,6 +43,10 @@ class ProjectPermissionBase(BaseModel):
 
 class ProjectPermissionCreate(ProjectPermissionBase):
     pass
+
+
+class ProjectPermissionUpdate(BaseModel):
+    level: ProjectPermissionLevel
 
 
 class ProjectPermissionRead(ProjectPermissionBase):

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime
+from sqlalchemy import Column, DateTime
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 
@@ -33,10 +33,6 @@ class Project(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-    members_can_write: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     is_archived: bool = Field(default=False, nullable=False)
     is_template: bool = Field(default=False, nullable=False)
@@ -85,6 +81,7 @@ class Project(SQLModel, table=True):
 class ProjectPermissionLevel(str, Enum):
     owner = "owner"
     write = "write"
+    read = "read"
 
 
 class ProjectPermission(SQLModel, table=True):

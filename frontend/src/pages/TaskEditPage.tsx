@@ -362,13 +362,10 @@ export const TaskEditPage = () => {
   const initiativeMembership = project?.initiative?.members?.find(
     (member) => member.user.id === user?.id
   );
-  const isOwner = project?.owner_id === user?.id;
   const isInitiativePm = initiativeMembership?.role === "project_manager";
-  const hasExplicitWrite =
-    project?.permissions.some((permission) => permission.user_id === user?.id) ?? false;
-  const hasImplicitWrite = Boolean(project?.members_can_write && initiativeMembership);
-  const canWriteProject =
-    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
+  const userPermission = project?.permissions?.find((p) => p.user_id === user?.id);
+  const hasWritePermission = userPermission?.level === "owner" || userPermission?.level === "write";
+  const canWriteProject = user?.role === "admin" || isInitiativePm || hasWritePermission;
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
