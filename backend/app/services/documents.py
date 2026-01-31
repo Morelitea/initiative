@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
-from app.models.initiative import Initiative, InitiativeMember
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.project import Project
 from app.services import attachments as attachments_service
 
@@ -178,10 +178,9 @@ async def handle_owner_removal(
 ) -> None:
     """Handle documents when their owner is removed from an initiative.
 
-    When a user is removed from an initiative, any documents they own in that
-    initiative become "orphaned". This function converts those documents to
-    collaborative mode by removing the owner's permission and upgrading all
-    remaining members to write access.
+    When a user is removed from an initiative, any documents they own become
+    "orphaned". This function removes the owner's permission and grants write
+    access to all initiative PMs so they can manage the document.
     """
     # Find documents where user is owner
     stmt = (
@@ -197,6 +196,18 @@ async def handle_owner_removal(
     result = await session.exec(stmt)
     documents = result.all()
 
+    if not documents:
+        return
+
+    # Get all initiative PMs
+    pm_result = await session.exec(
+        select(InitiativeMember).where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.role == InitiativeRole.project_manager,
+        )
+    )
+    pm_user_ids = {pm.user_id for pm in pm_result.all()}
+
     for doc in documents:
         # Remove owner's permission
         owner_permission = next(
@@ -206,11 +217,17 @@ async def handle_owner_removal(
         if owner_permission:
             await session.delete(owner_permission)
 
-        # Upgrade all remaining members to write access
-        for permission in doc.permissions:
-            if permission.user_id != user_id and permission.level == DocumentPermissionLevel.read:
-                permission.level = DocumentPermissionLevel.write
-                session.add(permission)
+        # Grant write access to all PMs who don't already have permission
+        existing_user_ids = {p.user_id for p in doc.permissions}
+        for pm_user_id in pm_user_ids:
+            if pm_user_id not in existing_user_ids and pm_user_id != user_id:
+                pm_permission = DocumentPermission(
+                    document_id=doc.id,
+                    user_id=pm_user_id,
+                    level=DocumentPermissionLevel.write,
+                    guild_id=doc.guild_id,
+                )
+                session.add(pm_permission)
 
     await session.flush()
 
