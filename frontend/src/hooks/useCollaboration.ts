@@ -71,6 +71,8 @@ export function useCollaboration({
   const providerRef = useRef<CollaborationProvider | null>(null);
   // Track the current WebSocket URL to detect when it changes
   const currentWsUrlRef = useRef<string | null>(null);
+  // Sync timeout to detect stuck connections
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Create stable callback refs
   const onSyncedRef = useRef(onSynced);
@@ -168,18 +170,41 @@ export function useCollaboration({
           const status = statusObj.status;
           if (status === "connected") {
             setConnectionStatus("connected");
+            // Start sync timeout - if we don't sync within 10s, emit error
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+            }
+            syncTimeoutRef.current = setTimeout(() => {
+              if (providerRef.current && !providerRef.current.synced) {
+                setConnectionStatus("error");
+                onErrorRef.current?.(new Error("Sync timeout - document failed to load"));
+              }
+            }, 10000);
           } else if (status === "connecting") {
             setConnectionStatus("connecting");
           } else if (status === "disconnected") {
             setConnectionStatus("disconnected");
+          } else if (status === "error") {
+            setConnectionStatus("error");
           }
         });
 
         provider.on("sync", (synced: boolean) => {
           setIsSynced(synced);
           if (synced) {
+            // Clear sync timeout on successful sync
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
             onSyncedRef.current?.();
           }
+        });
+
+        // Listen for error events
+        provider.on("error", (error: Error) => {
+          setConnectionStatus("error");
+          onErrorRef.current?.(error);
         });
 
         // Listen for collaborator changes
@@ -188,7 +213,17 @@ export function useCollaboration({
         });
       } else {
         // For an existing provider, sync current state to React
-        setCollaborators(providerRef.current!.collaborators);
+        // This is critical after quick navigation where React state resets but provider is reused
+        const currentProvider = providerRef.current!;
+        setCollaborators(currentProvider.collaborators);
+        setIsSynced(currentProvider.synced);
+        // Derive connection status from provider state
+        if (currentProvider.connected) {
+          setConnectionStatus("connected");
+        } else if (!currentProvider.destroyed) {
+          // Not connected but not destroyed - we're connecting
+          setConnectionStatus("connecting");
+        }
       }
 
       return provider;
@@ -210,6 +245,11 @@ export function useCollaboration({
   useEffect(() => {
     return () => {
       providerRef.current?.disconnect();
+      // Clear sync timeout
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
       // Don't null refs - provider may be reused on quick remount
     };
   }, []);

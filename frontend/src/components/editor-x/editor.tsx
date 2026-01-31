@@ -8,6 +8,8 @@ import { LexicalCollaboration } from "@lexical/react/LexicalCollaborationContext
 import { EditorState, SerializedEditorState } from "lexical";
 import * as Y from "yjs";
 
+import { Loader2 } from "lucide-react";
+
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -66,6 +68,11 @@ export interface EditorProps {
    * Defaults to true when not in collaborative mode.
    */
   trackChanges?: boolean;
+  /**
+   * Whether the collaboration provider has synced with the server.
+   * Used to show a loading overlay while syncing.
+   */
+  isSynced?: boolean;
 }
 
 export function Editor({
@@ -81,6 +88,7 @@ export function Editor({
   collaborative = false,
   providerFactory,
   trackChanges,
+  isSynced = true,
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(getRandomColor());
@@ -108,8 +116,21 @@ export function Editor({
       ? JSON.stringify(editorSerializedState)
       : undefined;
 
+  // Show syncing overlay when collaborative mode is active but not yet synced
+  const showSyncingOverlay = useCollaborativeMode && !isSynced;
+
   return (
-    <div className={cn("bg-background overflow-y-auto rounded-lg border shadow", className)}>
+    <div
+      className={cn("bg-background relative overflow-y-auto rounded-lg border shadow", className)}
+    >
+      {showSyncingOverlay && (
+        <div className="bg-background/80 absolute inset-0 z-50 flex items-center justify-center">
+          <div className="text-muted-foreground flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Syncing document...</span>
+          </div>
+        </div>
+      )}
       <LexicalComposer
         initialConfig={{
           ...editorConfig,

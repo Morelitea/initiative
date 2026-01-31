@@ -48,6 +48,7 @@ type StatusCallback = (status: { status: string }) => void;
 type UpdateCallback = (update: unknown) => void;
 type ReloadCallback = (doc: Y.Doc) => void;
 type CollaboratorsCallback = (collaborators: CollaboratorInfo[]) => void;
+type ErrorCallback = (error: Error) => void;
 
 /**
  * WebSocket provider implementing Lexical's Provider interface.
@@ -122,6 +123,7 @@ export class CollaborationProvider implements Provider {
   private updateHandlers: Set<UpdateCallback> = new Set();
   private reloadHandlers: Set<ReloadCallback> = new Set();
   private collaboratorsHandlers: Set<CollaboratorsCallback> = new Set();
+  private errorHandlers: Set<ErrorCallback> = new Set();
 
   // Current collaborators list
   private _collaborators: CollaboratorInfo[] = [];
@@ -183,6 +185,13 @@ export class CollaborationProvider implements Provider {
    */
   get synced(): boolean {
     return this._synced;
+  }
+
+  /**
+   * Whether the WebSocket is currently connected.
+   */
+  get connected(): boolean {
+    return this.websocket?.readyState === WebSocket.OPEN;
   }
 
   /**
@@ -327,6 +336,7 @@ export class CollaborationProvider implements Provider {
     this.updateHandlers.clear();
     this.reloadHandlers.clear();
     this.collaboratorsHandlers.clear();
+    this.errorHandlers.clear();
     this._collaborators = [];
   }
 
@@ -335,9 +345,10 @@ export class CollaborationProvider implements Provider {
   on(type: "status", cb: StatusCallback): void;
   on(type: "update", cb: UpdateCallback): void;
   on(type: "reload", cb: ReloadCallback): void;
+  on(type: "error", cb: ErrorCallback): void;
   on(
-    type: "sync" | "status" | "update" | "reload",
-    cb: SyncCallback | StatusCallback | UpdateCallback | ReloadCallback
+    type: "sync" | "status" | "update" | "reload" | "error",
+    cb: SyncCallback | StatusCallback | UpdateCallback | ReloadCallback | ErrorCallback
   ): void {
     switch (type) {
       case "sync":
@@ -356,6 +367,9 @@ export class CollaborationProvider implements Provider {
       case "reload":
         this.reloadHandlers.add(cb as ReloadCallback);
         break;
+      case "error":
+        this.errorHandlers.add(cb as ErrorCallback);
+        break;
     }
   }
 
@@ -363,9 +377,10 @@ export class CollaborationProvider implements Provider {
   off(type: "status", cb: StatusCallback): void;
   off(type: "update", cb: UpdateCallback): void;
   off(type: "reload", cb: ReloadCallback): void;
+  off(type: "error", cb: ErrorCallback): void;
   off(
-    type: "sync" | "status" | "update" | "reload",
-    cb: SyncCallback | StatusCallback | UpdateCallback | ReloadCallback
+    type: "sync" | "status" | "update" | "reload" | "error",
+    cb: SyncCallback | StatusCallback | UpdateCallback | ReloadCallback | ErrorCallback
   ): void {
     switch (type) {
       case "sync":
@@ -379,6 +394,9 @@ export class CollaborationProvider implements Provider {
         break;
       case "reload":
         this.reloadHandlers.delete(cb as ReloadCallback);
+        break;
+      case "error":
+        this.errorHandlers.delete(cb as ErrorCallback);
         break;
     }
   }
@@ -443,6 +461,17 @@ export class CollaborationProvider implements Provider {
     this.collaboratorsHandlers.forEach((cb) => {
       try {
         cb(this._collaborators);
+      } catch {
+        // Ignore handler errors
+      }
+    });
+  }
+
+  private emitError(error: Error): void {
+    this.emitStatus({ status: "error" });
+    this.errorHandlers.forEach((cb) => {
+      try {
+        cb(error);
       } catch {
         // Ignore handler errors
       }
@@ -516,15 +545,28 @@ export class CollaborationProvider implements Provider {
     }
   };
 
-  private handleClose = (): void => {
+  private handleClose = (event: CloseEvent): void => {
     this.websocket = null;
     this._synced = false;
     this.emitSync(false);
-    this.emitStatus({ status: "disconnected" });
+
+    // Code 1008 = Policy Violation (used for auth failures)
+    const wasAuthFailure = event.code === 1008;
+
+    if (wasAuthFailure) {
+      this.emitError(new Error("Authentication failed or access denied"));
+    } else if (this.shouldConnect && !this.destroyed) {
+      // Not an auth failure and we should stay connected - try to reconnect
+      this.emitStatus({ status: "disconnected" });
+      this.scheduleReconnect();
+    } else {
+      this.emitStatus({ status: "disconnected" });
+    }
   };
 
   private handleError = (): void => {
-    // Error handling - connection will close after this
+    // Emit error - connection will close after this, handleClose will be called
+    this.emitError(new Error("WebSocket connection error"));
   };
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
@@ -629,12 +671,21 @@ export class CollaborationProvider implements Provider {
   }
 
   private scheduleReconnect(): void {
-    if (this.destroyed || this.reconnectAttempts >= this.maxReconnectAttempts) {
+    if (this.destroyed) {
+      return;
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      // Max retries exceeded - emit error
+      this.emitError(new Error("Connection lost. Maximum reconnection attempts reached."));
       return;
     }
 
     this.reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+
+    // Emit connecting status while waiting to reconnect
+    this.emitStatus({ status: "connecting" });
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
