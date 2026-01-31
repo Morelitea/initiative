@@ -29,6 +29,7 @@ from app.schemas.user import UserPublic
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
+from app.services import documents as documents_service
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 router = APIRouter()
@@ -307,6 +308,13 @@ async def remove_initiative_member(
         if membership.role == InitiativeRole.project_manager:
             await _ensure_remaining_manager(session, initiative, exclude_user_ids={user_id})
         await session.delete(membership)
+
+        # Handle orphaned documents when owner is removed
+        await documents_service.handle_owner_removal(
+            session,
+            initiative_id=initiative_id,
+            user_id=user_id,
+        )
 
         project_ids_result = await session.exec(select(Project.id).where(Project.initiative_id == initiative_id))
         project_ids = [project_id for project_id in project_ids_result.all()]

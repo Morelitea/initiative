@@ -12,7 +12,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.models.document import Document, DocumentPermissionLevel, ProjectDocument
+from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
 from app.models.guild import GuildRole
@@ -20,6 +20,9 @@ from app.schemas.document import (
     DocumentCreate,
     DocumentCopyRequest,
     DocumentDuplicateRequest,
+    DocumentPermissionCreate,
+    DocumentPermissionRead,
+    DocumentPermissionUpdate,
     DocumentPermissionsUpdate,
     DocumentRead,
     DocumentSummary,
@@ -110,9 +113,72 @@ async def _require_document_write_access(
     if membership.role == InitiativeRole.project_manager:
         return
     permissions = getattr(document, "permissions", None) or []
-    if any(permission.user_id == user.id and permission.level == DocumentPermissionLevel.write for permission in permissions):
+    if any(
+        permission.user_id == user.id
+        and permission.level in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner)
+        for permission in permissions
+    ):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Document write access required")
+
+
+async def _require_document_access(
+    session: SessionDep,
+    document: Document,
+    user: User,
+    guild_role: GuildRole,
+    *,
+    access: str = "read",
+    require_owner: bool = False,
+) -> None:
+    """Check if user has required access to a document.
+
+    Access resolution (in order):
+    1. Guild admin -> full access
+    2. Initiative PM -> full access
+    3. Explicit DocumentPermission -> use that level (owner = full, write, read)
+    4. No permission -> no access (403)
+    """
+    # 1. Guild admin -> full access
+    if guild_role == GuildRole.admin:
+        return
+
+    # 2. Check initiative membership
+    membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=document.initiative_id,
+        user_id=user.id,
+    )
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative membership required")
+
+    # Initiative PM -> full access
+    if membership.role == InitiativeRole.project_manager:
+        return
+
+    # 3. Check explicit permission
+    permissions = getattr(document, "permissions", None) or []
+    permission = next((p for p in permissions if p.user_id == user.id), None)
+
+    if require_owner:
+        if not permission or permission.level != DocumentPermissionLevel.owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Document owner or initiative manager required",
+            )
+        return
+
+    if not permission:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this document")
+
+    if access == "write" and permission.level == DocumentPermissionLevel.read:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
+
+
+def _get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
+    """Get a user's permission for a document from the loaded permissions."""
+    permissions = getattr(document, "permissions", None) or []
+    return next((p for p in permissions if p.user_id == user_id), None)
 
 
 @router.get("/", response_model=List[DocumentSummary])
@@ -123,6 +189,13 @@ async def list_documents(
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
 ) -> List[DocumentSummary]:
+    """List documents visible to the current user.
+
+    Access is determined by:
+    1. Guild admin -> sees all documents
+    2. Initiative PM -> sees all documents in their initiatives
+    3. Explicit DocumentPermission -> sees that document
+    """
     stmt = (
         select(Document)
         .join(Document.initiative)
@@ -130,6 +203,7 @@ async def list_documents(
         .options(
             selectinload(Document.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
+            selectinload(Document.permissions),
         )
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
@@ -142,20 +216,40 @@ async def list_documents(
         if normalized:
             stmt = stmt.where(func.lower(Document.title).contains(normalized))
 
-    if guild_context.role != GuildRole.admin:
-        stmt = (
-            stmt.join(
-                InitiativeMember,
-                (InitiativeMember.initiative_id == Document.initiative_id)
-                & (InitiativeMember.user_id == current_user.id),
-            )
-            .distinct()
-        )
-
     result = await session.exec(stmt)
-    documents = result.unique().all()
-    await documents_service.annotate_comment_counts(session, documents)
-    return [serialize_document_summary(document) for document in documents]
+    all_documents = result.unique().all()
+
+    # Guild admin sees all documents
+    if guild_context.role == GuildRole.admin:
+        await documents_service.annotate_comment_counts(session, all_documents)
+        return [serialize_document_summary(document) for document in all_documents]
+
+    # Get initiatives where user is a PM (they can see all documents in those)
+    pm_initiative_ids_result = await session.exec(
+        select(InitiativeMember.initiative_id)
+        .join(Initiative, Initiative.id == InitiativeMember.initiative_id)
+        .where(
+            InitiativeMember.user_id == current_user.id,
+            InitiativeMember.role == InitiativeRole.project_manager,
+            Initiative.guild_id == guild_context.guild_id,
+        )
+    )
+    pm_initiative_ids = {row for row in pm_initiative_ids_result.all() if row is not None}
+
+    # Filter documents by access
+    visible_documents: List[Document] = []
+    for document in all_documents:
+        # PM can see all documents in their initiatives
+        if document.initiative_id in pm_initiative_ids:
+            visible_documents.append(document)
+            continue
+        # Check for explicit permission
+        permission = _get_document_permission(document, current_user.id)
+        if permission:
+            visible_documents.append(document)
+
+    await documents_service.annotate_comment_counts(session, visible_documents)
+    return [serialize_document_summary(document) for document in visible_documents]
 
 
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -184,6 +278,7 @@ async def create_document(
     document = Document(
         title=title,
         initiative_id=initiative.id,
+        guild_id=guild_context.guild_id,
         content=documents_service.normalize_document_content(document_in.content),
         created_by_id=current_user.id,
         updated_by_id=current_user.id,
@@ -191,6 +286,16 @@ async def create_document(
         is_template=document_in.is_template,
     )
     session.add(document)
+    await session.flush()
+
+    # Add owner permission for the creator
+    owner_permission = DocumentPermission(
+        document_id=document.id,
+        user_id=current_user.id,
+        level=DocumentPermissionLevel.owner,
+        guild_id=guild_context.guild_id,
+    )
+    session.add(owner_permission)
     await session.commit()
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
@@ -205,12 +310,12 @@ async def read_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_initiative_access(
+    await _require_document_access(
         session,
-        initiative_id=document.initiative_id,
-        user=current_user,
-        guild_role=guild_context.role,
-        require_manager=False,
+        document,
+        current_user,
+        guild_context.role,
+        access="read",
     )
     return serialize_document(document)
 
@@ -277,12 +382,14 @@ async def update_document_permissions(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
+    """Legacy endpoint for bulk permission update. Use individual member endpoints for new code."""
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_document_write_access(
+    await _require_document_access(
         session,
-        document=document,
-        user=current_user,
-        guild_role=guild_context.role,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
     )
     initiative = document.initiative
     if not initiative:
@@ -296,7 +403,9 @@ async def update_document_permissions(
     manager_member_ids = {
         membership.user_id for membership in memberships if membership.role == InitiativeRole.project_manager
     }
-    sanitized = desired - manager_member_ids
+    # Also exclude document owner from write_member_ids since they have owner permission
+    owner_ids = {p.user_id for p in (document.permissions or []) if p.level == DocumentPermissionLevel.owner}
+    sanitized = desired - manager_member_ids - owner_ids
     await documents_service.set_document_write_permissions(
         session,
         document=document,
@@ -319,11 +428,12 @@ async def duplicate_document(
     payload: DocumentDuplicateRequest | None = Body(default=None),
 ) -> DocumentRead:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_document_write_access(
+    await _require_document_access(
         session,
-        document=document,
-        user=current_user,
-        guild_role=guild_context.role,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
     )
     payload = payload or DocumentDuplicateRequest()
     title = (payload.title or f"{document.title} (Copy)").strip()
@@ -336,6 +446,7 @@ async def duplicate_document(
         target_initiative_id=document.initiative_id,
         title=title,
         user_id=current_user.id,
+        guild_id=guild_context.guild_id,
     )
     hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
     return serialize_document(hydrated)
@@ -350,18 +461,20 @@ async def copy_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_initiative_access(
+    # Copy requires owner or initiative PM for source document
+    await _require_document_access(
         session,
-        initiative_id=document.initiative_id,
-        user=current_user,
-        guild_role=guild_context.role,
-        require_manager=True,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
     )
     target_initiative = await _get_initiative_or_404(
         session,
         initiative_id=payload.target_initiative_id,
         guild_id=guild_context.guild_id,
     )
+    # Also require initiative PM in target initiative
     await _require_initiative_access(
         session,
         initiative_id=target_initiative.id,
@@ -379,9 +492,122 @@ async def copy_document(
         target_initiative_id=target_initiative.id,
         title=title,
         user_id=current_user.id,
+        guild_id=guild_context.guild_id,
     )
     hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
     return serialize_document(hydrated)
+
+
+@router.post("/{document_id}/members", response_model=DocumentPermissionRead, status_code=status.HTTP_201_CREATED)
+async def add_document_member(
+    document_id: int,
+    member_in: DocumentPermissionCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentPermission:
+    """Add a member to a document with specified permission level."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_access(
+        session,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
+    )
+    if member_in.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+
+    # Verify user is an initiative member
+    initiative_membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=document.initiative_id,
+        user_id=member_in.user_id,
+    )
+    if not initiative_membership:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User must be an initiative member")
+
+    # Check if user already has a permission
+    existing = _get_document_permission(document, member_in.user_id)
+    if existing:
+        if existing.level == DocumentPermissionLevel.owner:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+        existing.level = member_in.level
+        session.add(existing)
+        await session.commit()
+        await session.refresh(existing)
+        return existing
+
+    permission = DocumentPermission(
+        document_id=document_id,
+        user_id=member_in.user_id,
+        level=member_in.level,
+        guild_id=guild_context.guild_id,
+    )
+    session.add(permission)
+    await session.commit()
+    await session.refresh(permission)
+    return permission
+
+
+@router.patch("/{document_id}/members/{user_id}", response_model=DocumentPermissionRead)
+async def update_document_member(
+    document_id: int,
+    user_id: int,
+    update_in: DocumentPermissionUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentPermission:
+    """Update a document member's permission level."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_access(
+        session,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
+    )
+    if update_in.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+
+    permission = _get_document_permission(document, user_id)
+    if not permission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+    if permission.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+
+    permission.level = update_in.level
+    session.add(permission)
+    await session.commit()
+    await session.refresh(permission)
+    return permission
+
+
+@router.delete("/{document_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_document_member(
+    document_id: int,
+    user_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Remove a member's permission from a document."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    await _require_document_access(
+        session,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
+    )
+    permission = _get_document_permission(document, user_id)
+    if not permission:
+        return
+    if permission.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the document owner")
+    await session.delete(permission)
+    await session.commit()
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -392,12 +618,12 @@ async def delete_document(
     guild_context: GuildContextDep,
 ) -> None:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_initiative_access(
+    await _require_document_access(
         session,
-        initiative_id=document.initiative_id,
-        user=current_user,
-        guild_role=guild_context.role,
-        require_manager=True,
+        document,
+        current_user,
+        guild_context.role,
+        require_owner=True,
     )
     removed_upload_urls = attachments_service.extract_upload_urls(document.content)
     if document.featured_image_url:

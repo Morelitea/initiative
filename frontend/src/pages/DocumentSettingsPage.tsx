@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -34,11 +35,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import type { DocumentRead, Initiative } from "@/types/api";
+import type { DocumentRead, DocumentPermissionLevel, Initiative } from "@/types/api";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
+
+const PERMISSION_LABELS: Record<DocumentPermissionLevel, string> = {
+  owner: "Owner",
+  write: "Can edit",
+  read: "Can view",
+};
+
+interface PermissionRow {
+  userId: number;
+  displayName: string;
+  level: DocumentPermissionLevel;
+  isOwner: boolean;
+}
 
 export const DocumentSettingsPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId: string };
@@ -56,7 +71,10 @@ export const DocumentSettingsPage = () => {
   const [copyTitle, setCopyTitle] = useState("");
   const [copyInitiativeId, setCopyInitiativeId] = useState("");
   const [isTemplate, setIsTemplate] = useState(false);
-  const [writeMemberIds, setWriteMemberIds] = useState<number[]>([]);
+  const [accessMessage, setAccessMessage] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [selectedNewUserId, setSelectedNewUserId] = useState<string>("");
+  const [selectedNewLevel, setSelectedNewLevel] = useState<DocumentPermissionLevel>("read");
 
   const documentQuery = useQuery<DocumentRead>({
     queryKey: ["documents", parsedId],
@@ -78,7 +96,31 @@ export const DocumentSettingsPage = () => {
     enabled: Boolean(document) && Boolean(user),
   });
 
+  // Determine if user can manage the document (owner, initiative PM, or guild admin)
   const canManageDocument = useMemo(() => {
+    if (!document || !user) {
+      return false;
+    }
+    if (user.role === "admin") {
+      return true;
+    }
+    // Check if user is initiative PM
+    const initiativeMembers = document.initiative?.members ?? [];
+    const isManager = initiativeMembers.some(
+      (member) => member.user.id === user.id && member.role === "project_manager"
+    );
+    if (isManager) {
+      return true;
+    }
+    // Check if user is document owner
+    const ownerPermission = (document.permissions ?? []).find(
+      (p) => p.user_id === user.id && p.level === "owner"
+    );
+    return Boolean(ownerPermission);
+  }, [document, user]);
+
+  // Check if user has write access (for editing content, not managing permissions)
+  const hasWriteAccess = useMemo(() => {
     if (!document || !user) {
       return false;
     }
@@ -92,7 +134,8 @@ export const DocumentSettingsPage = () => {
     if (isManager) {
       return true;
     }
-    return (document.write_member_ids ?? []).includes(user.id);
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
 
   const manageableInitiatives = useMemo(() => {
@@ -117,14 +160,37 @@ export const DocumentSettingsPage = () => {
     return manageableInitiatives.filter((initiative) => initiative.id !== document.initiative_id);
   }, [document, manageableInitiatives]);
 
+  // Initiative members for the permission table
+  const initiativeMembers = useMemo(
+    () => document?.initiative?.members ?? [],
+    [document?.initiative?.members]
+  );
+
+  // Build permission rows with user info
+  const permissionRows: PermissionRow[] = useMemo(() => {
+    const permissions = document?.permissions ?? [];
+    return permissions.map((permission) => {
+      const member = initiativeMembers.find((entry) => entry.user?.id === permission.user_id);
+      const displayName =
+        member?.user?.full_name?.trim() || member?.user?.email || `User ${permission.user_id}`;
+      return {
+        userId: permission.user_id,
+        displayName,
+        level: permission.level,
+        isOwner: permission.level === "owner",
+      };
+    });
+  }, [document?.permissions, initiativeMembers]);
+
   useEffect(() => {
     if (!document) {
       return;
     }
     setIsTemplate(document.is_template);
-    setWriteMemberIds(document.write_member_ids ?? []);
     setDuplicateTitle(`${document.title} (Copy)`);
     setCopyTitle(document.title);
+    setAccessMessage(null);
+    setAccessError(null);
   }, [document]);
 
   useEffect(() => {
@@ -142,6 +208,58 @@ export const DocumentSettingsPage = () => {
       setCopyInitiativeId(String(copyableInitiatives[0].id));
     }
   }, [copyDialogOpen, copyableInitiatives, copyInitiativeId]);
+
+  const addMember = useMutation({
+    mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
+      await apiClient.post(`/documents/${parsedId}/members`, {
+        user_id: userId,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access granted");
+      setAccessError(null);
+      setSelectedNewUserId("");
+      setSelectedNewLevel("read");
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to grant access");
+    },
+  });
+
+  const updateMemberLevel = useMutation({
+    mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
+      await apiClient.patch(`/documents/${parsedId}/members/${userId}`, {
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access updated");
+      setAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to update access");
+    },
+  });
+
+  const removeMember = useMutation({
+    mutationFn: async (userId: number) => {
+      await apiClient.delete(`/documents/${parsedId}/members/${userId}`);
+    },
+    onSuccess: () => {
+      setAccessMessage("Access removed");
+      setAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to remove access");
+    },
+  });
 
   const duplicateDocument = useMutation({
     mutationFn: async () => {
@@ -242,42 +360,6 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const updatePermissions = useMutation({
-    mutationFn: async (nextWriteMembers: number[]) => {
-      if (!document) {
-        throw new Error("Document is not loaded yet.");
-      }
-      const response = await apiClient.put<DocumentRead>(`/documents/${document.id}/permissions`, {
-        write_member_ids: nextWriteMembers,
-      });
-      return response.data;
-    },
-    onSuccess: (updated) => {
-      setWriteMemberIds(updated.write_member_ids ?? []);
-      queryClient.setQueryData(["documents", parsedId], updated);
-      toast.success("Permissions updated");
-    },
-    onError: () => {
-      toast.error("Unable to update permissions right now.");
-      setWriteMemberIds(document?.write_member_ids ?? []);
-    },
-  });
-
-  const handlePermissionToggle = (memberId: number, enable: boolean) => {
-    if (!document || updatePermissions.isPending) {
-      return;
-    }
-    const next = new Set(writeMemberIds);
-    if (enable) {
-      next.add(memberId);
-    } else {
-      next.delete(memberId);
-    }
-    const nextArray = Array.from(next).sort((a, b) => a - b);
-    setWriteMemberIds(nextArray);
-    updatePermissions.mutate(nextArray);
-  };
-
   const handleTemplateToggle = (value: boolean) => {
     if (!document) {
       return;
@@ -288,6 +370,87 @@ export const DocumentSettingsPage = () => {
       onError: () => setIsTemplate(previous),
     });
   };
+
+  // Column definitions for the permissions table
+  const permissionColumns: ColumnDef<PermissionRow>[] = useMemo(
+    () => [
+      {
+        accessorKey: "displayName",
+        header: "Name",
+        cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
+      },
+      {
+        accessorKey: "level",
+        header: "Access",
+        cell: ({ row }) => {
+          if (row.original.isOwner) {
+            return <span className="text-muted-foreground">Owner</span>;
+          }
+          return (
+            <Select
+              value={row.original.level}
+              onValueChange={(value) => {
+                setAccessMessage(null);
+                setAccessError(null);
+                updateMemberLevel.mutate({
+                  userId: row.original.userId,
+                  level: value as DocumentPermissionLevel,
+                });
+              }}
+              disabled={updateMemberLevel.isPending}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+              </SelectContent>
+            </Select>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => {
+          if (row.original.isOwner) {
+            return <div className="text-muted-foreground text-right text-xs">-</div>;
+          }
+          return (
+            <div className="text-right">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                onClick={() => {
+                  setAccessMessage(null);
+                  setAccessError(null);
+                  removeMember.mutate(row.original.userId);
+                }}
+                disabled={removeMember.isPending}
+              >
+                Remove
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [updateMemberLevel, removeMember]
+  );
+
+  // Initiative members who don't have permissions yet
+  const availableMembers = useMemo(
+    () =>
+      initiativeMembers.filter(
+        (member) =>
+          member.user &&
+          !(document?.permissions ?? []).some((permission) => permission.user_id === member.user.id)
+      ),
+    [initiativeMembers, document?.permissions]
+  );
 
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">Invalid document id.</p>;
@@ -305,8 +468,6 @@ export const DocumentSettingsPage = () => {
   if (documentQuery.isError || !document) {
     return <p className="text-destructive">Document not found.</p>;
   }
-
-  const attachedMembers = document.initiative?.members ?? [];
 
   return (
     <div className="space-y-6">
@@ -344,7 +505,7 @@ export const DocumentSettingsPage = () => {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">Document settings</h1>
           <p className="text-muted-foreground text-sm">
-            Manage template status, permissions, duplication, and deletion.
+            Manage access, template status, duplication, and deletion.
           </p>
         </div>
         <div className="text-muted-foreground flex flex-col items-end gap-2 text-right text-sm">
@@ -371,69 +532,89 @@ export const DocumentSettingsPage = () => {
             id="document-template-toggle"
             checked={isTemplate}
             onCheckedChange={handleTemplateToggle}
-            disabled={!canManageDocument || updateTemplate.isPending}
+            disabled={!hasWriteAccess || updateTemplate.isPending}
             aria-label="Toggle template status"
           />
         </CardHeader>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Editor permissions</CardTitle>
-          <CardDescription>
-            {pmLabel}s can always edit. Grant additional editors for this document.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {attachedMembers.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Add members to the initiative to manage document access.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {attachedMembers.map((member) => {
-                const memberUser = member.user;
-                const memberId = memberUser?.id;
-                const isManager = member.role === "project_manager";
-                const canEdit = isManager || (memberId ? writeMemberIds.includes(memberId) : false);
-                const displayName = memberUser?.full_name || memberUser?.email || "Member";
-                const canToggle = Boolean(canManageDocument && !isManager && memberId);
-                return (
-                  <div
-                    key={`document-permission-${memberId ?? displayName}`}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
+      {canManageDocument ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Document access</CardTitle>
+            <CardDescription>
+              Control who can view and edit this document. {pmLabel}s have full access to all
+              documents in their initiatives.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Access table */}
+            <DataTable
+              columns={permissionColumns}
+              data={permissionRows}
+              enablePagination
+              enableFilterInput
+              filterInputColumnKey="displayName"
+              filterInputPlaceholder="Filter by name"
+            />
+
+            {/* Add member form */}
+            <div className="space-y-2 pt-2">
+              <Label>Grant access</Label>
+              {availableMembers.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  All initiative members already have access to this document.
+                </p>
+              ) : (
+                <form
+                  className="flex flex-wrap items-end gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!selectedNewUserId) {
+                      setAccessError("Select a member");
+                      return;
+                    }
+                    setAccessError(null);
+                    addMember.mutate({
+                      userId: Number(selectedNewUserId),
+                      level: selectedNewLevel,
+                    });
+                  }}
+                >
+                  <SearchableCombobox
+                    items={availableMembers.map((member) => ({
+                      value: String(member.user.id),
+                      label: member.user.full_name?.trim() || member.user.email,
+                    }))}
+                    value={selectedNewUserId}
+                    onValueChange={setSelectedNewUserId}
+                    placeholder="Select member"
+                    emptyMessage="No members found"
+                    className="min-w-[200px]"
+                  />
+                  <Select
+                    value={selectedNewLevel}
+                    onValueChange={(value) => setSelectedNewLevel(value as DocumentPermissionLevel)}
                   >
-                    <div>
-                      <p className="text-sm font-medium">{displayName}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {isManager ? pmLabel : "Member"}
-                        {memberId === user?.id ? " · You" : null}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isManager ? (
-                        <Badge variant="outline">Always editor</Badge>
-                      ) : (
-                        <>
-                          <span className="text-muted-foreground text-xs">Can edit</span>
-                          <Switch
-                            checked={canEdit}
-                            onCheckedChange={(value) =>
-                              memberId ? handlePermissionToggle(memberId, value) : undefined
-                            }
-                            disabled={!canToggle || updatePermissions.isPending}
-                            aria-label={`Toggle edit access for ${displayName}`}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                      <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="submit" disabled={addMember.isPending}>
+                    {addMember.isPending ? "Adding..." : "Add"}
+                  </Button>
+                </form>
+              )}
+              {accessMessage ? <p className="text-primary text-sm">{accessMessage}</p> : null}
+              {accessError ? <p className="text-destructive text-sm">{accessError}</p> : null}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

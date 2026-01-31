@@ -52,6 +52,24 @@ class DocumentPermissionsUpdate(BaseModel):
     write_member_ids: List[int] = Field(default_factory=list)
 
 
+class DocumentPermissionCreate(BaseModel):
+    user_id: int
+    level: DocumentPermissionLevel = DocumentPermissionLevel.write
+
+
+class DocumentPermissionUpdate(BaseModel):
+    level: DocumentPermissionLevel
+
+
+class DocumentPermissionRead(BaseModel):
+    user_id: int
+    level: DocumentPermissionLevel
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class DocumentSummary(DocumentBase):
     id: int
     created_by_id: int
@@ -69,6 +87,7 @@ class DocumentSummary(DocumentBase):
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
     write_member_ids: List[int] = Field(default_factory=list)
+    permissions: List[DocumentPermissionRead] = Field(default_factory=list)
 
 
 class ProjectDocumentSummary(BaseModel):
@@ -112,11 +131,25 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
 
 
 def _serialize_write_member_ids(document: "Document") -> List[int]:
+    """Get IDs of users with write or owner permissions (for backward compatibility)."""
     permissions = getattr(document, "permissions", None) or []
     return [
         permission.user_id
         for permission in permissions
-        if permission.level == DocumentPermissionLevel.write
+        if permission.level in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner)
+    ]
+
+
+def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]:
+    """Serialize all document permissions."""
+    permissions = getattr(document, "permissions", None) or []
+    return [
+        DocumentPermissionRead(
+            user_id=permission.user_id,
+            level=permission.level,
+            created_at=permission.created_at,
+        )
+        for permission in permissions
     ]
 
 
@@ -126,6 +159,7 @@ def serialize_document(document: "Document") -> DocumentRead:
         **summary.model_dump(),
         content=document.content or {},
         write_member_ids=_serialize_write_member_ids(document),
+        permissions=_serialize_permissions(document),
     )
 
 

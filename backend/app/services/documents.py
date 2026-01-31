@@ -134,6 +134,7 @@ async def duplicate_document(
     target_initiative_id: int,
     title: str,
     user_id: int,
+    guild_id: int | None = None,
 ) -> Document:
     content_copy = normalize_document_content(deepcopy(source.content))
     content_uploads = attachments_service.extract_upload_urls(content_copy)
@@ -146,6 +147,7 @@ async def duplicate_document(
     duplicated = Document(
         title=title,
         initiative_id=target_initiative_id,
+        guild_id=guild_id or source.guild_id,
         content=content_copy,
         created_by_id=user_id,
         updated_by_id=user_id,
@@ -153,6 +155,16 @@ async def duplicate_document(
         is_template=False,
     )
     session.add(duplicated)
+    await session.flush()
+
+    # Add owner permission for the user creating the duplicate
+    owner_permission = DocumentPermission(
+        document_id=duplicated.id,
+        user_id=user_id,
+        level=DocumentPermissionLevel.owner,
+        guild_id=guild_id or source.guild_id,
+    )
+    session.add(owner_permission)
     await session.commit()
     await session.refresh(duplicated)
     return duplicated
@@ -164,18 +176,25 @@ async def set_document_write_permissions(
     document: Document,
     write_member_ids: set[int],
 ) -> None:
+    """Set write permissions for a document, preserving owner permissions."""
     existing_permissions = {
         permission.user_id: permission for permission in (document.permissions or [])
     }
     desired = set(write_member_ids)
 
-    # Remove permissions not desired
+    # Preserve owner permissions - never remove them
+    owner_ids = {
+        user_id for user_id, perm in existing_permissions.items()
+        if perm.level == DocumentPermissionLevel.owner
+    }
+
+    # Remove non-owner permissions not in desired set
     for user_id, permission in list(existing_permissions.items()):
-        if user_id not in desired:
+        if user_id not in desired and permission.level != DocumentPermissionLevel.owner:
             await session.delete(permission)
 
-    # Add new permissions
-    for user_id in desired - set(existing_permissions):
+    # Add new permissions (but not for owners - they already have higher access)
+    for user_id in desired - set(existing_permissions) - owner_ids:
         new_permission = DocumentPermission(
             document_id=document.id,
             user_id=user_id,
@@ -184,11 +203,57 @@ async def set_document_write_permissions(
         session.add(new_permission)
         document.permissions = (document.permissions or []) + [new_permission]
 
-    # Trim relationship cache to match desired set
+    # Trim relationship cache to match desired set + owners
     if document.permissions:
         document.permissions = [
-            permission for permission in document.permissions if permission.user_id in desired
+            permission for permission in document.permissions
+            if permission.user_id in desired or permission.level == DocumentPermissionLevel.owner
         ]
+
+    await session.flush()
+
+
+async def handle_owner_removal(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    user_id: int,
+) -> None:
+    """Handle documents when their owner is removed from an initiative.
+
+    When a user is removed from an initiative, any documents they own in that
+    initiative become "orphaned". This function converts those documents to
+    collaborative mode by removing the owner's permission and upgrading all
+    remaining members to write access.
+    """
+    # Find documents where user is owner
+    stmt = (
+        select(Document)
+        .join(DocumentPermission)
+        .where(
+            Document.initiative_id == initiative_id,
+            DocumentPermission.user_id == user_id,
+            DocumentPermission.level == DocumentPermissionLevel.owner,
+        )
+        .options(selectinload(Document.permissions))
+    )
+    result = await session.exec(stmt)
+    documents = result.all()
+
+    for doc in documents:
+        # Remove owner's permission
+        owner_permission = next(
+            (p for p in doc.permissions if p.user_id == user_id and p.level == DocumentPermissionLevel.owner),
+            None,
+        )
+        if owner_permission:
+            await session.delete(owner_permission)
+
+        # Upgrade all remaining members to write access
+        for permission in doc.permissions:
+            if permission.user_id != user_id and permission.level == DocumentPermissionLevel.read:
+                permission.level = DocumentPermissionLevel.write
+                session.add(permission)
 
     await session.flush()
 
