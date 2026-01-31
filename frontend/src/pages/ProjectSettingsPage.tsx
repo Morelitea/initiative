@@ -319,11 +319,11 @@ export const ProjectSettingsPage = () => {
   const permissionRows: PermissionRow[] = useMemo(
     () =>
       (project?.permissions ?? []).map((permission) => {
-        const member = initiativeMembers.find((entry) => entry.user.id === permission.user_id);
+        const member = initiativeMembers.find((entry) => entry.user?.id === permission.user_id);
         const ownerInfo = project?.owner;
         const displayName =
-          member?.user.full_name?.trim() ||
-          member?.user.email ||
+          member?.user?.full_name?.trim() ||
+          member?.user?.email ||
           (permission.user_id === project?.owner_id
             ? ownerInfo?.full_name?.trim() || ownerInfo?.email || "Project owner"
             : `User ${permission.user_id}`);
