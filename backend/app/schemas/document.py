@@ -48,10 +48,6 @@ class DocumentCopyRequest(BaseModel):
     title: Optional[str] = None
 
 
-class DocumentPermissionsUpdate(BaseModel):
-    write_member_ids: List[int] = Field(default_factory=list)
-
-
 class DocumentPermissionCreate(BaseModel):
     user_id: int
     level: DocumentPermissionLevel = DocumentPermissionLevel.write
@@ -95,7 +91,6 @@ class DocumentSummary(DocumentBase):
 
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
-    write_member_ids: List[int] = Field(default_factory=list)
     permissions: List[DocumentPermissionRead] = Field(default_factory=list)
 
 
@@ -139,16 +134,6 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
     )
 
 
-def _serialize_write_member_ids(document: "Document") -> List[int]:
-    """Get IDs of users with write or owner permissions (for backward compatibility)."""
-    permissions = getattr(document, "permissions", None) or []
-    return [
-        permission.user_id
-        for permission in permissions
-        if permission.level in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner)
-    ]
-
-
 def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]:
     """Serialize all document permissions."""
     permissions = getattr(document, "permissions", None) or []
@@ -167,7 +152,6 @@ def serialize_document(document: "Document") -> DocumentRead:
     return DocumentRead(
         **summary.model_dump(),
         content=document.content or {},
-        write_member_ids=_serialize_write_member_ids(document),
         permissions=_serialize_permissions(document),
     )
 

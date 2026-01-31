@@ -25,7 +25,6 @@ from app.schemas.document import (
     DocumentPermissionCreate,
     DocumentPermissionRead,
     DocumentPermissionUpdate,
-    DocumentPermissionsUpdate,
     DocumentRead,
     DocumentSummary,
     DocumentUpdate,
@@ -373,51 +372,6 @@ async def update_document(
         await session.commit()
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
-    return serialize_document(hydrated)
-
-
-@router.put("/{document_id}/permissions", response_model=DocumentRead)
-async def update_document_permissions(
-    document_id: int,
-    payload: DocumentPermissionsUpdate,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> DocumentRead:
-    """Legacy endpoint for bulk permission update. Use individual member endpoints for new code."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    await _require_document_access(
-        session,
-        document,
-        current_user,
-        guild_context.role,
-        require_owner=True,
-    )
-    initiative = document.initiative
-    if not initiative:
-        initiative = await _get_initiative_or_404(session, initiative_id=document.initiative_id, guild_id=guild_context.guild_id)
-    memberships = getattr(initiative, "memberships", []) or []
-    allowed_member_ids = {membership.user_id for membership in memberships}
-    desired = set(payload.write_member_ids or [])
-    invalid = desired - allowed_member_ids
-    if invalid:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Write permissions must reference initiative members")
-    manager_member_ids = {
-        membership.user_id for membership in memberships if membership.role == InitiativeRole.project_manager
-    }
-    # Also exclude document owner from write_member_ids since they have owner permission
-    owner_ids = {p.user_id for p in (document.permissions or []) if p.level == DocumentPermissionLevel.owner}
-    sanitized = desired - manager_member_ids - owner_ids
-    await documents_service.set_document_write_permissions(
-        session,
-        document=document,
-        write_member_ids=sanitized,
-    )
-    document.updated_at = datetime.now(timezone.utc)
-    document.updated_by_id = current_user.id
-    session.add(document)
-    await session.commit()
-    hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     return serialize_document(hydrated)
 
 

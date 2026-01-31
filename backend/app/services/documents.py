@@ -170,49 +170,6 @@ async def duplicate_document(
     return duplicated
 
 
-async def set_document_write_permissions(
-    session: AsyncSession,
-    *,
-    document: Document,
-    write_member_ids: set[int],
-) -> None:
-    """Set write permissions for a document, preserving owner permissions."""
-    existing_permissions = {
-        permission.user_id: permission for permission in (document.permissions or [])
-    }
-    desired = set(write_member_ids)
-
-    # Preserve owner permissions - never remove them
-    owner_ids = {
-        user_id for user_id, perm in existing_permissions.items()
-        if perm.level == DocumentPermissionLevel.owner
-    }
-
-    # Remove non-owner permissions not in desired set
-    for user_id, permission in list(existing_permissions.items()):
-        if user_id not in desired and permission.level != DocumentPermissionLevel.owner:
-            await session.delete(permission)
-
-    # Add new permissions (but not for owners - they already have higher access)
-    for user_id in desired - set(existing_permissions) - owner_ids:
-        new_permission = DocumentPermission(
-            document_id=document.id,
-            user_id=user_id,
-            level=DocumentPermissionLevel.write,
-        )
-        session.add(new_permission)
-        document.permissions = (document.permissions or []) + [new_permission]
-
-    # Trim relationship cache to match desired set + owners
-    if document.permissions:
-        document.permissions = [
-            permission for permission in document.permissions
-            if permission.user_id in desired or permission.level == DocumentPermissionLevel.owner
-        ]
-
-    await session.flush()
-
-
 async def handle_owner_removal(
     session: AsyncSession,
     *,

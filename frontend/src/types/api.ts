@@ -108,7 +108,6 @@ export interface DocumentSummary {
 
 export interface DocumentRead extends DocumentSummary {
   content: SerializedEditorState;
-  write_member_ids: number[];
   permissions: DocumentPermission[];
 }
 
