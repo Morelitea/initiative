@@ -412,6 +412,7 @@ export const ProjectSettingsPage = () => {
     () =>
       initiativeMembers.filter(
         (member) =>
+          member.user &&
           !(project?.permissions ?? []).some((permission) => permission.user_id === member.user.id)
       ),
     [initiativeMembers, project?.permissions]

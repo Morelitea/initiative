@@ -771,7 +771,7 @@ async def create_project(
 
     # Add read permissions for all initiative members (except owner)
     for membership in initiative.memberships:
-        if membership.user_id != owner_id:
+        if membership.user_id != owner_id and membership.user:
             read_permission = ProjectPermission(
                 project_id=project.id,
                 user_id=membership.user_id,
@@ -892,7 +892,7 @@ async def duplicate_project(
     # Add read permissions for all initiative members (except owner)
     if source_project.initiative:
         for membership in source_project.initiative.memberships:
-            if membership.user_id != owner_id:
+            if membership.user_id != owner_id and membership.user:
                 read_permission = ProjectPermission(
                     project_id=new_project.id,
                     user_id=membership.user_id,
