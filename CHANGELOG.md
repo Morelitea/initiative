@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Document creators automatically become owners with full management rights
   - Owners can manage permissions, delete, and duplicate documents without being initiative PMs
   - Added individual member management endpoints (POST/PATCH/DELETE) for document permissions
-  - When a document owner is removed from an initiative, all remaining members get write access
+  - When a document owner is removed from an initiative, all initiative PMs get write access
   - Document settings page now shows a permissions table instead of the old toggle UI
 
 ## [0.19.1] - 2026-01-30
