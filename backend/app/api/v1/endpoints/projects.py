@@ -32,6 +32,7 @@ from app.schemas.project import (
     ProjectDuplicateRequest,
     ProjectPermissionCreate,
     ProjectPermissionRead,
+    ProjectPermissionUpdate,
     ProjectRead,
     ProjectTaskSummary,
     ProjectReorderRequest,
@@ -300,6 +301,13 @@ async def _visible_projects(
     template: Optional[bool],
     is_guild_admin: bool,
 ) -> List[Project]:
+    """Get projects visible to the user.
+
+    Access is determined by:
+    1. Guild admin -> sees all projects
+    2. Initiative PM -> sees all projects in their initiatives
+    3. Explicit ProjectPermission -> sees that project
+    """
     base_statement = (
         select(Project)
         .join(Project.initiative)
@@ -317,26 +325,27 @@ async def _visible_projects(
     if is_guild_admin:
         return [project for project in all_projects if _matches_filters(project, archived=archived, template=template)]
 
-    initiative_ids_result = await session.exec(
+    # Get initiatives where user is a PM (they can see all projects in those)
+    pm_initiative_ids_result = await session.exec(
         select(InitiativeMember.initiative_id)
         .join(Initiative, Initiative.id == InitiativeMember.initiative_id)
         .where(
             InitiativeMember.user_id == current_user.id,
+            InitiativeMember.role == InitiativeRole.project_manager,
             Initiative.guild_id == guild_id,
         )
     )
-    initiative_ids = {row for row in initiative_ids_result.all() if row is not None}
+    pm_initiative_ids = {row for row in pm_initiative_ids_result.all() if row is not None}
 
     visible_projects: List[Project] = []
     for project in all_projects:
         if not _matches_filters(project, archived=archived, template=template):
             continue
-        if project.owner_id == current_user.id:
+        # PM can see all projects in their initiatives
+        if project.initiative_id in pm_initiative_ids:
             visible_projects.append(project)
             continue
-        if project.initiative_id in initiative_ids:
-            visible_projects.append(project)
-            continue
+        # Check for explicit permission
         permission = _permission_from_project(project, current_user.id)
         if permission:
             visible_projects.append(project)
@@ -580,30 +589,37 @@ async def _require_project_membership(
     require_manager: bool = False,
     guild_role: GuildRole | None = None,
 ):
+    """Check if user has required access to a project.
+
+    Access resolution (in order):
+    1. Guild admin -> full access
+    2. Initiative PM -> full access
+    3. Explicit ProjectPermission -> use that level
+    4. No permission -> no access (403)
+    """
     if guild_role == GuildRole.admin:
         return
 
     initiative_membership = await _get_initiative_membership(project, current_user, session)
-    permission = await _get_project_permission(project, current_user.id, session)
-    is_owner = project.owner_id == current_user.id
     is_initiative_pm = initiative_membership and initiative_membership.role == InitiativeRole.project_manager
 
-    if access == "read":
-        if is_owner or initiative_membership or permission:
-            return
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's initiative")
+    # Initiative PMs always have full access
+    if is_initiative_pm:
+        return
 
-    has_write = (
-        is_owner
-        or is_initiative_pm
-        or permission is not None
-        or bool(project.members_can_write and initiative_membership)
-    )
-    if not has_write:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access denied for your role")
-
-    if require_manager and not (is_owner or is_initiative_pm or guild_role == GuildRole.admin):
+    # Check for manager requirement first (before checking permissions)
+    if require_manager:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+
+    # Check explicit permission
+    permission = await _get_project_permission(project, current_user.id, session)
+
+    if not permission:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this project")
+
+    # Check access level
+    if access == "write" and permission.level == ProjectPermissionLevel.read:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
 
 
 def _has_project_write_access(
@@ -612,20 +628,23 @@ def _has_project_write_access(
     *,
     guild_role: GuildRole | None = None,
 ) -> bool:
+    """Check if user has write access to a project (synchronous version for filtering)."""
     if guild_role == GuildRole.admin:
         return True
 
     membership = _membership_from_project(project, current_user.id)
     permission = _permission_from_project(project, current_user.id)
-    is_owner = project.owner_id == current_user.id
     is_initiative_pm = membership and membership.role == InitiativeRole.project_manager
 
-    return bool(
-        is_owner
-        or is_initiative_pm
-        or permission is not None
-        or (project.members_can_write and membership)
-    )
+    # Initiative PMs always have write access
+    if is_initiative_pm:
+        return True
+
+    # Check explicit permission - must be owner or write level
+    if permission and permission.level in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write):
+        return True
+
+    return False
 
 
 @router.get("/", response_model=List[ProjectRead])
@@ -701,9 +720,6 @@ async def create_project(
         if getattr(project_in, "initiative_id", None) is not None
         else (template_project.initiative_id if template_project else None)
     )
-    members_can_write_value = project_in.members_can_write
-    if "members_can_write" not in project_in.model_fields_set and template_project:
-        members_can_write_value = template_project.members_can_write
     if initiative_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiative is required")
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
@@ -722,8 +738,8 @@ async def create_project(
         description=description_value,
         owner_id=owner_id,
         initiative_id=initiative_id,
-        members_can_write=members_can_write_value,
         is_template=project_in.is_template,
+        guild_id=guild_context.guild_id,
     )
 
     session.add(project)
@@ -744,8 +760,20 @@ async def create_project(
         project_id=project.id,
         user_id=owner_id,
         level=ProjectPermissionLevel.owner,
+        guild_id=guild_context.guild_id,
     )
     session.add(owner_permission)
+
+    # Add read permissions for all initiative members (except owner)
+    for membership in initiative.memberships:
+        if membership.user_id != owner_id:
+            read_permission = ProjectPermission(
+                project_id=project.id,
+                user_id=membership.user_id,
+                level=ProjectPermissionLevel.read,
+                guild_id=guild_context.guild_id,
+            )
+            session.add(read_permission)
 
     if template_project:
         await _duplicate_template_tasks(
@@ -840,8 +868,8 @@ async def duplicate_project(
         description=source_project.description,
         owner_id=owner_id,
         initiative_id=initiative_id,
-        members_can_write=source_project.members_can_write,
         is_template=False,
+        guild_id=guild_context.guild_id,
     )
 
     session.add(new_project)
@@ -852,8 +880,21 @@ async def duplicate_project(
             project_id=new_project.id,
             user_id=owner_id,
             level=ProjectPermissionLevel.owner,
+            guild_id=guild_context.guild_id,
         )
     )
+
+    # Add read permissions for all initiative members (except owner)
+    if source_project.initiative:
+        for membership in source_project.initiative.memberships:
+            if membership.user_id != owner_id:
+                read_permission = ProjectPermission(
+                    project_id=new_project.id,
+                    user_id=membership.user_id,
+                    level=ProjectPermissionLevel.read,
+                    guild_id=guild_context.guild_id,
+                )
+                session.add(read_permission)
 
     # Clone task statuses from source project to new project
     status_mapping = await task_statuses_service.clone_statuses(
@@ -1350,7 +1391,47 @@ async def add_project_member(
         project_id=project_id,
         user_id=member_in.user_id,
         level=member_in.level,
+        guild_id=guild_context.guild_id,
     )
+    session.add(permission)
+    await session.commit()
+    await session.refresh(permission)
+    return permission
+
+
+@router.patch("/{project_id}/members/{user_id}", response_model=ProjectPermissionRead)
+async def update_project_member(
+    project_id: int,
+    user_id: int,
+    update_in: ProjectPermissionUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectPermission:
+    """Update a project member's permission level."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
+    _ensure_not_archived(project)
+
+    if update_in.level == ProjectPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+    if user_id == project.owner_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+
+    permission = await _get_project_permission(project, user_id, session)
+    if not permission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+    if permission.level == ProjectPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+
+    permission.level = update_in.level
     session.add(permission)
     await session.commit()
     await session.refresh(permission)

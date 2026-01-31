@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refactored project access control to discretionary access control (DAC) model
+  - Removed `members_can_write` toggle from projects
+  - Added `read` permission level (owner, write, read)
+  - Access is now determined solely by explicit permissions in the project_permissions table
+  - On project creation, all initiative members are automatically granted read access
+  - When a user leaves an initiative, their project permissions are cleaned up automatically
+  - Project settings page now shows a permissions table instead of the old toggle + overrides UI
+
 ## [0.19.1] - 2026-01-30
 
 ### Fixed

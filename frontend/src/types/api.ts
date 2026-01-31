@@ -50,7 +50,7 @@ export interface UserInitiativeRole {
   role: InitiativeRole;
 }
 
-export type ProjectPermissionLevel = "owner" | "write";
+export type ProjectPermissionLevel = "owner" | "write" | "read";
 
 export interface ProjectPermission {
   user_id: number;
@@ -165,7 +165,6 @@ export interface Project {
   name: string;
   icon?: string | null;
   description?: string;
-  members_can_write: boolean;
   owner_id: number;
   initiative_id: number;
   created_at: string;

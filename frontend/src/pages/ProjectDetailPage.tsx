@@ -157,17 +157,16 @@ export const ProjectDetailPage = () => {
   );
   const isOwner = project.owner_id === user?.id;
   const isInitiativePm = initiativeMembership?.role === "project_manager";
-  const hasExplicitWrite = project?.permissions?.some(
-    (permission) => permission.user_id === user?.id
-  );
-  const hasImplicitWrite = Boolean(project.members_can_write && initiativeMembership);
+  const userPermission = project?.permissions?.find((p) => p.user_id === user?.id);
+  const hasWritePermission = userPermission?.level === "owner" || userPermission?.level === "write";
 
   const canManageSettings = user?.role === "admin" || isOwner || isInitiativePm;
-  const canWriteProject =
-    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
+  const canWriteProject = user?.role === "admin" || isInitiativePm || hasWritePermission;
   const canCreateDocuments = user?.role === "admin" || isOwner || isInitiativePm;
   const canAttachDocuments = canWriteProject;
-  const canViewTaskDetails = Boolean(project && (canWriteProject || initiativeMembership));
+  const canViewTaskDetails = Boolean(
+    project && (user?.role === "admin" || isInitiativePm || userPermission)
+  );
   const projectIsArchived = project.is_archived ?? false;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 

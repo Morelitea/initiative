@@ -31,15 +31,20 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
-import { Project, Initiative } from "@/types/api";
+import { Project, Initiative, ProjectPermissionLevel } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
+
+const PERMISSION_LABELS: Record<ProjectPermissionLevel, string> = {
+  owner: "Owner",
+  write: "Can edit",
+  read: "Can view",
+};
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId: string };
@@ -55,15 +60,13 @@ export const ProjectSettingsPage = () => {
   const [descriptionMessage, setDescriptionMessage] = useState<string | null>(null);
   const [templateMessage, setTemplateMessage] = useState<string | null>(null);
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
-  const [writerMessage, setWriterMessage] = useState<string | null>(null);
-  const [writerError, setWriterError] = useState<string | null>(null);
-  const [selectedWriterId, setSelectedWriterId] = useState<string>("");
-  const [membersWriteMessage, setMembersWriteMessage] = useState<string | null>(null);
-  const [membersWriteError, setMembersWriteError] = useState<string | null>(null);
+  const [accessMessage, setAccessMessage] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [selectedNewUserId, setSelectedNewUserId] = useState<string>("");
+  const [selectedNewLevel, setSelectedNewLevel] = useState<ProjectPermissionLevel>("read");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { data: roleLabels } = useRoleLabels();
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
-  const memberLabel = getRoleLabel("member", roleLabels);
 
   const projectQuery = useQuery<Project>({
     queryKey: ["project", parsedProjectId],
@@ -89,10 +92,8 @@ export const ProjectSettingsPage = () => {
       setNameText(projectQuery.data.name);
       setIconText(projectQuery.data.icon ?? "");
       setDescriptionText(projectQuery.data.description ?? "");
-      setWriterMessage(null);
-      setWriterError(null);
-      setMembersWriteMessage(null);
-      setMembersWriteError(null);
+      setAccessMessage(null);
+      setAccessError(null);
       setInitiativeMessage(null);
       setIdentityMessage(null);
       setDescriptionMessage(null);
@@ -246,59 +247,55 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const addWriter = useMutation({
-    mutationFn: async (userId: number) => {
+  const addMember = useMutation({
+    mutationFn: async ({ userId, level }: { userId: number; level: ProjectPermissionLevel }) => {
       await apiClient.post(`/projects/${parsedProjectId}/members`, {
         user_id: userId,
-        level: "write",
+        level,
       });
     },
     onSuccess: () => {
-      setWriterMessage("Write access granted");
-      setWriterError(null);
-      setSelectedWriterId("");
+      setAccessMessage("Access granted");
+      setAccessError(null);
+      setSelectedNewUserId("");
+      setSelectedNewLevel("read");
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
-      setWriterMessage(null);
-      setWriterError("Unable to update write access");
+      setAccessMessage(null);
+      setAccessError("Unable to grant access");
     },
   });
 
-  const removeWriter = useMutation({
+  const updateMemberLevel = useMutation({
+    mutationFn: async ({ userId, level }: { userId: number; level: ProjectPermissionLevel }) => {
+      await apiClient.patch(`/projects/${parsedProjectId}/members/${userId}`, {
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access updated");
+      setAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to update access");
+    },
+  });
+
+  const removeMember = useMutation({
     mutationFn: async (userId: number) => {
       await apiClient.delete(`/projects/${parsedProjectId}/members/${userId}`);
     },
     onSuccess: () => {
-      setWriterMessage("Write access removed");
-      setWriterError(null);
+      setAccessMessage("Access removed");
+      setAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
-      setWriterMessage(null);
-      setWriterError("Unable to update write access");
-    },
-  });
-
-  const updateMembersWrite = useMutation({
-    mutationFn: async (allowAll: boolean) => {
-      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
-        members_can_write: allowAll,
-      });
-      return response.data;
-    },
-    onSuccess: (_data, allowAll) => {
-      setMembersWriteMessage(
-        allowAll
-          ? `Everyone with the ${memberLabel} role now has write access.`
-          : `Write access limited to selected ${memberLabel} role holders.`
-      );
-      setMembersWriteError(null);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
-    },
-    onError: () => {
-      setMembersWriteMessage(null);
-      setMembersWriteError(`Unable to update ${memberLabel} write access.`);
+      setAccessMessage(null);
+      setAccessError("Unable to remove access");
     },
   });
 
@@ -309,7 +306,7 @@ export const ProjectSettingsPage = () => {
   const initiativesLoading = user?.role === "admin" ? initiativesQuery.isLoading : false;
 
   if (projectQuery.isLoading || initiativesLoading) {
-    return <p className="text-muted-foreground text-sm">Loading project settings…</p>;
+    return <p className="text-muted-foreground text-sm">Loading project settings...</p>;
   }
 
   if (projectQuery.isError || !projectQuery.data) {
@@ -317,7 +314,7 @@ export const ProjectSettingsPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/projects">← Back to projects</Link>
+          <Link to="/projects">Back to projects</Link>
         </Button>
       </div>
     );
@@ -328,53 +325,47 @@ export const ProjectSettingsPage = () => {
     (member) => member.user.id === user?.id
   );
   const initiativeMembers = project.initiative?.members ?? [];
-  const hasOwnerPermission = project.permissions.some(
-    (permission) => permission.user_id === project.owner_id
-  );
-  const ownerFallbackName =
-    project.owner?.full_name?.trim() || project.owner?.email || "Project owner";
-  const effectivePermissions = hasOwnerPermission
-    ? project.permissions
-    : [
-        {
-          user_id: project.owner_id,
-          level: "owner" as const,
-          created_at: project.created_at,
-          project_id: project.id,
-        },
-        ...project.permissions,
-      ];
-  const permissionRows = effectivePermissions.map((permission) => {
+
+  // Build permission rows with user info
+  const permissionRows = project.permissions.map((permission) => {
     const member = initiativeMembers.find((entry) => entry.user.id === permission.user_id);
-    const displayName = member?.user.full_name?.trim() || member?.user.email || ownerFallbackName;
+    const ownerInfo = project.owner;
+    const displayName =
+      member?.user.full_name?.trim() ||
+      member?.user.email ||
+      (permission.user_id === project.owner_id
+        ? ownerInfo?.full_name?.trim() || ownerInfo?.email || "Project owner"
+        : `User ${permission.user_id}`);
     return {
       permission,
       displayName,
-      isOwner: permission.user_id === project.owner_id || permission.level === "owner",
+      isOwner: permission.level === "owner",
     };
   });
+
+  // Initiative members who don't have permissions yet
   const availableMembers = initiativeMembers.filter(
-    (member) =>
-      member.user.id !== project.owner_id &&
-      !project.permissions.some((permission) => permission.user_id === member.user.id)
+    (member) => !project.permissions.some((permission) => permission.user_id === member.user.id)
   );
+
   const isOwner = project.owner_id === user?.id;
   const isInitiativePm = initiativeMembership?.role === "project_manager";
-  const hasExplicitWrite = project.permissions.some(
-    (permission) => permission.user_id === user?.id && permission.level === "write"
-  );
+  const userPermission = project.permissions.find((p) => p.user_id === user?.id);
+  const hasWriteAccess =
+    user?.role === "admin" ||
+    isInitiativePm ||
+    userPermission?.level === "owner" ||
+    userPermission?.level === "write";
   const canManageTaskStatuses = user?.role === "admin" || isInitiativePm;
   const canManageAccess = user?.role === "admin" || isOwner || isInitiativePm;
-  const hasImplicitWrite = Boolean(project.members_can_write && initiativeMembership);
-  const canWriteProject =
-    user?.role === "admin" || isOwner || isInitiativePm || hasExplicitWrite || hasImplicitWrite;
+  const canWriteProject = hasWriteAccess;
 
   if (!canManageAccess && !canWriteProject) {
     return (
       <div className="space-y-4">
         <Button asChild variant="link" className="px-0">
           <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
-            ← Back to project
+            Back to project
           </Link>
         </Button>
         <Card className="shadow-sm">
@@ -476,7 +467,7 @@ export const ProjectSettingsPage = () => {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Button type="submit" disabled={updateIdentity.isPending}>
-                    {updateIdentity.isPending ? "Saving…" : "Save project details"}
+                    {updateIdentity.isPending ? "Saving..." : "Save project details"}
                   </Button>
                   {identityMessage ? (
                     <p className="text-primary text-sm">{identityMessage}</p>
@@ -518,7 +509,7 @@ export const ProjectSettingsPage = () => {
                 />
                 <div className="flex flex-col gap-2">
                   <Button type="submit" disabled={updateDescription.isPending}>
-                    {updateDescription.isPending ? "Saving…" : "Save description"}
+                    {updateDescription.isPending ? "Saving..." : "Save description"}
                   </Button>
                   {descriptionMessage ? (
                     <p className="text-primary text-sm">{descriptionMessage}</p>
@@ -568,7 +559,7 @@ export const ProjectSettingsPage = () => {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
-                    {updateInitiativeOwnership.isPending ? "Saving…" : "Save initiative"}
+                    {updateInitiativeOwnership.isPending ? "Saving..." : "Save initiative"}
                   </Button>
                   {initiativeMessage ? (
                     <p className="text-primary text-sm">{initiativeMessage}</p>
@@ -583,94 +574,113 @@ export const ProjectSettingsPage = () => {
       {canManageAccess ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Write access overrides</CardTitle>
+            <CardTitle>Project access</CardTitle>
             <CardDescription>
-              People with the {projectManagerLabel} role can grant additional write access to
-              specific {memberLabel} role holders.
+              Control who can view and edit this project. {projectManagerLabel} role holders have
+              full access to all projects in their initiatives.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex flex-col gap-3 rounded-md border px-3 py-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-medium">Allow everyone with the {memberLabel} role to write</p>
-                  <p className="text-muted-foreground text-sm">
-                    When enabled, everyone with the {memberLabel} role can create and update work in
-                    this project without an individual override.
-                  </p>
-                </div>
-                <Switch
-                  id="members-can-write"
-                  checked={project.members_can_write}
-                  onCheckedChange={(checked) => {
-                    setMembersWriteMessage(null);
-                    setMembersWriteError(null);
-                    updateMembersWrite.mutate(Boolean(checked));
-                  }}
-                  disabled={updateMembersWrite.isPending}
-                />
-              </div>
-              {membersWriteMessage ? (
-                <p className="text-primary text-sm">{membersWriteMessage}</p>
-              ) : null}
-              {membersWriteError ? (
-                <p className="text-destructive text-sm">{membersWriteError}</p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              {permissionRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No overrides yet.</p>
-              ) : (
-                <ul className="space-y-2 text-sm">
+            {/* Access table */}
+            <div className="rounded-md border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="px-4 py-2 text-left font-medium">Name</th>
+                    <th className="px-4 py-2 text-left font-medium">Access</th>
+                    <th className="px-4 py-2 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {permissionRows.map(({ permission, displayName, isOwner }) => (
-                    <li
-                      key={`${permission.project_id ?? project.id}-${permission.user_id}`}
-                      className="flex items-center justify-between rounded-md border px-3 py-2"
-                    >
-                      <div>
-                        <p className="font-medium">{displayName}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {isOwner ? "Owner" : "Write access"}
-                        </p>
-                      </div>
-                      {!isOwner ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeWriter.mutate(permission.user_id)}
-                          disabled={removeWriter.isPending}
-                        >
-                          Remove
-                        </Button>
-                      ) : null}
-                    </li>
+                    <tr key={permission.user_id} className="border-b last:border-b-0">
+                      <td className="px-4 py-3">
+                        <span className="font-medium">{displayName}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isOwner ? (
+                          <span className="text-muted-foreground">Owner</span>
+                        ) : (
+                          <Select
+                            value={permission.level}
+                            onValueChange={(value) => {
+                              setAccessMessage(null);
+                              setAccessError(null);
+                              updateMemberLevel.mutate({
+                                userId: permission.user_id,
+                                level: value as ProjectPermissionLevel,
+                              });
+                            }}
+                            disabled={updateMemberLevel.isPending}
+                          >
+                            <SelectTrigger className="w-[130px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                              <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {!isOwner ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setAccessMessage(null);
+                              setAccessError(null);
+                              removeMember.mutate(permission.user_id);
+                            }}
+                            disabled={removeMember.isPending}
+                          >
+                            Remove
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </td>
+                    </tr>
                   ))}
-                </ul>
-              )}
+                  {permissionRows.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="text-muted-foreground px-4 py-6 text-center">
+                        No permissions configured yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="writer-select">Grant write access</Label>
+
+            {/* Add member form */}
+            <div className="space-y-2 pt-2">
+              <Label>Grant access</Label>
               {availableMembers.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
-                  Everyone with the {memberLabel} role already has write access.
+                  All initiative members already have access to this project.
                 </p>
               ) : (
                 <form
                   className="flex flex-wrap items-end gap-3"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (!selectedWriterId) {
-                      setWriterError(`Select a ${memberLabel}`);
+                    if (!selectedNewUserId) {
+                      setAccessError("Select a member");
                       return;
                     }
-                    setWriterError(null);
-                    addWriter.mutate(Number(selectedWriterId));
+                    setAccessError(null);
+                    addMember.mutate({
+                      userId: Number(selectedNewUserId),
+                      level: selectedNewLevel,
+                    });
                   }}
                 >
-                  <Select value={selectedWriterId} onValueChange={setSelectedWriterId}>
-                    <SelectTrigger id="writer-select" className="min-w-[220px]">
-                      <SelectValue placeholder={`Select ${memberLabel}`} />
+                  <Select value={selectedNewUserId} onValueChange={setSelectedNewUserId}>
+                    <SelectTrigger className="min-w-[200px]">
+                      <SelectValue placeholder="Select member" />
                     </SelectTrigger>
                     <SelectContent>
                       {availableMembers.map((member) => (
@@ -680,13 +690,25 @@ export const ProjectSettingsPage = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button type="submit" disabled={addWriter.isPending}>
-                    {addWriter.isPending ? "Adding…" : `Add ${memberLabel}`}
+                  <Select
+                    value={selectedNewLevel}
+                    onValueChange={(value) => setSelectedNewLevel(value as ProjectPermissionLevel)}
+                  >
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                      <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="submit" disabled={addMember.isPending}>
+                    {addMember.isPending ? "Adding..." : "Add"}
                   </Button>
                 </form>
               )}
-              {writerMessage ? <p className="text-primary text-sm">{writerMessage}</p> : null}
-              {writerError ? <p className="text-destructive text-sm">{writerError}</p> : null}
+              {accessMessage ? <p className="text-primary text-sm">{accessMessage}</p> : null}
+              {accessError ? <p className="text-destructive text-sm">{accessError}</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -763,7 +785,7 @@ export const ProjectSettingsPage = () => {
               }}
               disabled={duplicateProject.isPending}
             >
-              {duplicateProject.isPending ? "Duplicating…" : "Duplicate project"}
+              {duplicateProject.isPending ? "Duplicating..." : "Duplicate project"}
             </Button>
           ) : (
             <p className="text-muted-foreground text-sm">

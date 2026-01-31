@@ -12,7 +12,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.models.project import Project
+from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
@@ -208,7 +208,7 @@ async def get_initiative_members(
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[User]:
     """Get all members of an initiative."""
-    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
     # Check that user has access to this initiative
     membership = await initiatives_service.get_initiative_membership(
@@ -312,6 +312,15 @@ async def remove_initiative_member(
         project_ids = [project_id for project_id in project_ids_result.all()]
 
         if project_ids:
+            # Remove project permissions for this user in all initiative projects
+            delete_permissions_stmt = (
+                delete(ProjectPermission)
+                .where(ProjectPermission.user_id == user_id)
+                .where(ProjectPermission.project_id.in_(tuple(project_ids)))
+            )
+            await session.exec(delete_permissions_stmt)
+
+            # Remove task assignments for this user in all initiative projects
             task_ids_result = await session.exec(
                 select(Task.id).where(Task.project_id.in_(tuple(project_ids)))
             )
