@@ -59,6 +59,14 @@ export interface ProjectPermission {
   project_id?: number;
 }
 
+export type DocumentPermissionLevel = "owner" | "write" | "read";
+
+export interface DocumentPermission {
+  user_id: number;
+  level: DocumentPermissionLevel;
+  created_at: string;
+}
+
 export interface Initiative {
   id: number;
   name: string;
@@ -100,7 +108,7 @@ export interface DocumentSummary {
 
 export interface DocumentRead extends DocumentSummary {
   content: SerializedEditorState;
-  write_member_ids: number[];
+  permissions: DocumentPermission[];
 }
 
 export interface DocumentDuplicateRequest {

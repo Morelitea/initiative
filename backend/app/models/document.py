@@ -77,8 +77,9 @@ class ProjectDocument(SQLModel, table=True):
 
 
 class DocumentPermissionLevel(str, Enum):
-    read = "read"
+    owner = "owner"
     write = "write"
+    read = "read"
 
 
 class DocumentPermission(SQLModel, table=True):

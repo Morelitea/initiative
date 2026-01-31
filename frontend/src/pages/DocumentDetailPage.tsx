@@ -118,7 +118,8 @@ export const DocumentDetailPage = () => {
     if (isManager) {
       return true;
     }
-    return (document.write_member_ids ?? []).includes(user.id);
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
   const isDirty =
     canEditDocument &&

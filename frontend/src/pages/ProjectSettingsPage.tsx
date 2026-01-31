@@ -75,6 +75,7 @@ export const ProjectSettingsPage = () => {
   const [selectedNewUserId, setSelectedNewUserId] = useState<string>("");
   const [selectedNewLevel, setSelectedNewLevel] = useState<ProjectPermissionLevel>("read");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
   const { data: roleLabels } = useRoleLabels();
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
 
@@ -306,6 +307,70 @@ export const ProjectSettingsPage = () => {
     onError: () => {
       setAccessMessage(null);
       setAccessError("Unable to remove access");
+    },
+  });
+
+  const addAllMembers = useMutation({
+    mutationFn: async (level: ProjectPermissionLevel) => {
+      const userIds = availableMembers.map((member) => member.user.id);
+      await apiClient.post(`/projects/${parsedProjectId}/members/bulk`, {
+        user_ids: userIds,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access granted to all members");
+      setAccessError(null);
+      setSelectedNewUserId("");
+      setSelectedNewLevel("read");
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to grant access to all members");
+    },
+  });
+
+  const bulkUpdateLevel = useMutation({
+    mutationFn: async ({
+      userIds,
+      level,
+    }: {
+      userIds: number[];
+      level: ProjectPermissionLevel;
+    }) => {
+      await apiClient.post(`/projects/${parsedProjectId}/members/bulk`, {
+        user_ids: userIds,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access updated for selected members");
+      setAccessError(null);
+      setSelectedMembers([]);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to update access for selected members");
+    },
+  });
+
+  const bulkRemoveMembers = useMutation({
+    mutationFn: async (userIds: number[]) => {
+      await apiClient.post(`/projects/${parsedProjectId}/members/bulk-delete`, {
+        user_ids: userIds,
+      });
+    },
+    onSuccess: () => {
+      setAccessMessage("Access removed for selected members");
+      setAccessError(null);
+      setSelectedMembers([]);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+    },
+    onError: () => {
+      setAccessMessage(null);
+      setAccessError("Unable to remove access for selected members");
     },
   });
 
@@ -676,6 +741,47 @@ export const ProjectSettingsPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Bulk action bar */}
+            {selectedMembers.length > 0 && (
+              <div className="bg-muted flex items-center gap-3 rounded-md p-3">
+                <span className="text-sm font-medium">{selectedMembers.length} selected</span>
+                <Select
+                  onValueChange={(level) => {
+                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
+                    if (userIds.length > 0) {
+                      bulkUpdateLevel.mutate({
+                        userIds,
+                        level: level as ProjectPermissionLevel,
+                      });
+                    }
+                  }}
+                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                >
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Change access..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                    <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
+                    if (userIds.length > 0) {
+                      bulkRemoveMembers.mutate(userIds);
+                    }
+                  }}
+                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                >
+                  {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                </Button>
+              </div>
+            )}
+
             {/* Access table */}
             <DataTable
               columns={permissionColumns}
@@ -684,6 +790,10 @@ export const ProjectSettingsPage = () => {
               enableFilterInput
               filterInputColumnKey="displayName"
               filterInputPlaceholder="Filter by name"
+              enableRowSelection
+              onRowSelectionChange={setSelectedMembers}
+              onExitSelection={() => setSelectedMembers([])}
+              getRowId={(row) => String(row.userId)}
             />
 
             {/* Add member form */}
@@ -732,8 +842,18 @@ export const ProjectSettingsPage = () => {
                       <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button type="submit" disabled={addMember.isPending}>
+                  <Button type="submit" disabled={addMember.isPending || addAllMembers.isPending}>
                     {addMember.isPending ? "Adding..." : "Add"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => addAllMembers.mutate(selectedNewLevel)}
+                    disabled={addMember.isPending || addAllMembers.isPending}
+                  >
+                    {addAllMembers.isPending
+                      ? "Adding all..."
+                      : `Add all (${availableMembers.length})`}
                   </Button>
                 </form>
               )}

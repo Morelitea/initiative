@@ -30,6 +30,8 @@ from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
     ProjectDuplicateRequest,
+    ProjectPermissionBulkCreate,
+    ProjectPermissionBulkDelete,
     ProjectPermissionCreate,
     ProjectPermissionRead,
     ProjectPermissionUpdate,
@@ -1402,6 +1404,127 @@ async def add_project_member(
     await session.commit()
     await session.refresh(permission)
     return permission
+
+
+@router.post("/{project_id}/members/bulk", response_model=List[ProjectPermissionRead], status_code=status.HTTP_201_CREATED)
+async def add_project_members_bulk(
+    project_id: int,
+    bulk_in: ProjectPermissionBulkCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[ProjectPermission]:
+    """Add multiple members to a project with the same permission level."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
+    _ensure_not_archived(project)
+
+    if bulk_in.level == ProjectPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+
+    if not bulk_in.user_ids:
+        return []
+
+    # Validate all users are initiative members (if project belongs to initiative)
+    valid_member_ids: set[int] = set()
+    if project.initiative_id:
+        initiative_members_result = await session.exec(
+            select(InitiativeMember.user_id).where(
+                InitiativeMember.initiative_id == project.initiative_id,
+                InitiativeMember.user_id.in_(bulk_in.user_ids),
+            )
+        )
+        valid_member_ids = set(initiative_members_result.all())
+    else:
+        valid_member_ids = set(bulk_in.user_ids)
+
+    # Get existing permissions
+    existing_permissions_result = await session.exec(
+        select(ProjectPermission).where(
+            ProjectPermission.project_id == project_id,
+            ProjectPermission.user_id.in_(bulk_in.user_ids),
+        )
+    )
+    existing_permissions = {p.user_id: p for p in existing_permissions_result.all()}
+
+    created_permissions: List[ProjectPermission] = []
+    for user_id in bulk_in.user_ids:
+        # Skip invalid users (not initiative members)
+        if user_id not in valid_member_ids:
+            continue
+        # Skip owner - they already have full access
+        if user_id == project.owner_id:
+            continue
+        # Update existing permission
+        if user_id in existing_permissions:
+            existing = existing_permissions[user_id]
+            if existing.level != ProjectPermissionLevel.owner:
+                existing.level = bulk_in.level
+                session.add(existing)
+                created_permissions.append(existing)
+            continue
+        # Create new permission
+        permission = ProjectPermission(
+            project_id=project_id,
+            user_id=user_id,
+            level=bulk_in.level,
+            guild_id=guild_context.guild_id,
+        )
+        session.add(permission)
+        created_permissions.append(permission)
+
+    await session.commit()
+    for permission in created_permissions:
+        await session.refresh(permission)
+    return created_permissions
+
+
+@router.post("/{project_id}/members/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_members_bulk(
+    project_id: int,
+    bulk_in: ProjectPermissionBulkDelete,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Remove multiple members from a project."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project,
+        current_user,
+        session,
+        access="write",
+        require_manager=True,
+        guild_role=guild_context.role,
+    )
+    _ensure_not_archived(project)
+
+    if not bulk_in.user_ids:
+        return
+
+    # Get existing permissions to delete
+    permissions_result = await session.exec(
+        select(ProjectPermission).where(
+            ProjectPermission.project_id == project_id,
+            ProjectPermission.user_id.in_(bulk_in.user_ids),
+        )
+    )
+    permissions = permissions_result.all()
+
+    for permission in permissions:
+        # Skip owner - cannot remove them
+        if permission.user_id == project.owner_id:
+            continue
+        await session.delete(permission)
+
+    await session.commit()
 
 
 @router.patch("/{project_id}/members/{user_id}", response_model=ProjectPermissionRead)

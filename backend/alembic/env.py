@@ -54,6 +54,9 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         compare_type=True,
         render_as_batch=True,
+        # Commit after each migration to allow PostgreSQL enum values
+        # added in one migration to be used in subsequent migrations
+        transaction_per_migration=True,
     )
 
     with context.begin_transaction():
