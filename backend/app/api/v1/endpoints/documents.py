@@ -217,40 +217,33 @@ async def list_documents(
         if normalized:
             stmt = stmt.where(func.lower(Document.title).contains(normalized))
 
-    result = await session.exec(stmt)
-    all_documents = result.unique().all()
-
-    # Guild admin sees all documents
-    if guild_context.role == GuildRole.admin:
-        await documents_service.annotate_comment_counts(session, all_documents)
-        return [serialize_document_summary(document) for document in all_documents]
-
-    # Get initiatives where user is a PM (they can see all documents in those)
-    pm_initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id)
-        .join(Initiative, Initiative.id == InitiativeMember.initiative_id)
-        .where(
-            InitiativeMember.user_id == current_user.id,
-            InitiativeMember.role == InitiativeRole.project_manager,
-            Initiative.guild_id == guild_context.guild_id,
+    # Non-admins: filter visibility in SQL
+    if guild_context.role != GuildRole.admin:
+        # Subquery: initiatives where user is PM
+        pm_initiatives_subq = (
+            select(InitiativeMember.initiative_id)
+            .where(
+                InitiativeMember.user_id == current_user.id,
+                InitiativeMember.role == InitiativeRole.project_manager,
+            )
+            .scalar_subquery()
         )
-    )
-    pm_initiative_ids = {row for row in pm_initiative_ids_result.all() if row is not None}
+        # Subquery: documents where user has explicit permission
+        has_permission_subq = (
+            select(DocumentPermission.document_id)
+            .where(DocumentPermission.user_id == current_user.id)
+            .scalar_subquery()
+        )
+        # Filter: user is PM in initiative OR has explicit permission
+        stmt = stmt.where(
+            (Document.initiative_id.in_(pm_initiatives_subq)) | (Document.id.in_(has_permission_subq))
+        )
 
-    # Filter documents by access
-    visible_documents: List[Document] = []
-    for document in all_documents:
-        # PM can see all documents in their initiatives
-        if document.initiative_id in pm_initiative_ids:
-            visible_documents.append(document)
-            continue
-        # Check for explicit permission
-        permission = _get_document_permission(document, current_user.id)
-        if permission:
-            visible_documents.append(document)
+    result = await session.exec(stmt)
+    documents = result.unique().all()
 
-    await documents_service.annotate_comment_counts(session, visible_documents)
-    return [serialize_document_summary(document) for document in visible_documents]
+    await documents_service.annotate_comment_counts(session, documents)
+    return [serialize_document_summary(document) for document in documents]
 
 
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
