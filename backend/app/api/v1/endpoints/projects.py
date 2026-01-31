@@ -594,7 +594,7 @@ async def _require_project_membership(
     Access resolution (in order):
     1. Guild admin -> full access
     2. Initiative PM -> full access
-    3. Explicit ProjectPermission -> use that level
+    3. Explicit ProjectPermission -> use that level (owner = full, write, read)
     4. No permission -> no access (403)
     """
     if guild_role == GuildRole.admin:
@@ -607,17 +607,22 @@ async def _require_project_membership(
     if is_initiative_pm:
         return
 
-    # Check for manager requirement first (before checking permissions)
-    if require_manager:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
-
     # Check explicit permission
     permission = await _get_project_permission(project, current_user.id, session)
+
+    if require_manager:
+        # Only project owners can perform manager-level operations
+        if not permission or permission.level != ProjectPermissionLevel.owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project owner or initiative manager role required",
+            )
+        return
 
     if not permission:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this project")
 
-    # Check access level
+    # Check access level for non-manager operations
     if access == "write" and permission.level == ProjectPermissionLevel.read:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
 
