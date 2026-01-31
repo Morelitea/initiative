@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
@@ -678,18 +679,17 @@ export const ProjectSettingsPage = () => {
                     });
                   }}
                 >
-                  <Select value={selectedNewUserId} onValueChange={setSelectedNewUserId}>
-                    <SelectTrigger className="min-w-[200px]">
-                      <SelectValue placeholder="Select member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableMembers.map((member) => (
-                        <SelectItem key={member.user.id} value={String(member.user.id)}>
-                          {member.user.full_name?.trim() || member.user.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    items={availableMembers.map((member) => ({
+                      value: String(member.user.id),
+                      label: member.user.full_name?.trim() || member.user.email,
+                    }))}
+                    value={selectedNewUserId}
+                    onValueChange={setSelectedNewUserId}
+                    placeholder="Select member"
+                    emptyMessage="No members found"
+                    className="min-w-[200px]"
+                  />
                   <Select
                     value={selectedNewLevel}
                     onValueChange={(value) => setSelectedNewLevel(value as ProjectPermissionLevel)}
