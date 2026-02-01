@@ -209,6 +209,12 @@ export function useCollaboration({
               syncTimeoutRef.current = null;
             }
             onSyncedRef.current?.();
+          } else {
+            // Clear timeout when sync is lost (e.g., reconnecting)
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
           }
         });
 
