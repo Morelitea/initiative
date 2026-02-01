@@ -2,7 +2,7 @@
  * Status badge component showing collaboration state and active collaborators.
  */
 
-import { Circle, CloudOff, Users, Wifi, WifiOff } from "lucide-react";
+import { Circle, CloudOff, RefreshCw, Users, Wifi, WifiOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,8 @@ export interface CollaborationStatusBadgeProps {
   connectionStatus: ConnectionStatus;
   collaborators: CollaboratorInfo[];
   isCollaborating: boolean;
+  /** Whether the collaboration provider has synced with the server */
+  isSynced?: boolean;
   className?: string;
 }
 
@@ -23,6 +25,7 @@ export function CollaborationStatusBadge({
   connectionStatus,
   collaborators,
   isCollaborating,
+  isSynced = true,
   className,
 }: CollaborationStatusBadgeProps) {
   // Don't show anything if not enabled
@@ -36,6 +39,12 @@ export function CollaborationStatusBadge({
       label: "Connecting...",
       color: "text-yellow-500",
       bgColor: "bg-yellow-100 dark:bg-yellow-900/20",
+    },
+    syncing: {
+      icon: RefreshCw,
+      label: "Syncing...",
+      color: "text-blue-500",
+      bgColor: "bg-blue-100 dark:bg-blue-900/20",
     },
     connected: {
       icon: Users,
@@ -57,7 +66,11 @@ export function CollaborationStatusBadge({
     },
   };
 
-  const config = statusConfig[connectionStatus];
+  // Determine effective status - show syncing when connected but not yet synced
+  const effectiveStatus =
+    connectionStatus === "connected" && !isSynced ? "syncing" : connectionStatus;
+
+  const config = statusConfig[effectiveStatus];
   const StatusIcon = config.icon;
 
   return (

@@ -56,8 +56,11 @@ export const DocumentDetailPage = () => {
   const collaboration = useCollaboration({
     documentId: parsedId,
     enabled: collaborationEnabled && Number.isFinite(parsedId),
-    onError: () => {
-      // Silently fall back to autosave mode on collaboration error
+    onError: (error) => {
+      // Show toast and fall back to autosave mode on collaboration error
+      toast.error("Collaboration connection failed", {
+        description: error.message || "Switching to offline editing mode",
+      });
       setCollaborationEnabled(false);
     },
   });
@@ -495,6 +498,7 @@ export const DocumentDetailPage = () => {
               connectionStatus={collaboration.connectionStatus}
               collaborators={collaboration.collaborators}
               isCollaborating={collaboration.isCollaborating}
+              isSynced={collaboration.isSynced}
             />
           )}
           {/* <DocumentEditor
@@ -522,6 +526,7 @@ export const DocumentDetailPage = () => {
             providerFactory={collaboration.providerFactory}
             // Always track changes so contentState stays updated for periodic saves
             trackChanges={true}
+            isSynced={collaboration.isSynced}
           />
           <div className="flex flex-wrap items-center gap-3">
             {canEditDocument ? (

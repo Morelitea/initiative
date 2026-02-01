@@ -71,6 +71,8 @@ export function useCollaboration({
   const providerRef = useRef<CollaborationProvider | null>(null);
   // Track the current WebSocket URL to detect when it changes
   const currentWsUrlRef = useRef<string | null>(null);
+  // Sync timeout to detect stuck connections
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Create stable callback refs
   const onSyncedRef = useRef(onSynced);
@@ -168,18 +170,63 @@ export function useCollaboration({
           const status = statusObj.status;
           if (status === "connected") {
             setConnectionStatus("connected");
+            // Start sync timeout - if we don't sync within 10s, emit error
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+            }
+            syncTimeoutRef.current = setTimeout(() => {
+              if (providerRef.current && !providerRef.current.synced) {
+                syncTimeoutRef.current = null;
+                setConnectionStatus("error");
+                onErrorRef.current?.(new Error("Sync timeout - document failed to load"));
+              }
+            }, 10000);
           } else if (status === "connecting") {
             setConnectionStatus("connecting");
           } else if (status === "disconnected") {
             setConnectionStatus("disconnected");
+            // Clear sync timeout - no longer expecting sync
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
+          } else if (status === "error") {
+            setConnectionStatus("error");
+            // Clear sync timeout - no longer expecting sync
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
           }
         });
 
         provider.on("sync", (synced: boolean) => {
           setIsSynced(synced);
           if (synced) {
+            // Clear sync timeout on successful sync
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
             onSyncedRef.current?.();
+          } else {
+            // Clear timeout when sync is lost (e.g., reconnecting)
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
           }
+        });
+
+        // Listen for error events
+        provider.on("error", (error: Error) => {
+          setConnectionStatus("error");
+          // Clear sync timeout since we hit an error
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+          }
+          onErrorRef.current?.(error);
         });
 
         // Listen for collaborator changes
@@ -188,7 +235,20 @@ export function useCollaboration({
         });
       } else {
         // For an existing provider, sync current state to React
-        setCollaborators(providerRef.current!.collaborators);
+        // This is critical after quick navigation where React state resets but provider is reused
+        const currentProvider = providerRef.current!;
+        setCollaborators(currentProvider.collaborators);
+        setIsSynced(currentProvider.synced);
+        // Use the provider's tracked status instead of inferring it
+        const providerStatus = currentProvider.status;
+        if (
+          providerStatus === "connected" ||
+          providerStatus === "connecting" ||
+          providerStatus === "disconnected" ||
+          providerStatus === "error"
+        ) {
+          setConnectionStatus(providerStatus as ConnectionStatus);
+        }
       }
 
       return provider;
@@ -210,6 +270,11 @@ export function useCollaboration({
   useEffect(() => {
     return () => {
       providerRef.current?.disconnect();
+      // Clear sync timeout
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
       // Don't null refs - provider may be reused on quick remount
     };
   }, []);
