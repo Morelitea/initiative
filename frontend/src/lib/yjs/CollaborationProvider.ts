@@ -565,8 +565,9 @@ export class CollaborationProvider implements Provider {
   };
 
   private handleError = (): void => {
-    // Emit error - connection will close after this, handleClose will be called
-    this.emitError(new Error("WebSocket connection error"));
+    // Don't emit error here - this fires for transient network issues
+    // handleClose will be called next and will either reconnect or emit a fatal error
+    // Only fatal errors (auth failure, max retries) should trigger the error event
   };
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
