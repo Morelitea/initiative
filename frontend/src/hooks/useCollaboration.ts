@@ -176,6 +176,7 @@ export function useCollaboration({
             }
             syncTimeoutRef.current = setTimeout(() => {
               if (providerRef.current && !providerRef.current.synced) {
+                syncTimeoutRef.current = null;
                 setConnectionStatus("error");
                 onErrorRef.current?.(new Error("Sync timeout - document failed to load"));
               }
@@ -184,8 +185,18 @@ export function useCollaboration({
             setConnectionStatus("connecting");
           } else if (status === "disconnected") {
             setConnectionStatus("disconnected");
+            // Clear sync timeout - no longer expecting sync
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
           } else if (status === "error") {
             setConnectionStatus("error");
+            // Clear sync timeout - no longer expecting sync
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
           }
         });
 
@@ -204,6 +215,11 @@ export function useCollaboration({
         // Listen for error events
         provider.on("error", (error: Error) => {
           setConnectionStatus("error");
+          // Clear sync timeout since we hit an error
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+          }
           onErrorRef.current?.(error);
         });
 
