@@ -233,12 +233,15 @@ export function useCollaboration({
         const currentProvider = providerRef.current!;
         setCollaborators(currentProvider.collaborators);
         setIsSynced(currentProvider.synced);
-        // Derive connection status from provider state
-        if (currentProvider.connected) {
-          setConnectionStatus("connected");
-        } else if (!currentProvider.destroyed) {
-          // Not connected but not destroyed - we're connecting
-          setConnectionStatus("connecting");
+        // Use the provider's tracked status instead of inferring it
+        const providerStatus = currentProvider.status;
+        if (
+          providerStatus === "connected" ||
+          providerStatus === "connecting" ||
+          providerStatus === "disconnected" ||
+          providerStatus === "error"
+        ) {
+          setConnectionStatus(providerStatus as ConnectionStatus);
         }
       }
 

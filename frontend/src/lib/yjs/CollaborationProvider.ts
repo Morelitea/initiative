@@ -113,6 +113,7 @@ export class CollaborationProvider implements Provider {
   private disconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   public destroyed = false;
   private _synced = false;
+  private _status: string = "disconnected";
   private shouldConnect: boolean;
   private connectionId: string;
   private authParams: { token: string; guildId: number } | null = null;
@@ -192,6 +193,13 @@ export class CollaborationProvider implements Provider {
    */
   get connected(): boolean {
     return this.websocket?.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * The current connection status.
+   */
+  get status(): string {
+    return this._status;
   }
 
   /**
@@ -438,6 +446,7 @@ export class CollaborationProvider implements Provider {
   }
 
   private emitStatus(status: { status: string }): void {
+    this._status = status.status;
     this.statusHandlers.forEach((cb) => {
       try {
         cb(status);
