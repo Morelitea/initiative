@@ -138,7 +138,7 @@ function AppLayout() {
         >
           <AppSidebar />
           <div className="bg-muted/50 min-w-0 flex-1 md:pl-0">
-            <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-10 flex border-b backdrop-blur">
+            <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 flex border-b backdrop-blur">
               <SidebarTrigger
                 icon={<Menu />}
                 className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
