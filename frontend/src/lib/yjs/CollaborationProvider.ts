@@ -245,7 +245,8 @@ export class CollaborationProvider implements Provider {
     if (attempts.count >= MAX_ATTEMPTS_PER_MINUTE) {
       // Schedule retry after the rate limit window resets
       const timeUntilReset = 60000 - timeSinceLastAttempt;
-      if (timeUntilReset > 0 && this.shouldConnect && !this.destroyed) {
+      // Don't check shouldConnect here - if connect() was called, caller wants to connect
+      if (timeUntilReset > 0 && !this.destroyed) {
         this.emitStatus({ status: "connecting" });
         this.reconnectTimeout = setTimeout(() => {
           this.reconnectTimeout = null;
