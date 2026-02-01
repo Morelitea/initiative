@@ -215,7 +215,7 @@ export function Plugins({
               <div className="" ref={onRef}>
                 <ContentEditable
                   placeholder={placeholder}
-                  className="ContentEditable__root relative block min-h-72 px-8 py-4 focus:outline-none"
+                  className="ContentEditable__root relative block min-h-72 px-8 pt-4 pb-14 focus:outline-none"
                 />
               </div>
               {/* Collaboration cursors container - must be inside the content area for proper positioning */}

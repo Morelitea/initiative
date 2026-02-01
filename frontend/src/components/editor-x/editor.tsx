@@ -121,7 +121,10 @@ export function Editor({
 
   return (
     <div
-      className={cn("bg-background relative overflow-y-auto rounded-lg border shadow", className)}
+      className={cn(
+        "bg-background relative scroll-pb-14 overflow-y-auto rounded-lg border shadow",
+        className
+      )}
     >
       {showSyncingOverlay && (
         <div className="bg-background/80 absolute inset-0 z-50 flex items-center justify-center">
