@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Document editor no longer appears blank when collaboration mode is loading
+- Collaboration now shows proper status progression: "Connecting..." → "Syncing..." → "Live editing"
+- Fixed stuck "Syncing..." spinner after navigating between documents quickly
+- Collaboration connection now automatically reconnects when dropped
+- Error toast now appears when collaboration fails, with automatic fallback to autosave mode
+
 ### Changed
 
 - Refactored project access control to discretionary access control (DAC) model
