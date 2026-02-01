@@ -243,7 +243,17 @@ export class CollaborationProvider implements Provider {
 
     // Check if we've exceeded the rate limit
     if (attempts.count >= MAX_ATTEMPTS_PER_MINUTE) {
-      this.emitStatus({ status: "disconnected" });
+      // Schedule retry after the rate limit window resets
+      const timeUntilReset = 60000 - timeSinceLastAttempt;
+      if (timeUntilReset > 0 && this.shouldConnect && !this.destroyed) {
+        this.emitStatus({ status: "connecting" });
+        this.reconnectTimeout = setTimeout(() => {
+          this.reconnectTimeout = null;
+          this.connect();
+        }, timeUntilReset);
+      } else {
+        this.emitStatus({ status: "disconnected" });
+      }
       return;
     }
 
