@@ -71,11 +71,23 @@ export const CreateDocumentDialog = ({
   const effectiveInitiativeId =
     initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null);
 
-  // Find the locked initiative for display
-  const lockedInitiative = useMemo(() => {
+  // Find the locked initiative for display (from passed list or fetch if needed)
+  const lockedInitiativeFromList = useMemo(() => {
     if (!initiativeId) return null;
     return initiatives.find((i) => i.id === initiativeId) ?? null;
   }, [initiativeId, initiatives]);
+
+  // Query the initiative if we have an ID but it's not in the passed list
+  const initiativeQuery = useQuery<Initiative>({
+    queryKey: ["initiative", initiativeId],
+    queryFn: async () => {
+      const response = await apiClient.get<Initiative>(`/initiatives/${initiativeId}`);
+      return response.data;
+    },
+    enabled: open && !!initiativeId && !lockedInitiativeFromList,
+  });
+
+  const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
   // Query templates
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({

@@ -127,6 +127,30 @@ async def list_initiatives(
     return [serialize_initiative(initiative) for initiative in initiatives]
 
 
+@router.get("/{initiative_id}", response_model=InitiativeRead)
+async def get_initiative(
+    initiative_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeRead:
+    statement = (
+        select(Initiative)
+        .where(Initiative.id == initiative_id, Initiative.guild_id == guild_context.guild_id)
+        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+    )
+    result = await session.exec(statement)
+    initiative = result.first()
+    if not initiative:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
+    # Check access: must be guild admin or initiative member
+    if guild_context.role != GuildRole.admin:
+        is_member = any(m.user_id == current_user.id for m in initiative.memberships)
+        if not is_member:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this initiative")
+    return serialize_initiative(initiative)
+
+
 @router.post("/", response_model=InitiativeRead, status_code=status.HTTP_201_CREATED)
 async def create_initiative(
     initiative_in: InitiativeCreate,
