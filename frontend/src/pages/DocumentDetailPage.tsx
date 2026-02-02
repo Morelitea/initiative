@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -8,8 +8,17 @@ import { toast } from "sonner";
 
 import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
-import { Editor } from "@/components/editor-x/editor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
+
+// Lazy load heavy components
+const Editor = lazy(() =>
+  import("@/components/editor-x/editor").then((m) => ({ default: m.Editor }))
+);
+const FileDocumentViewer = lazy(() =>
+  import("@/components/documents/FileDocumentViewer").then((m) => ({
+    default: m.FileDocumentViewer,
+  }))
+);
 import { findNewMentions } from "@/lib/mentionUtils";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import {
@@ -479,101 +488,122 @@ export const DocumentDetailPage = () => {
               </div>
             </CardContent>
           </Card>
-          {/* Collaboration status - shown between featured image and editor */}
-          {collaborationEnabled && (
-            <CollaborationStatusBadge
-              connectionStatus={collaboration.connectionStatus}
-              collaborators={collaboration.collaborators}
-              isCollaborating={collaboration.isCollaborating}
-              isSynced={collaboration.isSynced}
-            />
-          )}
-          {/* <DocumentEditor
-            key={document.id}
-            initialState={normalizedDocumentContent}
-            onChange={setContentState}
-            placeholder="Capture requirements, share decisions, or outline processes…"
-            readOnly={!canEditDocument}
-            showToolbar={canEditDocument}
-          /> */}
-          {/*
-            Key is just document.id - we don't remount when entering collaborative mode.
-            The CollaborationPlugin handles syncing the existing content to Yjs.
-          */}
-          <Editor
-            key={document.id}
-            editorSerializedState={normalizedDocumentContent}
-            onSerializedChange={setContentState}
-            readOnly={!canEditDocument}
-            showToolbar={canEditDocument}
-            className="max-h-[80vh]"
-            mentionableUsers={mentionableUsers}
-            documentName={title}
-            collaborative={collaborationEnabled && collaboration.isReady}
-            providerFactory={collaboration.providerFactory}
-            // Always track changes so contentState stays updated for periodic saves
-            trackChanges={true}
-            isSynced={collaboration.isSynced}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            {canEditDocument ? (
-              <>
-                {/* When collaboration is active, changes sync in real-time */}
-                {collaboration.isCollaborating ? (
-                  <span className="text-muted-foreground text-sm">
-                    Changes sync automatically with collaborators
-                  </span>
-                ) : (
+
+          {/* File document viewer */}
+          {document.document_type === "file" && document.file_url ? (
+            <Suspense
+              fallback={
+                <div className="flex h-96 items-center justify-center">
+                  <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                </div>
+              }
+            >
+              <FileDocumentViewer
+                fileUrl={document.file_url}
+                contentType={document.file_content_type}
+                originalFilename={document.original_filename}
+                fileSize={document.file_size}
+              />
+            </Suspense>
+          ) : (
+            <>
+              {/* Collaboration status - shown between featured image and editor */}
+              {collaborationEnabled && (
+                <CollaborationStatusBadge
+                  connectionStatus={collaboration.connectionStatus}
+                  collaborators={collaboration.collaborators}
+                  isCollaborating={collaboration.isCollaborating}
+                  isSynced={collaboration.isSynced}
+                />
+              )}
+              {/*
+                Key is just document.id - we don't remount when entering collaborative mode.
+                The CollaborationPlugin handles syncing the existing content to Yjs.
+              */}
+              <Suspense
+                fallback={
+                  <div className="flex h-96 items-center justify-center rounded-xl border">
+                    <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                  </div>
+                }
+              >
+                <Editor
+                  key={document.id}
+                  editorSerializedState={normalizedDocumentContent}
+                  onSerializedChange={setContentState}
+                  readOnly={!canEditDocument}
+                  showToolbar={canEditDocument}
+                  className="max-h-[80vh]"
+                  mentionableUsers={mentionableUsers}
+                  documentName={title}
+                  collaborative={collaborationEnabled && collaboration.isReady}
+                  providerFactory={collaboration.providerFactory}
+                  // Always track changes so contentState stays updated for periodic saves
+                  trackChanges={true}
+                  isSynced={collaboration.isSynced}
+                />
+              </Suspense>
+              <div className="flex flex-wrap items-center gap-3">
+                {canEditDocument ? (
                   <>
-                    <Button
-                      type="button"
-                      onClick={() => saveDocument.mutate()}
-                      disabled={!isDirty || saveDocument.isPending}
-                    >
-                      {saveDocument.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving…
-                        </>
-                      ) : (
-                        "Save changes"
-                      )}
-                    </Button>
+                    {/* When collaboration is active, changes sync in real-time */}
+                    {collaboration.isCollaborating ? (
+                      <span className="text-muted-foreground text-sm">
+                        Changes sync automatically with collaborators
+                      </span>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          onClick={() => saveDocument.mutate()}
+                          disabled={!isDirty || saveDocument.isPending}
+                        >
+                          {saveDocument.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving…
+                            </>
+                          ) : (
+                            "Save changes"
+                          )}
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="autosave"
+                            checked={autosaveEnabled}
+                            onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                          />
+                          <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                            Autosave
+                          </Label>
+                        </div>
+                        {!isDirty ? (
+                          <span className="text-muted-foreground self-center text-sm">
+                            All changes saved
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                    {/* Always show collaboration toggle */}
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        id="autosave"
-                        checked={autosaveEnabled}
-                        onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                        id="collaboration"
+                        checked={collaborationEnabled}
+                        onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
                       />
-                      <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                        Autosave
+                      <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                        Live collaboration
                       </Label>
                     </div>
-                    {!isDirty ? (
-                      <span className="text-muted-foreground self-center text-sm">
-                        All changes saved
-                      </span>
-                    ) : null}
                   </>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    You only have read access to this document.
+                  </p>
                 )}
-                {/* Always show collaboration toggle */}
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="collaboration"
-                    checked={collaborationEnabled}
-                    onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
-                  />
-                  <Label htmlFor="collaboration" className="cursor-pointer text-sm">
-                    Live collaboration
-                  </Label>
-                </div>
-              </>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                You only have read access to this document.
-              </p>
-            )}
-          </div>
+              </div>
+            </>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Attached projects</CardTitle>

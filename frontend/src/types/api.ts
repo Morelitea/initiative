@@ -91,6 +91,8 @@ export interface DocumentProjectLink {
   attached_at: string;
 }
 
+export type DocumentType = "native" | "file";
+
 export interface DocumentSummary {
   id: number;
   initiative_id: number;
@@ -105,6 +107,12 @@ export interface DocumentSummary {
   projects: DocumentProjectLink[];
   comment_count?: number;
   permissions?: DocumentPermission[];
+  // File document fields
+  document_type?: DocumentType;
+  file_url?: string | null;
+  file_content_type?: string | null;
+  file_size?: number | null;
+  original_filename?: string | null;
 }
 
 export interface DocumentRead extends DocumentSummary {

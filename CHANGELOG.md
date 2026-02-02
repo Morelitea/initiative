@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Uploadable file documents (PDF, Word, Excel, PowerPoint, text, HTML)
+  - Upload files via "Upload file" tab in create document dialog
+  - PDF viewer with zoom controls and continuous page scrolling
+  - Office documents show download prompt (browser preview not supported)
+  - 50 MB file size limit with client-side validation
+- Lazy loading for document detail page (Editor and PDF viewer load on demand)
+
 ### Changed
 
 - Only guild admins and initiative project managers can pin/unpin projects

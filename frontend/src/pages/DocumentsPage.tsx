@@ -5,14 +5,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
+  FileText,
+  FileSpreadsheet,
   Filter,
   LayoutGrid,
   Loader2,
   Plus,
+  Presentation,
   Table,
   Copy,
   Trash2,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,23 +30,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { DocumentCard } from "@/components/documents/DocumentCard";
+import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
+import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
 
@@ -142,12 +137,34 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
     id: "type",
     accessorKey: "is_template",
     header: "Type",
-    cell: ({ row }) =>
-      row.original.is_template ? (
-        <Badge variant="outline">Template</Badge>
-      ) : (
-        <span className="text-muted-foreground">Document</span>
-      ),
+    cell: ({ row }) => {
+      const doc = row.original;
+      const isFile = doc.document_type === "file";
+      const fileTypeLabel = isFile
+        ? getFileTypeLabel(doc.file_content_type, doc.original_filename)
+        : null;
+
+      return (
+        <div className="flex items-center gap-2">
+          {isFile ? (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              {fileTypeLabel === "Excel" ? (
+                <FileSpreadsheet className="h-3 w-3" />
+              ) : fileTypeLabel === "PowerPoint" ? (
+                <Presentation className="h-3 w-3" />
+              ) : (
+                <FileText className="h-3 w-3" />
+              )}
+              {fileTypeLabel}
+            </Badge>
+          ) : doc.is_template ? (
+            <Badge variant="outline">Template</Badge>
+          ) : (
+            <span className="text-muted-foreground">Document</span>
+          )}
+        </div>
+      );
+    },
   },
 ];
 
@@ -167,6 +184,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   );
   const lastConsumedParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
+  const isClosingCreateDialog = useRef(false);
 
   // Check for query params to filter by initiative (consume once)
   useEffect(() => {
@@ -248,12 +266,9 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   }, [initiativesQuery.data, user]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newInitiativeId, setNewInitiativeId] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : ""
+  const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
+    lockedInitiativeId ?? undefined
   );
-  const [isTemplateDocument, setIsTemplateDocument] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
 
   // Check if user owns all selected documents (required for delete)
@@ -282,45 +297,22 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
     : manageableInitiatives.length > 0;
 
-  const lastConsumedCreateParams = useRef<string>("");
-
-  // Check for query params to open create dialog (consume once)
+  // Open create dialog when ?create=true is in URL
   useEffect(() => {
     const shouldCreate = searchParams.create === "true";
     const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
 
-    if (shouldCreate && paramKey !== lastConsumedCreateParams.current) {
-      lastConsumedCreateParams.current = paramKey;
+    if (shouldCreate && !createDialogOpen && !isClosingCreateDialog.current) {
       setCreateDialogOpen(true);
       if (urlInitiativeId && !lockedInitiativeId) {
-        setNewInitiativeId(urlInitiativeId);
+        setCreateDialogInitiativeId(Number(urlInitiativeId));
       }
     }
-  }, [searchParams, lockedInitiativeId]);
-
-  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "templates", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<DocumentSummary[]>("/documents/");
-      return response.data;
-    },
-    enabled: canCreateDocuments,
-  });
-
-  const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !user) {
-      return [];
+    // Reset the closing flag once URL no longer has create=true
+    if (!shouldCreate) {
+      isClosingCreateDialog.current = false;
     }
-    // Pure DAC: user can use a template if they have any permission on it (read, write, or owner)
-    return templateDocumentsQuery.data.filter((document) => {
-      if (!document.is_template) {
-        return false;
-      }
-      const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-      return Boolean(permission);
-    });
-  }, [templateDocumentsQuery.data, user]);
+  }, [searchParams, lockedInitiativeId, createDialogOpen]);
 
   useEffect(() => {
     localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
@@ -343,87 +335,25 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
-  useEffect(() => {
-    if (!createDialogOpen) {
-      setIsTemplateDocument(false);
-      setSelectedTemplateId("");
-      return;
-    }
-    if (lockedInitiativeId) {
-      setNewInitiativeId(String(lockedInitiativeId));
-      return;
-    }
-    if (!newInitiativeId && manageableInitiatives.length > 0) {
-      setNewInitiativeId(String(manageableInitiatives[0].id));
-    }
-  }, [createDialogOpen, manageableInitiatives, newInitiativeId, lockedInitiativeId]);
+  const handleDocumentCreated = (document: { id: number }) => {
+    router.navigate({
+      to: "/documents/$documentId",
+      params: { documentId: String(document.id) },
+    });
+  };
 
-  useEffect(() => {
-    if (isTemplateDocument && selectedTemplateId) {
-      setSelectedTemplateId("");
-    }
-  }, [isTemplateDocument, selectedTemplateId]);
-
-  useEffect(() => {
-    if (!selectedTemplateId) {
-      return;
-    }
-    const isValid = manageableTemplates.some(
-      (document) => String(document.id) === selectedTemplateId
-    );
-    if (!isValid) {
-      setSelectedTemplateId("");
-    }
-  }, [manageableTemplates, selectedTemplateId]);
-
-  const createDocument = useMutation({
-    mutationFn: async () => {
-      const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-      const resolvedInitiativeId =
-        newInitiativeId || (lockedInitiativeId ? String(lockedInitiativeId) : "");
-      if (!resolvedInitiativeId) {
-        throw new Error("Select an initiative");
-      }
-      if (selectedTemplateId) {
-        const payload = {
-          target_initiative_id: Number(resolvedInitiativeId),
-          title: trimmedTitle,
-        };
-        const response = await apiClient.post<DocumentRead>(
-          `/documents/${selectedTemplateId}/copy`,
-          payload
-        );
-        return response.data;
-      }
-      const payload = {
-        title: trimmedTitle,
-        initiative_id: Number(resolvedInitiativeId),
-        is_template: isTemplateDocument,
-      };
-      const response = await apiClient.post<DocumentRead>("/documents/", payload);
-      return response.data;
-    },
-    onSuccess: (document) => {
-      toast.success("Document created");
-      setCreateDialogOpen(false);
-      setNewTitle("");
-      setIsTemplateDocument(false);
-      setSelectedTemplateId("");
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+  const handleCreateDialogOpenChange = (open: boolean) => {
+    setCreateDialogOpen(open);
+    // Clear ?create from URL when dialog closes
+    if (!open && searchParams.create) {
+      isClosingCreateDialog.current = true;
       router.navigate({
-        to: "/documents/$documentId",
-        params: { documentId: String(document.id) },
+        to: "/documents",
+        search: { initiativeId: searchParams.initiativeId },
+        replace: true,
       });
-    },
-    onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to create document right now.";
-      toast.error(message);
-    },
-  });
+    }
+  };
 
   const deleteDocuments = useMutation({
     mutationFn: async (documentIds: number[]) => {
@@ -728,131 +658,18 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
         )
       ) : null}
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
-          <DialogHeader>
-            <DialogTitle>New document</DialogTitle>
-            <DialogDescription>
-              Documents live inside an initiative and can be attached to projects later.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="new-document-title">Title</Label>
-              <Input
-                id="new-document-title"
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-                placeholder="Product launch brief"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-document-initiative">Initiative</Label>
-              {lockedInitiativeId ? (
-                <div className="rounded-md border px-3 py-2 text-sm">
-                  {lockedInitiative?.name ?? "Selected initiative"}
-                </div>
-              ) : (
-                <Select
-                  value={newInitiativeId}
-                  onValueChange={(value) => setNewInitiativeId(value)}
-                  disabled={!canCreateDocuments}
-                >
-                  <SelectTrigger id="new-document-initiative">
-                    <SelectValue placeholder="Select initiative" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {manageableInitiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="new-document-template-selector">Start from template</Label>
-                {selectedTemplateId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto px-2 py-1 text-xs"
-                    onClick={() => setSelectedTemplateId("")}
-                  >
-                    <X className="mr-1 h-3 w-3" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-              <Select
-                value={selectedTemplateId || undefined}
-                onValueChange={(value) => setSelectedTemplateId(value)}
-                disabled={
-                  templateDocumentsQuery.isLoading ||
-                  manageableTemplates.length === 0 ||
-                  isTemplateDocument
-                }
-              >
-                <SelectTrigger id="new-document-template-selector">
-                  <SelectValue
-                    placeholder={
-                      templateDocumentsQuery.isLoading
-                        ? "Loading templates…"
-                        : manageableTemplates.length > 0
-                          ? "Select template (optional)"
-                          : "No templates available"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {manageableTemplates.map((template) => (
-                    <SelectItem key={template.id} value={String(template.id)}>
-                      {template.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium">Save as template</p>
-                <p className="text-muted-foreground text-xs">
-                  Template documents are best duplicated or copied into other initiatives.
-                </p>
-              </div>
-              <Switch
-                id="new-document-template"
-                checked={isTemplateDocument}
-                onCheckedChange={setIsTemplateDocument}
-                aria-label="Toggle template status for the new document"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={() => createDocument.mutate()}
-              disabled={
-                createDocument.isPending ||
-                !newTitle.trim() ||
-                (!newInitiativeId && !lockedInitiativeId)
-              }
-            >
-              {createDocument.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating…
-                </>
-              ) : (
-                "Create document"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateDocumentDialog
+        open={createDialogOpen}
+        onOpenChange={handleCreateDialogOpenChange}
+        initiativeId={lockedInitiativeId ?? undefined}
+        defaultInitiativeId={
+          initiativeFilter !== INITIATIVE_FILTER_ALL
+            ? Number(initiativeFilter)
+            : createDialogInitiativeId
+        }
+        initiatives={manageableInitiatives}
+        onSuccess={handleDocumentCreated}
+      />
 
       {canCreateDocuments ? (
         <Button

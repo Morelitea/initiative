@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus, X } from "lucide-react";
+import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -16,18 +16,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { DocumentCard } from "@/components/documents/DocumentCard";
+import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import {
   Carousel,
   CarouselContent,
@@ -35,8 +26,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { useAuth } from "@/hooks/useAuth";
-import type { DocumentRead, DocumentSummary, ProjectDocumentLink } from "@/types/api";
+import type { DocumentSummary, ProjectDocumentLink } from "@/types/api";
 
 type ProjectDocumentsSectionProps = {
   projectId: number;
@@ -54,13 +44,9 @@ export const ProjectDocumentsSection = ({
   canAttach,
 }: ProjectDocumentsSectionProps) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
-  const [newDocumentTitle, setNewDocumentTitle] = useState("");
-  const [isTemplateDocument, setIsTemplateDocument] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const storageKey = `project:${projectId}:documentsCollapsed`;
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
@@ -79,30 +65,6 @@ export const ProjectDocumentsSection = ({
       return response.data;
     },
   });
-
-  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "templates"],
-    queryFn: async () => {
-      const response = await apiClient.get<DocumentSummary[]>("/documents/");
-      return response.data;
-    },
-    enabled: canCreate,
-  });
-
-  // Pure DAC: user can use templates they have any permission on
-  const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !user) {
-      return [];
-    }
-    return templateDocumentsQuery.data.filter((document) => {
-      if (!document.is_template) {
-        return false;
-      }
-      // User can use template if they have any permission on it
-      const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-      return Boolean(permission);
-    });
-  }, [templateDocumentsQuery.data, user]);
 
   const attachedDocumentIds = useMemo(
     () => new Set(documents.map((doc) => doc.document_id)),
@@ -149,57 +111,6 @@ export const ProjectDocumentsSection = ({
     },
   });
 
-  const createDocumentMutation = useMutation({
-    mutationFn: async () => {
-      const trimmedTitle = newDocumentTitle.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-
-      let newDocument: DocumentRead;
-
-      // If copying from template
-      if (selectedTemplateId) {
-        const payload = {
-          target_initiative_id: initiativeId,
-          title: trimmedTitle,
-        };
-        const response = await apiClient.post<DocumentRead>(
-          `/documents/${selectedTemplateId}/copy`,
-          payload
-        );
-        newDocument = response.data;
-      } else {
-        // Create new document
-        const createResponse = await apiClient.post<DocumentRead>("/documents/", {
-          title: trimmedTitle,
-          initiative_id: initiativeId,
-          is_template: isTemplateDocument,
-        });
-        newDocument = createResponse.data;
-      }
-
-      // Attach it to the project
-      await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
-
-      return newDocument;
-    },
-    onSuccess: () => {
-      toast.success("Document created and attached.");
-      setCreateDialogOpen(false);
-      setNewDocumentTitle("");
-      setIsTemplateDocument(false);
-      setSelectedTemplateId("");
-      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to create document.";
-      toast.error(message);
-    },
-  });
-
   const initiativeDocuments = useMemo(
     () => initiativeDocsQuery.data ?? [],
     [initiativeDocsQuery.data]
@@ -223,24 +134,6 @@ export const ProjectDocumentsSection = ({
       })),
     [availableDocs]
   );
-
-  useEffect(() => {
-    if (isTemplateDocument && selectedTemplateId) {
-      setSelectedTemplateId("");
-    }
-  }, [isTemplateDocument, selectedTemplateId]);
-
-  useEffect(() => {
-    if (!selectedTemplateId) {
-      return;
-    }
-    const isValid = manageableTemplates.some(
-      (document) => String(document.id) === selectedTemplateId
-    );
-    if (!isValid) {
-      setSelectedTemplateId("");
-    }
-  }, [manageableTemplates, selectedTemplateId]);
 
   return (
     <Collapsible
@@ -356,103 +249,12 @@ export const ProjectDocumentsSection = ({
         )}
       </div>
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
-          <DialogHeader>
-            <DialogTitle>New document</DialogTitle>
-            <DialogDescription>
-              Create a new document in the project&apos;s initiative and automatically attach it to
-              this project.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="new-project-document-title">Title</Label>
-              <Input
-                id="new-project-document-title"
-                value={newDocumentTitle}
-                onChange={(event) => setNewDocumentTitle(event.target.value)}
-                placeholder="Project requirements"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="new-project-document-template-selector">Start from template</Label>
-                {selectedTemplateId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto px-2 py-1 text-xs"
-                    onClick={() => setSelectedTemplateId("")}
-                  >
-                    <X className="mr-1 h-3 w-3" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-              <Select
-                value={selectedTemplateId || undefined}
-                onValueChange={(value) => setSelectedTemplateId(value)}
-                disabled={
-                  templateDocumentsQuery.isLoading ||
-                  manageableTemplates.length === 0 ||
-                  isTemplateDocument
-                }
-              >
-                <SelectTrigger id="new-project-document-template-selector">
-                  <SelectValue
-                    placeholder={
-                      templateDocumentsQuery.isLoading
-                        ? "Loading templates…"
-                        : manageableTemplates.length > 0
-                          ? "Select template (optional)"
-                          : "No templates available"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {manageableTemplates.map((template) => (
-                    <SelectItem key={template.id} value={String(template.id)}>
-                      {template.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium">Save as template</p>
-                <p className="text-muted-foreground text-xs">
-                  Template documents are best duplicated or copied into other initiatives.
-                </p>
-              </div>
-              <Switch
-                id="new-project-document-template"
-                checked={isTemplateDocument}
-                onCheckedChange={setIsTemplateDocument}
-                aria-label="Toggle template status for the new document"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={() => createDocumentMutation.mutate()}
-              disabled={createDocumentMutation.isPending || !newDocumentTitle.trim()}
-            >
-              {createDocumentMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating…
-                </>
-              ) : (
-                "Create document"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateDocumentDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        initiativeId={initiativeId}
+        projectId={projectId}
+      />
 
       <CollapsibleContent className="space-y-4 data-[state=closed]:hidden">
         {documents.length === 0 ? (
