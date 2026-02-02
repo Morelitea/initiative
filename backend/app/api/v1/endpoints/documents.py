@@ -718,7 +718,7 @@ async def generate_summary(
     _require_document_access(document, current_user, access="read")
 
     # Only allow summarization of native documents with content
-    if document.document_type and document.document_type.value == "file":
+    if document.document_type == DocumentType.file:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="AI summarization is only available for native documents, not file uploads",
