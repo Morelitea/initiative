@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, inspect
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -12,7 +12,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
+from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentType, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User
 from app.models.guild import GuildRole
@@ -243,6 +243,77 @@ async def create_document(
         updated_by_id=current_user.id,
         featured_image_url=document_in.featured_image_url,
         is_template=document_in.is_template,
+    )
+    session.add(document)
+    await session.flush()
+
+    # Add owner permission for the creator
+    owner_permission = DocumentPermission(
+        document_id=document.id,
+        user_id=current_user.id,
+        level=DocumentPermissionLevel.owner,
+        guild_id=guild_context.guild_id,
+    )
+    session.add(owner_permission)
+    await session.commit()
+
+    hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
+    return serialize_document(hydrated)
+
+
+@router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+async def upload_document_file(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    title: str = Form(...),
+    initiative_id: int = Form(...),
+    file: UploadFile = File(...),
+) -> DocumentRead:
+    """Upload a file document (PDF, DOCX, etc.)."""
+    initiative = await _get_initiative_or_404(
+        session,
+        initiative_id=initiative_id,
+        guild_id=guild_context.guild_id,
+    )
+    await _require_initiative_access(
+        session,
+        initiative_id=initiative.id,
+        user=current_user,
+        guild_role=guild_context.role,
+        require_manager=True,
+    )
+    title = title.strip()
+    if not title:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+
+    # Read and validate file content
+    contents = await file.read()
+    try:
+        mime_type, extension = attachments_service.validate_document_file(
+            content=contents,
+            filename=file.filename,
+            content_type=file.content_type,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # Save file to uploads directory
+    file_url = attachments_service.save_document_file(contents, extension)
+
+    # Create document record
+    document = Document(
+        title=title,
+        initiative_id=initiative.id,
+        guild_id=guild_context.guild_id,
+        content={},  # File documents have empty content
+        created_by_id=current_user.id,
+        updated_by_id=current_user.id,
+        document_type=DocumentType.file,
+        file_url=file_url,
+        file_content_type=mime_type,
+        file_size=len(contents),
+        original_filename=file.filename,
     )
     session.add(document)
     await session.flush()
@@ -586,6 +657,9 @@ async def delete_document(
     removed_upload_urls = attachments_service.extract_upload_urls(document.content)
     if document.featured_image_url:
         removed_upload_urls.add(document.featured_image_url)
+    # For file documents, also delete the uploaded file
+    if document.file_url:
+        removed_upload_urls.add(document.file_url)
     await session.delete(document)
     await session.commit()
     attachments_service.delete_uploads_by_urls(removed_upload_urls)

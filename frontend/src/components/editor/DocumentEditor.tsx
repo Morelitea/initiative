@@ -229,10 +229,15 @@ export const EMPTY_EDITOR_STATE: SerializedEditorState = createEmptyEditorState(
 export const normalizeEditorState = (
   state?: SerializedEditorState | null
 ): SerializedEditorState => {
-  const base =
-    state && typeof state === "object"
-      ? (state as SerializedEditorState)
-      : createEmptyEditorState();
+  // Check if state is a valid Lexical editor state with a root property
+  const isValidEditorState =
+    state &&
+    typeof state === "object" &&
+    "root" in state &&
+    state.root &&
+    typeof state.root === "object";
+
+  const base = isValidEditorState ? (state as SerializedEditorState) : createEmptyEditorState();
   const cloned = JSON.parse(JSON.stringify(base)) as SerializedEditorState;
   if (!Array.isArray(cloned.root.children) || cloned.root.children.length === 0) {
     cloned.root.children = [createEmptyParagraphNode()];

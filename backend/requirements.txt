@@ -15,6 +15,7 @@ requests>=2.31.0  # Required by google-auth for requests transport
 alembic==1.14.0
 slowapi==0.1.9
 tzdata>=2024.1  # Required on Windows for timezone support
+python-magic>=0.4.27  # MIME type detection for file uploads
 
 # Collaboration (Yjs CRDT)
 pycrdt~=0.12.0

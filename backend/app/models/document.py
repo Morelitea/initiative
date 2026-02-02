@@ -2,13 +2,19 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, LargeBinary, String, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, LargeBinary, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
     from app.models.project import Project
+
+
+class DocumentType(str, Enum):
+    """Discriminator for document type."""
+    native = "native"  # Lexical editor document
+    file = "file"  # Uploaded file (PDF, DOCX, etc.)
 
 
 class Document(SQLModel, table=True):
@@ -47,6 +53,35 @@ class Document(SQLModel, table=True):
     yjs_updated_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    # File document fields
+    document_type: DocumentType = Field(
+        default=DocumentType.native,
+        sa_column=Column(
+            SQLEnum(
+                DocumentType,
+                name="document_type",
+                create_type=False,
+            ),
+            nullable=False,
+            server_default=text("'native'"),
+        ),
+    )
+    file_url: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=512), nullable=True),
+    )
+    file_content_type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=128), nullable=True),
+    )
+    file_size: Optional[int] = Field(
+        default=None,
+        sa_column=Column(BigInteger, nullable=True),
+    )
+    original_filename: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=255), nullable=True),
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="documents")

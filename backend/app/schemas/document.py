@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document, ProjectDocument
 
 LexicalState = Dict[str, Any]
+DocumentTypeStr = Literal["native", "file"]
 
 
 class DocumentProjectLink(BaseModel):
@@ -85,6 +86,12 @@ class DocumentSummary(DocumentBase):
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     permissions: List[DocumentPermissionRead] = Field(default_factory=list)
+    # File document fields
+    document_type: DocumentTypeStr = "native"
+    file_url: Optional[str] = None
+    file_content_type: Optional[str] = None
+    file_size: Optional[int] = None
+    original_filename: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -145,6 +152,11 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
         permissions=_serialize_permissions(document),
+        document_type=document.document_type.value if document.document_type else "native",
+        file_url=document.file_url,
+        file_content_type=document.file_content_type,
+        file_size=document.file_size,
+        original_filename=document.original_filename,
     )
 
 
