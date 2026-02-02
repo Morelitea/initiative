@@ -598,6 +598,10 @@ export interface GenerateDescriptionResponse {
   description: string;
 }
 
+export interface GenerateDocumentSummaryResponse {
+  summary: string;
+}
+
 // Admin deletion types
 export interface ProjectBasic {
   id: number;

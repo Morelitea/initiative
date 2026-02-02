@@ -1314,8 +1314,8 @@ async def generate_task_subtasks(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    # Check write access
-    await _get_project_with_access(
+    # Check write access and get project with initiative
+    project = await _get_project_with_access(
         session,
         task.project_id,
         current_user,
@@ -1329,6 +1329,8 @@ async def generate_task_subtasks(
             current_user,
             guild_context.guild_id,
             task,
+            initiative_name=project.initiative.name if project.initiative else None,
+            project_name=project.name,
         )
         return GenerateSubtasksResponse(subtasks=subtasks)
     except ai_generation_service.AIGenerationError as e:
@@ -1347,8 +1349,8 @@ async def generate_task_description(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    # Check write access
-    await _get_project_with_access(
+    # Check write access and get project with initiative
+    project = await _get_project_with_access(
         session,
         task.project_id,
         current_user,
@@ -1362,6 +1364,8 @@ async def generate_task_description(
             current_user,
             guild_context.guild_id,
             task,
+            initiative_name=project.initiative.name if project.initiative else None,
+            project_name=project.name,
         )
         return GenerateDescriptionResponse(description=description)
     except ai_generation_service.AIGenerationError as e:

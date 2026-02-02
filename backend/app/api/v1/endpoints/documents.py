@@ -31,10 +31,12 @@ from app.schemas.document import (
     serialize_document,
     serialize_document_summary,
 )
+from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.services import attachments as attachments_service
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
 from app.services import notifications as notifications_service
+from app.services.ai_generation import AIGenerationError, generate_document_summary
 
 router = APIRouter()
 
@@ -698,3 +700,38 @@ async def notify_mentions(
             guild_id=guild_context.guild_id,
         )
     await session.commit()
+
+
+@router.post("/{document_id}/ai/summary", response_model=GenerateDocumentSummaryResponse)
+async def generate_summary(
+    document_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> GenerateDocumentSummaryResponse:
+    """Generate an AI summary of a document.
+
+    Requires read access to the document. Only works for native documents
+    (not file uploads like PDFs).
+    """
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    _require_document_access(document, current_user, access="read")
+
+    # Only allow summarization of native documents with content
+    if document.document_type == DocumentType.file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AI summarization is only available for native documents, not file uploads",
+        )
+
+    try:
+        summary = await generate_document_summary(
+            session=session,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            document_content=document.content,
+            document_title=document.title,
+        )
+        return GenerateDocumentSummaryResponse(summary=summary)
+    except AIGenerationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

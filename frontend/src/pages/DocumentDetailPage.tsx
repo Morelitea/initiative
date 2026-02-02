@@ -3,12 +3,15 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
-import { ImagePlus, Loader2, ScrollText, Settings, X } from "lucide-react";
+import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
+import { CommentSection } from "@/components/comments/CommentSection";
+import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
+import { DocumentSummary } from "@/components/documents/DocumentSummary";
 
 // Lazy load heavy components
 const Editor = lazy(() =>
@@ -39,9 +42,9 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
+import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import { CommentSection } from "@/components/comments/CommentSection";
 
 export const DocumentDetailPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId: string };
@@ -49,6 +52,9 @@ export const DocumentDetailPage = () => {
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
+  const sidePanel = useDocumentSidePanel();
+  const { isEnabled: isAIEnabled } = useAIEnabled();
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
@@ -378,8 +384,8 @@ export const DocumentDetailPage = () => {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="flex items-center gap-3">
-          {canEditDocument ? (
+        <div className="flex items-center gap-2">
+          {canEditDocument && (
             <Button asChild variant="outline" size="sm">
               <Link
                 to="/documents/$documentId/settings"
@@ -390,7 +396,16 @@ export const DocumentDetailPage = () => {
                 Document settings
               </Link>
             </Button>
-          ) : null}
+          )}
+          <Button
+            variant={sidePanel.isOpen ? "secondary" : "outline"}
+            size="sm"
+            onClick={sidePanel.toggle}
+            title={sidePanel.isOpen ? "Close panel" : "Open panel"}
+          >
+            <PanelRight className="h-4 w-4" />
+            <span className="sr-only">Toggle side panel</span>
+          </Button>
         </div>
       </div>
       <div className="space-y-2">
@@ -418,245 +433,260 @@ export const DocumentDetailPage = () => {
           {document.is_template ? <Badge variant="outline">Template</Badge> : null}
         </div>
       </div>
-      <div className="flex flex-col gap-6 xl:flex-row">
-        <div className="flex-1 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Featured image</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
-                  {featuredImageUrl ? (
-                    <img
-                      src={resolveUploadUrl(featuredImageUrl) ?? undefined}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-muted-foreground flex h-full items-center justify-center">
-                      <ScrollText className="h-10 w-10" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <input
-                    ref={featuredImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFeaturedImageChange}
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Featured image</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
+                {featuredImageUrl ? (
+                  <img
+                    src={resolveUploadUrl(featuredImageUrl) ?? undefined}
+                    alt=""
+                    className="h-full w-full object-cover"
                   />
-                  {canEditDocument ? (
-                    <div className="flex flex-wrap gap-2">
+                ) : (
+                  <div className="text-muted-foreground flex h-full items-center justify-center">
+                    <ScrollText className="h-10 w-10" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <input
+                  ref={featuredImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFeaturedImageChange}
+                />
+                {canEditDocument ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={openFeaturedImagePicker}
+                      disabled={isUploadingFeaturedImage}
+                    >
+                      {isUploadingFeaturedImage ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading…
+                        </>
+                      ) : (
+                        <>
+                          <ImagePlus className="mr-2 h-4 w-4" />
+                          Upload featured image
+                        </>
+                      )}
+                    </Button>
+                    {featuredImageUrl ? (
                       <Button
                         type="button"
-                        variant="outline"
-                        onClick={openFeaturedImagePicker}
+                        variant="ghost"
+                        onClick={() => setFeaturedImageUrl(null)}
                         disabled={isUploadingFeaturedImage}
                       >
-                        {isUploadingFeaturedImage ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Uploading…
-                          </>
-                        ) : (
-                          <>
-                            <ImagePlus className="mr-2 h-4 w-4" />
-                            Upload featured image
-                          </>
-                        )}
+                        <X className="mr-2 h-4 w-4" />
+                        Remove image
                       </Button>
-                      {featuredImageUrl ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setFeaturedImageUrl(null)}
-                          disabled={isUploadingFeaturedImage}
-                        >
-                          <X className="mr-2 h-4 w-4" />
-                          Remove image
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <p className="text-muted-foreground text-xs">
-                    Uploads are stored locally under <code>/uploads</code>. Remember to save changes
-                    to keep your new image.
-                  </p>
-                </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <p className="text-muted-foreground text-xs">
+                  Uploads are stored locally under <code>/uploads</code>. Remember to save changes
+                  to keep your new image.
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* File document viewer */}
-          {document.document_type === "file" && document.file_url ? (
+        {/* File document viewer */}
+        {document.document_type === "file" && document.file_url ? (
+          <Suspense
+            fallback={
+              <div className="flex h-96 items-center justify-center">
+                <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+              </div>
+            }
+          >
+            <FileDocumentViewer
+              fileUrl={document.file_url}
+              contentType={document.file_content_type}
+              originalFilename={document.original_filename}
+              fileSize={document.file_size}
+            />
+          </Suspense>
+        ) : (
+          <>
+            {/* Collaboration status - shown between featured image and editor */}
+            {collaborationEnabled && (
+              <CollaborationStatusBadge
+                connectionStatus={collaboration.connectionStatus}
+                collaborators={collaboration.collaborators}
+                isCollaborating={collaboration.isCollaborating}
+                isSynced={collaboration.isSynced}
+              />
+            )}
+            {/*
+              Key is just document.id - we don't remount when entering collaborative mode.
+              The CollaborationPlugin handles syncing the existing content to Yjs.
+            */}
             <Suspense
               fallback={
-                <div className="flex h-96 items-center justify-center">
+                <div className="flex h-96 items-center justify-center rounded-xl border">
                   <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
                 </div>
               }
             >
-              <FileDocumentViewer
-                fileUrl={document.file_url}
-                contentType={document.file_content_type}
-                originalFilename={document.original_filename}
-                fileSize={document.file_size}
+              <Editor
+                key={document.id}
+                editorSerializedState={normalizedDocumentContent}
+                onSerializedChange={setContentState}
+                readOnly={!canEditDocument}
+                showToolbar={canEditDocument}
+                className="max-h-[80vh]"
+                mentionableUsers={mentionableUsers}
+                documentName={title}
+                collaborative={collaborationEnabled && collaboration.isReady}
+                providerFactory={collaboration.providerFactory}
+                // Always track changes so contentState stays updated for periodic saves
+                trackChanges={true}
+                isSynced={collaboration.isSynced}
               />
             </Suspense>
-          ) : (
-            <>
-              {/* Collaboration status - shown between featured image and editor */}
-              {collaborationEnabled && (
-                <CollaborationStatusBadge
-                  connectionStatus={collaboration.connectionStatus}
-                  collaborators={collaboration.collaborators}
-                  isCollaborating={collaboration.isCollaborating}
-                  isSynced={collaboration.isSynced}
-                />
-              )}
-              {/*
-                Key is just document.id - we don't remount when entering collaborative mode.
-                The CollaborationPlugin handles syncing the existing content to Yjs.
-              */}
-              <Suspense
-                fallback={
-                  <div className="flex h-96 items-center justify-center rounded-xl border">
-                    <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-                  </div>
-                }
-              >
-                <Editor
-                  key={document.id}
-                  editorSerializedState={normalizedDocumentContent}
-                  onSerializedChange={setContentState}
-                  readOnly={!canEditDocument}
-                  showToolbar={canEditDocument}
-                  className="max-h-[80vh]"
-                  mentionableUsers={mentionableUsers}
-                  documentName={title}
-                  collaborative={collaborationEnabled && collaboration.isReady}
-                  providerFactory={collaboration.providerFactory}
-                  // Always track changes so contentState stays updated for periodic saves
-                  trackChanges={true}
-                  isSynced={collaboration.isSynced}
-                />
-              </Suspense>
-              <div className="flex flex-wrap items-center gap-3">
-                {canEditDocument ? (
-                  <>
-                    {/* When collaboration is active, changes sync in real-time */}
-                    {collaboration.isCollaborating ? (
-                      <span className="text-muted-foreground text-sm">
-                        Changes sync automatically with collaborators
-                      </span>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          onClick={() => saveDocument.mutate()}
-                          disabled={!isDirty || saveDocument.isPending}
-                        >
-                          {saveDocument.isPending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Saving…
-                            </>
-                          ) : (
-                            "Save changes"
-                          )}
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="autosave"
-                            checked={autosaveEnabled}
-                            onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
-                          />
-                          <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                            Autosave
-                          </Label>
-                        </div>
-                        {!isDirty ? (
-                          <span className="text-muted-foreground self-center text-sm">
-                            All changes saved
-                          </span>
-                        ) : null}
-                      </>
-                    )}
-                    {/* Always show collaboration toggle */}
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="collaboration"
-                        checked={collaborationEnabled}
-                        onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
-                      />
-                      <Label htmlFor="collaboration" className="cursor-pointer text-sm">
-                        Live collaboration
-                      </Label>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    You only have read access to this document.
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-          <Card>
-            <CardHeader>
-              <CardTitle>Attached projects</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {attachedProjects.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  This document is not attached to any projects yet. Attach it from a project detail
-                  page.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {attachedProjects.map((link) => (
-                    <div
-                      key={`${document.id}-${link.project_id}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
-                    >
-                      <div className="space-y-0.5">
-                        <Link
-                          to="/projects/$projectId"
-                          params={{ projectId: String(link.project_id) }}
-                          className="font-medium hover:underline"
-                        >
-                          {link.project_name ?? `Project #${link.project_id}`}
-                        </Link>
-                        <p className="text-muted-foreground text-xs">
-                          Attached{" "}
-                          {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
-                        </p>
+            <div className="flex flex-wrap items-center gap-3">
+              {canEditDocument ? (
+                <>
+                  {/* When collaboration is active, changes sync in real-time */}
+                  {collaboration.isCollaborating ? (
+                    <span className="text-muted-foreground text-sm">
+                      Changes sync automatically with collaborators
+                    </span>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={() => saveDocument.mutate()}
+                        disabled={!isDirty || saveDocument.isPending}
+                      >
+                        {saveDocument.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving…
+                          </>
+                        ) : (
+                          "Save changes"
+                        )}
+                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="autosave"
+                          checked={autosaveEnabled}
+                          onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
+                        />
+                        <Label htmlFor="autosave" className="cursor-pointer text-sm">
+                          Autosave
+                        </Label>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                      {!isDirty ? (
+                        <span className="text-muted-foreground self-center text-sm">
+                          All changes saved
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                  {/* Always show collaboration toggle */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="collaboration"
+                      checked={collaborationEnabled}
+                      onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
+                    />
+                    <Label htmlFor="collaboration" className="cursor-pointer text-sm">
+                      Live collaboration
+                    </Label>
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  You only have read access to this document.
+                </p>
               )}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="space-y-2 xl:w-96">
-          {commentsQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load comments right now.</p>
-          ) : null}
-          <CommentSection
-            entityType="document"
-            entityId={parsedId}
-            comments={commentsQuery.data ?? []}
-            isLoading={commentsQuery.isLoading}
-            onCommentCreated={handleCommentCreated}
-            onCommentDeleted={handleCommentDeleted}
-            canModerate={commentsCanModerate}
-            initiativeId={document.initiative_id}
-          />
-        </div>
+            </div>
+          </>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Attached projects</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {attachedProjects.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                This document is not attached to any projects yet. Attach it from a project detail
+                page.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {attachedProjects.map((link) => (
+                  <div
+                    key={`${document.id}-${link.project_id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-3"
+                  >
+                    <div className="space-y-0.5">
+                      <Link
+                        to="/projects/$projectId"
+                        params={{ projectId: String(link.project_id) }}
+                        className="font-medium hover:underline"
+                      >
+                        {link.project_name ?? `Project #${link.project_id}`}
+                      </Link>
+                      <p className="text-muted-foreground text-xs">
+                        Attached{" "}
+                        {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Side panel for AI summary and comments */}
+      <DocumentSidePanel
+        isOpen={sidePanel.isOpen}
+        onOpenChange={sidePanel.setIsOpen}
+        showSummaryTab={document.document_type !== "file" && isAIEnabled}
+        summaryContent={
+          <DocumentSummary
+            documentId={parsedId}
+            summary={aiSummary}
+            onSummaryChange={setAiSummary}
+          />
+        }
+        commentsContent={
+          <>
+            {commentsQuery.isError && (
+              <p className="text-destructive mb-4 text-sm">Unable to load comments right now.</p>
+            )}
+            <CommentSection
+              entityType="document"
+              entityId={parsedId}
+              comments={commentsQuery.data ?? []}
+              isLoading={commentsQuery.isLoading}
+              onCommentCreated={handleCommentCreated}
+              onCommentDeleted={handleCommentDeleted}
+              canModerate={commentsCanModerate}
+              initiativeId={document.initiative_id}
+            />
+          </>
+        }
+      />
     </div>
   );
 };
