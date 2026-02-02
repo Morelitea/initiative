@@ -230,7 +230,7 @@ export const FileDocumentViewer = ({
             className="w-full"
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || "HTML document"}
-            sandbox="allow-same-origin"
+            sandbox=""
           />
         ) : isOffice ? (
           // Office documents - show preview card with download options
