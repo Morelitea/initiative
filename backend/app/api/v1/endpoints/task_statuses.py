@@ -109,7 +109,6 @@ async def list_task_statuses(
         current_user,
         guild_id=guild_context.guild_id,
         access="read",
-        guild_role=guild_context.role,
     )
     return await task_statuses_service.list_statuses(session, project_id)
 
@@ -127,7 +126,6 @@ async def create_task_status(
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
     await _ensure_project_manager_role(session, project, current_user, guild_context.role)
     statuses = await task_statuses_service.list_statuses(session, project.id)
@@ -167,7 +165,6 @@ async def update_task_status(
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
     await _ensure_project_manager_role(session, project, current_user, guild_context.role)
     target = await _load_status_or_404(session, project_id, status_id)
@@ -214,7 +211,6 @@ async def reorder_task_statuses(
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
     await _ensure_project_manager_role(session, project, current_user, guild_context.role)
 
@@ -254,7 +250,6 @@ async def delete_task_status(
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
     await _ensure_project_manager_role(session, project, current_user, guild_context.role)
     target = await _load_status_or_404(session, project_id, status_id)
