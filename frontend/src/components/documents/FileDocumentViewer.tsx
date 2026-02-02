@@ -1,8 +1,6 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
-  ChevronLeft,
-  ChevronRight,
   Download,
   ExternalLink,
   FileSpreadsheet,
@@ -42,9 +40,23 @@ export const FileDocumentViewer = ({
 
   // PDF viewer state
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [baseWidth, setBaseWidth] = useState<number | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Measure toolbar width once on mount for PDF sizing
+  useEffect(() => {
+    const measureWidth = () => {
+      if (toolbarRef.current) {
+        setBaseWidth(toolbarRef.current.clientWidth);
+      }
+    };
+
+    // Measure after a short delay to ensure layout is complete
+    const timeoutId = setTimeout(measureWidth, 50);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   // Determine file type for rendering strategy
   const isPdf = extension === "pdf" || contentType === "application/pdf";
@@ -92,8 +104,6 @@ export const FileDocumentViewer = ({
     setPdfError("Failed to load PDF. Try downloading the file instead.");
   };
 
-  const goToPrevPage = () => setPageNumber((prev) => Math.max(1, prev - 1));
-  const goToNextPage = () => setPageNumber((prev) => Math.min(numPages || prev, prev + 1));
   const zoomIn = () => setScale((prev) => Math.min(2.5, prev + 0.25));
   const zoomOut = () => setScale((prev) => Math.max(0.5, prev - 0.25));
 
@@ -133,32 +143,20 @@ export const FileDocumentViewer = ({
         </div>
       </div>
 
-      <div className="bg-card overflow-hidden rounded-lg border">
+      <div
+        className="bg-card w-full min-w-0 overflow-hidden rounded-lg border"
+        style={baseWidth ? { maxWidth: baseWidth } : undefined}
+      >
         {isPdf ? (
-          <div className="flex flex-col">
+          <div className="flex w-full flex-col overflow-hidden">
             {/* PDF Controls */}
-            <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={goToPrevPage}
-                  disabled={pageNumber <= 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm">
-                  Page {pageNumber} of {numPages || "..."}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={goToNextPage}
-                  disabled={pageNumber >= (numPages || 1)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+            <div
+              ref={toolbarRef}
+              className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2"
+            >
+              <span className="text-muted-foreground text-sm">
+                {numPages ? `${numPages} page${numPages > 1 ? "s" : ""}` : "Loading..."}
+              </span>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
                   <ZoomOut className="h-4 w-4" />
@@ -172,11 +170,11 @@ export const FileDocumentViewer = ({
 
             {/* PDF Viewer */}
             <div
-              className="flex items-start justify-center overflow-auto bg-neutral-100 dark:bg-neutral-900"
-              style={{ height: "70vh", minHeight: 500 }}
+              className="min-w-0 overflow-auto bg-neutral-100 p-4 dark:bg-neutral-900"
+              style={{ height: "70vh", minHeight: 500, maxWidth: "100%" }}
             >
               {pdfError ? (
-                <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+                <div className="flex h-full flex-col items-center justify-center text-center">
                   <FileText className="text-muted-foreground mb-4 h-16 w-16" />
                   <p className="text-muted-foreground mb-4">{pdfError}</p>
                   <Button onClick={handleDownload}>
@@ -184,7 +182,7 @@ export const FileDocumentViewer = ({
                     Download PDF
                   </Button>
                 </div>
-              ) : (
+              ) : baseWidth ? (
                 <Document
                   file={resolvedUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
@@ -195,16 +193,25 @@ export const FileDocumentViewer = ({
                     </div>
                   }
                 >
-                  <Page
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    loading={
-                      <div className="flex items-center justify-center p-8">
-                        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
-                      </div>
-                    }
-                  />
+                  <div className="flex flex-col items-center gap-4">
+                    {Array.from({ length: numPages || 0 }, (_, index) => (
+                      <Page
+                        key={index + 1}
+                        pageNumber={index + 1}
+                        width={(baseWidth - 32) * scale}
+                        loading={
+                          <div className="flex items-center justify-center p-8">
+                            <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                          </div>
+                        }
+                      />
+                    ))}
+                  </div>
                 </Document>
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                </div>
               )}
             </div>
           </div>

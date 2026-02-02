@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -8,9 +8,17 @@ import { toast } from "sonner";
 
 import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
-import { Editor } from "@/components/editor-x/editor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
-import { FileDocumentViewer } from "@/components/documents/FileDocumentViewer";
+
+// Lazy load heavy components
+const Editor = lazy(() =>
+  import("@/components/editor-x/editor").then((m) => ({ default: m.Editor }))
+);
+const FileDocumentViewer = lazy(() =>
+  import("@/components/documents/FileDocumentViewer").then((m) => ({
+    default: m.FileDocumentViewer,
+  }))
+);
 import { findNewMentions } from "@/lib/mentionUtils";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import {
@@ -483,12 +491,20 @@ export const DocumentDetailPage = () => {
 
           {/* File document viewer */}
           {document.document_type === "file" && document.file_url ? (
-            <FileDocumentViewer
-              fileUrl={document.file_url}
-              contentType={document.file_content_type}
-              originalFilename={document.original_filename}
-              fileSize={document.file_size}
-            />
+            <Suspense
+              fallback={
+                <div className="flex h-96 items-center justify-center">
+                  <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                </div>
+              }
+            >
+              <FileDocumentViewer
+                fileUrl={document.file_url}
+                contentType={document.file_content_type}
+                originalFilename={document.original_filename}
+                fileSize={document.file_size}
+              />
+            </Suspense>
           ) : (
             <>
               {/* Collaboration status - shown between featured image and editor */}
@@ -504,21 +520,29 @@ export const DocumentDetailPage = () => {
                 Key is just document.id - we don't remount when entering collaborative mode.
                 The CollaborationPlugin handles syncing the existing content to Yjs.
               */}
-              <Editor
-                key={document.id}
-                editorSerializedState={normalizedDocumentContent}
-                onSerializedChange={setContentState}
-                readOnly={!canEditDocument}
-                showToolbar={canEditDocument}
-                className="max-h-[80vh]"
-                mentionableUsers={mentionableUsers}
-                documentName={title}
-                collaborative={collaborationEnabled && collaboration.isReady}
-                providerFactory={collaboration.providerFactory}
-                // Always track changes so contentState stays updated for periodic saves
-                trackChanges={true}
-                isSynced={collaboration.isSynced}
-              />
+              <Suspense
+                fallback={
+                  <div className="flex h-96 items-center justify-center rounded-xl border">
+                    <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                  </div>
+                }
+              >
+                <Editor
+                  key={document.id}
+                  editorSerializedState={normalizedDocumentContent}
+                  onSerializedChange={setContentState}
+                  readOnly={!canEditDocument}
+                  showToolbar={canEditDocument}
+                  className="max-h-[80vh]"
+                  mentionableUsers={mentionableUsers}
+                  documentName={title}
+                  collaborative={collaborationEnabled && collaboration.isReady}
+                  providerFactory={collaboration.providerFactory}
+                  // Always track changes so contentState stays updated for periodic saves
+                  trackChanges={true}
+                  isSynced={collaboration.isSynced}
+                />
+              </Suspense>
               <div className="flex flex-wrap items-center gap-3">
                 {canEditDocument ? (
                   <>
