@@ -504,20 +504,13 @@ export const ProjectSettingsPage = () => {
     );
   }
 
-  const initiativeMembership = project.initiative?.members?.find(
-    (member) => member.user.id === user?.id
-  );
-
   const isOwner = project.owner_id === user?.id;
-  const isInitiativePm = initiativeMembership?.role === "project_manager";
   const userPermission = project.permissions.find((p) => p.user_id === user?.id);
-  const hasWriteAccess =
-    user?.role === "admin" ||
-    isInitiativePm ||
-    userPermission?.level === "owner" ||
-    userPermission?.level === "write";
-  const canManageTaskStatuses = user?.role === "admin" || isInitiativePm;
-  const canManageAccess = user?.role === "admin" || isOwner || isInitiativePm;
+  // Pure DAC: write access requires owner or write permission level
+  const hasWriteAccess = userPermission?.level === "owner" || userPermission?.level === "write";
+  // Pure DAC: write permission grants access to manage settings
+  const canManageTaskStatuses = hasWriteAccess;
+  const canManageAccess = hasWriteAccess;
   const canWriteProject = hasWriteAccess;
 
   if (!canManageAccess && !canWriteProject) {
@@ -972,7 +965,7 @@ export const ProjectSettingsPage = () => {
         </CardFooter>
       </Card>
 
-      {user?.role === "admin" ? (
+      {isOwner ? (
         <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
           <CardHeader>
             <CardTitle className="text-destructive">Danger zone</CardTitle>

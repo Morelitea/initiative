@@ -48,7 +48,7 @@ export function CollaborationStatusBadge({
     },
     connected: {
       icon: Users,
-      label: "Live editing",
+      label: "Online",
       color: "text-green-500",
       bgColor: "bg-green-100 dark:bg-green-900/20",
     },

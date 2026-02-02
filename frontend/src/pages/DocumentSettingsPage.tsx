@@ -97,43 +97,28 @@ export const DocumentSettingsPage = () => {
     enabled: Boolean(document) && Boolean(user),
   });
 
-  // Determine if user can manage the document (owner, initiative PM, or guild admin)
+  // Pure DAC: users with write or owner permission can manage the document
   const canManageDocument = useMemo(() => {
     if (!document || !user) {
       return false;
     }
-    if (user.role === "admin") {
-      return true;
-    }
-    // Check if user is initiative PM
-    const initiativeMembers = document.initiative?.members ?? [];
-    const isManager = initiativeMembers.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
-    if (isManager) {
-      return true;
-    }
-    // Check if user is document owner
-    const ownerPermission = (document.permissions ?? []).find(
-      (p) => p.user_id === user.id && p.level === "owner"
-    );
-    return Boolean(ownerPermission);
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
 
-  // Check if user has write access (for editing content, not managing permissions)
-  const hasWriteAccess = useMemo(() => {
+  // Pure DAC: only owners can delete/duplicate documents
+  const isOwner = useMemo(() => {
     if (!document || !user) {
       return false;
     }
-    if (user.role === "admin") {
-      return true;
-    }
-    const initiativeMembers = document.initiative?.members ?? [];
-    const isManager = initiativeMembers.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
-    if (isManager) {
-      return true;
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner";
+  }, [document, user]);
+
+  // Pure DAC: check if user has write access
+  const hasWriteAccess = useMemo(() => {
+    if (!document || !user) {
+      return false;
     }
     const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
     return permission?.level === "owner" || permission?.level === "write";
@@ -781,7 +766,7 @@ export const DocumentSettingsPage = () => {
             type="button"
             variant="destructive"
             onClick={() => setDeleteDialogOpen(true)}
-            disabled={!canManageDocument}
+            disabled={!isOwner}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete document

@@ -111,16 +111,7 @@ export const DocumentDetailPage = () => {
     if (!document || !user) {
       return false;
     }
-    if (user.role === "admin") {
-      return true;
-    }
-    const initiativeMembers = document.initiative?.members ?? [];
-    const isManager = initiativeMembers.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
-    if (isManager) {
-      return true;
-    }
+    // Pure DAC: only check document permission level
     const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
     return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
@@ -134,13 +125,9 @@ export const DocumentDetailPage = () => {
     if (!document || !user) {
       return false;
     }
-    if (user.role === "admin") {
-      return true;
-    }
-    const initiativeMembers = document.initiative?.members ?? [];
-    return initiativeMembers.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
+    // Pure DAC: users with write or owner permission can moderate comments
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
 
   const mentionableUsers = useMemo(() => {

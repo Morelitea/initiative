@@ -7,19 +7,40 @@ import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
+import { useGuilds } from "@/hooks/useGuilds";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
-import type { Initiative, Project } from "@/types/api";
+import type { GuildRole, Initiative, Project } from "@/types/api";
 
 interface ProjectLinkProps {
   project: Project;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-  canPinProjects: boolean;
+  userId?: number;
 }
 
-export const ProjectCardLink = ({ project, dragHandleProps, canPinProjects }: ProjectLinkProps) => {
+/**
+ * Check if the user can pin/unpin a project.
+ * Only guild admins and initiative project managers can pin projects.
+ */
+const canPinProject = (project: Project, userId?: number, guildRole?: GuildRole): boolean => {
+  if (!userId) return false;
+
+  // Guild admins can always pin
+  if (guildRole === "admin") return true;
+
+  // Check if user is initiative PM for this project's initiative
+  const initiative = project.initiative;
+  if (!initiative?.members) return false;
+
+  const membership = initiative.members.find((m) => m.user.id === userId);
+  return membership?.role === "project_manager";
+};
+
+export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
+  const { activeGuild } = useGuilds();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
+  const canPin = canPinProject(project, userId, activeGuild?.role);
 
   return (
     <div className="relative">
@@ -27,7 +48,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, canPinProjects }: Pr
         <PinProjectButton
           projectId={project.id}
           isPinned={isPinned}
-          canPin={canPinProjects}
+          canPin={canPin}
           suppressNavigation
         />
         <FavoriteProjectButton
@@ -77,11 +98,13 @@ export const ProjectCardLink = ({ project, dragHandleProps, canPinProjects }: Pr
   );
 };
 
-export const ProjectRowLink = ({ project, dragHandleProps, canPinProjects }: ProjectLinkProps) => {
+export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
+  const { activeGuild } = useGuilds();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
     : null;
   const isPinned = Boolean(project.pinned_at);
+  const canPin = canPinProject(project, userId, activeGuild?.role);
   return (
     <div className="relative">
       {dragHandleProps ? (
@@ -99,7 +122,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, canPinProjects }: Pro
           <PinProjectButton
             projectId={project.id}
             isPinned={isPinned}
-            canPin={canPinProjects}
+            canPin={canPin}
             suppressNavigation
             iconSize="sm"
           />

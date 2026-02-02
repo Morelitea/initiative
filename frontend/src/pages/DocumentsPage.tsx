@@ -124,6 +124,21 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
     },
   },
   {
+    id: "owner",
+    header: "Owner",
+    cell: ({ row }) => {
+      const ownerPermission = (row.original.permissions ?? []).find((p) => p.level === "owner");
+      if (!ownerPermission) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const ownerMember = row.original.initiative?.members?.find(
+        (m) => m.user.id === ownerPermission.user_id
+      );
+      const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
+      return <span>{ownerName || `User ${ownerPermission.user_id}`}</span>;
+    },
+  },
+  {
     id: "type",
     accessorKey: "is_template",
     header: "Type",
@@ -240,6 +255,29 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
+
+  // Check if user owns all selected documents (required for delete)
+  const canDeleteSelectedDocuments = useMemo(() => {
+    if (!user || selectedDocuments.length === 0) {
+      return false;
+    }
+    return selectedDocuments.every((doc) => {
+      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
+      return permission?.level === "owner";
+    });
+  }, [selectedDocuments, user]);
+
+  // Check if user has write access on all selected documents (required for duplicate)
+  const canDuplicateSelectedDocuments = useMemo(() => {
+    if (!user || selectedDocuments.length === 0) {
+      return false;
+    }
+    return selectedDocuments.every((doc) => {
+      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
+      return permission?.level === "owner" || permission?.level === "write";
+    });
+  }, [selectedDocuments, user]);
+
   const canCreateDocuments = lockedInitiativeId
     ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
     : manageableInitiatives.length > 0;
@@ -274,17 +312,13 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     if (!templateDocumentsQuery.data || !user) {
       return [];
     }
-    if (user.role === "admin") {
-      return templateDocumentsQuery.data.filter((document) => document.is_template);
-    }
+    // Pure DAC: user can use a template if they have any permission on it (read, write, or owner)
     return templateDocumentsQuery.data.filter((document) => {
       if (!document.is_template) {
         return false;
       }
-      const initiativeMembers = document.initiative?.members ?? [];
-      return initiativeMembers.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      );
+      const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+      return Boolean(permission);
     });
   }, [templateDocumentsQuery.data, user]);
 
@@ -608,7 +642,12 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                       onClick={() => {
                         duplicateDocuments.mutate(selectedDocuments);
                       }}
-                      disabled={duplicateDocuments.isPending}
+                      disabled={duplicateDocuments.isPending || !canDuplicateSelectedDocuments}
+                      title={
+                        canDuplicateSelectedDocuments
+                          ? undefined
+                          : "You need edit access to duplicate documents"
+                      }
                     >
                       {duplicateDocuments.isPending ? (
                         <>
@@ -634,7 +673,12 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                           deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
                         }
                       }}
-                      disabled={deleteDocuments.isPending}
+                      disabled={deleteDocuments.isPending || !canDeleteSelectedDocuments}
+                      title={
+                        canDeleteSelectedDocuments
+                          ? undefined
+                          : "You can only delete documents you own"
+                      }
                     >
                       {deleteDocuments.isPending ? (
                         <>

@@ -5,9 +5,19 @@ import { LockIcon, UnlockIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function EditModeTogglePlugin() {
+interface EditModeTogglePluginProps {
+  /** If true, forces read-only mode and prevents toggling to edit mode */
+  forceReadOnly?: boolean;
+}
+
+export function EditModeTogglePlugin({ forceReadOnly = false }: EditModeTogglePluginProps) {
   const [editor] = useLexicalComposerContext();
   const [isEditable, setIsEditable] = useState(() => editor.isEditable());
+
+  // Don't render the toggle if forced to read-only - user can't edit anyway
+  if (forceReadOnly) {
+    return null;
+  }
 
   return (
     <Tooltip>

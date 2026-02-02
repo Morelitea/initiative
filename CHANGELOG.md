@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Only guild admins and initiative project managers can pin/unpin projects
+- Pin button is now hidden for users who cannot pin (instead of showing disabled)
+- Refactored project access control to discretionary access control (DAC) model
+  - Task assignments are automatically removed when a user loses write access (permission removed or downgraded to read)
+  - Removed `members_can_write` toggle from projects
+  - Added `read` permission level (owner, write, read)
+  - Access is now determined solely by explicit permissions in the project_permissions table
+  - On project creation, all initiative members are automatically granted read access
+  - When a user leaves an initiative, their project permissions are cleaned up automatically
+  - When a project owner is removed from an initiative, all initiative PMs get owner access
+  - Project settings page now shows a permissions table instead of the old toggle + overrides UI
+- Refactored document access control to discretionary access control (DAC) model
+  - Added `owner` permission level to documents (owner, write, read)
+  - Document creators automatically become owners with full management rights
+  - Owners can manage permissions, delete, and duplicate documents without being initiative PMs
+  - Added individual member management endpoints (POST/PATCH/DELETE) for document permissions
+  - When a document owner is removed from an initiative, all initiative PMs get owner access
+  - Document settings page now shows a permissions table instead of the old toggle UI
+
 ### Fixed
 
 - Document editor no longer appears blank when collaboration mode is loading
@@ -14,23 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed stuck "Syncing..." spinner after navigating between documents quickly
 - Collaboration connection now automatically reconnects when dropped
 - Error toast now appears when collaboration fails, with automatic fallback to autosave mode
-
-### Changed
-
-- Refactored project access control to discretionary access control (DAC) model
-  - Removed `members_can_write` toggle from projects
-  - Added `read` permission level (owner, write, read)
-  - Access is now determined solely by explicit permissions in the project_permissions table
-  - On project creation, all initiative members are automatically granted read access
-  - When a user leaves an initiative, their project permissions are cleaned up automatically
-  - Project settings page now shows a permissions table instead of the old toggle + overrides UI
-- Refactored document access control to discretionary access control (DAC) model
-  - Added `owner` permission level to documents (owner, write, read)
-  - Document creators automatically become owners with full management rights
-  - Owners can manage permissions, delete, and duplicate documents without being initiative PMs
-  - Added individual member management endpoints (POST/PATCH/DELETE) for document permissions
-  - When a document owner is removed from an initiative, all initiative PMs get write access
-  - Document settings page now shows a permissions table instead of the old toggle UI
 
 ## [0.19.1] - 2026-01-30
 

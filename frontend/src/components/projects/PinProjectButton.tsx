@@ -45,13 +45,18 @@ export const PinProjectButton = ({
     pinMutation.mutate({ projectId, nextState: !isPinned });
   };
 
+  // Hide completely if user can't pin and project isn't pinned
+  // Show read-only indicator only if project is pinned
   if (!canPin) {
+    if (!isPinned) {
+      return null;
+    }
     return (
       <div
-        className={cn(baseClasses, sizeClasses, "cursor-default opacity-70", className)}
+        className={cn(baseClasses, sizeClasses, "cursor-default", className)}
         role="img"
-        aria-label={isPinned ? "Pinned project" : "Not pinned"}
-        title={isPinned ? "Pinned project" : "Not pinned"}
+        aria-label="Pinned project"
+        title="Pinned project"
       >
         <PinGlyph isPinned={isPinned} />
       </div>

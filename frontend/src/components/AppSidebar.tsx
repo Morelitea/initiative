@@ -266,8 +266,9 @@ export const AppSidebar = () => {
                           initiative={initiative}
                           projects={projectsByInitiative.get(initiative.id) ?? []}
                           documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
-                          canManage={canManageInitiative(initiative)}
+                          canManageInitiative={canManageInitiative(initiative)}
                           activeProjectId={activeProjectId}
+                          userId={user?.id}
                         />
                       ))}
                     </div>
@@ -403,17 +404,25 @@ interface InitiativeSectionProps {
   initiative: Initiative;
   projects: Project[];
   documentCount: number;
-  canManage: boolean;
+  canManageInitiative: boolean;
   activeProjectId: number | null;
+  userId: number | undefined;
 }
 
 const InitiativeSection = ({
   initiative,
   projects,
   documentCount,
-  canManage,
+  canManageInitiative,
   activeProjectId,
+  userId,
 }: InitiativeSectionProps) => {
+  // Pure DAC: check if user has write access to a specific project
+  const canManageProject = (project: Project): boolean => {
+    if (!userId) return false;
+    const permission = project.permissions?.find((p) => p.user_id === userId);
+    return permission?.level === "owner" || permission?.level === "write";
+  };
   // Load initial state from localStorage, default to true if not found
   const [isOpen, setIsOpen] = useState(() => {
     try {
@@ -471,7 +480,7 @@ const InitiativeSection = ({
             </Link>
           </Button>
         </div>
-        {canManage && (
+        {canManageInitiative && (
           <>
             {/* Desktop: Show hover-reveal settings button */}
             <Tooltip delayDuration={300}>
@@ -559,7 +568,7 @@ const InitiativeSection = ({
                   <span className="text-muted-foreground text-xs">{documentCount}</span>
                 </Link>
               </SidebarMenuButton>
-              {canManage && (
+              {canManageInitiative && (
                 <Tooltip delayDuration={300}>
                   <TooltipTrigger asChild>
                     <Button
@@ -598,7 +607,7 @@ const InitiativeSection = ({
                   <span className="text-muted-foreground text-xs">{projects.length}</span>
                 </Link>
               </SidebarMenuButton>
-              {canManage && (
+              {canManageInitiative && (
                 <Tooltip delayDuration={300}>
                   <TooltipTrigger asChild>
                     <Button
@@ -644,7 +653,7 @@ const InitiativeSection = ({
                     <span className="min-w-0 flex-1 truncate">{project.name}</span>
                   </Link>
                 </SidebarMenuButton>
-                {canManage && (
+                {canManageProject(project) && (
                   <>
                     {/* Desktop: Show hover-reveal settings button */}
                     <Tooltip delayDuration={300}>

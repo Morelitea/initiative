@@ -340,7 +340,7 @@ export function Plugins({
                   ...TEXT_MATCH_TRANSFORMERS,
                 ]}
               />
-              <EditModeTogglePlugin />
+              <EditModeTogglePlugin forceReadOnly={readOnly} />
               <ClearEditorActionPlugin />
               <ClearEditorPlugin />
               <TreeViewPlugin />
