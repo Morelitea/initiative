@@ -7,17 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Document editor no longer appears blank when collaboration mode is loading
-- Collaboration now shows proper status progression: "Connecting..." → "Syncing..." → "Live editing"
-- Fixed stuck "Syncing..." spinner after navigating between documents quickly
-- Collaboration connection now automatically reconnects when dropped
-- Error toast now appears when collaboration fails, with automatic fallback to autosave mode
-
 ### Changed
 
+- Only guild admins and initiative project managers can pin/unpin projects
+- Pin button is now hidden for users who cannot pin (instead of showing disabled)
 - Refactored project access control to discretionary access control (DAC) model
+  - Task assignments are automatically removed when a user loses write access (permission removed or downgraded to read)
   - Removed `members_can_write` toggle from projects
   - Added `read` permission level (owner, write, read)
   - Access is now determined solely by explicit permissions in the project_permissions table
@@ -31,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added individual member management endpoints (POST/PATCH/DELETE) for document permissions
   - When a document owner is removed from an initiative, all initiative PMs get write access
   - Document settings page now shows a permissions table instead of the old toggle UI
+
+### Fixed
+
+- Document editor no longer appears blank when collaboration mode is loading
+- Collaboration now shows proper status progression: "Connecting..." → "Syncing..." → "Live editing"
+- Fixed stuck "Syncing..." spinner after navigating between documents quickly
+- Collaboration connection now automatically reconnects when dropped
+- Error toast now appears when collaboration fails, with automatic fallback to autosave mode
 
 ## [0.19.1] - 2026-01-30
 

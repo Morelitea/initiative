@@ -4,6 +4,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import selectinload
+from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 
 from app.api.deps import (
@@ -216,6 +217,32 @@ def _ensure_not_archived(project: Project) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
 
 
+async def _remove_user_task_assignments(
+    session: SessionDep,
+    project_id: int,
+    user_id: int,
+) -> None:
+    """Remove all task assignments for a user in a project.
+
+    Called when a user loses write access to a project (permission removed or
+    downgraded to read), since users cannot be assigned to tasks they can't edit.
+    """
+    # Get task IDs for this project
+    task_ids_stmt = select(Task.id).where(Task.project_id == project_id)
+    task_ids_result = await session.exec(task_ids_stmt)
+    task_ids = list(task_ids_result.all())
+
+    if not task_ids:
+        return
+
+    # Delete assignments for this user on these tasks
+    delete_stmt = sa_delete(TaskAssignee).where(
+        TaskAssignee.task_id.in_(task_ids),
+        TaskAssignee.user_id == user_id,
+    )
+    await session.exec(delete_stmt)
+
+
 async def _duplicate_template_tasks(
     session: SessionDep,
     template: Project,
@@ -301,19 +328,25 @@ async def _visible_projects(
     guild_id: int,
     archived: Optional[bool],
     template: Optional[bool],
-    is_guild_admin: bool,
 ) -> List[Project]:
     """Get projects visible to the user.
 
-    Access is determined by:
-    1. Guild admin -> sees all projects
-    2. Initiative PM -> sees all projects in their initiatives
-    3. Explicit ProjectPermission -> sees that project
+    Pure DAC: Only projects with explicit ProjectPermission are visible.
     """
+    # Subquery: projects where user has explicit permission
+    has_permission_subq = (
+        select(ProjectPermission.project_id)
+        .where(ProjectPermission.user_id == current_user.id)
+        .scalar_subquery()
+    )
+
     base_statement = (
         select(Project)
         .join(Project.initiative)
-        .where(Initiative.guild_id == guild_id)
+        .where(
+            Initiative.guild_id == guild_id,
+            Project.id.in_(has_permission_subq),
+        )
         .options(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
@@ -324,35 +357,7 @@ async def _visible_projects(
     result = await session.exec(base_statement)
     all_projects = result.all()
 
-    if is_guild_admin:
-        return [project for project in all_projects if _matches_filters(project, archived=archived, template=template)]
-
-    # Get initiatives where user is a PM (they can see all projects in those)
-    pm_initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id)
-        .join(Initiative, Initiative.id == InitiativeMember.initiative_id)
-        .where(
-            InitiativeMember.user_id == current_user.id,
-            InitiativeMember.role == InitiativeRole.project_manager,
-            Initiative.guild_id == guild_id,
-        )
-    )
-    pm_initiative_ids = {row for row in pm_initiative_ids_result.all() if row is not None}
-
-    visible_projects: List[Project] = []
-    for project in all_projects:
-        if not _matches_filters(project, archived=archived, template=template):
-            continue
-        # PM can see all projects in their initiatives
-        if project.initiative_id in pm_initiative_ids:
-            visible_projects.append(project)
-            continue
-        # Check for explicit permission
-        permission = _permission_from_project(project, current_user.id)
-        if permission:
-            visible_projects.append(project)
-
-    return visible_projects
+    return [project for project in all_projects if _matches_filters(project, archived=archived, template=template)]
 
 
 async def _project_reads_with_order(
@@ -589,26 +594,14 @@ async def _require_project_membership(
     *,
     access: str = "read",
     require_manager: bool = False,
-    guild_role: GuildRole | None = None,
 ):
     """Check if user has required access to a project.
 
-    Access resolution (in order):
-    1. Guild admin -> full access
-    2. Initiative PM -> full access
-    3. Explicit ProjectPermission -> use that level (owner = full, write, read)
-    4. No permission -> no access (403)
+    Pure DAC: Access is only granted through explicit ProjectPermission.
+    - owner permission = full access (can manage permissions, delete, etc.)
+    - write permission = can edit project content
+    - read permission = can view project
     """
-    if guild_role == GuildRole.admin:
-        return
-
-    initiative_membership = await _get_initiative_membership(project, current_user, session)
-    is_initiative_pm = initiative_membership and initiative_membership.role == InitiativeRole.project_manager
-
-    # Initiative PMs always have full access
-    if is_initiative_pm:
-        return
-
     # Check explicit permission
     permission = await _get_project_permission(project, current_user.id, session)
 
@@ -617,7 +610,7 @@ async def _require_project_membership(
         if not permission or permission.level != ProjectPermissionLevel.owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Project owner or initiative manager role required",
+                detail="Project owner permission required",
             )
         return
 
@@ -632,20 +625,12 @@ async def _require_project_membership(
 def _has_project_write_access(
     project: Project,
     current_user: User,
-    *,
-    guild_role: GuildRole | None = None,
 ) -> bool:
-    """Check if user has write access to a project (synchronous version for filtering)."""
-    if guild_role == GuildRole.admin:
-        return True
+    """Check if user has write access to a project (synchronous version for filtering).
 
-    membership = _membership_from_project(project, current_user.id)
+    Pure DAC: Write access requires explicit write or owner permission.
+    """
     permission = _permission_from_project(project, current_user.id)
-    is_initiative_pm = membership and membership.role == InitiativeRole.project_manager
-
-    # Initiative PMs always have write access
-    if is_initiative_pm:
-        return True
 
     # Check explicit permission - must be owner or write level
     if permission and permission.level in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write):
@@ -668,7 +653,6 @@ async def list_projects(
         guild_id=guild_context.guild_id,
         archived=archived,
         template=template,
-        is_guild_admin=guild_context.role == GuildRole.admin,
     )
     return await _project_reads_with_order(session, current_user, projects)
 
@@ -685,12 +669,11 @@ async def list_writable_projects(
         guild_id=guild_context.guild_id,
         archived=None,
         template=None,
-        is_guild_admin=guild_context.role == GuildRole.admin,
     )
     writable_projects = [
         project
         for project in projects
-        if _has_project_write_access(project, current_user, guild_role=guild_context.role)
+        if _has_project_write_access(project, current_user)
     ]
     return await _project_reads_with_order(session, current_user, writable_projects)
 
@@ -712,8 +695,7 @@ async def create_project(
             current_user,
             session,
             access="read",
-            guild_role=guild_context.role,
-        )
+                    )
 
     owner_id = project_in.owner_id or current_user.id
     icon_value = project_in.icon if project_in.icon is not None else (template_project.icon if template_project else None)
@@ -826,9 +808,7 @@ async def archive_project(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     if not project.is_archived:
         project.is_archived = True
         project.archived_at = datetime.now(timezone.utc)
@@ -853,10 +833,8 @@ async def duplicate_project(
         source_project,
         current_user,
         session,
-        access="read",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+        access="write",
+            )
 
     owner_id = current_user.id
     initiative_id = source_project.initiative_id
@@ -956,9 +934,7 @@ async def unarchive_project(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     if project.is_archived:
         project.is_archived = False
         project.archived_at = None
@@ -1001,8 +977,7 @@ async def recent_projects(
                 current_user,
                 session,
                 access="read",
-                guild_role=guild_context.role,
-            )
+                            )
         except HTTPException:
             continue
         payloads.append(
@@ -1046,8 +1021,7 @@ async def favorite_projects(
                 current_user,
                 session,
                 access="read",
-                guild_role=guild_context.role,
-            )
+                            )
         except HTTPException:
             continue
         payloads.append(
@@ -1074,8 +1048,7 @@ async def record_project_view(
         current_user,
         session,
         access="read",
-        guild_role=guild_context.role,
-    )
+            )
     record = await _record_recent_project_view(session, user_id=current_user.id, project_id=project.id)
     return ProjectRecentViewRead(project_id=project.id, last_viewed_at=record.last_viewed_at)
 
@@ -1093,8 +1066,7 @@ async def clear_project_view(
         current_user,
         session,
         access="read",
-        guild_role=guild_context.role,
-    )
+            )
     await _delete_recent_project_view(session, user_id=current_user.id, project_id=project.id)
 
 
@@ -1111,8 +1083,7 @@ async def favorite_project(
         current_user,
         session,
         access="read",
-        guild_role=guild_context.role,
-    )
+            )
     await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=True)
     return ProjectFavoriteStatus(project_id=project.id, is_favorited=True)
 
@@ -1130,8 +1101,7 @@ async def unfavorite_project(
         current_user,
         session,
         access="read",
-        guild_role=guild_context.role,
-    )
+            )
     await _set_favorite_state(session, user_id=current_user.id, project_id=project.id, favorited=False)
     return ProjectFavoriteStatus(project_id=project.id, is_favorited=False)
 
@@ -1151,8 +1121,7 @@ async def project_activity_feed(
         current_user,
         session,
         access="read",
-        guild_role=guild_context.role,
-    )
+            )
     offset = (page - 1) * page_size
     stmt = (
         select(Comment, Task)
@@ -1197,8 +1166,7 @@ async def read_project(
         current_user,
         session,
         access="read",
-        guild_role=guild_context.role,
-    )
+            )
     return await _project_read_for_user(session, current_user, project)
 
 
@@ -1216,9 +1184,7 @@ async def update_project(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
     previous_initiative_id = project.initiative_id
 
@@ -1226,13 +1192,16 @@ async def update_project(
     pinned_sentinel = object()
     pinned_value = update_data.pop("pinned", pinned_sentinel)
     if pinned_value is not pinned_sentinel:
-        if guild_context.role != GuildRole.admin:
-            initiative_membership = await _get_initiative_membership(project, current_user, session)
-            if not initiative_membership or initiative_membership.role != InitiativeRole.project_manager:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Initiative manager role required to pin projects",
-                )
+        # Only guild admins and initiative PMs can pin/unpin projects
+        can_pin = guild_context.role == GuildRole.admin
+        if not can_pin and project.initiative_id:
+            membership = await _get_initiative_membership(project, current_user, session)
+            can_pin = membership is not None and membership.role == InitiativeRole.project_manager
+        if not can_pin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only guild admins and initiative managers can pin projects",
+            )
         project.pinned_at = datetime.now(timezone.utc) if bool(pinned_value) else None
 
     if "initiative_id" in update_data:
@@ -1241,14 +1210,6 @@ async def update_project(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiatives are required")
         if new_initiative_id != project.initiative_id:
             await _get_initiative_or_404(new_initiative_id, session, guild_context.guild_id)
-            if guild_context.role != GuildRole.admin:
-                membership = await initiatives_service.get_initiative_membership(
-                    session,
-                    initiative_id=new_initiative_id,
-                    user_id=current_user.id,
-                )
-                if not membership or membership.role != InitiativeRole.project_manager:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
             await _ensure_user_in_initiative(new_initiative_id, project.owner_id, session)
             project.initiative_id = new_initiative_id
         if new_initiative_id != previous_initiative_id:
@@ -1300,8 +1261,7 @@ async def attach_project_document(
         current_user,
         session,
         access="write",
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
     document = await documents_service.get_document(
         session,
@@ -1338,8 +1298,7 @@ async def detach_project_document(
         current_user,
         session,
         access="write",
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
     document = await documents_service.get_document(
         session,
@@ -1375,9 +1334,7 @@ async def add_project_member(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
     if member_in.level == ProjectPermissionLevel.owner:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
@@ -1421,9 +1378,7 @@ async def add_project_members_bulk(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
 
     if bulk_in.level == ProjectPermissionLevel.owner:
@@ -1501,9 +1456,7 @@ async def remove_project_members_bulk(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
 
     if not bulk_in.user_ids:
@@ -1518,11 +1471,17 @@ async def remove_project_members_bulk(
     )
     permissions = permissions_result.all()
 
+    removed_user_ids: list[int] = []
     for permission in permissions:
         # Skip owner - cannot remove them
         if permission.user_id == project.owner_id:
             continue
+        removed_user_ids.append(permission.user_id)
         await session.delete(permission)
+
+    # Remove task assignments for removed users
+    for removed_user_id in removed_user_ids:
+        await _remove_user_task_assignments(session, project.id, removed_user_id)
 
     await session.commit()
 
@@ -1543,9 +1502,7 @@ async def update_project_member(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
 
     if update_in.level == ProjectPermissionLevel.owner:
@@ -1558,6 +1515,10 @@ async def update_project_member(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
     if permission.level == ProjectPermissionLevel.owner:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+
+    # If downgrading to read, remove task assignments
+    if update_in.level == ProjectPermissionLevel.read:
+        await _remove_user_task_assignments(session, project.id, user_id)
 
     permission.level = update_in.level
     session.add(permission)
@@ -1580,9 +1541,7 @@ async def remove_project_member(
         current_user,
         session,
         access="write",
-        require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     _ensure_not_archived(project)
     if user_id == project.owner_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the project owner")
@@ -1590,6 +1549,8 @@ async def remove_project_member(
     if not permission:
         return
     await session.delete(permission)
+    # Remove task assignments since user no longer has access
+    await _remove_user_task_assignments(session, project.id, user_id)
     await session.commit()
 
 
@@ -1606,7 +1567,6 @@ async def reorder_projects(
         guild_id=guild_context.guild_id,
         archived=None,
         template=None,
-        is_guild_admin=guild_context.role == GuildRole.admin,
     )
     if not visible_projects:
         return []
@@ -1667,8 +1627,7 @@ async def delete_project(
         session,
         access="write",
         require_manager=True,
-        guild_role=guild_context.role,
-    )
+            )
     await session.delete(project)
     await session.commit()
     await broadcast_event("project", "deleted", {"id": project_id})

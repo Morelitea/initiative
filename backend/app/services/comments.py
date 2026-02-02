@@ -107,16 +107,13 @@ async def _ensure_task_access(
     session: AsyncSession,
     *,
     project: Project,
-    initiative: Initiative,
     user: User,
-    guild_role: GuildRole,
 ) -> None:
-    if guild_role == GuildRole.admin:
-        return
-    if project.owner_id == user.id:
-        return
-    if await _is_initiative_member(session, initiative_id=initiative.id, user_id=user.id):
-        return
+    """Ensure user can access task for commenting (pure DAC).
+
+    Tasks inherit access from their project's permission levels.
+    Any permission level (owner, write, read) grants comment access.
+    """
     if await _has_project_permission(session, project_id=project.id, user_id=user.id):
         return
     raise CommentPermissionError("Not authorized to comment on this task")
@@ -127,12 +124,11 @@ async def _ensure_document_access(
     *,
     document: Document,
     user: User,
-    guild_role: GuildRole,
 ) -> None:
-    if guild_role == GuildRole.admin:
-        return
-    if await _is_initiative_member(session, initiative_id=document.initiative_id, user_id=user.id):
-        return
+    """Ensure user can access document for commenting (pure DAC).
+
+    Any permission level (owner, write, read) grants comment access.
+    """
     permissions = getattr(document, "permissions", None)
     if permissions is None:
         stmt = select(DocumentPermission).where(DocumentPermission.document_id == document.id)
@@ -178,9 +174,7 @@ async def create_comment(
         await _ensure_task_access(
             session,
             project=context.project,
-            initiative=context.initiative,
             user=author,
-            guild_role=guild_role,
         )
         if parent_comment and parent_comment.task_id != context.task.id:
             raise CommentValidationError("Parent comment belongs to a different task")
@@ -205,7 +199,6 @@ async def create_comment(
             session,
             document=document,
             user=author,
-            guild_role=guild_role,
         )
         if parent_comment and parent_comment.document_id != document.id:
             raise CommentValidationError("Parent comment belongs to a different document")
@@ -421,9 +414,7 @@ async def list_comments(
         await _ensure_task_access(
             session,
             project=context.project,
-            initiative=context.initiative,
             user=user,
-            guild_role=guild_role,
         )
         stmt = (
             select(Comment)
@@ -443,7 +434,6 @@ async def list_comments(
             session,
             document=document,
             user=user,
-            guild_role=guild_role,
         )
         stmt = (
             select(Comment)
@@ -483,9 +473,7 @@ async def delete_comment(
         await _ensure_task_access(
             session,
             project=context.project,
-            initiative=context.initiative,
             user=user,
-            guild_role=guild_role,
         )
     elif comment.document_id is not None:
         document = await documents_service.get_document(
@@ -500,7 +488,6 @@ async def delete_comment(
             session,
             document=document,
             user=user,
-            guild_role=guild_role,
         )
     else:
         raise CommentValidationError("Comment is not linked to a task or document")

@@ -13,10 +13,10 @@ from app.api.deps import (
     GuildContext,
 )
 from app.models.project import Project, ProjectPermission
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
 from app.models.user import User
-from app.models.guild import GuildRole, GuildMembership
+from app.models.guild import GuildMembership
 from app.models.comment import Comment
 from pydantic import BaseModel, ValidationError
 
@@ -255,17 +255,6 @@ def _permission_from_project(project: Project, user_id: int) -> ProjectPermissio
     return None
 
 
-def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
-    initiative = getattr(project, "initiative", None)
-    if not initiative:
-        return None
-    memberships = getattr(initiative, "memberships", None)
-    if not memberships:
-        return None
-    for membership in memberships:
-        if membership.user_id == user_id:
-            return membership
-    return None
 
 
 async def _advance_recurrence_if_needed(
@@ -350,8 +339,13 @@ async def _get_project_with_access(
     *,
     guild_id: int,
     access: str = "read",
-    guild_role: GuildRole | None = None,
 ) -> Project:
+    """Get project with pure DAC permission check.
+
+    Tasks inherit access from their project's permission levels:
+    - read: any permission level (owner, write, read)
+    - write: owner or write permission level
+    """
     project_stmt = (
         select(Project)
         .join(Project.initiative)
@@ -373,9 +367,7 @@ async def _get_project_with_access(
     if project.is_archived and access == "write":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
 
-    if guild_role == GuildRole.admin:
-        return project
-
+    # Pure DAC: check explicit project permission
     permission = _permission_from_project(project, user.id)
     if not permission:
         stmt = select(ProjectPermission).where(
@@ -387,32 +379,15 @@ async def _get_project_with_access(
         if permission:
             project.permissions.append(permission)
 
-    membership = _membership_from_project(project, user.id)
-    if not membership and project.initiative_id:
-        initiative_stmt = select(InitiativeMember).where(
-            InitiativeMember.initiative_id == project.initiative_id,
-            InitiativeMember.user_id == user.id,
-        )
-        initiative_result = await session.exec(initiative_stmt)
-        membership = initiative_result.one_or_none()
-        if membership and project.initiative:
-            project.initiative.memberships.append(membership)
-
-    is_owner = project.owner_id == user.id
-    is_pm = membership and membership.role == InitiativeRole.project_manager
+    if not permission:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No permission for this project")
 
     if access == "read":
-        if is_owner or membership or permission:
-            return project
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not part of this project's initiative")
+        # Any permission level grants read access
+        return project
 
-    has_write = (
-        is_owner
-        or is_pm
-        or permission is not None
-        or bool(project.members_can_write and membership)
-    )
-    if not has_write:
+    # Write access requires owner or write permission level
+    if permission.level not in ("owner", "write"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for this project")
 
     return project
@@ -424,7 +399,6 @@ async def _ensure_can_manage(
     user: User,
     *,
     guild_id: int,
-    guild_role: GuildRole | None = None,
 ) -> Project:
     project = await _get_project_with_access(
         session,
@@ -432,7 +406,6 @@ async def _ensure_can_manage(
         user,
         guild_id=guild_id,
         access="write",
-        guild_role=guild_role,
     )
     return project
 
@@ -441,22 +414,12 @@ async def _allowed_project_ids(
     session: SessionDep,
     user: User,
     guild_id: int,
-    *,
-    is_guild_admin: bool,
 ) -> Optional[set[int]]:
-    if is_guild_admin:
-        return None
+    """Get project IDs where user has explicit permission (pure DAC).
 
-    initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id)
-        .join(Initiative)
-        .where(
-            InitiativeMember.user_id == user.id,
-            Initiative.guild_id == guild_id,
-        )
-    )
-    initiative_ids = {row for row in initiative_ids_result.all() if row is not None}
-
+    Returns set of project IDs where user has any permission level.
+    """
+    # Pure DAC: only return projects with explicit permission
     permission_ids_result = await session.exec(
         select(ProjectPermission.project_id)
         .join(Project)
@@ -464,28 +427,11 @@ async def _allowed_project_ids(
         .where(
             ProjectPermission.user_id == user.id,
             Initiative.guild_id == guild_id,
+            Project.is_archived == False,  # noqa: E712
+            Project.is_template == False,  # noqa: E712
         )
     )
-    permission_ids = {row for row in permission_ids_result.all() if row is not None}
-
-    project_result = await session.exec(
-        select(Project.id, Project.owner_id, Project.initiative_id, Project.is_archived, Project.is_template)
-        .join(Project.initiative)
-        .where(Initiative.guild_id == guild_id)
-    )
-    ids: set[int] = set()
-    for project_id, owner_id, initiative_id, is_archived, is_template in project_result.all():
-        if is_archived or is_template:
-            continue
-        if owner_id == user.id:
-            ids.add(project_id)
-            continue
-        if initiative_id in initiative_ids:
-            ids.add(project_id)
-            continue
-        if project_id in permission_ids:
-            ids.add(project_id)
-    return ids
+    return {row for row in permission_ids_result.all() if row is not None}
 
 
 async def _list_global_tasks(
@@ -592,7 +538,6 @@ async def list_tasks(
         session,
         current_user,
         guild_context.guild_id,
-        is_guild_admin=guild_context.role == GuildRole.admin,
     )
     if allowed_ids is not None:
         if not allowed_ids:
