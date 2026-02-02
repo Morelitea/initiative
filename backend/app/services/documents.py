@@ -179,8 +179,8 @@ async def handle_owner_removal(
     """Handle documents when their owner is removed from an initiative.
 
     When a user is removed from an initiative, any documents they own become
-    "orphaned". This function removes the owner's permission and grants write
-    access to all initiative PMs so they can manage the document.
+    "orphaned". This function removes the owner's permission and grants owner
+    access to all initiative PMs so they can fully manage the document.
     """
     # Find documents where user is owner
     stmt = (
@@ -217,14 +217,15 @@ async def handle_owner_removal(
         if owner_permission:
             await session.delete(owner_permission)
 
-        # Grant write access to all PMs who don't already have permission
+        # Grant owner access to all PMs who don't already have permission
+        # so they can manage (including delete) the orphaned document
         existing_user_ids = {p.user_id for p in doc.permissions}
         for pm_user_id in pm_user_ids:
             if pm_user_id not in existing_user_ids and pm_user_id != user_id:
                 pm_permission = DocumentPermission(
                     document_id=doc.id,
                     user_id=pm_user_id,
-                    level=DocumentPermissionLevel.write,
+                    level=DocumentPermissionLevel.owner,
                     guild_id=doc.guild_id,
                 )
                 session.add(pm_permission)

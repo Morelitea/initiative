@@ -12,7 +12,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.models.project import Project, ProjectPermission
+from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
@@ -321,6 +321,45 @@ async def remove_initiative_member(
         project_ids = [project_id for project_id in project_ids_result.all()]
 
         if project_ids:
+            # Handle orphaned projects - grant owner access to PMs before deleting
+            owner_permissions_stmt = select(ProjectPermission).where(
+                ProjectPermission.user_id == user_id,
+                ProjectPermission.project_id.in_(tuple(project_ids)),
+                ProjectPermission.level == ProjectPermissionLevel.owner,
+            )
+            owner_permissions_result = await session.exec(owner_permissions_stmt)
+            owner_permissions = owner_permissions_result.all()
+
+            if owner_permissions:
+                # Get all initiative PMs
+                pm_result = await session.exec(
+                    select(InitiativeMember).where(
+                        InitiativeMember.initiative_id == initiative_id,
+                        InitiativeMember.role == InitiativeRole.project_manager,
+                    )
+                )
+                pm_user_ids = {pm.user_id for pm in pm_result.all() if pm.user_id != user_id}
+
+                # For each project where user had owner permission, grant owner to PMs
+                for perm in owner_permissions:
+                    # Get existing permissions for this project
+                    existing_perms_stmt = select(ProjectPermission.user_id).where(
+                        ProjectPermission.project_id == perm.project_id
+                    )
+                    existing_result = await session.exec(existing_perms_stmt)
+                    existing_user_ids = set(existing_result.all())
+
+                    # Grant owner access to PMs who don't have any permission yet
+                    for pm_user_id in pm_user_ids:
+                        if pm_user_id not in existing_user_ids:
+                            pm_permission = ProjectPermission(
+                                project_id=perm.project_id,
+                                user_id=pm_user_id,
+                                level=ProjectPermissionLevel.owner,
+                                guild_id=initiative.guild_id,
+                            )
+                            session.add(pm_permission)
+
             # Remove project permissions for this user in all initiative projects
             delete_permissions_stmt = (
                 delete(ProjectPermission)

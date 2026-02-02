@@ -18,13 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Access is now determined solely by explicit permissions in the project_permissions table
   - On project creation, all initiative members are automatically granted read access
   - When a user leaves an initiative, their project permissions are cleaned up automatically
+  - When a project owner is removed from an initiative, all initiative PMs get owner access
   - Project settings page now shows a permissions table instead of the old toggle + overrides UI
 - Refactored document access control to discretionary access control (DAC) model
   - Added `owner` permission level to documents (owner, write, read)
   - Document creators automatically become owners with full management rights
   - Owners can manage permissions, delete, and duplicate documents without being initiative PMs
   - Added individual member management endpoints (POST/PATCH/DELETE) for document permissions
-  - When a document owner is removed from an initiative, all initiative PMs get write access
+  - When a document owner is removed from an initiative, all initiative PMs get owner access
   - Document settings page now shows a permissions table instead of the old toggle UI
 
 ### Fixed
