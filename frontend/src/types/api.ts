@@ -104,6 +104,7 @@ export interface DocumentSummary {
   initiative?: Initiative | null;
   projects: DocumentProjectLink[];
   comment_count?: number;
+  permissions?: DocumentPermission[];
 }
 
 export interface DocumentRead extends DocumentSummary {

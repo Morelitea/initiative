@@ -257,8 +257,13 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
     );
   }, [initiativesQuery.data, user]);
   const isProjectManager = guildManagedInitiatives.length > 0;
-  const canManageProjects = user?.role === "admin" || isProjectManager;
-  const canPinProjects = user?.role === "admin" || isProjectManager;
+
+  // Helper function for per-project DAC checks
+  const hasProjectWritePermission = (project: Project): boolean => {
+    if (!user) return false;
+    const permission = project.permissions?.find((p) => p.user_id === user.id);
+    return permission?.level === "owner" || permission?.level === "write";
+  };
 
   const templatesQuery = useQuery<Project[]>({
     queryKey: ["projects", "templates", { guildId: activeGuildId }],
@@ -280,7 +285,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   });
 
   useEffect(() => {
-    if (!canManageProjects) {
+    if (!isProjectManager) {
       setIsComposerOpen(false);
       setInitiativeId(null);
       return;
@@ -294,7 +299,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
     if (data && data.length > 0) {
       setInitiativeId(String(data[0].id));
     }
-  }, [canManageProjects, initiativeId, initiativesQuery.data, searchParams]);
+  }, [isProjectManager, initiativeId, initiativesQuery.data, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -536,21 +541,13 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
           {viewMode === "list" ? (
             <div className="space-y-3">
               {sortedProjects.map((project) => (
-                <SortableProjectRowLink
-                  key={project.id}
-                  project={project}
-                  canPinProjects={canPinProjects}
-                />
+                <SortableProjectRowLink key={project.id} project={project} userId={user?.id} />
               ))}
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {sortedProjects.map((project) => (
-                <SortableProjectCardLink
-                  key={project.id}
-                  project={project}
-                  canPinProjects={canPinProjects}
-                />
+                <SortableProjectCardLink key={project.id} project={project} userId={user?.id} />
               ))}
             </div>
           )}
@@ -561,13 +558,13 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
         {viewMode === "list" ? (
           <div className="space-y-3">
             {sortedProjects.map((project) => (
-              <ProjectRowLink key={project.id} project={project} canPinProjects={canPinProjects} />
+              <ProjectRowLink key={project.id} project={project} userId={user?.id} />
             ))}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {sortedProjects.map((project) => (
-              <ProjectCardLink key={project.id} project={project} canPinProjects={canPinProjects} />
+              <ProjectCardLink key={project.id} project={project} userId={user?.id} />
             ))}
           </div>
         )}
@@ -585,21 +582,13 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
         {viewMode === "list" ? (
           <div className="space-y-3">
             {pinnedProjects.map((project) => (
-              <ProjectRowLink
-                key={`pinned-${project.id}`}
-                project={project}
-                canPinProjects={canPinProjects}
-              />
+              <ProjectRowLink key={`pinned-${project.id}`} project={project} userId={user?.id} />
             ))}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {pinnedProjects.map((project) => (
-              <ProjectCardLink
-                key={`pinned-${project.id}`}
-                project={project}
-                canPinProjects={canPinProjects}
-              />
+              <ProjectCardLink key={`pinned-${project.id}`} project={project} userId={user?.id} />
             ))}
           </div>
         )}
@@ -843,7 +832,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
                           View template
                         </Link>
                       </Button>
-                      {canManageProjects ? (
+                      {hasProjectWritePermission(template) ? (
                         <Button
                           type="button"
                           variant="outline"
@@ -899,7 +888,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
                           View details
                         </Link>
                       </Button>
-                      {canManageProjects ? (
+                      {hasProjectWritePermission(archived) ? (
                         <Button
                           type="button"
                           variant="outline"
@@ -1081,13 +1070,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
 
 export const ProjectsPage = () => <ProjectsView />;
 
-const SortableProjectCardLink = ({
-  project,
-  canPinProjects,
-}: {
-  project: Project;
-  canPinProjects: boolean;
-}) => {
+const SortableProjectCardLink = ({ project, userId }: { project: Project; userId?: number }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -1105,22 +1088,12 @@ const SortableProjectCardLink = ({
   };
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
-      <ProjectCardLink
-        project={project}
-        dragHandleProps={dragHandleProps}
-        canPinProjects={canPinProjects}
-      />
+      <ProjectCardLink project={project} dragHandleProps={dragHandleProps} userId={userId} />
     </div>
   );
 };
 
-const SortableProjectRowLink = ({
-  project,
-  canPinProjects,
-}: {
-  project: Project;
-  canPinProjects: boolean;
-}) => {
+const SortableProjectRowLink = ({ project, userId }: { project: Project; userId?: number }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -1138,11 +1111,7 @@ const SortableProjectRowLink = ({
   };
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
-      <ProjectRowLink
-        project={project}
-        dragHandleProps={dragHandleProps}
-        canPinProjects={canPinProjects}
-      />
+      <ProjectRowLink project={project} dragHandleProps={dragHandleProps} userId={userId} />
     </div>
   );
 };

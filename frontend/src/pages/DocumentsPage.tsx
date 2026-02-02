@@ -274,17 +274,13 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     if (!templateDocumentsQuery.data || !user) {
       return [];
     }
-    if (user.role === "admin") {
-      return templateDocumentsQuery.data.filter((document) => document.is_template);
-    }
+    // Pure DAC: user can use a template if they have any permission on it (read, write, or owner)
     return templateDocumentsQuery.data.filter((document) => {
       if (!document.is_template) {
         return false;
       }
-      const initiativeMembers = document.initiative?.members ?? [];
-      return initiativeMembers.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      );
+      const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+      return Boolean(permission);
     });
   }, [templateDocumentsQuery.data, user]);
 

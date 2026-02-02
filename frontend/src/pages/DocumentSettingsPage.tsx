@@ -97,43 +97,19 @@ export const DocumentSettingsPage = () => {
     enabled: Boolean(document) && Boolean(user),
   });
 
-  // Determine if user can manage the document (owner, initiative PM, or guild admin)
+  // Pure DAC: users with write or owner permission can manage the document
   const canManageDocument = useMemo(() => {
     if (!document || !user) {
       return false;
     }
-    if (user.role === "admin") {
-      return true;
-    }
-    // Check if user is initiative PM
-    const initiativeMembers = document.initiative?.members ?? [];
-    const isManager = initiativeMembers.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
-    if (isManager) {
-      return true;
-    }
-    // Check if user is document owner
-    const ownerPermission = (document.permissions ?? []).find(
-      (p) => p.user_id === user.id && p.level === "owner"
-    );
-    return Boolean(ownerPermission);
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
 
-  // Check if user has write access (for editing content, not managing permissions)
+  // Pure DAC: check if user has write access
   const hasWriteAccess = useMemo(() => {
     if (!document || !user) {
       return false;
-    }
-    if (user.role === "admin") {
-      return true;
-    }
-    const initiativeMembers = document.initiative?.members ?? [];
-    const isManager = initiativeMembers.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
-    if (isManager) {
-      return true;
     }
     const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
     return permission?.level === "owner" || permission?.level === "write";

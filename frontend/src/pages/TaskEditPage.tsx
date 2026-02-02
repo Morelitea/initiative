@@ -334,6 +334,7 @@ export const TaskEditPage = () => {
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
   const project = projectQuery.data;
+  // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   const userOptions = useMemo(() => {
     if (!project) {
       return users.map((user) => ({
@@ -342,11 +343,9 @@ export const TaskEditPage = () => {
       }));
     }
     const allowed = new Set<number>();
-    allowed.add(project.owner_id);
-    project.permissions.forEach((permission) => allowed.add(permission.user_id));
-    project.initiative?.members?.forEach((member) => {
-      if (member.user) {
-        allowed.add(member.user.id);
+    project.permissions?.forEach((permission) => {
+      if (permission.level === "owner" || permission.level === "write") {
+        allowed.add(permission.user_id);
       }
     });
 
@@ -359,13 +358,10 @@ export const TaskEditPage = () => {
   }, [users, project]);
 
   const task = taskQuery.data;
-  const initiativeMembership = project?.initiative?.members?.find(
-    (member) => member.user.id === user?.id
-  );
-  const isInitiativePm = initiativeMembership?.role === "project_manager";
+  // Pure DAC: permissions inherited from project
   const userPermission = project?.permissions?.find((p) => p.user_id === user?.id);
   const hasWritePermission = userPermission?.level === "owner" || userPermission?.level === "write";
-  const canWriteProject = user?.role === "admin" || isInitiativePm || hasWritePermission;
+  const canWriteProject = hasWritePermission;
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
@@ -373,7 +369,8 @@ export const TaskEditPage = () => {
     : projectIsArchived
       ? "This project is archived. Unarchive it from project settings to edit tasks."
       : null;
-  const canModerateComments = user?.role === "admin" || isInitiativePm;
+  // Pure DAC: comment moderation requires write permission on project
+  const canModerateComments = hasWritePermission;
 
   const writableProjectsQuery = useQuery<Project[]>({
     queryKey: ["projects", "writable"],

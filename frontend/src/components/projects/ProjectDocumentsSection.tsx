@@ -89,21 +89,18 @@ export const ProjectDocumentsSection = ({
     enabled: canCreate,
   });
 
+  // Pure DAC: user can use templates they have any permission on
   const manageableTemplates = useMemo(() => {
     if (!templateDocumentsQuery.data || !user) {
       return [];
-    }
-    if (user.role === "admin") {
-      return templateDocumentsQuery.data.filter((document) => document.is_template);
     }
     return templateDocumentsQuery.data.filter((document) => {
       if (!document.is_template) {
         return false;
       }
-      const initiativeMembers = document.initiative?.members ?? [];
-      return initiativeMembers.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      );
+      // User can use template if they have any permission on it
+      const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+      return Boolean(permission);
     });
   }, [templateDocumentsQuery.data, user]);
 

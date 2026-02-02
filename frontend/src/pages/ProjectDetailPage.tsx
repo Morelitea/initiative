@@ -86,6 +86,7 @@ export const ProjectDetailPage = () => {
     void recordView();
   }, [viewedProjectId, activeGuildId]);
 
+  // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   const userOptions = useMemo(() => {
     const project = projectQuery.data;
     const allUsers = usersQuery.data ?? [];
@@ -97,11 +98,9 @@ export const ProjectDetailPage = () => {
     }
 
     const allowed = new Set<number>();
-    allowed.add(project.owner_id);
-    project?.permissions?.forEach((permission) => allowed.add(permission.user_id));
-    project.initiative?.members?.forEach((member) => {
-      if (member.user) {
-        allowed.add(member.user.id);
+    project?.permissions?.forEach((permission) => {
+      if (permission.level === "owner" || permission.level === "write") {
+        allowed.add(permission.user_id);
       }
     });
 
@@ -155,18 +154,19 @@ export const ProjectDetailPage = () => {
   const initiativeMembership = project.initiative?.members?.find(
     (member) => member.user.id === user?.id
   );
-  const isOwner = project.owner_id === user?.id;
   const isInitiativePm = initiativeMembership?.role === "project_manager";
   const userPermission = project?.permissions?.find((p) => p.user_id === user?.id);
+  // Pure DAC: write access requires owner or write permission level
   const hasWritePermission = userPermission?.level === "owner" || userPermission?.level === "write";
 
-  const canManageSettings = user?.role === "admin" || isOwner || isInitiativePm;
-  const canWriteProject = user?.role === "admin" || isInitiativePm || hasWritePermission;
-  const canCreateDocuments = user?.role === "admin" || isOwner || isInitiativePm;
+  // Pure DAC: settings/write access based on permission level
+  const canManageSettings = hasWritePermission;
+  const canWriteProject = hasWritePermission;
+  // Creating documents requires initiative PM role (backend requirement)
+  const canCreateDocuments = user?.role === "admin" || isInitiativePm;
   const canAttachDocuments = canWriteProject;
-  const canViewTaskDetails = Boolean(
-    project && (user?.role === "admin" || isInitiativePm || userPermission)
-  );
+  // Pure DAC: any permission grants view access
+  const canViewTaskDetails = Boolean(project && userPermission);
   const projectIsArchived = project.is_archived ?? false;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 
