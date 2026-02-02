@@ -648,7 +648,11 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         initiativeId={lockedInitiativeId ?? undefined}
-        defaultInitiativeId={createDialogInitiativeId}
+        defaultInitiativeId={
+          initiativeFilter !== INITIATIVE_FILTER_ALL
+            ? Number(initiativeFilter)
+            : createDialogInitiativeId
+        }
         initiatives={manageableInitiatives}
         onSuccess={handleDocumentCreated}
       />
