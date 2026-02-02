@@ -1,8 +1,27 @@
-import { Download, ExternalLink, FileSpreadsheet, FileText, Presentation } from "lucide-react";
+import { useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  Presentation,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { formatBytes, getFileTypeLabel, getFileExtension } from "@/lib/fileUtils";
+
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
+// Configure PDF.js worker from CDN (most reliable for Vite)
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileDocumentViewerProps {
   fileUrl: string;
@@ -20,6 +39,12 @@ export const FileDocumentViewer = ({
   const resolvedUrl = resolveUploadUrl(fileUrl);
   const fileTypeLabel = getFileTypeLabel(contentType, originalFilename);
   const extension = getFileExtension(originalFilename || fileUrl);
+
+  // PDF viewer state
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [scale, setScale] = useState(1.0);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   // Determine file type for rendering strategy
   const isPdf = extension === "pdf" || contentType === "application/pdf";
@@ -56,6 +81,21 @@ export const FileDocumentViewer = ({
     if (!resolvedUrl) return;
     window.open(resolvedUrl, "_blank", "noopener,noreferrer");
   };
+
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setPdfError(null);
+  };
+
+  const onDocumentLoadError = (error: Error) => {
+    console.error("PDF load error:", error);
+    setPdfError("Failed to load PDF. Try downloading the file instead.");
+  };
+
+  const goToPrevPage = () => setPageNumber((prev) => Math.max(1, prev - 1));
+  const goToNextPage = () => setPageNumber((prev) => Math.min(numPages || prev, prev + 1));
+  const zoomIn = () => setScale((prev) => Math.min(2.5, prev + 0.25));
+  const zoomOut = () => setScale((prev) => Math.max(0.5, prev - 0.25));
 
   if (!resolvedUrl) {
     return (
@@ -95,26 +135,79 @@ export const FileDocumentViewer = ({
 
       <div className="bg-card overflow-hidden rounded-lg border">
         {isPdf ? (
-          // Use native browser PDF viewer via embed/object
-          <object
-            data={resolvedUrl}
-            type="application/pdf"
-            className="w-full"
-            style={{ height: "70vh", minHeight: 500 }}
-          >
-            <embed src={resolvedUrl} type="application/pdf" className="h-full w-full" />
-            <p className="text-muted-foreground p-4 text-center">
-              Your browser does not support embedded PDFs.{" "}
-              <a
-                href={resolvedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline"
-              >
-                Open PDF in new tab
-              </a>
-            </p>
-          </object>
+          <div className="flex flex-col">
+            {/* PDF Controls */}
+            <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPrevPage}
+                  disabled={pageNumber <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm">
+                  Page {pageNumber} of {numPages || "..."}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextPage}
+                  disabled={pageNumber >= (numPages || 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="w-16 text-center text-sm">{Math.round(scale * 100)}%</span>
+                <Button variant="outline" size="sm" onClick={zoomIn} disabled={scale >= 2.5}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* PDF Viewer */}
+            <div
+              className="flex items-start justify-center overflow-auto bg-neutral-100 dark:bg-neutral-900"
+              style={{ height: "70vh", minHeight: 500 }}
+            >
+              {pdfError ? (
+                <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+                  <FileText className="text-muted-foreground mb-4 h-16 w-16" />
+                  <p className="text-muted-foreground mb-4">{pdfError}</p>
+                  <Button onClick={handleDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </Button>
+                </div>
+              ) : (
+                <Document
+                  file={resolvedUrl}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    <div className="flex h-full items-center justify-center">
+                      <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                    </div>
+                  }
+                >
+                  <Page
+                    pageNumber={pageNumber}
+                    scale={scale}
+                    loading={
+                      <div className="flex items-center justify-center p-8">
+                        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                      </div>
+                    }
+                  />
+                </Document>
+              )}
+            </div>
+          </div>
         ) : isText ? (
           // Use iframe for text files
           <iframe

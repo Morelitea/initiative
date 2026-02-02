@@ -948,6 +948,13 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                      // Validate file size (50 MB limit)
+                      const maxSize = 50 * 1024 * 1024;
+                      if (file.size > maxSize) {
+                        toast.error(`File is too large. Maximum size is 50 MB.`);
+                        e.target.value = "";
+                        return;
+                      }
                       setSelectedFile(file);
                       // Auto-populate title from filename if empty
                       if (!newTitle.trim()) {
