@@ -240,6 +240,29 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
+
+  // Check if user owns all selected documents (required for delete)
+  const canDeleteSelectedDocuments = useMemo(() => {
+    if (!user || selectedDocuments.length === 0) {
+      return false;
+    }
+    return selectedDocuments.every((doc) => {
+      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
+      return permission?.level === "owner";
+    });
+  }, [selectedDocuments, user]);
+
+  // Check if user has write access on all selected documents (required for duplicate)
+  const canDuplicateSelectedDocuments = useMemo(() => {
+    if (!user || selectedDocuments.length === 0) {
+      return false;
+    }
+    return selectedDocuments.every((doc) => {
+      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
+      return permission?.level === "owner" || permission?.level === "write";
+    });
+  }, [selectedDocuments, user]);
+
   const canCreateDocuments = lockedInitiativeId
     ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
     : manageableInitiatives.length > 0;
@@ -604,7 +627,12 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                       onClick={() => {
                         duplicateDocuments.mutate(selectedDocuments);
                       }}
-                      disabled={duplicateDocuments.isPending}
+                      disabled={duplicateDocuments.isPending || !canDuplicateSelectedDocuments}
+                      title={
+                        canDuplicateSelectedDocuments
+                          ? undefined
+                          : "You need edit access to duplicate documents"
+                      }
                     >
                       {duplicateDocuments.isPending ? (
                         <>
@@ -630,7 +658,12 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                           deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
                         }
                       }}
-                      disabled={deleteDocuments.isPending}
+                      disabled={deleteDocuments.isPending || !canDeleteSelectedDocuments}
+                      title={
+                        canDeleteSelectedDocuments
+                          ? undefined
+                          : "You can only delete documents you own"
+                      }
                     >
                       {deleteDocuments.isPending ? (
                         <>

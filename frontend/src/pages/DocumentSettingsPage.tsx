@@ -106,6 +106,15 @@ export const DocumentSettingsPage = () => {
     return permission?.level === "owner" || permission?.level === "write";
   }, [document, user]);
 
+  // Pure DAC: only owners can delete/duplicate documents
+  const isOwner = useMemo(() => {
+    if (!document || !user) {
+      return false;
+    }
+    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
+    return permission?.level === "owner";
+  }, [document, user]);
+
   // Pure DAC: check if user has write access
   const hasWriteAccess = useMemo(() => {
     if (!document || !user) {
@@ -757,7 +766,7 @@ export const DocumentSettingsPage = () => {
             type="button"
             variant="destructive"
             onClick={() => setDeleteDialogOpen(true)}
-            disabled={!canManageDocument}
+            disabled={!isOwner}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete document

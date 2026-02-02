@@ -84,6 +84,7 @@ class DocumentSummary(DocumentBase):
     initiative: Optional[InitiativeRead] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
+    permissions: List[DocumentPermissionRead] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -91,7 +92,6 @@ class DocumentSummary(DocumentBase):
 
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
-    permissions: List[DocumentPermissionRead] = Field(default_factory=list)
 
 
 class ProjectDocumentSummary(BaseModel):
@@ -116,6 +116,19 @@ def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
     return links
 
 
+def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]:
+    """Serialize all document permissions."""
+    permissions = getattr(document, "permissions", None) or []
+    return [
+        DocumentPermissionRead(
+            user_id=permission.user_id,
+            level=permission.level,
+            created_at=permission.created_at,
+        )
+        for permission in permissions
+    ]
+
+
 def serialize_document_summary(document: "Document") -> DocumentSummary:
     initiative = serialize_initiative(document.initiative) if document.initiative else None
     return DocumentSummary(
@@ -131,20 +144,8 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
         initiative=initiative,
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
+        permissions=_serialize_permissions(document),
     )
-
-
-def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]:
-    """Serialize all document permissions."""
-    permissions = getattr(document, "permissions", None) or []
-    return [
-        DocumentPermissionRead(
-            user_id=permission.user_id,
-            level=permission.level,
-            created_at=permission.created_at,
-        )
-        for permission in permissions
-    ]
 
 
 def serialize_document(document: "Document") -> DocumentRead:
@@ -152,7 +153,6 @@ def serialize_document(document: "Document") -> DocumentRead:
     return DocumentRead(
         **summary.model_dump(),
         content=document.content or {},
-        permissions=_serialize_permissions(document),
     )
 
 
