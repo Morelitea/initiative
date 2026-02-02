@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -95,6 +95,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
+  const router = useRouter();
   const localQueryClient = useQueryClient();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
@@ -112,22 +113,24 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const [icon, setIcon] = useState("");
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const lastConsumedParams = useRef<string>("");
+  const isClosingComposer = useRef(false);
 
-  // Check for query params to open create dialog (consume once)
+  // Open create dialog when ?create=true is in URL
   useEffect(() => {
     const shouldCreate = searchParams.create === "true";
     const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
 
-    if (shouldCreate && paramKey !== lastConsumedParams.current) {
-      lastConsumedParams.current = paramKey;
+    if (shouldCreate && !isComposerOpen && !isClosingComposer.current) {
       setIsComposerOpen(true);
       if (urlInitiativeId) {
         setInitiativeId(urlInitiativeId);
       }
     }
-  }, [searchParams]);
+    // Reset the closing flag once URL no longer has create=true
+    if (!shouldCreate) {
+      isClosingComposer.current = false;
+    }
+  }, [searchParams, isComposerOpen]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
@@ -420,6 +423,19 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createProject.mutate();
+  };
+
+  const handleComposerOpenChange = (open: boolean) => {
+    setIsComposerOpen(open);
+    // Clear ?create from URL when dialog closes
+    if (!open && searchParams.create) {
+      isClosingComposer.current = true;
+      router.navigate({
+        to: "/projects",
+        search: { initiativeId: searchParams.initiativeId },
+        replace: true,
+      });
+    }
   };
 
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
@@ -924,7 +940,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
         )}
 
         {isProjectManager && (
-          <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+          <Dialog open={isComposerOpen} onOpenChange={handleComposerOpenChange}>
             <DialogContent className="bg-card max-h-screen overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create project</DialogTitle>

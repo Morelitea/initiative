@@ -109,9 +109,15 @@ export const CreateDocumentDialog = ({
     });
   }, [templateDocumentsQuery.data, user]);
 
-  // Reset form when dialog closes
+  // Reset form when dialog closes, or set default initiative when dialog opens
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      // When dialog opens, set the default initiative if provided
+      if (defaultInitiativeId) {
+        setSelectedInitiativeId(String(defaultInitiativeId));
+      }
+    } else {
+      // When dialog closes, reset the form
       setNewTitle("");
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
       setSelectedTemplateId("");

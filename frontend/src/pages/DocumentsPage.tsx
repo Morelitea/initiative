@@ -184,6 +184,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   );
   const lastConsumedParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
+  const isClosingCreateDialog = useRef(false);
 
   // Check for query params to filter by initiative (consume once)
   useEffect(() => {
@@ -296,22 +297,22 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
     : manageableInitiatives.length > 0;
 
-  const lastConsumedCreateParams = useRef<string>("");
-
-  // Check for query params to open create dialog (consume once)
+  // Open create dialog when ?create=true is in URL
   useEffect(() => {
     const shouldCreate = searchParams.create === "true";
     const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = `${shouldCreate}-${urlInitiativeId || ""}`;
 
-    if (shouldCreate && paramKey !== lastConsumedCreateParams.current) {
-      lastConsumedCreateParams.current = paramKey;
+    if (shouldCreate && !createDialogOpen && !isClosingCreateDialog.current) {
       setCreateDialogOpen(true);
       if (urlInitiativeId && !lockedInitiativeId) {
         setCreateDialogInitiativeId(Number(urlInitiativeId));
       }
     }
-  }, [searchParams, lockedInitiativeId]);
+    // Reset the closing flag once URL no longer has create=true
+    if (!shouldCreate) {
+      isClosingCreateDialog.current = false;
+    }
+  }, [searchParams, lockedInitiativeId, createDialogOpen]);
 
   useEffect(() => {
     localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
@@ -339,6 +340,19 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
       to: "/documents/$documentId",
       params: { documentId: String(document.id) },
     });
+  };
+
+  const handleCreateDialogOpenChange = (open: boolean) => {
+    setCreateDialogOpen(open);
+    // Clear ?create from URL when dialog closes
+    if (!open && searchParams.create) {
+      isClosingCreateDialog.current = true;
+      router.navigate({
+        to: "/documents",
+        search: { initiativeId: searchParams.initiativeId },
+        replace: true,
+      });
+    }
   };
 
   const deleteDocuments = useMutation({
@@ -646,7 +660,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
 
       <CreateDocumentDialog
         open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+        onOpenChange={handleCreateDialogOpenChange}
         initiativeId={lockedInitiativeId ?? undefined}
         defaultInitiativeId={
           initiativeFilter !== INITIATIVE_FILTER_ALL
