@@ -42,6 +42,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
+import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 
@@ -52,6 +53,7 @@ export const DocumentDetailPage = () => {
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
   const sidePanel = useDocumentSidePanel();
+  const { isEnabled: isAIEnabled } = useAIEnabled();
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
@@ -659,7 +661,7 @@ export const DocumentDetailPage = () => {
       <DocumentSidePanel
         isOpen={sidePanel.isOpen}
         onOpenChange={sidePanel.setIsOpen}
-        showSummaryTab={document.document_type !== "file"}
+        showSummaryTab={document.document_type !== "file" && isAIEnabled}
         summaryContent={
           <DocumentSummary
             documentId={parsedId}
