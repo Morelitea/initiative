@@ -124,6 +124,21 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
     },
   },
   {
+    id: "owner",
+    header: "Owner",
+    cell: ({ row }) => {
+      const ownerPermission = (row.original.permissions ?? []).find((p) => p.level === "owner");
+      if (!ownerPermission) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const ownerMember = row.original.initiative?.members?.find(
+        (m) => m.user.id === ownerPermission.user_id
+      );
+      const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
+      return <span>{ownerName || `User ${ownerPermission.user_id}`}</span>;
+    },
+  },
+  {
     id: "type",
     accessorKey: "is_template",
     header: "Type",
