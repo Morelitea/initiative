@@ -600,7 +600,6 @@ async def create_task(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
-        guild_role=guild_context.role,
     )
 
     sort_order = await _next_sort_order(session, task_in.project_id)
@@ -667,7 +666,6 @@ async def read_task(
         current_user,
         guild_id=guild_context.guild_id,
         access="read",
-        guild_role=guild_context.role,
     )
     return task
 
@@ -690,7 +688,6 @@ async def update_task(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
-        guild_role=guild_context.role,
     )
 
     update_data = task_in.dict(exclude_unset=True)
@@ -780,7 +777,6 @@ async def move_task(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     target_project = await _get_project_with_access(
@@ -789,7 +785,6 @@ async def move_task(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
-        guild_role=guild_context.role,
     )
     if target_project.is_template:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot move task to a template project")
@@ -839,7 +834,6 @@ async def duplicate_task(
         original_task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     # Fetch subtasks
@@ -917,7 +911,6 @@ async def delete_task(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     await session.delete(task)
@@ -940,7 +933,6 @@ async def reorder_tasks(
         reorder_in.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     task_ids = [item.id for item in reorder_in.items]
@@ -1038,7 +1030,6 @@ async def archive_done_tasks(
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     # Build the query to find done tasks
@@ -1090,7 +1081,6 @@ async def list_subtasks(
         current_user,
         guild_id=guild_context.guild_id,
         access="read",
-        guild_role=guild_context.role,
     )
     return await _list_subtasks_for_task(session, task.id)
 
@@ -1112,7 +1102,6 @@ async def create_subtask(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     content = subtask_in.content.strip()
@@ -1154,7 +1143,6 @@ async def create_subtasks_batch(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     # Get current max position
@@ -1207,7 +1195,6 @@ async def reorder_subtasks(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     if not reorder_in.items:
@@ -1258,7 +1245,6 @@ async def update_subtask(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     update_data = subtask_in.model_dump(exclude_unset=True)
@@ -1305,7 +1291,6 @@ async def delete_subtask(
         task.project_id,
         current_user,
         guild_id=guild_context.guild_id,
-        guild_role=guild_context.role,
     )
 
     await session.delete(subtask)
@@ -1336,7 +1321,6 @@ async def generate_task_subtasks(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
-        guild_role=guild_context.role,
     )
 
     try:
@@ -1370,7 +1354,6 @@ async def generate_task_description(
         current_user,
         guild_id=guild_context.guild_id,
         access="write",
-        guild_role=guild_context.role,
     )
 
     try:
