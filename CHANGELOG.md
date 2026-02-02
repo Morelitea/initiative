@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Document AI Summary feature
+  - "Summarize with AI" generates 2-4 paragraph summaries of native documents
+  - New side panel with tabs for AI Summary and Comments
+  - Panel toggle button in document header
+  - Summary persists when switching between tabs
+  - Converts Lexical editor content to Markdown for better AI comprehension
 - Uploadable file documents (PDF, Word, Excel, PowerPoint, text, HTML)
   - Upload files via "Upload file" tab in create document dialog
   - PDF viewer with zoom controls and continuous page scrolling
@@ -18,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Document comments moved from inline section to side panel
+- AI-generated subtasks and descriptions now include initiative and project names for better context
 - Only guild admins and initiative project managers can pin/unpin projects
 - Pin button is now hidden for users who cannot pin (instead of showing disabled)
 - Refactored project access control to discretionary access control (DAC) model

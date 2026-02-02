@@ -11,3 +11,8 @@ class GenerateSubtasksResponse(BaseModel):
 class GenerateDescriptionResponse(BaseModel):
     """Response schema for description generation."""
     description: str
+
+
+class GenerateDocumentSummaryResponse(BaseModel):
+    """Response schema for document summarization."""
+    summary: str
