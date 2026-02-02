@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,8 +15,6 @@ import {
   Table,
   Copy,
   Trash2,
-  Upload,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,26 +30,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { DocumentCard } from "@/components/documents/DocumentCard";
+import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
+import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
-import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 
 const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
@@ -275,17 +265,10 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   }, [initiativesQuery.data, user]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newInitiativeId, setNewInitiativeId] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : ""
+  const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
+    lockedInitiativeId ?? undefined
   );
-  const [isTemplateDocument, setIsTemplateDocument] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedDocuments, setSelectedDocuments] = useState<DocumentSummary[]>([]);
-  // File upload state
-  const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload">("new");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if user owns all selected documents (required for delete)
   const canDeleteSelectedDocuments = useMemo(() => {
@@ -325,33 +308,10 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
       lastConsumedCreateParams.current = paramKey;
       setCreateDialogOpen(true);
       if (urlInitiativeId && !lockedInitiativeId) {
-        setNewInitiativeId(urlInitiativeId);
+        setCreateDialogInitiativeId(Number(urlInitiativeId));
       }
     }
   }, [searchParams, lockedInitiativeId]);
-
-  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "templates", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<DocumentSummary[]>("/documents/");
-      return response.data;
-    },
-    enabled: canCreateDocuments,
-  });
-
-  const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !user) {
-      return [];
-    }
-    // Pure DAC: user can use a template if they have any permission on it (read, write, or owner)
-    return templateDocumentsQuery.data.filter((document) => {
-      if (!document.is_template) {
-        return false;
-      }
-      const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-      return Boolean(permission);
-    });
-  }, [templateDocumentsQuery.data, user]);
 
   useEffect(() => {
     localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
@@ -374,137 +334,12 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
-  useEffect(() => {
-    if (!createDialogOpen) {
-      setIsTemplateDocument(false);
-      setSelectedTemplateId("");
-      setCreateDialogTab("new");
-      setSelectedFile(null);
-      return;
-    }
-    if (lockedInitiativeId) {
-      setNewInitiativeId(String(lockedInitiativeId));
-      return;
-    }
-    if (!newInitiativeId && manageableInitiatives.length > 0) {
-      setNewInitiativeId(String(manageableInitiatives[0].id));
-    }
-  }, [createDialogOpen, manageableInitiatives, newInitiativeId, lockedInitiativeId]);
-
-  useEffect(() => {
-    if (isTemplateDocument && selectedTemplateId) {
-      setSelectedTemplateId("");
-    }
-  }, [isTemplateDocument, selectedTemplateId]);
-
-  useEffect(() => {
-    if (!selectedTemplateId) {
-      return;
-    }
-    const isValid = manageableTemplates.some(
-      (document) => String(document.id) === selectedTemplateId
-    );
-    if (!isValid) {
-      setSelectedTemplateId("");
-    }
-  }, [manageableTemplates, selectedTemplateId]);
-
-  const createDocument = useMutation({
-    mutationFn: async () => {
-      const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-      const resolvedInitiativeId =
-        newInitiativeId || (lockedInitiativeId ? String(lockedInitiativeId) : "");
-      if (!resolvedInitiativeId) {
-        throw new Error("Select an initiative");
-      }
-      if (selectedTemplateId) {
-        const payload = {
-          target_initiative_id: Number(resolvedInitiativeId),
-          title: trimmedTitle,
-        };
-        const response = await apiClient.post<DocumentRead>(
-          `/documents/${selectedTemplateId}/copy`,
-          payload
-        );
-        return response.data;
-      }
-      const payload = {
-        title: trimmedTitle,
-        initiative_id: Number(resolvedInitiativeId),
-        is_template: isTemplateDocument,
-      };
-      const response = await apiClient.post<DocumentRead>("/documents/", payload);
-      return response.data;
-    },
-    onSuccess: (document) => {
-      toast.success("Document created");
-      setCreateDialogOpen(false);
-      setNewTitle("");
-      setIsTemplateDocument(false);
-      setSelectedTemplateId("");
-      setCreateDialogTab("new");
-      setSelectedFile(null);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      router.navigate({
-        to: "/documents/$documentId",
-        params: { documentId: String(document.id) },
-      });
-    },
-    onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to create document right now.";
-      toast.error(message);
-    },
-  });
-
-  const uploadDocument = useMutation({
-    mutationFn: async () => {
-      if (!selectedFile) {
-        throw new Error("Please select a file to upload");
-      }
-      const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-      const resolvedInitiativeId =
-        newInitiativeId || (lockedInitiativeId ? String(lockedInitiativeId) : "");
-      if (!resolvedInitiativeId) {
-        throw new Error("Select an initiative");
-      }
-
-      const formData = new FormData();
-      formData.append("title", trimmedTitle);
-      formData.append("initiative_id", resolvedInitiativeId);
-      formData.append("file", selectedFile);
-
-      const response = await apiClient.post<DocumentRead>("/documents/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      return response.data;
-    },
-    onSuccess: (document) => {
-      toast.success("Document uploaded");
-      setCreateDialogOpen(false);
-      setNewTitle("");
-      setCreateDialogTab("new");
-      setSelectedFile(null);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      router.navigate({
-        to: "/documents/$documentId",
-        params: { documentId: String(document.id) },
-      });
-    },
-    onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to upload document right now.";
-      toast.error(message);
-    },
-  });
+  const handleDocumentCreated = (document: { id: number }) => {
+    router.navigate({
+      to: "/documents/$documentId",
+      params: { documentId: String(document.id) },
+    });
+  };
 
   const deleteDocuments = useMutation({
     mutationFn: async (documentIds: number[]) => {
@@ -809,256 +644,14 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
         )
       ) : null}
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
-          <DialogHeader>
-            <DialogTitle>New document</DialogTitle>
-            <DialogDescription>
-              Documents live inside an initiative and can be attached to projects later.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Tabs
-            value={createDialogTab}
-            onValueChange={(value) => setCreateDialogTab(value as "new" | "upload")}
-          >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="new" className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                New document
-              </TabsTrigger>
-              <TabsTrigger value="upload" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Upload file
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Shared fields: Title and Initiative */}
-            <div className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-document-title">Title</Label>
-                <Input
-                  id="new-document-title"
-                  value={newTitle}
-                  onChange={(event) => setNewTitle(event.target.value)}
-                  placeholder={
-                    createDialogTab === "upload" ? "Document title" : "Product launch brief"
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-document-initiative">Initiative</Label>
-                {lockedInitiativeId ? (
-                  <div className="rounded-md border px-3 py-2 text-sm">
-                    {lockedInitiative?.name ?? "Selected initiative"}
-                  </div>
-                ) : (
-                  <Select
-                    value={newInitiativeId}
-                    onValueChange={(value) => setNewInitiativeId(value)}
-                    disabled={!canCreateDocuments}
-                  >
-                    <SelectTrigger id="new-document-initiative">
-                      <SelectValue placeholder="Select initiative" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {manageableInitiatives.map((initiative) => (
-                        <SelectItem key={initiative.id} value={String(initiative.id)}>
-                          {initiative.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-
-            {/* New document tab content */}
-            <TabsContent value="new" className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="new-document-template-selector">Start from template</Label>
-                  {selectedTemplateId && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto px-2 py-1 text-xs"
-                      onClick={() => setSelectedTemplateId("")}
-                    >
-                      <X className="mr-1 h-3 w-3" />
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                <Select
-                  value={selectedTemplateId || undefined}
-                  onValueChange={(value) => setSelectedTemplateId(value)}
-                  disabled={
-                    templateDocumentsQuery.isLoading ||
-                    manageableTemplates.length === 0 ||
-                    isTemplateDocument
-                  }
-                >
-                  <SelectTrigger id="new-document-template-selector">
-                    <SelectValue
-                      placeholder={
-                        templateDocumentsQuery.isLoading
-                          ? "Loading templates…"
-                          : manageableTemplates.length > 0
-                            ? "Select template (optional)"
-                            : "No templates available"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {manageableTemplates.map((template) => (
-                      <SelectItem key={template.id} value={String(template.id)}>
-                        {template.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium">Save as template</p>
-                  <p className="text-muted-foreground text-xs">
-                    Template documents are best duplicated or copied into other initiatives.
-                  </p>
-                </div>
-                <Switch
-                  id="new-document-template"
-                  checked={isTemplateDocument}
-                  onCheckedChange={setIsTemplateDocument}
-                  aria-label="Toggle template status for the new document"
-                />
-              </div>
-            </TabsContent>
-
-            {/* Upload file tab content */}
-            <TabsContent value="upload" className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <Label>File</Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm"
-                  className="hidden"
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      // Validate file size (50 MB limit)
-                      const maxSize = 50 * 1024 * 1024;
-                      if (file.size > maxSize) {
-                        toast.error(`File is too large. Maximum size is 50 MB.`);
-                        e.target.value = "";
-                        return;
-                      }
-                      setSelectedFile(file);
-                      // Auto-populate title from filename if empty
-                      if (!newTitle.trim()) {
-                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-                        setNewTitle(nameWithoutExt);
-                      }
-                    }
-                    e.target.value = "";
-                  }}
-                />
-                {selectedFile ? (
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-lg">
-                        {getFileTypeLabel(selectedFile.type, selectedFile.name) === "Excel" ? (
-                          <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                        ) : getFileTypeLabel(selectedFile.type, selectedFile.name) ===
-                          "PowerPoint" ? (
-                          <Presentation className="h-5 w-5 text-orange-600" />
-                        ) : (
-                          <FileText className="h-5 w-5 text-blue-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="max-w-[200px] truncate text-sm font-medium">
-                          {selectedFile.name}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {getFileTypeLabel(selectedFile.type, selectedFile.name)} •{" "}
-                          {formatBytes(selectedFile.size)}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedFile(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Choose file
-                  </Button>
-                )}
-                <p className="text-muted-foreground text-xs">
-                  Supported: PDF, Word, Excel, PowerPoint, TXT, HTML (max 50 MB)
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter>
-            {createDialogTab === "new" ? (
-              <Button
-                type="button"
-                onClick={() => createDocument.mutate()}
-                disabled={
-                  createDocument.isPending ||
-                  !newTitle.trim() ||
-                  (!newInitiativeId && !lockedInitiativeId)
-                }
-              >
-                {createDocument.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating…
-                  </>
-                ) : (
-                  "Create document"
-                )}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={() => uploadDocument.mutate()}
-                disabled={
-                  uploadDocument.isPending ||
-                  !newTitle.trim() ||
-                  !selectedFile ||
-                  (!newInitiativeId && !lockedInitiativeId)
-                }
-              >
-                {uploadDocument.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading…
-                  </>
-                ) : (
-                  "Upload document"
-                )}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateDocumentDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        initiativeId={lockedInitiativeId ?? undefined}
+        defaultInitiativeId={createDialogInitiativeId}
+        initiatives={manageableInitiatives}
+        onSuccess={handleDocumentCreated}
+      />
 
       {canCreateDocuments ? (
         <Button
