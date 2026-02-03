@@ -611,7 +611,7 @@ export const DocumentDetailPage = () => {
               }
             >
               <Editor
-                key={document.id}
+                key={parsedId}
                 editorSerializedState={normalizedDocumentContent}
                 onSerializedChange={setContentState}
                 readOnly={!canEditDocument}

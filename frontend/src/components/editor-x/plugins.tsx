@@ -47,6 +47,7 @@ import { YouTubePlugin } from "@/components/ui/editor/plugins/embeds/youtube-plu
 import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-plugin";
 import { EmojisPlugin } from "@/components/ui/editor/plugins/emojis-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
+import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { ImagesPlugin } from "@/components/ui/editor/plugins/images-plugin";
 import { KeywordsPlugin } from "@/components/ui/editor/plugins/keywords-plugin";
@@ -105,6 +106,7 @@ import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer"
 import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
 import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
+import { WIKILINK } from "@/components/ui/editor/transformers/markdown-wikilink-transformer";
 import { Separator } from "@/components/ui/separator";
 import type { UserPublic } from "@/types/api";
 
@@ -269,6 +271,7 @@ export function Plugins({
             IMAGE,
             EMOJI,
             TWEET,
+            WIKILINK,
             CHECK_LIST,
             ...ELEMENT_TRANSFORMERS,
             ...MULTILINE_ELEMENT_TRANSFORMERS,
@@ -316,6 +319,12 @@ export function Plugins({
           isLinkEditMode={isLinkEditMode}
           setIsLinkEditMode={setIsLinkEditMode}
         />
+        <FloatingWikilinkEditorPlugin
+          anchorElem={floatingAnchorElem}
+          initiativeId={initiativeId}
+          onNavigate={onWikilinkNavigate}
+          onCreateDocument={onWikilinkCreate}
+        />
         <FloatingTextFormatToolbarPlugin
           anchorElem={floatingAnchorElem}
           setIsLinkEditMode={setIsLinkEditMode}
@@ -345,6 +354,7 @@ export function Plugins({
                   IMAGE,
                   EMOJI,
                   TWEET,
+                  WIKILINK,
                   CHECK_LIST,
                   ...ELEMENT_TRANSFORMERS,
                   ...MULTILINE_ELEMENT_TRANSFORMERS,
