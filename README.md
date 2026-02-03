@@ -55,7 +55,7 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 - **Independent guild administration**: Guild admins manage their workspace without affecting other guilds
 
 **Initiative role permissions:**
-<img width="1920" height="1050" alt="Initiative role permissions" src="https://github.com/user-attachments/assets/10b90a79-4fa2-444a-9d97-29cbb8b58d63" />
+<img width="1920" height="1080" alt="Initiative role permissions" src="https://github.com/user-attachments/assets/5ee163da-207a-4f57-a95c-659f423eb688" />
 
 ### Rich Task Management
 
