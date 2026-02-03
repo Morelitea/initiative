@@ -527,11 +527,12 @@ async def update_comment(
     if comment.author_id != user.id:
         raise CommentPermissionError("Only the comment author can edit")
 
-    # Verify the comment belongs to this guild by checking the linked entity
+    # Verify access to the linked entity (same checks as delete_comment)
     if comment.task_id is not None:
         context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
         if not context:
             raise CommentNotFoundError("Comment not found")
+        await _ensure_task_access(session, project=context.project, user=user)
         object.__setattr__(comment, "project_id", context.project.id)
     elif comment.document_id is not None:
         document = await documents_service.get_document(
@@ -541,6 +542,7 @@ async def update_comment(
         )
         if not document:
             raise CommentNotFoundError("Comment not found")
+        await _ensure_document_access(session, document=document, user=user)
     else:
         raise CommentValidationError("Comment is not linked to a task or document")
 
