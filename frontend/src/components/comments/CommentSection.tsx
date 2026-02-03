@@ -198,10 +198,15 @@ export const CommentSection = ({
     deleteComment.mutate(commentId);
   };
 
-  const handleEdit = (commentId: number, editedContent: string) => {
+  const handleEdit = async (commentId: number, editedContent: string): Promise<boolean> => {
     const normalized = editedContent.trim();
-    if (!normalized) return;
-    updateComment.mutate({ commentId, payload: { content: normalized } });
+    if (!normalized) return false;
+    try {
+      await updateComment.mutateAsync({ commentId, payload: { content: normalized } });
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   return (

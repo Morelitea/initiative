@@ -16,7 +16,7 @@ interface CommentThreadProps {
   depth: number;
   onReply: (parentId: number, content: string) => void;
   onDelete: (commentId: number) => void;
-  onEdit: (commentId: number, content: string) => void;
+  onEdit: (commentId: number, content: string) => Promise<boolean>;
   canModerate: boolean;
   currentUserId?: number;
   initiativeId: number;
@@ -76,9 +76,11 @@ export const CommentThread = ({
     setIsReplying(false);
   };
 
-  const handleEditSubmit = (content: string) => {
-    onEdit(comment.id, content);
-    setIsEditing(false);
+  const handleEditSubmit = async (content: string) => {
+    const success = await onEdit(comment.id, content);
+    if (success) {
+      setIsEditing(false);
+    }
   };
 
   const handleEditCancel = () => {
