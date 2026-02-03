@@ -19,6 +19,7 @@ interface CommentSectionProps {
   comments?: Comment[];
   onCommentCreated?: (comment: Comment) => void;
   onCommentDeleted?: (commentId: number) => void;
+  onCommentUpdated?: (comment: Comment) => void;
   title?: string;
   isLoading?: boolean;
   canModerate?: boolean;
@@ -30,6 +31,10 @@ interface CommentPayload {
   task_id?: number;
   document_id?: number;
   parent_comment_id?: number;
+}
+
+interface CommentUpdatePayload {
+  content: string;
 }
 
 // Build comment tree from flat list
@@ -61,6 +66,7 @@ export const CommentSection = ({
   comments = [],
   onCommentCreated,
   onCommentDeleted,
+  onCommentUpdated,
   title = "Comments",
   isLoading = false,
   canModerate = false,
@@ -69,6 +75,7 @@ export const CommentSection = ({
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const { user } = useAuth();
 
   const createComment = useMutation({
@@ -111,6 +118,33 @@ export const CommentSection = ({
         }
       }
       setDeleteError("Unable to delete comment right now.");
+    },
+  });
+
+  const updateComment = useMutation({
+    mutationFn: async ({
+      commentId,
+      payload,
+    }: {
+      commentId: number;
+      payload: CommentUpdatePayload;
+    }) => {
+      const response = await apiClient.patch<Comment>(`/comments/${commentId}`, payload);
+      return response.data;
+    },
+    onSuccess: (comment) => {
+      setEditError(null);
+      onCommentUpdated?.(comment);
+    },
+    onError: (err) => {
+      if (isAxiosError(err)) {
+        const detail = err.response?.data?.detail;
+        if (typeof detail === "string" && detail.trim()) {
+          setEditError(detail);
+          return;
+        }
+      }
+      setEditError("Unable to update comment right now.");
     },
   });
 
@@ -162,6 +196,12 @@ export const CommentSection = ({
 
   const handleDelete = (commentId: number) => {
     deleteComment.mutate(commentId);
+  };
+
+  const handleEdit = (commentId: number, editedContent: string) => {
+    const normalized = editedContent.trim();
+    if (!normalized) return;
+    updateComment.mutate({ commentId, payload: { content: normalized } });
   };
 
   return (
@@ -221,10 +261,13 @@ export const CommentSection = ({
                 depth={0}
                 onReply={handleReply}
                 onDelete={handleDelete}
+                onEdit={handleEdit}
                 canModerate={canModerate}
                 currentUserId={user?.id}
                 initiativeId={initiativeId}
-                isSubmitting={createComment.isPending || deleteComment.isPending}
+                isSubmitting={
+                  createComment.isPending || deleteComment.isPending || updateComment.isPending
+                }
                 deleteError={deleteComment.variables === comment.id ? deleteError : null}
                 userDisplayNames={userDisplayNames}
               />
@@ -237,6 +280,7 @@ export const CommentSection = ({
           {deleteError && !deleteComment.variables && (
             <p className="text-destructive text-sm">{deleteError}</p>
           )}
+          {editError && <p className="text-destructive text-sm">{editError}</p>}
         </div>
       </CardContent>
     </Card>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Reply, Trash2 } from "lucide-react";
+import { Pencil, Reply, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ interface CommentThreadProps {
   depth: number;
   onReply: (parentId: number, content: string) => void;
   onDelete: (commentId: number) => void;
+  onEdit: (commentId: number, content: string) => void;
   canModerate: boolean;
   currentUserId?: number;
   initiativeId: number;
@@ -32,6 +33,7 @@ export const CommentThread = ({
   depth,
   onReply,
   onDelete,
+  onEdit,
   canModerate,
   currentUserId,
   initiativeId,
@@ -44,6 +46,8 @@ export const CommentThread = ({
 }: CommentThreadProps) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
 
   const displayName =
     comment.author?.full_name?.trim() || comment.author?.email || `User #${comment.author_id}`;
@@ -62,12 +66,24 @@ export const CommentThread = ({
   };
 
   const canDelete = currentUserId === comment.author_id || canModerate;
+  const canEdit = currentUserId === comment.author_id;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
+  const isEdited = Boolean(comment.updated_at);
 
   const handleReplySubmit = (content: string) => {
     onReply(comment.id, content);
     setReplyContent("");
     setIsReplying(false);
+  };
+
+  const handleEditSubmit = (content: string) => {
+    onEdit(comment.id, content);
+    setIsEditing(false);
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    setEditContent(comment.content);
   };
 
   return (
@@ -86,33 +102,69 @@ export const CommentThread = ({
                   {formatDistanceToNow(new Date(comment.created_at), {
                     addSuffix: true,
                   })}
+                  {isEdited && <span className="text-muted-foreground ml-1">(edited)</span>}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  onClick={() => setIsReplying(!isReplying)}
-                >
-                  <Reply className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                  Reply
-                </Button>
-                {canDelete && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive h-8 px-2 text-xs"
-                    disabled={isSubmitting}
-                    onClick={() => onDelete(comment.id)}
-                  >
-                    <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
+                {!isEditing && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => setIsReplying(!isReplying)}
+                    >
+                      <Reply className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                      Reply
+                    </Button>
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                        Edit
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive h-8 px-2 text-xs"
+                        disabled={isSubmitting}
+                        onClick={() => onDelete(comment.id)}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
             <div className="text-foreground mt-2 text-sm">
-              <CommentContent content={comment.content} />
+              {isEditing ? (
+                <div className="space-y-2">
+                  <CommentInput
+                    value={editContent}
+                    onChange={setEditContent}
+                    onSubmit={handleEditSubmit}
+                    placeholder="Edit your comment..."
+                    submitLabel="Save"
+                    isSubmitting={isSubmitting}
+                    initiativeId={initiativeId}
+                    autoFocus
+                    compact
+                  />
+                  <Button type="button" variant="ghost" size="sm" onClick={handleEditCancel}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <CommentContent content={comment.content} />
+              )}
             </div>
           </div>
         </div>
@@ -160,6 +212,7 @@ export const CommentThread = ({
               depth={depth + 1}
               onReply={onReply}
               onDelete={onDelete}
+              onEdit={onEdit}
               canModerate={canModerate}
               currentUserId={currentUserId}
               initiativeId={initiativeId}

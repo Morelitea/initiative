@@ -401,6 +401,17 @@ export const TaskEditPage = () => {
     });
   };
 
+  const handleCommentUpdated = (updatedComment: Comment) => {
+    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+      if (!previous) {
+        return previous;
+      }
+      return previous.map((comment) =>
+        comment.id === updatedComment.id ? updatedComment : comment
+      );
+    });
+  };
+
   useEffect(() => {
     if (isReadOnly) {
       setIsEditingDescription(false);
@@ -771,6 +782,7 @@ export const TaskEditPage = () => {
             isLoading={commentsQuery.isLoading}
             onCommentCreated={handleCommentCreated}
             onCommentDeleted={handleCommentDeleted}
+            onCommentUpdated={handleCommentUpdated}
             canModerate={canModerateComments}
             initiativeId={projectQuery.data?.initiative_id ?? 0}
           />

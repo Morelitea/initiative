@@ -339,6 +339,7 @@ export interface Comment {
   document_id?: number | null;
   parent_comment_id?: number | null;
   created_at: string;
+  updated_at?: string | null;
   author?: CommentAuthor | null;
 }
 

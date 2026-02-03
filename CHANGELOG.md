@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Office documents show download prompt (browser preview not supported)
   - 50 MB file size limit with client-side validation
 - Lazy loading for document detail page (Editor and PDF viewer load on demand)
+- Comment editing for authors
+  - Users can edit their own comments on tasks and documents
+  - Edit button appears next to Reply for author's own comments
+  - Inline edit mode with Save/Cancel buttons
+  - "(edited)" indicator shows when a comment has been modified
 
 ### Changed
 
