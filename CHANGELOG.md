@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Configurable role permissions per initiative
+  - Four permission keys: `docs_enabled`, `projects_enabled`, `create_docs`, `create_projects`
+  - Roles tab in Initiative Settings to manage role permissions
+  - Create custom roles with configurable permissions
+  - Rename and delete custom roles
+  - Sidebar hides Docs/Projects based on role permissions
+  - Create buttons hidden based on role permissions
+  - Built-in PM role has locked permissions; Member role is configurable
+  - Does not override DAC for project/document resources (direct links still work with explicit access)
 - Document AI Summary feature
   - "Summarize with AI" generates 2-4 paragraph summaries of native documents
   - New side panel with tabs for AI Summary and Comments
