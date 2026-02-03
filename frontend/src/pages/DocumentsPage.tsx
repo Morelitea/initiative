@@ -38,6 +38,10 @@ import { DocumentCard } from "@/components/documents/DocumentCard";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import {
+  useMyInitiativePermissions,
+  canCreate as canCreatePermission,
+} from "@/hooks/useInitiativeRoles";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
@@ -170,9 +174,10 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
+  canCreate?: boolean;
 };
 
-export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
+export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewProps) => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -181,6 +186,12 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
+  );
+  // Parse the filtered initiative ID for permission checks
+  const filteredInitiativeId =
+    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
+  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
+    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
   );
   const lastConsumedParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
@@ -250,18 +261,14 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     },
   });
 
-  const manageableInitiatives = useMemo(() => {
+  // Filter initiatives where user can create documents
+  const creatableInitiatives = useMemo(() => {
     const initiatives = initiativesQuery.data ?? [];
     if (!user) {
       return [];
     }
-    if (user.role === "admin") {
-      return initiatives;
-    }
     return initiatives.filter((initiative) =>
-      initiative.members.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      )
+      initiative.members.some((member) => member.user.id === user.id && member.can_create_docs)
     );
   }, [initiativesQuery.data, user]);
 
@@ -293,9 +300,46 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
     });
   }, [selectedDocuments, user]);
 
-  const canCreateDocuments = lockedInitiativeId
-    ? manageableInitiatives.some((initiative) => initiative.id === lockedInitiativeId)
-    : manageableInitiatives.length > 0;
+  // Check if user can view docs for the filtered initiative
+  const canViewDocs = useMemo(() => {
+    // If no specific initiative is filtered, user can view the page
+    const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
+    if (!effectiveInitiativeId || !user) {
+      return true;
+    }
+    const initiative = initiativesQuery.data?.find((i) => i.id === effectiveInitiativeId);
+    if (!initiative) {
+      return true; // Initiative not loaded yet, assume access
+    }
+    const membership = initiative.members.find((m) => m.user.id === user.id);
+    if (!membership) {
+      return true; // Not a member, let the backend handle access control
+    }
+    return membership.can_view_docs !== false;
+  }, [lockedInitiativeId, filteredInitiativeId, user, initiativesQuery.data]);
+
+  // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
+  const canCreateDocuments = useMemo(() => {
+    // If explicit prop provided (e.g., from InitiativeDetailPage), use it
+    if (canCreate !== undefined) {
+      return canCreate;
+    }
+    // If a specific initiative is filtered, check permissions for that initiative
+    if (filteredInitiativeId && filteredInitiativePermissions) {
+      return canCreatePermission(filteredInitiativePermissions, "docs");
+    }
+    // Fall back to legacy check (user is PM in any initiative)
+    if (lockedInitiativeId) {
+      return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);
+    }
+    return creatableInitiatives.length > 0;
+  }, [
+    canCreate,
+    filteredInitiativeId,
+    filteredInitiativePermissions,
+    lockedInitiativeId,
+    creatableInitiatives,
+  ]);
 
   // Open create dialog when ?create=true is in URL
   useEffect(() => {
@@ -399,10 +443,32 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
   });
 
   const initiatives = initiativesQuery.data ?? [];
+  // Filter initiatives where user can view docs (for the dropdown)
+  const viewableInitiatives = useMemo(() => {
+    const allInitiatives = initiativesQuery.data ?? [];
+    if (!user) return allInitiatives;
+    return allInitiatives.filter((initiative) => {
+      const membership = initiative.members.find((m) => m.user.id === user.id);
+      // If not a member, include it (backend will handle access control)
+      if (!membership) return true;
+      return membership.can_view_docs !== false;
+    });
+  }, [initiativesQuery.data, user]);
   const lockedInitiative = lockedInitiativeId
     ? (initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null)
     : null;
-  const documents = documentsQuery.data ?? [];
+
+  // Get IDs of initiatives where user can view docs
+  const viewableInitiativeIds = useMemo(() => {
+    return new Set(viewableInitiatives.map((i) => i.id));
+  }, [viewableInitiatives]);
+
+  // Filter documents to only show those from viewable initiatives
+  const documents = useMemo(() => {
+    const allDocs = documentsQuery.data ?? [];
+    if (!user) return allDocs;
+    return allDocs.filter((doc) => viewableInitiativeIds.has(doc.initiative_id));
+  }, [documentsQuery.data, user, viewableInitiativeIds]);
 
   return (
     <div className="space-y-6">
@@ -525,7 +591,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                    {initiatives.map((initiative) => (
+                    {viewableInitiatives.map((initiative) => (
                       <SelectItem key={initiative.id} value={String(initiative.id)}>
                         {initiative.name}
                       </SelectItem>
@@ -538,125 +604,129 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
         </CollapsibleContent>
       </Collapsible>
 
-      {documentsQuery.isLoading ? (
+      {!canViewDocs ? (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive">Access Restricted</CardTitle>
+            <CardDescription>
+              You don&apos;t have permission to view documents in this initiative. Contact an
+              administrator if you believe this is an error.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : documentsQuery.isLoading ? (
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading documents…
         </div>
-      ) : null}
-
-      {documentsQuery.isError ? (
+      ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">Unable to load documents right now.</p>
-      ) : null}
-
-      {!documentsQuery.isLoading && !documentsQuery.isError ? (
-        documents.length > 0 ? (
-          viewMode === "grid" ? (
-            <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-              {documents.map((document) => (
-                <DocumentCard key={document.id} document={document} hideInitiative />
-              ))}
-            </div>
-          ) : (
-            <>
-              {selectedDocuments.length > 0 && (
-                <div className="border-primary bg-primary/5 flex items-center justify-between rounded-md border p-4">
-                  <div className="text-sm font-medium">
-                    {selectedDocuments.length} document{selectedDocuments.length === 1 ? "" : "s"}{" "}
-                    selected
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        duplicateDocuments.mutate(selectedDocuments);
-                      }}
-                      disabled={duplicateDocuments.isPending || !canDuplicateSelectedDocuments}
-                      title={
-                        canDuplicateSelectedDocuments
-                          ? undefined
-                          : "You need edit access to duplicate documents"
-                      }
-                    >
-                      {duplicateDocuments.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Duplicating…
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="mr-2 h-4 w-4" />
-                          Duplicate
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Delete ${selectedDocuments.length} document${selectedDocuments.length === 1 ? "" : "s"}?`
-                          )
-                        ) {
-                          deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
-                        }
-                      }}
-                      disabled={deleteDocuments.isPending || !canDeleteSelectedDocuments}
-                      title={
-                        canDeleteSelectedDocuments
-                          ? undefined
-                          : "You can only delete documents you own"
-                      }
-                    >
-                      {deleteDocuments.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Deleting…
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-              <DataTable
-                columns={documentColumns}
-                data={documents}
-                enableFilterInput
-                filterInputColumnKey="title"
-                filterInputPlaceholder="Filter by title..."
-                enableColumnVisibilityDropdown
-                enablePagination
-                enableResetSorting
-                enableRowSelection
-                onRowSelectionChange={setSelectedDocuments}
-                getRowId={(row) => String(row.id)}
-                onExitSelection={() => setSelectedDocuments([])}
-              />
-            </>
-          )
+      ) : documents.length > 0 ? (
+        viewMode === "grid" ? (
+          <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {documents.map((document) => (
+              <DocumentCard key={document.id} document={document} hideInitiative />
+            ))}
+          </div>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>No documents yet</CardTitle>
-              <CardDescription>
-                Create your first initiative document to share briefs, decisions, or guides.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => setCreateDialogOpen(true)} disabled={!canCreateDocuments}>
-                Start writing
-              </Button>
-            </CardContent>
-          </Card>
+          <>
+            {selectedDocuments.length > 0 && (
+              <div className="border-primary bg-primary/5 flex items-center justify-between rounded-md border p-4">
+                <div className="text-sm font-medium">
+                  {selectedDocuments.length} document{selectedDocuments.length === 1 ? "" : "s"}{" "}
+                  selected
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      duplicateDocuments.mutate(selectedDocuments);
+                    }}
+                    disabled={duplicateDocuments.isPending || !canDuplicateSelectedDocuments}
+                    title={
+                      canDuplicateSelectedDocuments
+                        ? undefined
+                        : "You need edit access to duplicate documents"
+                    }
+                  >
+                    {duplicateDocuments.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Duplicating…
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Duplicate
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Delete ${selectedDocuments.length} document${selectedDocuments.length === 1 ? "" : "s"}?`
+                        )
+                      ) {
+                        deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
+                      }
+                    }}
+                    disabled={deleteDocuments.isPending || !canDeleteSelectedDocuments}
+                    title={
+                      canDeleteSelectedDocuments
+                        ? undefined
+                        : "You can only delete documents you own"
+                    }
+                  >
+                    {deleteDocuments.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Deleting…
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <DataTable
+              columns={documentColumns}
+              data={documents}
+              enableFilterInput
+              filterInputColumnKey="title"
+              filterInputPlaceholder="Filter by title..."
+              enableColumnVisibilityDropdown
+              enablePagination
+              enableResetSorting
+              enableRowSelection
+              onRowSelectionChange={setSelectedDocuments}
+              getRowId={(row) => String(row.id)}
+              onExitSelection={() => setSelectedDocuments([])}
+            />
+          </>
         )
-      ) : null}
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>No documents yet</CardTitle>
+            <CardDescription>
+              Create your first initiative document to share briefs, decisions, or guides.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => setCreateDialogOpen(true)} disabled={!canCreateDocuments}>
+              Start writing
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <CreateDocumentDialog
         open={createDialogOpen}
@@ -667,7 +737,7 @@ export const DocumentsView = ({ fixedInitiativeId }: DocumentsViewProps) => {
             ? Number(initiativeFilter)
             : createDialogInitiativeId
         }
-        initiatives={manageableInitiatives}
+        initiatives={creatableInitiatives}
         onSuccess={handleDocumentCreated}
       />
 

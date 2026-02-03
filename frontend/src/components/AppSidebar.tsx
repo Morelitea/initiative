@@ -167,6 +167,42 @@ export const AppSidebar = () => {
     );
   };
 
+  // Get user's permissions for an initiative
+  const getUserPermissions = (initiative: Initiative) => {
+    if (!user) {
+      return {
+        canViewDocs: true,
+        canViewProjects: true,
+        canCreateDocs: false,
+        canCreateProjects: false,
+      };
+    }
+    // Guild admins have all permissions
+    if (isGuildAdmin) {
+      return {
+        canViewDocs: true,
+        canViewProjects: true,
+        canCreateDocs: true,
+        canCreateProjects: true,
+      };
+    }
+    const membership = initiative.members.find((m) => m.user.id === user.id);
+    if (!membership) {
+      return {
+        canViewDocs: true,
+        canViewProjects: true,
+        canCreateDocs: false,
+        canCreateProjects: false,
+      };
+    }
+    return {
+      canViewDocs: membership.can_view_docs ?? true,
+      canViewProjects: membership.can_view_projects ?? true,
+      canCreateDocs: membership.can_create_docs ?? false,
+      canCreateProjects: membership.can_create_projects ?? false,
+    };
+  };
+
   const userDisplayName = user?.full_name ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
   const userInitials =
@@ -260,17 +296,24 @@ export const AppSidebar = () => {
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      {visibleInitiatives.map((initiative) => (
-                        <InitiativeSection
-                          key={initiative.id}
-                          initiative={initiative}
-                          projects={projectsByInitiative.get(initiative.id) ?? []}
-                          documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
-                          canManageInitiative={canManageInitiative(initiative)}
-                          activeProjectId={activeProjectId}
-                          userId={user?.id}
-                        />
-                      ))}
+                      {visibleInitiatives.map((initiative) => {
+                        const permissions = getUserPermissions(initiative);
+                        return (
+                          <InitiativeSection
+                            key={initiative.id}
+                            initiative={initiative}
+                            projects={projectsByInitiative.get(initiative.id) ?? []}
+                            documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
+                            canManageInitiative={canManageInitiative(initiative)}
+                            activeProjectId={activeProjectId}
+                            userId={user?.id}
+                            canViewDocs={permissions.canViewDocs}
+                            canViewProjects={permissions.canViewProjects}
+                            canCreateDocs={permissions.canCreateDocs}
+                            canCreateProjects={permissions.canCreateProjects}
+                          />
+                        );
+                      })}
                     </div>
                   )}
 
@@ -407,6 +450,10 @@ interface InitiativeSectionProps {
   canManageInitiative: boolean;
   activeProjectId: number | null;
   userId: number | undefined;
+  canViewDocs: boolean;
+  canViewProjects: boolean;
+  canCreateDocs: boolean;
+  canCreateProjects: boolean;
 }
 
 const InitiativeSection = ({
@@ -416,6 +463,10 @@ const InitiativeSection = ({
   canManageInitiative,
   activeProjectId,
   userId,
+  canViewDocs,
+  canViewProjects,
+  canCreateDocs,
+  canCreateProjects,
 }: InitiativeSectionProps) => {
   // Pure DAC: check if user has write access to a specific project
   const canManageProject = (project: Project): boolean => {
@@ -526,24 +577,28 @@ const InitiativeSection = ({
                     Initiative Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link
-                    to="/documents"
-                    search={{ create: "true", initiativeId: String(initiative.id) }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Document
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link
-                    to="/projects"
-                    search={{ create: "true", initiativeId: String(initiative.id) }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Project
-                  </Link>
-                </DropdownMenuItem>
+                {canCreateDocs && (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/documents"
+                      search={{ create: "true", initiativeId: String(initiative.id) }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Document
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {canCreateProjects && (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/projects"
+                      search={{ create: "true", initiativeId: String(initiative.id) }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Project
+                    </Link>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>
@@ -555,157 +610,162 @@ const InitiativeSection = ({
       >
         <SidebarMenu>
           {/* Documents Link */}
-          <SidebarMenuItem>
-            <div className="group/documents flex w-full min-w-0 items-center gap-1">
-              <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                <Link
-                  to="/documents"
-                  search={{ initiativeId: String(initiative.id) }}
-                  className="flex items-center gap-2"
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Documents</span>
-                  <span className="text-muted-foreground text-xs">{documentCount}</span>
-                </Link>
-              </SidebarMenuButton>
-              {canManageInitiative && (
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/documents:opacity-100 lg:flex"
-                      asChild
-                    >
-                      <Link
-                        to="/documents"
-                        search={{ create: "true", initiativeId: String(initiative.id) }}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>Create Document</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </SidebarMenuItem>
-
-          {/* Projects Link */}
-          <SidebarMenuItem>
-            <div className="group/projects flex w-full min-w-0 items-center gap-1">
-              <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                <Link
-                  to="/projects"
-                  search={{ initiativeId: String(initiative.id) }}
-                  className="flex items-center gap-2"
-                >
-                  <ListTodo className="h-4 w-4" />
-                  <span>Projects</span>
-                  <span className="text-muted-foreground text-xs">{projects.length}</span>
-                </Link>
-              </SidebarMenuButton>
-              {canManageInitiative && (
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/projects:opacity-100 lg:flex"
-                      asChild
-                    >
-                      <Link
-                        to="/projects"
-                        search={{ create: "true", initiativeId: String(initiative.id) }}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>Create Project</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </SidebarMenuItem>
-
-          {/* Projects List */}
-          {projects.map((project) => (
-            <SidebarMenuItem key={project.id}>
-              <div className="group/project flex w-full min-w-0 items-center gap-1">
-                <SidebarMenuButton
-                  asChild
-                  size="sm"
-                  className="min-w-0 flex-1"
-                  isActive={project.id === activeProjectId}
-                >
+          {canViewDocs && (
+            <SidebarMenuItem>
+              <div className="group/documents flex w-full min-w-0 items-center gap-1">
+                <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                   <Link
-                    to="/projects/$projectId"
-                    params={{ projectId: String(project.id) }}
-                    className="flex min-w-0 items-center gap-2"
+                    to="/documents"
+                    search={{ initiativeId: String(initiative.id) }}
+                    className="flex items-center gap-2"
                   >
-                    {project.icon ? (
-                      <span className="shrink-0 text-base">{project.icon}</span>
-                    ) : null}
-                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                    <FileText className="h-4 w-4" />
+                    <span>Documents</span>
+                    <span className="text-muted-foreground text-xs">{documentCount}</span>
                   </Link>
                 </SidebarMenuButton>
-                {canManageProject(project) && (
-                  <>
-                    {/* Desktop: Show hover-reveal settings button */}
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
-                          asChild
+                {canCreateDocs && (
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/documents:opacity-100 lg:flex"
+                        asChild
+                      >
+                        <Link
+                          to="/documents"
+                          search={{ create: "true", initiativeId: String(initiative.id) }}
                         >
-                          <Link
-                            to="/projects/$projectId/settings"
-                            params={{ projectId: String(project.id) }}
-                          >
-                            <Settings className="h-3 w-3" />
-                          </Link>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p>Project Settings</p>
-                      </TooltipContent>
-                    </Tooltip>
-
-                    {/* Mobile: Show three-dot menu */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0 lg:hidden"
-                          aria-label="Project actions"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem asChild>
-                          <Link
-                            to="/projects/$projectId/settings"
-                            params={{ projectId: String(project.id) }}
-                          >
-                            <Settings className="mr-2 h-4 w-4" />
-                            Project Settings
-                          </Link>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </>
+                          <Plus className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Create Document</p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </SidebarMenuItem>
-          ))}
+          )}
+
+          {/* Projects Link */}
+          {canViewProjects && (
+            <SidebarMenuItem>
+              <div className="group/projects flex w-full min-w-0 items-center gap-1">
+                <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+                  <Link
+                    to="/projects"
+                    search={{ initiativeId: String(initiative.id) }}
+                    className="flex items-center gap-2"
+                  >
+                    <ListTodo className="h-4 w-4" />
+                    <span>Projects</span>
+                    <span className="text-muted-foreground text-xs">{projects.length}</span>
+                  </Link>
+                </SidebarMenuButton>
+                {canCreateProjects && (
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/projects:opacity-100 lg:flex"
+                        asChild
+                      >
+                        <Link
+                          to="/projects"
+                          search={{ create: "true", initiativeId: String(initiative.id) }}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Create Project</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </SidebarMenuItem>
+          )}
+
+          {/* Projects List */}
+          {canViewProjects &&
+            projects.map((project) => (
+              <SidebarMenuItem key={project.id}>
+                <div className="group/project flex w-full min-w-0 items-center gap-1">
+                  <SidebarMenuButton
+                    asChild
+                    size="sm"
+                    className="min-w-0 flex-1"
+                    isActive={project.id === activeProjectId}
+                  >
+                    <Link
+                      to="/projects/$projectId"
+                      params={{ projectId: String(project.id) }}
+                      className="flex min-w-0 items-center gap-2"
+                    >
+                      {project.icon ? (
+                        <span className="shrink-0 text-base">{project.icon}</span>
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {canManageProject(project) && (
+                    <>
+                      {/* Desktop: Show hover-reveal settings button */}
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
+                            asChild
+                          >
+                            <Link
+                              to="/projects/$projectId/settings"
+                              params={{ projectId: String(project.id) }}
+                            >
+                              <Settings className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p>Project Settings</p>
+                        </TooltipContent>
+                      </Tooltip>
+
+                      {/* Mobile: Show three-dot menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 lg:hidden"
+                            aria-label="Project actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem asChild>
+                            <Link
+                              to="/projects/$projectId/settings"
+                              params={{ projectId: String(project.id) }}
+                            >
+                              <Settings className="mr-2 h-4 w-4" />
+                              Project Settings
+                            </Link>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  )}
+                </div>
+              </SidebarMenuItem>
+            ))}
         </SidebarMenu>
       </CollapsibleContent>
     </Collapsible>

@@ -81,7 +81,59 @@ export interface Initiative {
 export interface InitiativeMember {
   user: UserPublic;
   role: InitiativeRole;
+  role_id?: number | null;
+  role_name?: string | null;
+  role_display_name?: string | null;
+  is_manager?: boolean;
   joined_at: string;
+  can_view_docs?: boolean;
+  can_view_projects?: boolean;
+  can_create_docs?: boolean;
+  can_create_projects?: boolean;
+}
+
+// Initiative role permissions
+export type PermissionKey = "docs_enabled" | "projects_enabled" | "create_docs" | "create_projects";
+
+export interface InitiativeRoleRead {
+  id: number;
+  name: string;
+  display_name: string;
+  is_builtin: boolean;
+  is_manager: boolean;
+  position: number;
+  permissions: Record<PermissionKey, boolean>;
+  member_count: number;
+}
+
+export interface InitiativeRoleCreate {
+  name: string;
+  display_name: string;
+  is_manager?: boolean;
+  permissions?: Partial<Record<PermissionKey, boolean>>;
+}
+
+export interface InitiativeRoleUpdate {
+  display_name?: string;
+  is_manager?: boolean;
+  permissions?: Partial<Record<PermissionKey, boolean>>;
+}
+
+export interface MyInitiativePermissions {
+  role_id?: number | null;
+  role_name?: string | null;
+  role_display_name?: string | null;
+  is_manager: boolean;
+  permissions: Record<PermissionKey, boolean>;
+}
+
+export interface InitiativeMemberAdd {
+  user_id: number;
+  role_id?: number | null;
+}
+
+export interface InitiativeMemberUpdate {
+  role_id: number;
 }
 
 export interface DocumentProjectLink {

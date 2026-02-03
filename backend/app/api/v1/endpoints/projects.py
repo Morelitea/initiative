@@ -19,7 +19,7 @@ from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory, Subtask
 from app.models.comment import Comment
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.models.document import ProjectDocument
@@ -116,7 +116,10 @@ async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: in
     statement = select(Project).where(Project.id == project_id).options(
         selectinload(Project.permissions).selectinload(ProjectPermission.user),
         selectinload(Project.owner),
-        selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+        selectinload(Project.initiative).selectinload(Initiative.memberships).options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+        ),
         selectinload(Project.document_links).selectinload(ProjectDocument.document),
     )
     if guild_id is not None:
@@ -132,7 +135,10 @@ async def _get_initiative_or_404(initiative_id: int, session: SessionDep, guild_
     result = await session.exec(
         select(Initiative)
         .where(Initiative.id == initiative_id)
-        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+        .options(selectinload(Initiative.memberships).options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+        ))
     )
     initiative = result.one_or_none()
     if not initiative or (guild_id is not None and initiative.guild_id != guild_id):
@@ -202,11 +208,13 @@ async def _ensure_user_in_initiative(initiative_id: int, user_id: int, session: 
     )
     result = await session.exec(stmt)
     if not result.one_or_none():
+        # Get the member role for this initiative
+        member_role = await initiatives_service.get_member_role(session, initiative_id=initiative_id)
         session.add(
             InitiativeMember(
                 initiative_id=initiative_id,
                 user_id=user_id,
-                role=InitiativeRole.member,
+                role_id=member_role.id if member_role else None,
             )
         )
         await session.flush()
@@ -350,7 +358,10 @@ async def _visible_projects(
         .options(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
-            selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Project.initiative).selectinload(Initiative.memberships).options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
             selectinload(Project.document_links).selectinload(ProjectDocument.document),
         )
     )
@@ -456,7 +467,10 @@ async def _projects_by_ids(
         .options(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
             selectinload(Project.owner),
-            selectinload(Project.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Project.initiative).selectinload(Initiative.memberships).options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
             selectinload(Project.document_links).selectinload(ProjectDocument.document),
         )
     )
@@ -713,13 +727,17 @@ async def create_project(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiative is required")
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if guild_context.role != GuildRole.admin:
-        membership = await initiatives_service.get_initiative_membership(
+        has_perm = await initiatives_service.check_initiative_permission(
             session,
             initiative_id=initiative_id,
-            user_id=current_user.id,
+            user=current_user,
+            permission_key=PermissionKey.create_projects,
         )
-        if not membership or membership.role != InitiativeRole.project_manager:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+        if not has_perm:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission required to create projects",
+            )
     await _ensure_user_in_initiative(initiative_id, owner_id, session)
     project = Project(
         name=project_in.name,
@@ -1192,11 +1210,14 @@ async def update_project(
     pinned_sentinel = object()
     pinned_value = update_data.pop("pinned", pinned_sentinel)
     if pinned_value is not pinned_sentinel:
-        # Only guild admins and initiative PMs can pin/unpin projects
+        # Only guild admins and initiative managers can pin/unpin projects
         can_pin = guild_context.role == GuildRole.admin
         if not can_pin and project.initiative_id:
-            membership = await _get_initiative_membership(project, current_user, session)
-            can_pin = membership is not None and membership.role == InitiativeRole.project_manager
+            can_pin = await initiatives_service.is_initiative_manager(
+                session,
+                initiative_id=project.initiative_id,
+                user=current_user,
+            )
         if not can_pin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

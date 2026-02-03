@@ -181,7 +181,7 @@ async def delete_guild(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    membership = await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     await guilds_service.delete_guild(session, guild)
     await session.commit()

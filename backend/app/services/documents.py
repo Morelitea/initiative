@@ -11,7 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRole, InitiativeRoleModel
 from app.models.project import Project
 from app.services import attachments as attachments_service
 
@@ -70,7 +70,12 @@ async def get_document(
             Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Document.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
         )

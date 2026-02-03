@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.document import Document, DocumentPermissionLevel
 from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import Initiative, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.schemas.token import TokenPayload
 from app.services.collaboration import (
@@ -80,7 +80,9 @@ async def _get_document_with_permissions(
         select(Document)
         .where(Document.id == document_id)
         .options(
-            selectinload(Document.initiative).selectinload(Initiative.memberships),
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .selectinload(InitiativeMember.role_ref),
             selectinload(Document.permissions),
         )
     )
@@ -135,7 +137,8 @@ async def _check_document_access(
         return False, False
 
     # Initiative managers have full write access
-    if user_initiative_membership.role == InitiativeRole.project_manager:
+    role_ref = getattr(user_initiative_membership, "role_ref", None)
+    if role_ref and role_ref.is_manager:
         return True, True
 
     # Check explicit document permissions

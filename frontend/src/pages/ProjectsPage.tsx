@@ -65,6 +65,10 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import {
+  useMyInitiativePermissions,
+  canCreate as canCreatePermission,
+} from "@/hooks/useInitiativeRoles";
 import { queryClient } from "@/lib/queryClient";
 import { Project, ProjectReorderPayload, Initiative } from "@/types/api";
 import {
@@ -89,9 +93,10 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectsViewProps = {
   fixedInitiativeId?: number;
+  canCreate?: boolean;
 };
 
-export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
+export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
@@ -173,6 +178,12 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
   );
+  // Parse the filtered initiative ID for permission checks
+  const filteredInitiativeId =
+    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
+  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
+    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
+  );
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const lastConsumedFilterParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
@@ -249,17 +260,48 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
       return response.data;
     },
   });
-  const guildManagedInitiatives = useMemo(() => {
+  // Filter initiatives where user can create projects
+  const creatableInitiatives = useMemo(() => {
     if (!initiativesQuery.data || !user) {
       return [];
     }
     return initiativesQuery.data.filter((initiative) =>
-      initiative.members?.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      )
+      initiative.members?.some((member) => member.user.id === user.id && member.can_create_projects)
     );
   }, [initiativesQuery.data, user]);
-  const isProjectManager = guildManagedInitiatives.length > 0;
+  const isProjectManager = creatableInitiatives.length > 0;
+
+  // Check if user can view projects for the filtered initiative
+  const canViewProjects = useMemo(() => {
+    // If no specific initiative is filtered, user can view the page
+    const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
+    if (!effectiveInitiativeId || !user) {
+      return true;
+    }
+    const initiative = initiativesQuery.data?.find((i) => i.id === effectiveInitiativeId);
+    if (!initiative) {
+      return true; // Initiative not loaded yet, assume access
+    }
+    const membership = initiative.members?.find((m) => m.user.id === user.id);
+    if (!membership) {
+      return true; // Not a member, let the backend handle access control
+    }
+    return membership.can_view_projects !== false;
+  }, [lockedInitiativeId, filteredInitiativeId, user, initiativesQuery.data]);
+
+  // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
+  const canCreateProjects = useMemo(() => {
+    // If explicit prop provided (e.g., from InitiativeDetailPage), use it
+    if (canCreate !== undefined) {
+      return canCreate;
+    }
+    // If a specific initiative is filtered, check permissions for that initiative
+    if (filteredInitiativeId && filteredInitiativePermissions) {
+      return canCreatePermission(filteredInitiativePermissions, "projects");
+    }
+    // Fall back to legacy check (user is PM in any initiative)
+    return isProjectManager;
+  }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
 
   // Helper function for per-project DAC checks
   const hasProjectWritePermission = (project: Project): boolean => {
@@ -288,7 +330,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
   });
 
   useEffect(() => {
-    if (!isProjectManager) {
+    if (!canCreateProjects) {
       setIsComposerOpen(false);
       setInitiativeId(null);
       return;
@@ -298,11 +340,10 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
     if (initiativeId || urlInitiativeId) {
       return;
     }
-    const data = initiativesQuery.data;
-    if (data && data.length > 0) {
-      setInitiativeId(String(data[0].id));
+    if (creatableInitiatives.length > 0) {
+      setInitiativeId(String(creatableInitiatives[0].id));
     }
-  }, [isProjectManager, initiativeId, initiativesQuery.data, searchParams]);
+  }, [canCreateProjects, initiativeId, creatableInitiatives, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -445,15 +486,35 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
     return initiatives.sort((a, b) => a.name.localeCompare(b.name));
   }, [initiativesQuery.data]);
 
+  // Filter initiatives where user can view projects (for the dropdown)
+  const viewableInitiatives = useMemo(() => {
+    if (!user) return availableInitiatives;
+    return availableInitiatives.filter((initiative) => {
+      const membership = initiative.members?.find((m) => m.user.id === user.id);
+      // If not a member, include it (backend will handle access control)
+      if (!membership) return true;
+      return membership.can_view_projects !== false;
+    });
+  }, [availableInitiatives, user]);
+
   const lockedInitiative = lockedInitiativeId
     ? (availableInitiatives.find((init) => init.id === lockedInitiativeId) ?? null)
     : null;
 
+  // Get IDs of initiatives where user can view projects
+  const viewableInitiativeIds = useMemo(() => {
+    return new Set(viewableInitiatives.map((i) => i.id));
+  }, [viewableInitiatives]);
+
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return projects.filter((project) => {
-      const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
       const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
+      // Filter by viewable initiatives (role permissions)
+      if (user && projectInitiativeId !== null && !viewableInitiativeIds.has(projectInitiativeId)) {
+        return false;
+      }
+      const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
       const matchesInitiative =
         initiativeFilter === INITIATIVE_FILTER_ALL ||
         (projectInitiativeId !== null &&
@@ -462,7 +523,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
       const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
       return matchesSearch && matchesInitiative && matchesFavorites;
     });
-  }, [projects, searchQuery, initiativeFilter, favoritesOnly]);
+  }, [projects, searchQuery, initiativeFilter, favoritesOnly, user, viewableInitiativeIds]);
 
   const pinnedProjects = useMemo(() => {
     return filteredProjects
@@ -611,6 +672,20 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
       </div>
     ) : null;
 
+  if (!canViewProjects) {
+    return (
+      <Card className="border-destructive/50 bg-destructive/5">
+        <CardHeader>
+          <CardTitle className="text-destructive">Access Restricted</CardTitle>
+          <CardDescription>
+            You don&apos;t have permission to view projects in this initiative. Contact an
+            administrator if you believe this is an error.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   if (projectsQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">Loading projects…</p>;
   }
@@ -626,7 +701,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
           <div>
             <div className="flex items-baseline gap-4">
               <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
-              {isProjectManager && (
+              {canCreateProjects && (
                 <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
                   <Plus className="h-4 w-4" />
                   Add Project
@@ -661,7 +736,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
 
           <TabsContent value="active" className="space-y-4">
             <div className="flex flex-wrap items-center justify-end gap-3">
-              {isProjectManager && lockedInitiativeId && (
+              {canCreateProjects && lockedInitiativeId && (
                 <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
                   <Plus className="h-4 w-4" />
                   Add Project
@@ -741,7 +816,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
-                          {availableInitiatives.map((initiative) => (
+                          {viewableInitiatives.map((initiative) => (
                             <SelectItem key={initiative.id} value={initiative.id.toString()}>
                               {initiative.name}
                             </SelectItem>
@@ -929,7 +1004,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
           </TabsContent>
         </Tabs>
 
-        {isProjectManager && (
+        {canCreateProjects && (
           <Button
             className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
             onClick={() => setIsComposerOpen(true)}
@@ -939,7 +1014,7 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
           </Button>
         )}
 
-        {isProjectManager && (
+        {canCreateProjects && (
           <Dialog open={isComposerOpen} onOpenChange={handleComposerOpenChange}>
             <DialogContent className="bg-card max-h-screen overflow-y-auto">
               <DialogHeader>
@@ -988,13 +1063,13 @@ export const ProjectsView = ({ fixedInitiativeId }: ProjectsViewProps) => {
                       <p className="text-muted-foreground text-sm">Loading initiatives…</p>
                     ) : initiativesQuery.isError ? (
                       <p className="text-destructive text-sm">Unable to load initiatives.</p>
-                    ) : initiativesQuery.data && initiativesQuery.data.length > 0 ? (
+                    ) : creatableInitiatives.length > 0 ? (
                       <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select initiative" />
                         </SelectTrigger>
                         <SelectContent>
-                          {initiativesQuery.data.map((initiative) => (
+                          {creatableInitiatives.map((initiative) => (
                             <SelectItem key={initiative.id} value={String(initiative.id)}>
                               {initiative.name}
                             </SelectItem>
