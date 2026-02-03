@@ -57,6 +57,10 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 **Initiative role permissions:**
 <img width="1920" height="1080" alt="Initiative role permissions" src="https://github.com/user-attachments/assets/5ee163da-207a-4f57-a95c-659f423eb688" />
 
+**Project/Document access control:**
+<img width="1920" height="1079" alt="Project DAC permissions" src="https://github.com/user-attachments/assets/135a733e-3a2b-4cbc-aa66-b1eaf6234d75" />
+
+
 ### Rich Task Management
 
 - **Kanban boards**: Custom task statuses organized into backlog, todo, in-progress, and done categories
