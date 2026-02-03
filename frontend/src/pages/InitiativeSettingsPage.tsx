@@ -71,7 +71,6 @@ import type {
 } from "@/types/api";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
-const USERS_QUERY_KEY = ["users"];
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsPage = () => {
@@ -161,12 +160,12 @@ export const InitiativeSettingsPage = () => {
   }, [rolesQuery.data, selectedRoleId]);
 
   const usersQuery = useQuery<User[]>({
-    queryKey: USERS_QUERY_KEY,
+    queryKey: ["users", { guildId: activeGuild?.id }],
     queryFn: async () => {
       const response = await apiClient.get<User[]>("/users/");
       return response.data;
     },
-    enabled: canManageMembers,
+    enabled: canManageMembers && !!activeGuild?.id,
     staleTime: 5 * 60 * 1000,
   });
 

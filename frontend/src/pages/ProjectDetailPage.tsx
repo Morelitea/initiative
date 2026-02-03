@@ -63,7 +63,7 @@ export const ProjectDetailPage = () => {
   });
 
   const usersQuery = useQuery<User[]>({
-    queryKey: ["users"],
+    queryKey: ["users", { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<User[]>("/users/");
       return response.data;

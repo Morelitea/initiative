@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/tasks_/$ta
           staleTime: 30_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: ["users"],
+          queryKey: ["users", { guildId: context.guilds?.activeGuildId }],
           queryFn: () => apiClient.get("/users/").then((r) => r.data),
           staleTime: 60_000,
         }),

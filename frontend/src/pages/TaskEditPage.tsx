@@ -29,6 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   Comment,
@@ -86,6 +87,7 @@ export const TaskEditPage = () => {
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const { user } = useAuth();
+  const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
   const { isEnabled: aiEnabled } = useAIEnabled();
@@ -113,7 +115,7 @@ export const TaskEditPage = () => {
   });
 
   const usersQuery = useQuery({
-    queryKey: ["users"],
+    queryKey: ["users", { guildId: activeGuild?.id }],
     queryFn: async () => {
       const response = await apiClient.get<User[]>("/users/");
       return response.data;
