@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-02-03
+
 ### Changed
 
 - Initiative settings members table now has separate Name and Email columns
