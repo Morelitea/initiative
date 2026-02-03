@@ -17,6 +17,7 @@ from app.models.initiative import (
     InitiativeRolePermission,
     PermissionKey,
     BUILTIN_ROLE_PERMISSIONS,
+    DEFAULT_PERMISSION_VALUES,
 )
 from app.models.user import User, UserRole
 from app.schemas.user import UserInitiativeRole
@@ -313,13 +314,14 @@ async def check_initiative_permission(
         return True
 
     # Check specific permission
-    perm_key_str = permission_key.value if isinstance(permission_key, PermissionKey) else permission_key
+    perm_key_enum = permission_key if isinstance(permission_key, PermissionKey) else PermissionKey(permission_key)
+    perm_key_str = perm_key_enum.value
     for perm in membership.role_ref.permissions:
         if perm.permission_key == perm_key_str:
             return perm.enabled
 
-    # Permission not found defaults to False
-    return False
+    # Permission not explicitly set - use documented default
+    return DEFAULT_PERMISSION_VALUES.get(perm_key_enum, False)
 
 
 async def has_feature_access(

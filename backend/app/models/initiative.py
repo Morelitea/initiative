@@ -26,6 +26,17 @@ class PermissionKey(str, Enum):
     create_projects = "create_projects"
 
 
+# Fallback values when a permission is not explicitly set on a role.
+# Feature visibility defaults to True (permissive), creation defaults to False (restrictive).
+# When adding new permission keys, add an entry here to define the fallback behavior.
+DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
+    PermissionKey.docs_enabled: True,
+    PermissionKey.projects_enabled: True,
+    PermissionKey.create_docs: False,
+    PermissionKey.create_projects: False,
+}
+
+
 # Default permission sets for built-in roles
 BUILTIN_ROLE_PERMISSIONS = {
     "project_manager": {
