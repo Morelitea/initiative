@@ -1,11 +1,17 @@
 import { JSX, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { MenuOption, MenuTextMatch } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import { CLICK_COMMAND, COMMAND_PRIORITY_LOW, TextNode } from "lexical";
+import {
+  $getNodeByKey,
+  $getNearestNodeFromDOMNode,
+  CLICK_COMMAND,
+  COMMAND_PRIORITY_LOW,
+  TextNode,
+} from "lexical";
 import { createPortal } from "react-dom";
 import { FileText, Plus } from "lucide-react";
 
-import { $createWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
+import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { autocompleteDocuments, type DocumentAutocomplete } from "@/api/documents";
 
@@ -114,7 +120,7 @@ function useWikilinkSearch(
 export interface WikilinksPluginProps {
   initiativeId: number | null;
   onNavigate?: (documentId: number) => void;
-  onCreateDocument?: (title: string) => void;
+  onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void;
 }
 
 export function WikilinksPlugin({
@@ -154,7 +160,25 @@ export function WikilinksPlugin({
           // Unresolved wikilink - offer to create document
           const title = target.textContent || "";
           if (title && onCreateDocument) {
-            onCreateDocument(title);
+            // Find the wikilink node to pass an update callback
+            editor.getEditorState().read(() => {
+              const node = $getNearestNodeFromDOMNode(target);
+              if ($isWikilinkNode(node)) {
+                const nodeKey = node.getKey();
+                onCreateDocument(title, (newDocumentId: number) => {
+                  editor.update(() => {
+                    const wikilinkNode = $getNodeByKey(nodeKey);
+                    if ($isWikilinkNode(wikilinkNode)) {
+                      const updatedWikilink = $createWikilinkNode(
+                        wikilinkNode.getDocumentTitle(),
+                        newDocumentId
+                      );
+                      wikilinkNode.replace(updatedWikilink);
+                    }
+                  });
+                });
+              }
+            });
           }
         }
 

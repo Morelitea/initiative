@@ -82,6 +82,7 @@ export const DocumentDetailPage = () => {
   // Wikilink dialog state
   const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
   const [wikilinkTitle, setWikilinkTitle] = useState("");
+  const wikilinkUpdateCallbackRef = useRef<((documentId: number) => void) | null>(null);
 
   // Collaboration hook - only enable when we have a valid document ID
   const collaboration = useCollaboration({
@@ -190,15 +191,24 @@ export const DocumentDetailPage = () => {
     [navigate]
   );
 
-  // Wikilink create handler - opens dialog
-  const handleWikilinkCreate = useCallback((docTitle: string) => {
-    setWikilinkTitle(docTitle);
-    setWikilinkDialogOpen(true);
-  }, []);
+  // Wikilink create handler - opens dialog and stores update callback
+  const handleWikilinkCreate = useCallback(
+    (docTitle: string, onCreated: (documentId: number) => void) => {
+      setWikilinkTitle(docTitle);
+      wikilinkUpdateCallbackRef.current = onCreated;
+      setWikilinkDialogOpen(true);
+    },
+    []
+  );
 
-  // After creating document via wikilink, navigate to it
+  // After creating document via wikilink, update the wikilink then navigate
   const handleWikilinkDocumentCreated = useCallback(
     (newDocumentId: number) => {
+      // Update the wikilink with the new document ID before navigating
+      if (wikilinkUpdateCallbackRef.current) {
+        wikilinkUpdateCallbackRef.current(newDocumentId);
+        wikilinkUpdateCallbackRef.current = null;
+      }
       void navigate({
         to: "/documents/$documentId",
         params: { documentId: String(newDocumentId) },

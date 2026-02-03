@@ -34,7 +34,7 @@ interface FloatingWikilinkEditorProps {
   anchorElem: HTMLElement;
   initiativeId: number | null;
   onNavigate?: (documentId: number) => void;
-  onCreateDocument?: (title: string) => void;
+  onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void;
   setWikilinkNode: Dispatch<WikilinkNode | null>;
 }
 
@@ -196,12 +196,22 @@ function FloatingWikilinkEditor({
   // Handle creating a new document
   const handleCreateDocument = useCallback(() => {
     const title = searchQuery.trim() || documentTitle;
-    if (title && onCreateDocument) {
-      onCreateDocument(title);
+    if (title && onCreateDocument && wikilinkNodeKey) {
+      // Pass a callback that updates the wikilink with the new document ID
+      const nodeKey = wikilinkNodeKey;
+      onCreateDocument(title, (newDocumentId: number) => {
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey);
+          if ($isWikilinkNode(node)) {
+            const newWikilink = $createWikilinkNode(node.getDocumentTitle(), newDocumentId);
+            node.replace(newWikilink);
+          }
+        });
+      });
     }
     setIsEditing(false);
     setWikilinkNode(null);
-  }, [searchQuery, documentTitle, onCreateDocument, setWikilinkNode]);
+  }, [searchQuery, documentTitle, onCreateDocument, wikilinkNodeKey, editor, setWikilinkNode]);
 
   // Handle unlink (convert to plain text)
   const handleUnlink = useCallback(() => {
@@ -384,7 +394,7 @@ function useFloatingWikilinkEditor(
   anchorElem: HTMLDivElement | null,
   initiativeId: number | null,
   onNavigate?: (documentId: number) => void,
-  onCreateDocument?: (title: string) => void
+  onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void
 ): JSX.Element | null {
   const [activeEditor, setActiveEditor] = useState(editor);
   const [wikilinkNode, setWikilinkNode] = useState<WikilinkNode | null>(null);
@@ -446,7 +456,7 @@ export interface FloatingWikilinkEditorPluginProps {
   anchorElem: HTMLDivElement | null;
   initiativeId: number | null;
   onNavigate?: (documentId: number) => void;
-  onCreateDocument?: (title: string) => void;
+  onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void;
 }
 
 export function FloatingWikilinkEditorPlugin({

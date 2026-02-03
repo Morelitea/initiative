@@ -86,9 +86,9 @@ export interface EditorProps {
   onWikilinkNavigate?: (documentId: number) => void;
   /**
    * Callback when an unresolved wikilink is clicked.
-   * Called with the document title to create.
+   * Called with the document title and a callback to update the wikilink with the new document ID.
    */
-  onWikilinkCreate?: (title: string) => void;
+  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }
 
 export function Editor({

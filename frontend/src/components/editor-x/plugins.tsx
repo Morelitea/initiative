@@ -132,7 +132,7 @@ export function Plugins({
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
   onWikilinkNavigate?: (documentId: number) => void;
-  onWikilinkCreate?: (title: string) => void;
+  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
