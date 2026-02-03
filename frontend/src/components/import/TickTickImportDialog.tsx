@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
 import { apiClient } from "@/api/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -81,6 +82,7 @@ const suggestStatusForColumn = (
 };
 
 export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialogProps) => {
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [csvContent, setCsvContent] = useState("");
   const [parseResult, setParseResult] = useState<TickTickParseResult | null>(null);
@@ -220,7 +222,13 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
     importMutation.mutate();
   }, [importMutation]);
 
-  const activeProjects = projectsQuery.data?.filter((p) => !p.is_archived && !p.is_template) ?? [];
+  // Filter to only show projects where user has write or owner permission
+  const activeProjects =
+    projectsQuery.data?.filter((p) => {
+      if (p.is_archived || p.is_template) return false;
+      const userPermission = p.permissions?.find((perm) => perm.user_id === user?.id);
+      return userPermission?.level === "owner" || userPermission?.level === "write";
+    }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];
 
   return (
