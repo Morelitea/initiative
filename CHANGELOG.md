@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Initiative settings members table now has separate Name and Email columns
+- Removing a member from an initiative now shows a confirmation dialog warning that explicit access to all projects and documents will be removed
+
+### Fixed
+
+- Members table filter input now works correctly
+- Users dropdown now refreshes when switching guilds (was showing stale data from previous guild)
+
 ## [0.20.0] - 2026-02-03
 
 ### Added
