@@ -367,24 +367,29 @@ async def update_initiative_role(
             )
         # If demoting from manager, ensure at least one manager remains
         if role.is_manager and not role_in.is_manager:
-            # Count managers excluding members with this role
-            stmt = (
-                select(func.count())
-                .select_from(InitiativeMember)
-                .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-                .where(
-                    InitiativeMember.initiative_id == initiative_id,
-                    InitiativeRoleModel.is_manager.is_(True),
-                    InitiativeRoleModel.id != role_id,
-                )
+            # First check if this role has any members - if not, demotion is safe
+            this_role_members = await initiatives_service.count_role_members(
+                session, role_id=role_id
             )
-            result = await session.exec(stmt)
-            other_managers = result.one()
-            if other_managers == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="At least one manager role with members must remain",
+            if this_role_members > 0:
+                # Count managers excluding members with this role
+                stmt = (
+                    select(func.count())
+                    .select_from(InitiativeMember)
+                    .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+                    .where(
+                        InitiativeMember.initiative_id == initiative_id,
+                        InitiativeRoleModel.is_manager.is_(True),
+                        InitiativeRoleModel.id != role_id,
+                    )
                 )
+                result = await session.exec(stmt)
+                other_managers = result.one()
+                if other_managers == 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="At least one manager role with members must remain",
+                    )
         role.is_manager = role_in.is_manager
         session.add(role)
 
