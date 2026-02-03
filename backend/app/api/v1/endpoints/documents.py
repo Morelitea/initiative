@@ -13,7 +13,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentType, ProjectDocument
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.schemas.document import (
@@ -83,7 +83,18 @@ async def _require_initiative_access(
     user: User,
     guild_role: GuildRole,
     require_manager: bool = False,
+    permission_key: PermissionKey | None = None,
 ) -> None:
+    """Check that user has access to an initiative.
+
+    Args:
+        session: Database session
+        initiative_id: Initiative to check access for
+        user: User to check
+        guild_role: User's guild role (admins bypass checks)
+        require_manager: If True, require manager-level role (legacy, use permission_key instead)
+        permission_key: Specific permission to check (e.g., PermissionKey.create_docs)
+    """
     if guild_role == GuildRole.admin:
         return
     membership = await initiatives_service.get_initiative_membership(
@@ -93,8 +104,31 @@ async def _require_initiative_access(
     )
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative membership required")
-    if require_manager and membership.role != InitiativeRole.project_manager:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+
+    # Check specific permission if requested
+    if permission_key is not None:
+        has_perm = await initiatives_service.check_initiative_permission(
+            session,
+            initiative_id=initiative_id,
+            user=user,
+            permission_key=permission_key,
+        )
+        if not has_perm:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: {permission_key.value}",
+            )
+        return
+
+    # Legacy manager check
+    if require_manager:
+        is_manager = await initiatives_service.is_initiative_manager(
+            session,
+            initiative_id=initiative_id,
+            user=user,
+        )
+        if not is_manager:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
 
 
 def _require_document_write_access(
@@ -191,7 +225,10 @@ async def list_documents(
             Document.id.in_(has_permission_subq),
         )
         .options(
-            selectinload(Document.initiative).selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Document.initiative).selectinload(Initiative.memberships).options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
         )
@@ -230,7 +267,7 @@ async def create_document(
         initiative_id=initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        require_manager=True,
+        permission_key=PermissionKey.create_docs,
     )
     title = document_in.title.strip()
     if not title:
@@ -283,7 +320,7 @@ async def upload_document_file(
         initiative_id=initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        require_manager=True,
+        permission_key=PermissionKey.create_docs,
     )
     title = title.strip()
     if not title:
@@ -438,13 +475,13 @@ async def copy_document(
         initiative_id=payload.target_initiative_id,
         guild_id=guild_context.guild_id,
     )
-    # Also require initiative PM in target initiative
+    # Also require create_docs permission in target initiative
     await _require_initiative_access(
         session,
         initiative_id=target_initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        require_manager=True,
+        permission_key=PermissionKey.create_docs,
     )
     title = (payload.title or document.title).strip()
     if not title:

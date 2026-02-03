@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Settings } from "lucide-react";
@@ -13,6 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
+import {
+  useMyInitiativePermissions,
+  isFeatureEnabled,
+  canCreate,
+} from "@/hooks/useInitiativeRoles";
 import { Markdown } from "@/components/Markdown";
 import type { Initiative } from "@/types/api";
 
@@ -30,6 +35,11 @@ export const InitiativeDetailPage = () => {
   const memberLabel = getRoleLabel("member", roleLabels);
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
 
+  // Fetch user's permissions for this initiative
+  const { data: permissions, isLoading: permissionsLoading } = useMyInitiativePermissions(
+    hasValidInitiativeId ? initiativeId : null
+  );
+
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: ["initiatives", { guildId: activeGuildId }],
     queryFn: async () => {
@@ -45,30 +55,54 @@ export const InitiativeDetailPage = () => {
       : null;
   const isGuildAdmin = activeGuild?.role === "admin";
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
-  const isInitiativeManager = membership?.role === "project_manager";
+  const isInitiativeManager = membership?.is_manager || membership?.role === "project_manager";
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
 
-  const [activeTab, setActiveTab] = useState<"documents" | "projects">("documents");
+  // Determine which features are enabled for this user
+  const docsEnabled = isFeatureEnabled(permissions, "docs");
+  const projectsEnabled = isFeatureEnabled(permissions, "projects");
+  const canCreateDocs = canCreate(permissions, "docs");
+  const canCreateProjects = canCreate(permissions, "projects");
+
+  // Determine default tab based on available features
+  const getDefaultTab = (): "documents" | "projects" => {
+    if (docsEnabled) return "documents";
+    if (projectsEnabled) return "projects";
+    return "documents"; // fallback
+  };
+
+  const [activeTab, setActiveTab] = useState<"documents" | "projects">(getDefaultTab());
+
+  // Update active tab if current tab becomes unavailable
+  useEffect(() => {
+    if (activeTab === "documents" && !docsEnabled && projectsEnabled) {
+      setActiveTab("projects");
+    } else if (activeTab === "projects" && !projectsEnabled && docsEnabled) {
+      setActiveTab("documents");
+    }
+  }, [docsEnabled, projectsEnabled, activeTab]);
 
   const memberCount = initiative?.members.length ?? 0;
 
-  const roleBadgeLabel = membership
-    ? membership.role === "project_manager"
-      ? projectManagerLabel
-      : memberLabel
-    : isGuildAdmin
-      ? guildAdminLabel
-      : null;
+  const roleBadgeLabel = permissions?.role_display_name
+    ? permissions.role_display_name
+    : membership
+      ? membership.role === "project_manager"
+        ? projectManagerLabel
+        : memberLabel
+      : isGuildAdmin
+        ? guildAdminLabel
+        : null;
 
   if (!hasValidInitiativeId) {
     return <Navigate to="/initiatives" replace />;
   }
 
-  if (initiativesQuery.isLoading || !initiativesQuery.data) {
+  if (initiativesQuery.isLoading || permissionsLoading || !initiativesQuery.data) {
     return (
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading initiative…
+        Loading initiative...
       </div>
     );
   }
@@ -77,7 +111,7 @@ export const InitiativeDetailPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives">← Back to My Initiatives</Link>
+          <Link to="/initiatives">&larr; Back to My Initiatives</Link>
         </Button>
         <div className="rounded-lg border p-6">
           <h1 className="text-2xl font-semibold">Initiative not found</h1>
@@ -89,12 +123,33 @@ export const InitiativeDetailPage = () => {
     );
   }
 
+  // If user has no access to any features, show a message
+  if (!docsEnabled && !projectsEnabled) {
+    return (
+      <div className="space-y-4">
+        <Button variant="link" size="sm" asChild className="px-0">
+          <Link to="/initiatives">&larr; Back to My Initiatives</Link>
+        </Button>
+        <div className="rounded-lg border p-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
+            <h1 className="text-2xl font-semibold">{initiative.name}</h1>
+          </div>
+          <p className="text-muted-foreground mt-4">
+            You do not have access to any features in this initiative. Contact an initiative manager
+            for assistance.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-4">
           <Button variant="link" size="sm" asChild className="px-0">
-            <Link to="/initiatives">← Back to My Initiatives</Link>
+            <Link to="/initiatives">&larr; Back to My Initiatives</Link>
           </Button>
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
@@ -133,16 +188,32 @@ export const InitiativeDetailPage = () => {
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as "documents" | "projects")}
       >
-        <TabsList className="grid w-full max-w-xs grid-cols-2">
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="projects">Projects</TabsTrigger>
+        <TabsList
+          className={`grid w-full max-w-xs ${
+            docsEnabled && projectsEnabled ? "grid-cols-2" : "grid-cols-1"
+          }`}
+        >
+          {docsEnabled && <TabsTrigger value="documents">Documents</TabsTrigger>}
+          {projectsEnabled && <TabsTrigger value="projects">Projects</TabsTrigger>}
         </TabsList>
-        <TabsContent value="documents" className="mt-6">
-          <DocumentsView key={`documents-${initiative.id}`} fixedInitiativeId={initiative.id} />
-        </TabsContent>
-        <TabsContent value="projects" className="mt-6">
-          <ProjectsView key={`projects-${initiative.id}`} fixedInitiativeId={initiative.id} />
-        </TabsContent>
+        {docsEnabled && (
+          <TabsContent value="documents" className="mt-6">
+            <DocumentsView
+              key={`documents-${initiative.id}`}
+              fixedInitiativeId={initiative.id}
+              canCreate={canCreateDocs}
+            />
+          </TabsContent>
+        )}
+        {projectsEnabled && (
+          <TabsContent value="projects" className="mt-6">
+            <ProjectsView
+              key={`projects-${initiative.id}`}
+              fixedInitiativeId={initiative.id}
+              canCreate={canCreateProjects}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -13,7 +13,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
 from app.models.user import User, UserRole
@@ -22,24 +22,41 @@ from app.schemas.initiative import (
     InitiativeMemberAdd,
     InitiativeMemberUpdate,
     InitiativeRead,
+    InitiativeRoleCreate,
+    InitiativeRoleRead,
+    InitiativeRoleUpdate,
     InitiativeUpdate,
+    MyInitiativePermissions,
     serialize_initiative,
+    serialize_role,
 )
 from app.schemas.user import UserPublic
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services import documents as documents_service
+
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 router = APIRouter()
 
 
-async def _get_initiative_or_404(initiative_id: int, session: SessionDep, guild_id: int | None = None) -> Initiative:
+async def _get_initiative_or_404(
+    initiative_id: int,
+    session: SessionDep,
+    guild_id: int | None = None,
+) -> Initiative:
+    """Get an initiative with memberships and role information loaded."""
     statement = (
         select(Initiative)
         .where(Initiative.id == initiative_id)
-        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+        .options(
+            selectinload(Initiative.memberships)
+            .selectinload(InitiativeMember.user),
+            selectinload(Initiative.memberships)
+            .selectinload(InitiativeMember.role_ref)
+            .selectinload(InitiativeRoleModel.permissions),
+        )
     )
     if guild_id is not None:
         statement = statement.where(Initiative.guild_id == guild_id)
@@ -77,14 +94,15 @@ async def _require_manager_access(
     *,
     guild_role: GuildRole | None = None,
 ) -> None:
+    """Require that the user has manager-level access to the initiative."""
     if guild_role == GuildRole.admin:
         return
-    membership = await initiatives_service.get_initiative_membership(
+    is_manager = await initiatives_service.is_initiative_manager(
         session,
         initiative_id=initiative.id,
-        user_id=current_user.id,
+        user=current_user,
     )
-    if not membership or membership.role != InitiativeRole.project_manager:
+    if not is_manager:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
 
 
@@ -94,16 +112,20 @@ async def _ensure_remaining_manager(
     *,
     exclude_user_ids: set[int] | None = None,
 ) -> None:
-    exclude = exclude_user_ids or set()
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative.id,
-        InitiativeMember.role == InitiativeRole.project_manager,
-    )
-    result = await session.exec(stmt)
-    managers = [member for member in result.all() if member.user_id not in exclude]
-    if not managers:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one project manager is required")
+    """Ensure at least one manager remains after excluding certain users."""
+    try:
+        await initiatives_service.ensure_managers_remain(
+            session,
+            initiative_id=initiative.id,
+            excluded_user_ids=exclude_user_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+
+# ============================================================================
+# Initiative CRUD
+# ============================================================================
 
 @router.get("/", response_model=List[InitiativeRead])
 async def list_initiatives(
@@ -114,7 +136,12 @@ async def list_initiatives(
     statement = (
         select(Initiative)
         .where(Initiative.guild_id == guild_context.guild_id)
-        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+        .options(
+            selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Initiative.memberships)
+            .selectinload(InitiativeMember.role_ref)
+            .selectinload(InitiativeRoleModel.permissions),
+        )
     )
     if guild_context.role != GuildRole.admin:
         statement = (
@@ -137,7 +164,12 @@ async def get_initiative(
     statement = (
         select(Initiative)
         .where(Initiative.id == initiative_id, Initiative.guild_id == guild_context.guild_id)
-        .options(selectinload(Initiative.memberships).selectinload(InitiativeMember.user))
+        .options(
+            selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
+            selectinload(Initiative.memberships)
+            .selectinload(InitiativeMember.role_ref)
+            .selectinload(InitiativeRoleModel.permissions),
+        )
     )
     result = await session.exec(statement)
     initiative = result.first()
@@ -165,13 +197,19 @@ async def create_initiative(
     if initiative_in.color:
         initiative.color = initiative_in.color
     session.add(initiative)
-    await session.commit()
-    await session.refresh(initiative)
+    await session.flush()
+
+    # Create built-in roles for this initiative
+    pm_role, _member_role = await initiatives_service.create_builtin_roles(
+        session, initiative_id=initiative.id
+    )
+
+    # Add creator as PM
     session.add(
         InitiativeMember(
             initiative_id=initiative.id,
             user_id=current_user.id,
-            role=InitiativeRole.project_manager,
+            role_id=pm_role.id,
         )
     )
     await session.commit()
@@ -225,6 +263,224 @@ async def delete_initiative(
     await session.commit()
 
 
+# ============================================================================
+# Role CRUD
+# ============================================================================
+
+@router.get("/{initiative_id}/roles", response_model=List[InitiativeRoleRead])
+async def list_initiative_roles(
+    initiative_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> List[InitiativeRoleRead]:
+    """List all roles for an initiative with their permissions."""
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+
+    # Check access: must be guild admin or initiative member
+    if guild_context.role != GuildRole.admin:
+        is_member = any(m.user_id == current_user.id for m in initiative.memberships)
+        if not is_member:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this initiative")
+
+    roles = await initiatives_service.list_initiative_roles(session, initiative_id=initiative_id)
+
+    # Get member counts for each role
+    result = []
+    for role in roles:
+        member_count = await initiatives_service.count_role_members(session, role_id=role.id)
+        result.append(serialize_role(role, member_count=member_count))
+    return result
+
+
+@router.post("/{initiative_id}/roles", response_model=InitiativeRoleRead, status_code=status.HTTP_201_CREATED)
+async def create_initiative_role(
+    initiative_id: int,
+    role_in: InitiativeRoleCreate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeRoleRead:
+    """Create a new custom role for an initiative."""
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    await _require_manager_access(session, initiative, current_user, guild_role=guild_context.role)
+
+    # Check for duplicate name
+    existing = await initiatives_service.get_role_by_name(
+        session, initiative_id=initiative_id, role_name=role_in.name
+    )
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Role name already exists")
+
+    role = await initiatives_service.create_custom_role(
+        session,
+        initiative_id=initiative_id,
+        name=role_in.name,
+        display_name=role_in.display_name,
+        is_manager=role_in.is_manager,
+        permissions=role_in.permissions,
+    )
+    await session.commit()
+    return serialize_role(role, member_count=0)
+
+
+@router.patch("/{initiative_id}/roles/{role_id}", response_model=InitiativeRoleRead)
+async def update_initiative_role(
+    initiative_id: int,
+    role_id: int,
+    role_in: InitiativeRoleUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeRoleRead:
+    """Update a role's display name and/or permissions.
+
+    Note: PM role permissions cannot be changed to prevent lockouts.
+    """
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    await _require_manager_access(session, initiative, current_user, guild_role=guild_context.role)
+
+    role = await initiatives_service.get_role_by_id(
+        session, role_id=role_id, initiative_id=initiative_id
+    )
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
+    # Prevent modifying PM role permissions
+    if role.name == "project_manager" and role_in.permissions is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Project Manager permissions cannot be modified",
+        )
+
+    # Update display name if provided
+    if role_in.display_name is not None:
+        role.display_name = role_in.display_name
+        session.add(role)
+
+    # Update is_manager if provided (not for built-in roles)
+    if role_in.is_manager is not None:
+        if role.is_builtin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot change is_manager for built-in roles",
+            )
+        # If demoting from manager, ensure at least one manager remains
+        if role.is_manager and not role_in.is_manager:
+            # First check if this role has any members - if not, demotion is safe
+            this_role_members = await initiatives_service.count_role_members(
+                session, role_id=role_id
+            )
+            if this_role_members > 0:
+                # Count managers excluding members with this role
+                stmt = (
+                    select(func.count())
+                    .select_from(InitiativeMember)
+                    .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+                    .where(
+                        InitiativeMember.initiative_id == initiative_id,
+                        InitiativeRoleModel.is_manager.is_(True),
+                        InitiativeRoleModel.id != role_id,
+                    )
+                )
+                result = await session.exec(stmt)
+                other_managers = result.one()
+                if other_managers == 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="At least one manager role with members must remain",
+                    )
+        role.is_manager = role_in.is_manager
+        session.add(role)
+
+    # Update permissions if provided
+    if role_in.permissions is not None:
+        role = await initiatives_service.update_role_permissions(
+            session, role=role, permissions=role_in.permissions
+        )
+
+    await session.commit()
+    member_count = await initiatives_service.count_role_members(session, role_id=role.id)
+    return serialize_role(role, member_count=member_count)
+
+
+@router.delete("/{initiative_id}/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_initiative_role(
+    initiative_id: int,
+    role_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> None:
+    """Delete a custom role. Built-in roles cannot be deleted."""
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    await _require_manager_access(session, initiative, current_user, guild_role=guild_context.role)
+
+    role = await initiatives_service.get_role_by_id(
+        session, role_id=role_id, initiative_id=initiative_id
+    )
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
+    try:
+        await initiatives_service.delete_role(session, role=role)
+        await session.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/{initiative_id}/my-permissions", response_model=MyInitiativePermissions)
+async def get_my_initiative_permissions(
+    initiative_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> MyInitiativePermissions:
+    """Get the current user's permissions for an initiative."""
+    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+
+    # Guild admins have all permissions
+    if guild_context.role == GuildRole.admin:
+        return MyInitiativePermissions(
+            is_manager=True,
+            permissions={
+                "docs_enabled": True,
+                "projects_enabled": True,
+                "create_docs": True,
+                "create_projects": True,
+            },
+        )
+
+    membership = await initiatives_service.get_initiative_membership_with_role(
+        session,
+        initiative_id=initiative_id,
+        user_id=current_user.id,
+    )
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this initiative")
+
+    role = membership.role_ref
+    if not role:
+        return MyInitiativePermissions()
+
+    permissions = {
+        perm.permission_key: perm.enabled
+        for perm in (role.permissions or [])
+    }
+
+    return MyInitiativePermissions(
+        role_id=role.id,
+        role_name=role.name,
+        role_display_name=role.display_name,
+        is_manager=role.is_manager,
+        permissions=permissions,
+    )
+
+
+# ============================================================================
+# Member management
+# ============================================================================
+
 @router.get("/{initiative_id}/members", response_model=List[UserPublic])
 async def get_initiative_members(
     initiative_id: int,
@@ -263,8 +519,10 @@ async def add_initiative_member(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
+    """Add a member to an initiative or update their role."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     await _require_manager_access(session, initiative, current_user)
+
     user_stmt = await session.exec(select(User).where(User.id == payload.user_id))
     user = user_stmt.one_or_none()
     if not user:
@@ -276,6 +534,22 @@ async def add_initiative_member(
     )
     if not guild_membership:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not part of this guild")
+
+    # Get the role to assign (default to member role if not specified)
+    role_id = payload.role_id
+    if role_id is None:
+        member_role = await initiatives_service.get_member_role(session, initiative_id=initiative_id)
+        if not member_role:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Member role not found")
+        role_id = member_role.id
+    else:
+        # Verify role exists and belongs to this initiative
+        role = await initiatives_service.get_role_by_id(
+            session, role_id=role_id, initiative_id=initiative_id
+        )
+        if not role:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
         InitiativeMember.user_id == payload.user_id,
@@ -283,25 +557,28 @@ async def add_initiative_member(
     result = await session.exec(stmt)
     membership = result.one_or_none()
     created = False
+
     if membership:
-        if membership.role != payload.role:
-            if (
-                membership.role == InitiativeRole.project_manager
-                and payload.role != InitiativeRole.project_manager
-            ):
+        if membership.role_id != role_id:
+            # Check if demoting from manager role
+            old_role = await initiatives_service.get_role_by_id(session, role_id=membership.role_id)
+            new_role = await initiatives_service.get_role_by_id(session, role_id=role_id)
+            if old_role and old_role.is_manager and (not new_role or not new_role.is_manager):
                 await _ensure_remaining_manager(session, initiative, exclude_user_ids={membership.user_id})
-            membership.role = payload.role
+            membership.role_id = role_id
             session.add(membership)
     else:
         membership = InitiativeMember(
             initiative_id=initiative_id,
             user_id=payload.user_id,
-            role=payload.role,
+            role_id=role_id,
         )
         session.add(membership)
         created = True
+
     await session.commit()
-    await session.refresh(initiative, attribute_names=["memberships"])
+    # Re-fetch initiative with updated memberships
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if created:
         await notifications_service.notify_initiative_membership(
             session,
@@ -320,16 +597,24 @@ async def remove_initiative_member(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
+    """Remove a member from an initiative."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     await _require_manager_access(session, initiative, current_user)
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
+
+    stmt = (
+        select(InitiativeMember)
+        .options(selectinload(InitiativeMember.role_ref))
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.user_id == user_id,
+        )
     )
     result = await session.exec(stmt)
     membership = result.one_or_none()
+
     if membership:
-        if membership.role == InitiativeRole.project_manager:
+        # Check if removing a manager
+        if membership.role_ref and membership.role_ref.is_manager:
             await _ensure_remaining_manager(session, initiative, exclude_user_ids={user_id})
         await session.delete(membership)
         await session.flush()
@@ -355,11 +640,13 @@ async def remove_initiative_member(
             owner_permissions = owner_permissions_result.all()
 
             if owner_permissions:
-                # Get all initiative PMs
+                # Get all initiative managers (users with is_manager role)
                 pm_result = await session.exec(
-                    select(InitiativeMember).where(
+                    select(InitiativeMember)
+                    .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+                    .where(
                         InitiativeMember.initiative_id == initiative_id,
-                        InitiativeMember.role == InitiativeRole.project_manager,
+                        InitiativeRoleModel.is_manager.is_(True),
                     )
                 )
                 pm_user_ids = {pm.user_id for pm in pm_result.all() if pm.user_id != user_id}
@@ -406,8 +693,12 @@ async def remove_initiative_member(
                 await session.exec(delete_stmt)
 
         await session.commit()
-    await session.refresh(initiative, attribute_names=["memberships"])
+
+    # Re-fetch initiative with updated memberships
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     return serialize_initiative(initiative)
+
+
 @router.patch("/{initiative_id}/members/{user_id}", response_model=InitiativeRead)
 async def update_initiative_member(
     initiative_id: int,
@@ -417,21 +708,38 @@ async def update_initiative_member(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
+    """Update a member's role."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     await _require_manager_access(session, initiative, current_user)
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
+
+    # Verify role exists and belongs to this initiative
+    new_role = await initiatives_service.get_role_by_id(
+        session, role_id=payload.role_id, initiative_id=initiative_id
+    )
+    if not new_role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
+    stmt = (
+        select(InitiativeMember)
+        .options(selectinload(InitiativeMember.role_ref))
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.user_id == user_id,
+        )
     )
     result = await session.exec(stmt)
     membership = result.one_or_none()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
-    if membership.role != payload.role:
-        if membership.role == InitiativeRole.project_manager and payload.role != InitiativeRole.project_manager:
+
+    if membership.role_id != payload.role_id:
+        # Check if demoting from manager role
+        if membership.role_ref and membership.role_ref.is_manager and not new_role.is_manager:
             await _ensure_remaining_manager(session, initiative, exclude_user_ids={user_id})
-        membership.role = payload.role
+        membership.role_id = payload.role_id
         session.add(membership)
         await session.commit()
-    await session.refresh(initiative, attribute_names=["memberships"])
+
+    # Re-fetch initiative with updated memberships
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     return serialize_initiative(initiative)

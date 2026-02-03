@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -7,7 +7,7 @@ from app.models.initiative import InitiativeRole
 from app.schemas.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.initiative import Initiative
+    from app.models.initiative import Initiative, InitiativeRoleModel
 
 
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
@@ -29,23 +29,89 @@ class InitiativeUpdate(BaseModel):
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
 
 
+# Role schemas
+class InitiativeRolePermissionRead(BaseModel):
+    """Permission entry for a role."""
+    permission_key: str
+    enabled: bool
+
+    class Config:
+        from_attributes = True
+
+
+class InitiativeRoleRead(BaseModel):
+    """Role definition with permissions."""
+    id: int
+    name: str
+    display_name: str
+    is_builtin: bool
+    is_manager: bool
+    position: int
+    permissions: Dict[str, bool] = Field(default_factory=dict)
+    member_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class InitiativeRoleCreate(BaseModel):
+    """Create a new custom role."""
+    name: str = Field(..., min_length=1, max_length=100)
+    display_name: str = Field(..., min_length=1, max_length=100)
+    is_manager: bool = False
+    permissions: Optional[Dict[str, bool]] = None
+
+
+class InitiativeRoleUpdate(BaseModel):
+    """Update a role's display name and/or permissions."""
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    is_manager: Optional[bool] = None
+    permissions: Optional[Dict[str, bool]] = None
+
+
+class MyInitiativePermissions(BaseModel):
+    """Current user's permissions for an initiative."""
+    role_id: Optional[int] = None
+    role_name: Optional[str] = None
+    role_display_name: Optional[str] = None
+    is_manager: bool = False
+    permissions: Dict[str, bool] = Field(default_factory=dict)
+
+
+# Member schemas - updated to work with role_id
 class InitiativeMemberBase(BaseModel):
     user_id: int
+    role_id: Optional[int] = None
+    # Keep legacy role field for backward compatibility
     role: InitiativeRole = InitiativeRole.member
 
 
-class InitiativeMemberAdd(InitiativeMemberBase):
-    pass
+class InitiativeMemberAdd(BaseModel):
+    """Add a member to an initiative."""
+    user_id: int
+    role_id: Optional[int] = None
 
 
 class InitiativeMemberUpdate(BaseModel):
-    role: InitiativeRole
+    """Update a member's role."""
+    role_id: int
 
 
 class InitiativeMemberRead(BaseModel):
+    """Member info including their role."""
     user: UserPublic
-    role: InitiativeRole
+    role_id: Optional[int] = None
+    role_name: Optional[str] = None
+    role_display_name: Optional[str] = None
+    is_manager: bool = False
     joined_at: datetime
+    # Legacy field for backward compatibility
+    role: InitiativeRole = InitiativeRole.member
+    # Permission flags for UI filtering
+    can_view_docs: bool = True
+    can_view_projects: bool = True
+    can_create_docs: bool = False
+    can_create_projects: bool = False
 
     class Config:
         from_attributes = True
@@ -63,16 +129,77 @@ class InitiativeRead(InitiativeBase):
         from_attributes = True
 
 
+def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> InitiativeRoleRead:
+    """Serialize a role model to a read schema."""
+    permissions = {
+        perm.permission_key: perm.enabled
+        for perm in (role.permissions or [])
+    }
+    return InitiativeRoleRead(
+        id=role.id,
+        name=role.name,
+        display_name=role.display_name,
+        is_builtin=role.is_builtin,
+        is_manager=role.is_manager,
+        position=role.position,
+        permissions=permissions,
+        member_count=member_count,
+    )
+
+
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
             continue
+        # Get role info from role_ref if available
+        role_ref = getattr(membership, "role_ref", None)
+        role_name = role_ref.name if role_ref else None
+        role_display_name = role_ref.display_name if role_ref else None
+        is_manager = role_ref.is_manager if role_ref else False
+
+        # Compute permissions from role
+        can_view_docs = True
+        can_view_projects = True
+        can_create_docs = False
+        can_create_projects = False
+        if is_manager:
+            # Managers have all permissions
+            can_create_docs = True
+            can_create_projects = True
+        elif role_ref:
+            # Check role permissions (use getattr to avoid lazy loading)
+            role_permissions = getattr(role_ref, "permissions", None) or []
+            for perm in role_permissions:
+                if perm.permission_key == "docs_enabled":
+                    can_view_docs = perm.enabled
+                elif perm.permission_key == "projects_enabled":
+                    can_view_projects = perm.enabled
+                elif perm.permission_key == "create_docs" and perm.enabled:
+                    can_create_docs = True
+                elif perm.permission_key == "create_projects" and perm.enabled:
+                    can_create_projects = True
+
+        # Determine legacy role for backward compatibility
+        legacy_role = (
+            InitiativeRole.project_manager
+            if role_name == "project_manager"
+            else InitiativeRole.member
+        )
+
         members.append(
             InitiativeMemberRead(
                 user=UserPublic.model_validate(membership.user),
-                role=membership.role,
+                role_id=membership.role_id,
+                role_name=role_name,
+                role_display_name=role_display_name,
+                is_manager=is_manager,
                 joined_at=membership.joined_at,
+                role=legacy_role,
+                can_view_docs=can_view_docs,
+                can_view_projects=can_view_projects,
+                can_create_docs=can_create_docs,
+                can_create_projects=can_create_projects,
             )
         )
     return InitiativeRead(
