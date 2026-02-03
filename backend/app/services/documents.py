@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
-from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, ProjectDocument
+from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole, InitiativeRoleModel
 from app.models.project import Project
 from app.services import attachments as attachments_service
@@ -251,3 +251,115 @@ async def annotate_comment_counts(session: AsyncSession, documents: Sequence[Doc
     counts = dict(result.all())
     for document in documents:
         object.__setattr__(document, "comment_count", counts.get(document.id, 0))
+
+
+def extract_wikilink_document_ids(content: dict[str, Any] | None) -> set[int]:
+    """Extract all target document IDs from WikilinkNodes in the content.
+
+    Recursively walks the Lexical state tree looking for nodes with
+    type="wikilink" and a valid documentId.
+    """
+    if not isinstance(content, dict):
+        return set()
+
+    document_ids: set[int] = set()
+
+    def walk(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        # Check if this is a wikilink node
+        if node.get("type") == "wikilink":
+            doc_id = node.get("documentId")
+            if isinstance(doc_id, int) and doc_id > 0:
+                document_ids.add(doc_id)
+        # Recursively process children
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                walk(child)
+
+    # Start from root
+    root = content.get("root")
+    if isinstance(root, dict):
+        walk(root)
+
+    return document_ids
+
+
+async def sync_document_links(
+    session: AsyncSession,
+    *,
+    document_id: int,
+    content: dict[str, Any] | None,
+    guild_id: int | None = None,
+) -> None:
+    """Sync the document_links table based on WikilinkNodes in the content.
+
+    This extracts all wikilink document IDs from the content and updates
+    the document_links table to reflect the current state:
+    - Adds new links
+    - Removes links that no longer exist in the content
+
+    Called on document save to keep backlinks up to date.
+    """
+    # Extract current wikilink targets
+    current_target_ids = extract_wikilink_document_ids(content)
+
+    # Get existing links from database
+    stmt = select(DocumentLink).where(DocumentLink.source_document_id == document_id)
+    result = await session.exec(stmt)
+    existing_links = result.all()
+    existing_target_ids = {link.target_document_id for link in existing_links}
+
+    # Determine adds and removes
+    to_add = current_target_ids - existing_target_ids
+    to_remove = existing_target_ids - current_target_ids
+
+    # Remove old links
+    for link in existing_links:
+        if link.target_document_id in to_remove:
+            await session.delete(link)
+
+    # Add new links
+    for target_id in to_add:
+        new_link = DocumentLink(
+            source_document_id=document_id,
+            target_document_id=target_id,
+            guild_id=guild_id,
+        )
+        session.add(new_link)
+
+    # Flush but don't commit - let caller handle transaction
+    if to_add or to_remove:
+        await session.flush()
+
+
+async def get_backlinks(
+    session: AsyncSession,
+    *,
+    document_id: int,
+    user_id: int,
+) -> list[Document]:
+    """Get documents that link to the specified document.
+
+    Only returns documents the user has permission to access.
+    """
+    # Subquery: documents where user has explicit permission
+    has_permission_subq = (
+        select(DocumentPermission.document_id)
+        .where(DocumentPermission.user_id == user_id)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(Document)
+        .join(DocumentLink, DocumentLink.source_document_id == Document.id)
+        .where(
+            DocumentLink.target_document_id == document_id,
+            Document.id.in_(has_permission_subq),
+        )
+        .order_by(Document.updated_at.desc())
+    )
+
+    result = await session.exec(stmt)
+    return list(result.all())

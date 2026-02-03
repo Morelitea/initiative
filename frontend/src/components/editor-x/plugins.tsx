@@ -54,6 +54,7 @@ import { LayoutPlugin } from "@/components/ui/editor/plugins/layout-plugin";
 import { LinkPlugin } from "@/components/ui/editor/plugins/link-plugin";
 import { ListMaxIndentLevelPlugin } from "@/components/ui/editor/plugins/list-max-indent-level-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
+import { WikilinksPlugin } from "@/components/ui/editor/plugins/wikilinks-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
 import { CheckListPickerPlugin } from "@/components/ui/editor/plugins/picker/check-list-picker-plugin";
@@ -117,6 +118,9 @@ export function Plugins({
   documentName,
   collaborative = false,
   cursorsContainerRef,
+  initiativeId = null,
+  onWikilinkNavigate,
+  onWikilinkCreate,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
@@ -124,6 +128,9 @@ export function Plugins({
   documentName?: string;
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
+  initiativeId?: number | null;
+  onWikilinkNavigate?: (documentId: number) => void;
+  onWikilinkCreate?: (title: string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
@@ -236,6 +243,11 @@ export function Plugins({
         {!collaborative && <HistoryPlugin />}
 
         <MentionsPlugin mentionableUsers={mentionableUsers} />
+        <WikilinksPlugin
+          initiativeId={initiativeId}
+          onNavigate={onWikilinkNavigate}
+          onCreateDocument={onWikilinkCreate}
+        />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
         <KeywordsPlugin />
         <EmojisPlugin />

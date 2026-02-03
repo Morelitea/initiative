@@ -76,6 +76,26 @@ class DocumentPermissionRead(BaseModel):
         from_attributes = True
 
 
+class DocumentAutocomplete(BaseModel):
+    """Lightweight document info for autocomplete/wikilinks."""
+    id: int
+    title: str
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentBacklink(BaseModel):
+    """Document that links to another document."""
+    id: int
+    title: str
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class DocumentSummary(DocumentBase):
     id: int
     created_by_id: int

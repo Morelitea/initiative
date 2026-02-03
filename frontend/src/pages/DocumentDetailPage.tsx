@@ -1,5 +1,14 @@
-import { type ChangeEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import {
+  type ChangeEvent,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
@@ -10,6 +19,8 @@ import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
+import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
+import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 
@@ -49,6 +60,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 export const DocumentDetailPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -66,6 +78,10 @@ export const DocumentDetailPage = () => {
   // Refs for sendBeacon - need latest values in event handlers
   const contentStateRef = useRef(contentState);
   const collaboratingRef = useRef(false);
+
+  // Wikilink dialog state
+  const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
+  const [wikilinkTitle, setWikilinkTitle] = useState("");
 
   // Collaboration hook - only enable when we have a valid document ID
   const collaboration = useCollaboration({
@@ -148,6 +164,48 @@ export const DocumentDetailPage = () => {
   const mentionableUsers = useMemo(() => {
     return document?.initiative?.members?.map((member) => member.user) ?? [];
   }, [document?.initiative?.members]);
+
+  // Check if user can create documents in this initiative
+  const canCreateDocuments = useMemo(() => {
+    if (!document?.initiative || !user) {
+      return false;
+    }
+    // Check if user has create_docs permission via their role
+    const membership = document.initiative.members?.find((m) => m.user?.id === user.id);
+    if (!membership) {
+      return false;
+    }
+    // can_create_docs is populated from the initiative membership role
+    return membership.can_create_docs ?? false;
+  }, [document?.initiative, user]);
+
+  // Wikilink navigation handler
+  const handleWikilinkNavigate = useCallback(
+    (targetDocumentId: number) => {
+      void navigate({
+        to: "/documents/$documentId",
+        params: { documentId: String(targetDocumentId) },
+      });
+    },
+    [navigate]
+  );
+
+  // Wikilink create handler - opens dialog
+  const handleWikilinkCreate = useCallback((docTitle: string) => {
+    setWikilinkTitle(docTitle);
+    setWikilinkDialogOpen(true);
+  }, []);
+
+  // After creating document via wikilink, navigate to it
+  const handleWikilinkDocumentCreated = useCallback(
+    (newDocumentId: number) => {
+      void navigate({
+        to: "/documents/$documentId",
+        params: { documentId: String(newDocumentId) },
+      });
+    },
+    [navigate]
+  );
 
   const updateDocumentCommentCount = (delta: number) => {
     queryClient.setQueryData<DocumentRead>(["documents", parsedId], (previous) => {
@@ -566,6 +624,10 @@ export const DocumentDetailPage = () => {
                 // Always track changes so contentState stays updated for periodic saves
                 trackChanges={true}
                 isSynced={collaboration.isSynced}
+                // Wikilinks support
+                initiativeId={document.initiative_id}
+                onWikilinkNavigate={handleWikilinkNavigate}
+                onWikilinkCreate={handleWikilinkCreate}
               />
             </Suspense>
             <div className="flex flex-wrap items-center gap-3">
@@ -666,6 +728,9 @@ export const DocumentDetailPage = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Backlinks - documents that link to this one */}
+        <DocumentBacklinks documentId={parsedId} />
       </div>
 
       {/* Side panel for AI summary and comments */}
@@ -698,6 +763,16 @@ export const DocumentDetailPage = () => {
             />
           </>
         }
+      />
+
+      {/* Wikilink create document dialog */}
+      <CreateWikilinkDocumentDialog
+        open={wikilinkDialogOpen}
+        onOpenChange={setWikilinkDialogOpen}
+        title={wikilinkTitle}
+        initiativeId={document.initiative_id}
+        canCreate={canCreateDocuments}
+        onCreated={handleWikilinkDocumentCreated}
       />
     </div>
   );

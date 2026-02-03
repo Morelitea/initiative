@@ -90,6 +90,25 @@
   list-style-type: disclosure-open;
 }
 
+/* Wikilink styling */
+.wikilink {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.wikilink:hover {
+  text-decoration: underline;
+}
+
+.wikilink-resolved {
+  color: rgb(37, 99, 235); /* text-blue-600 */
+}
+
+.wikilink-unresolved {
+  color: rgb(220, 38, 38); /* text-red-600 */
+  font-style: italic;
+}
+
 /* Collaboration cursors container */
 .collaboration-cursors {
   position: absolute;
