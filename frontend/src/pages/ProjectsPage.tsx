@@ -672,20 +672,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
       </div>
     ) : null;
 
-  if (!canViewProjects) {
-    return (
-      <Card className="border-destructive/50 bg-destructive/5">
-        <CardHeader>
-          <CardTitle className="text-destructive">Access Restricted</CardTitle>
-          <CardDescription>
-            You don&apos;t have permission to view projects in this initiative. Contact an
-            administrator if you believe this is an error.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
   if (projectsQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">Loading projects…</p>;
   }
@@ -878,7 +864,17 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
               </CollapsibleContent>
             </Collapsible>
 
-            {filteredProjects.length === 0 ? (
+            {!canViewProjects ? (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardHeader>
+                  <CardTitle className="text-destructive">Access Restricted</CardTitle>
+                  <CardDescription>
+                    You don&apos;t have permission to view projects in this initiative. Contact an
+                    administrator if you believe this is an error.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : filteredProjects.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 {projects.length === 0
                   ? "No projects yet. Create one to get started."
