@@ -48,13 +48,14 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 
 ### Flexible Permission Model
 
-- **4-layer access control**: Granular permissions cascade from platform to guild to initiative to project
-- **Initiative project managers**: Designated team members control initiative access and project creation
-- **Project-level overrides**: Grant explicit write access to specific users beyond initiative membership
+- **4-layer access control**: Permissions cascade from platform to guild to initiative to resource
+- **Initiative roles**: Custom roles with configurable feature access (view/create projects, view/create docs)
+- **Project permissions**: Discretionary access control with owner, write, and read levels per user
+- **Document permissions**: Independent access control separate from projects, with owner/write/read levels
 - **Independent guild administration**: Guild admins manage their workspace without affecting other guilds
 
-**Initiative permission settings:**
-<img width="1920" height="1050" alt="Initiative permission settings" src="https://github.com/user-attachments/assets/10b90a79-4fa2-444a-9d97-29cbb8b58d63" />
+**Initiative role permissions:**
+<img width="1920" height="1050" alt="Initiative role permissions" src="https://github.com/user-attachments/assets/10b90a79-4fa2-444a-9d97-29cbb8b58d63" />
 
 ### Rich Task Management
 
