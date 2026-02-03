@@ -141,10 +141,10 @@ async def _check_document_access(
     if role_ref and role_ref.is_manager:
         return True, True
 
-    # Check explicit document permissions
+    # Check explicit document permissions (owner or write grants write access)
     permissions = getattr(document, "permissions", []) or []
     has_write_permission = any(
-        p.user_id == user.id and p.level == DocumentPermissionLevel.write
+        p.user_id == user.id and p.level in (DocumentPermissionLevel.owner, DocumentPermissionLevel.write)
         for p in permissions
     )
 
