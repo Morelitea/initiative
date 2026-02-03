@@ -179,6 +179,17 @@ export const DocumentDetailPage = () => {
     updateDocumentCommentCount(-1);
   };
 
+  const handleCommentUpdated = (updatedComment: Comment) => {
+    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+      if (!previous) {
+        return previous;
+      }
+      return previous.map((comment) =>
+        comment.id === updatedComment.id ? updatedComment : comment
+      );
+    });
+  };
+
   const saveDocument = useMutation({
     mutationFn: async () => {
       if (!document) {
@@ -681,6 +692,7 @@ export const DocumentDetailPage = () => {
               isLoading={commentsQuery.isLoading}
               onCommentCreated={handleCommentCreated}
               onCommentDeleted={handleCommentDeleted}
+              onCommentUpdated={handleCommentUpdated}
               canModerate={commentsCanModerate}
               initiativeId={document.initiative_id}
             />

@@ -43,6 +43,12 @@ class CommentCreate(CommentBase):
         return self
 
 
+class CommentUpdate(CommentBase):
+    """Schema for updating a comment. Only content can be changed."""
+
+    pass
+
+
 class CommentRead(CommentBase):
     id: int
     author_id: int
@@ -50,6 +56,7 @@ class CommentRead(CommentBase):
     document_id: Optional[int] = None
     parent_comment_id: Optional[int] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
     author: Optional[CommentAuthor] = None
     project_id: Optional[int] = None
 

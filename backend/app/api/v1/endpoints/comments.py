@@ -9,7 +9,7 @@ from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.comment import CommentCreate, CommentRead, MentionSuggestion
+from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate, MentionSuggestion
 from app.services import comments as comments_service
 from app.services.realtime import broadcast_event
 
@@ -74,6 +74,37 @@ async def list_comments(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return [CommentRead.model_validate(comment) for comment in comments]
+
+
+@router.patch("/{comment_id}", response_model=CommentRead)
+async def update_comment(
+    comment_id: int,
+    comment_in: CommentUpdate,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> CommentRead:
+    """Update a comment. Only the original author can edit."""
+    try:
+        comment = await comments_service.update_comment(
+            session,
+            comment_id=comment_id,
+            user=current_user,
+            guild_id=guild_context.guild_id,
+            content=comment_in.content,
+        )
+    except comments_service.CommentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except comments_service.CommentPermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    # Note: Content validation (empty string) is handled by Pydantic schema (422).
+    # CommentValidationError from service indicates data integrity issues (500).
+
+    await session.commit()
+    await session.refresh(comment)
+    response = CommentRead.model_validate(comment)
+    await broadcast_event("comment", "updated", response.model_dump(mode="json"))
+    return response
 
 
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)

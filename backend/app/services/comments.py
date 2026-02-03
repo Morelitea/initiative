@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Optional, Set, cast
 
 from sqlalchemy.orm import selectinload
@@ -506,4 +507,48 @@ async def delete_comment(
         raise CommentPermissionError("You can only delete your own comments")
 
     await session.delete(comment)
+    return comment
+
+
+async def update_comment(
+    session: AsyncSession,
+    *,
+    comment_id: int,
+    user: User,
+    guild_id: int,
+    content: str,
+) -> Comment:
+    """Update a comment's content. Only the original author can edit."""
+    comment = await _get_comment(session, comment_id=comment_id)
+    if not comment:
+        raise CommentNotFoundError("Comment not found")
+
+    # Only the author can edit their own comment
+    if comment.author_id != user.id:
+        raise CommentPermissionError("Only the comment author can edit")
+
+    # Verify access to the linked entity (same checks as delete_comment)
+    if comment.task_id is not None:
+        context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
+        if not context:
+            raise CommentNotFoundError("Comment not found")
+        await _ensure_task_access(session, project=context.project, user=user)
+        object.__setattr__(comment, "project_id", context.project.id)
+    elif comment.document_id is not None:
+        document = await documents_service.get_document(
+            session,
+            document_id=comment.document_id,
+            guild_id=guild_id,
+        )
+        if not document:
+            raise CommentNotFoundError("Comment not found")
+        await _ensure_document_access(session, document=document, user=user)
+    else:
+        raise CommentValidationError("Comment is not linked to a task or document")
+
+    comment.content = content
+    comment.updated_at = datetime.now(timezone.utc)
+    session.add(comment)
+    await session.flush()
+    await session.refresh(comment, attribute_names=["author"])
     return comment
