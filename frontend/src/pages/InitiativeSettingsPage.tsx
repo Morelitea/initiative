@@ -139,6 +139,9 @@ export const InitiativeSettingsPage = () => {
   const [roleToRename, setRoleToRename] = useState<InitiativeRoleRead | null>(null);
   const [renameDisplayName, setRenameDisplayName] = useState("");
 
+  // Remove member confirmation
+  const [memberToRemove, setMemberToRemove] = useState<InitiativeMember | null>(null);
+
   useEffect(() => {
     if (initiative) {
       setName(initiative.name);
@@ -472,18 +475,21 @@ export const InitiativeSettingsPage = () => {
 
     return [
       {
+        id: "name",
         accessorKey: "user.full_name",
         header: "Name",
         cell: ({ row }) => {
           const member = row.original;
-          return (
-            <div>
-              <p className="font-medium">
-                {member.user.full_name?.trim() || member.user.email || "Unknown user"}
-              </p>
-              <p className="text-muted-foreground text-xs">{member.user.email}</p>
-            </div>
-          );
+          return <span className="font-medium">{member.user.full_name?.trim() || "—"}</span>;
+        },
+      },
+      {
+        id: "email",
+        accessorKey: "user.email",
+        header: "Email",
+        cell: ({ row }) => {
+          const member = row.original;
+          return <span className="text-muted-foreground">{member.user.email}</span>;
         },
       },
       {
@@ -531,7 +537,7 @@ export const InitiativeSettingsPage = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => removeMember.mutate(member.user.id)}
+              onClick={() => setMemberToRemove(member)}
               disabled={removeMember.isPending}
               className="text-destructive"
             >
@@ -708,8 +714,9 @@ export const InitiativeSettingsPage = () => {
                 columns={memberColumns}
                 data={initiative.members}
                 enableFilterInput
-                filterInputColumnKey="user.email"
+                filterInputColumnKey="name"
                 filterInputPlaceholder="Filter by name"
+                enablePagination
               />
               {canManageMembers ? (
                 <>
@@ -1019,6 +1026,45 @@ export const InitiativeSettingsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Member Confirmation Dialog */}
+      <AlertDialog
+        open={!!memberToRemove}
+        onOpenChange={(open) => !open && setMemberToRemove(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove member?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                Are you sure you want to remove{" "}
+                <strong>{memberToRemove?.user.full_name || memberToRemove?.user.email}</strong> from
+                this initiative?
+              </span>
+              <span className="text-destructive block">
+                This will also remove their explicit access to all projects and documents in this
+                initiative.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removeMember.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (memberToRemove) {
+                  removeMember.mutate(memberToRemove.user.id, {
+                    onSuccess: () => setMemberToRemove(null),
+                  });
+                }
+              }}
+              disabled={removeMember.isPending}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+            >
+              {removeMember.isPending ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
