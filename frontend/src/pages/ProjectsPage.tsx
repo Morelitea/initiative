@@ -895,7 +895,17 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
           </TabsContent>
 
           <TabsContent value="templates">
-            {templatesQuery.isLoading ? (
+            {!canViewProjects ? (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardHeader>
+                  <CardTitle className="text-destructive">Access Restricted</CardTitle>
+                  <CardDescription>
+                    You don&apos;t have permission to view projects in this initiative. Contact an
+                    administrator if you believe this is an error.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : templatesQuery.isLoading ? (
               <p className="text-muted-foreground text-sm">Loading templates…</p>
             ) : templatesQuery.isError ? (
               <p className="text-destructive text-sm">Unable to load templates.</p>
@@ -946,7 +956,17 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
           </TabsContent>
 
           <TabsContent value="archive">
-            {archivedQuery.isLoading ? (
+            {!canViewProjects ? (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardHeader>
+                  <CardTitle className="text-destructive">Access Restricted</CardTitle>
+                  <CardDescription>
+                    You don&apos;t have permission to view projects in this initiative. Contact an
+                    administrator if you believe this is an error.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : archivedQuery.isLoading ? (
               <p className="text-muted-foreground text-sm">Loading archived projects…</p>
             ) : archivedQuery.isError ? (
               <p className="text-destructive text-sm">Unable to load archived projects.</p>
