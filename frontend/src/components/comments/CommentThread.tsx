@@ -94,55 +94,54 @@ export const CommentThread = ({
             {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
             <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
           </Avatar>
-          <div className="flex-1">
-            <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="min-w-0 flex-1">
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <span className="text-foreground font-medium">{displayName}</span>
-              <div className="flex items-center gap-2">
-                <span>
-                  {formatDistanceToNow(new Date(comment.created_at), {
-                    addSuffix: true,
-                  })}
-                  {isEdited && <span className="text-muted-foreground ml-1">(edited)</span>}
-                </span>
-                {!isEditing && (
-                  <>
+              <span className="whitespace-nowrap">
+                {formatDistanceToNow(new Date(comment.created_at), {
+                  addSuffix: true,
+                })}
+                {isEdited && <span className="text-muted-foreground ml-1">(edited)</span>}
+              </span>
+              {!isEditing && (
+                <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setIsReplying(!isReplying)}
+                  >
+                    <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="sr-only sm:not-sr-only sm:ml-1">Reply</span>
+                  </Button>
+                  {canEdit && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-2 text-xs"
-                      onClick={() => setIsReplying(!isReplying)}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setIsEditing(true)}
                     >
-                      <Reply className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                      Reply
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="sr-only sm:not-sr-only sm:ml-1">Edit</span>
                     </Button>
-                    {canEdit && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-xs"
-                        onClick={() => setIsEditing(true)}
-                      >
-                        <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                        Edit
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive h-8 px-2 text-xs"
-                        disabled={isSubmitting}
-                        onClick={() => onDelete(comment.id)}
-                      >
-                        <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
+                  )}
+                  {canDelete && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive h-7 px-2 text-xs"
+                      disabled={isSubmitting}
+                      onClick={() => onDelete(comment.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="text-foreground mt-2 text-sm">
               {isEditing ? (
