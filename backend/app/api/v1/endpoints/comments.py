@@ -97,8 +97,8 @@ async def update_comment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except comments_service.CommentPermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
-    except comments_service.CommentValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    # Note: Content validation (empty string) is handled by Pydantic schema (422).
+    # CommentValidationError from service indicates data integrity issues (500).
 
     await session.commit()
     await session.refresh(comment)
