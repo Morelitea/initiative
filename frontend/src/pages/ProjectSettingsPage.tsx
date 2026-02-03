@@ -36,7 +36,6 @@ import { Input } from "@/components/ui/input";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
-import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
 import { Project, Initiative, ProjectPermissionLevel } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
@@ -76,8 +75,6 @@ export const ProjectSettingsPage = () => {
   const [selectedNewLevel, setSelectedNewLevel] = useState<ProjectPermissionLevel>("read");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
-  const { data: roleLabels } = useRoleLabels();
-  const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
 
   const projectQuery = useQuery<Project>({
     queryKey: ["project", parsedProjectId],
@@ -728,10 +725,7 @@ export const ProjectSettingsPage = () => {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Project access</CardTitle>
-            <CardDescription>
-              Control who can view and edit this project. {projectManagerLabel} role holders have
-              full access to all projects in their initiatives.
-            </CardDescription>
+            <CardDescription>Control who can view and edit this project.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Bulk action bar */}

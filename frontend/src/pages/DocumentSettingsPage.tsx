@@ -40,7 +40,6 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { DocumentRead, DocumentPermissionLevel, Initiative } from "@/types/api";
-import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 
 const PERMISSION_LABELS: Record<DocumentPermissionLevel, string> = {
   owner: "Owner",
@@ -61,8 +60,6 @@ export const DocumentSettingsPage = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { data: roleLabels } = useRoleLabels();
-  const pmLabel = getRoleLabel("project_manager", roleLabels);
 
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
@@ -592,10 +589,7 @@ export const DocumentSettingsPage = () => {
         <Card>
           <CardHeader>
             <CardTitle>Document access</CardTitle>
-            <CardDescription>
-              Control who can view and edit this document. {pmLabel}s have full access to all
-              documents in their initiatives.
-            </CardDescription>
+            <CardDescription>Control who can view and edit this document.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Bulk action bar */}
