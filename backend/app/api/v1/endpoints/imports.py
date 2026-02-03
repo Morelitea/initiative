@@ -13,9 +13,8 @@ from app.api.deps import (
     GuildContext,
 )
 from app.models.project import Project, ProjectPermissionLevel
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative
 from app.models.user import User
-from app.models.guild import GuildRole
 from app.schemas.import_data import (
     TodoistImportRequest,
     TodoistParseResult,
@@ -38,9 +37,8 @@ async def _validate_project_write_access(
     project_id: int,
     user: User,
     guild_id: int,
-    guild_role: GuildRole | None,
 ) -> Project:
-    """Validate user has write access to a project."""
+    """Validate user has write access to a project using pure DAC."""
     project_stmt = (
         select(Project)
         .join(Project.initiative)
@@ -48,12 +46,7 @@ async def _validate_project_write_access(
             Project.id == project_id,
             Initiative.guild_id == guild_id,
         )
-        .options(
-            selectinload(Project.permissions),
-            selectinload(Project.initiative)
-            .selectinload(Initiative.memberships)
-            .selectinload(InitiativeMember.user),
-        )
+        .options(selectinload(Project.permissions))
     )
     result = await session.exec(project_stmt)
     project = result.first()
@@ -69,34 +62,22 @@ async def _validate_project_write_access(
             detail="Cannot import to archived project",
         )
 
-    # Check write access
-    is_guild_admin = guild_role == GuildRole.admin
-    is_owner = project.owner_id == user.id
-    is_pm = any(
-        m.user_id == user.id and m.role == InitiativeRole.project_manager
-        for m in project.initiative.memberships
-    )
-    membership = next(
-        (m for m in project.initiative.memberships if m.user_id == user.id), None
-    )
+    # Pure DAC: check explicit project permission
     permission = next(
-        (
-            p
-            for p in project.permissions
-            if p.user_id == user.id and p.level in [ProjectPermissionLevel.owner, ProjectPermissionLevel.write]
-        ),
+        (p for p in project.permissions if p.user_id == user.id),
         None,
     )
 
-    has_write = (
-        is_guild_admin
-        or is_owner
-        or is_pm
-        or permission is not None
-        or bool(project.members_can_write and membership)
-    )
+    if not permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No permission for this project",
+        )
 
-    if not has_write:
+    if permission.level not in (
+        ProjectPermissionLevel.owner,
+        ProjectPermissionLevel.write,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions for this project",
@@ -144,7 +125,6 @@ async def import_from_todoist(
         request.project_id,
         current_user,
         guild_context.guild_id,
-        guild_context.role,
     )
 
     # Ensure default statuses exist
@@ -212,7 +192,6 @@ async def import_from_vikunja(
         request.project_id,
         current_user,
         guild_context.guild_id,
-        guild_context.role,
     )
 
     # Ensure default statuses exist
@@ -281,7 +260,6 @@ async def import_from_ticktick(
         request.project_id,
         current_user,
         guild_context.guild_id,
-        guild_context.role,
     )
 
     # Ensure default statuses exist
