@@ -34,5 +34,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/initiative:dev
             ${{ secrets.DOCKERHUB_USERNAME }}/initiative:dev-${{ steps.sha.outputs.short }}
+          build-args: |
+            VITE_VERSION_SUFFIX=-dev-${{ steps.sha.outputs.short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

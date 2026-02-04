@@ -5,7 +5,9 @@ RUN npm install -g pnpm && pnpm install
 COPY frontend .
 COPY VERSION /VERSION
 ARG VITE_API_URL=/api/v1
+ARG VITE_VERSION_SUFFIX=
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
 RUN pnpm run build
 
 FROM python:3.12-slim AS backend-runtime
