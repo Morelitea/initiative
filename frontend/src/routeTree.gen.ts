@@ -31,6 +31,7 @@ import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './ro
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
 import { Route as ServerRequiredAuthenticatedTasksTaskIdRouteImport } from './routes/_serverRequired/_authenticated/tasks_.$taskId'
+import { Route as ServerRequiredAuthenticatedTagsTagIdRouteImport } from './routes/_serverRequired/_authenticated/tags_.$tagId'
 import { Route as ServerRequiredAuthenticatedSettingsGuildRouteImport } from './routes/_serverRequired/_authenticated/settings/guild'
 import { Route as ServerRequiredAuthenticatedSettingsAdminRouteImport } from './routes/_serverRequired/_authenticated/settings/admin'
 import { Route as ServerRequiredAuthenticatedProjectsProjectIdRouteImport } from './routes/_serverRequired/_authenticated/projects_.$projectId'
@@ -178,6 +179,12 @@ const ServerRequiredAuthenticatedTasksTaskIdRoute =
   ServerRequiredAuthenticatedTasksTaskIdRouteImport.update({
     id: '/tasks_/$taskId',
     path: '/tasks/$taskId',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedTagsTagIdRoute =
+  ServerRequiredAuthenticatedTagsTagIdRouteImport.update({
+    id: '/tags_/$tagId',
+    path: '/tags/$tagId',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsGuildRoute =
@@ -349,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId': typeof ServerRequiredAuthenticatedProjectsProjectIdRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildRouteWithChildren
+  '/tags/$tagId': typeof ServerRequiredAuthenticatedTagsTagIdRoute
   '/tasks/$taskId': typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/documents/$documentId/settings': typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
@@ -391,6 +399,7 @@ export interface FileRoutesByTo {
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/projects/$projectId': typeof ServerRequiredAuthenticatedProjectsProjectIdRoute
+  '/tags/$tagId': typeof ServerRequiredAuthenticatedTagsTagIdRoute
   '/tasks/$taskId': typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/documents/$documentId/settings': typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
@@ -439,6 +448,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/projects_/$projectId': typeof ServerRequiredAuthenticatedProjectsProjectIdRoute
   '/_serverRequired/_authenticated/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   '/_serverRequired/_authenticated/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildRouteWithChildren
+  '/_serverRequired/_authenticated/tags_/$tagId': typeof ServerRequiredAuthenticatedTagsTagIdRoute
   '/_serverRequired/_authenticated/tasks_/$taskId': typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/_serverRequired/_authenticated/documents_/$documentId_/settings': typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
@@ -486,6 +496,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId'
     | '/settings/admin'
     | '/settings/guild'
+    | '/tags/$tagId'
     | '/tasks/$taskId'
     | '/profile/'
     | '/documents/$documentId/settings'
@@ -528,6 +539,7 @@ export interface FileRouteTypes {
     | '/profile/notifications'
     | '/profile/security'
     | '/projects/$projectId'
+    | '/tags/$tagId'
     | '/tasks/$taskId'
     | '/profile'
     | '/documents/$documentId/settings'
@@ -575,6 +587,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/projects_/$projectId'
     | '/_serverRequired/_authenticated/settings/admin'
     | '/_serverRequired/_authenticated/settings/guild'
+    | '/_serverRequired/_authenticated/tags_/$tagId'
     | '/_serverRequired/_authenticated/tasks_/$taskId'
     | '/_serverRequired/_authenticated/profile/'
     | '/_serverRequired/_authenticated/documents_/$documentId_/settings'
@@ -750,6 +763,13 @@ declare module '@tanstack/react-router' {
       path: '/tasks/$taskId'
       fullPath: '/tasks/$taskId'
       preLoaderRoute: typeof ServerRequiredAuthenticatedTasksTaskIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/tags_/$tagId': {
+      id: '/_serverRequired/_authenticated/tags_/$tagId'
+      path: '/tags/$tagId'
+      fullPath: '/tags/$tagId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedTagsTagIdRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/settings/guild': {
@@ -1031,6 +1051,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedDocumentsDocumentIdRoute: typeof ServerRequiredAuthenticatedDocumentsDocumentIdRoute
   ServerRequiredAuthenticatedInitiativesInitiativeIdRoute: typeof ServerRequiredAuthenticatedInitiativesInitiativeIdRoute
   ServerRequiredAuthenticatedProjectsProjectIdRoute: typeof ServerRequiredAuthenticatedProjectsProjectIdRoute
+  ServerRequiredAuthenticatedTagsTagIdRoute: typeof ServerRequiredAuthenticatedTagsTagIdRoute
   ServerRequiredAuthenticatedTasksTaskIdRoute: typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute: typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
   ServerRequiredAuthenticatedInitiativesInitiativeIdSettingsRoute: typeof ServerRequiredAuthenticatedInitiativesInitiativeIdSettingsRoute
@@ -1063,6 +1084,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedInitiativesInitiativeIdRoute,
     ServerRequiredAuthenticatedProjectsProjectIdRoute:
       ServerRequiredAuthenticatedProjectsProjectIdRoute,
+    ServerRequiredAuthenticatedTagsTagIdRoute:
+      ServerRequiredAuthenticatedTagsTagIdRoute,
     ServerRequiredAuthenticatedTasksTaskIdRoute:
       ServerRequiredAuthenticatedTasksTaskIdRoute,
     ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute:

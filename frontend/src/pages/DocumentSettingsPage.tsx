@@ -39,7 +39,9 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import type { DocumentRead, DocumentPermissionLevel, Initiative } from "@/types/api";
+import type { DocumentRead, DocumentPermissionLevel, Initiative, TagSummary } from "@/types/api";
+import { TagPicker } from "@/components/tags";
+import { useSetDocumentTags } from "@/hooks/useTags";
 
 const PERMISSION_LABELS: Record<DocumentPermissionLevel, string> = {
   owner: "Owner",
@@ -73,6 +75,9 @@ export const DocumentSettingsPage = () => {
   const [selectedNewUserId, setSelectedNewUserId] = useState<string>("");
   const [selectedNewLevel, setSelectedNewLevel] = useState<DocumentPermissionLevel>("read");
   const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
+  const [documentTags, setDocumentTags] = useState<TagSummary[]>([]);
+
+  const setDocumentTagsMutation = useSetDocumentTags();
 
   const documentQuery = useQuery<DocumentRead>({
     queryKey: ["documents", parsedId],
@@ -172,6 +177,7 @@ export const DocumentSettingsPage = () => {
     setIsTemplate(document.is_template);
     setDuplicateTitle(`${document.title} (Copy)`);
     setCopyTitle(document.title);
+    setDocumentTags(document.tags ?? []);
     setAccessMessage(null);
     setAccessError(null);
   }, [document]);
@@ -583,6 +589,29 @@ export const DocumentSettingsPage = () => {
             aria-label="Toggle template status"
           />
         </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tags</CardTitle>
+          <CardDescription>Add tags to organize and filter documents.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {hasWriteAccess ? (
+            <TagPicker
+              selectedTags={documentTags}
+              onChange={(newTags) => {
+                setDocumentTags(newTags);
+                setDocumentTagsMutation.mutate({
+                  documentId: parsedId,
+                  tagIds: newTags.map((t) => t.id),
+                });
+              }}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">You need write access to manage tags.</p>
+          )}
+        </CardContent>
       </Card>
 
       {canManageDocument ? (

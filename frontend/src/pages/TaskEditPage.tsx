@@ -652,6 +652,39 @@ export const TaskEditPage = () => {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
+                  <Label htmlFor="task-start-date">Start date</Label>
+                  <DateTimePicker
+                    id="task-start-date"
+                    value={startDate}
+                    onChange={setStartDate}
+                    disabled={isReadOnly}
+                    placeholder="Optional"
+                    calendarProps={{
+                      hidden: {
+                        after: new Date(dueDate),
+                      },
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-due-date">Due date</Label>
+                  <DateTimePicker
+                    id="task-due-date"
+                    value={dueDate}
+                    onChange={setDueDate}
+                    disabled={isReadOnly}
+                    placeholder="Optional"
+                    calendarProps={{
+                      hidden: {
+                        before: new Date(startDate),
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
                   <Label>Assignees</Label>
                   <AssigneeSelector
                     selectedIds={assigneeIds}
@@ -672,40 +705,6 @@ export const TaskEditPage = () => {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="task-start-date">Start date</Label>
-                    <DateTimePicker
-                      id="task-start-date"
-                      value={startDate}
-                      onChange={setStartDate}
-                      disabled={isReadOnly}
-                      placeholder="Optional"
-                      calendarProps={{
-                        hidden: {
-                          after: new Date(dueDate),
-                        },
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="task-due-date">Due date</Label>
-                    <DateTimePicker
-                      id="task-due-date"
-                      value={dueDate}
-                      onChange={setDueDate}
-                      disabled={isReadOnly}
-                      placeholder="Optional"
-                      calendarProps={{
-                        hidden: {
-                          before: new Date(startDate),
-                        },
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
               <TaskRecurrenceSelector
                 recurrence={recurrence}
                 onChange={setRecurrence}

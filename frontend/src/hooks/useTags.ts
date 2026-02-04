@@ -2,14 +2,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
-import type { Tag, TagCreate, TagUpdate, Task } from "@/types/api";
+import { useGuilds } from "@/hooks/useGuilds";
+import type {
+  DocumentRead,
+  Project,
+  Tag,
+  TagCreate,
+  TagUpdate,
+  TaggedEntitiesResponse,
+  Task,
+} from "@/types/api";
 
 const TAGS_KEY = "tags";
 const TASKS_KEY = "tasks";
+const PROJECTS_KEY = "projects";
+const DOCUMENTS_KEY = "documents";
 
 export const useTags = () => {
+  const { activeGuildId } = useGuilds();
   return useQuery<Tag[]>({
-    queryKey: [TAGS_KEY],
+    queryKey: [TAGS_KEY, { guildId: activeGuildId }],
     queryFn: async () => {
       const response = await apiClient.get<Tag[]>("/tags/");
       return response.data;
@@ -19,8 +31,9 @@ export const useTags = () => {
 };
 
 export const useTag = (tagId: number | null) => {
+  const { activeGuildId } = useGuilds();
   return useQuery<Tag>({
-    queryKey: [TAGS_KEY, tagId],
+    queryKey: [TAGS_KEY, { guildId: activeGuildId }, tagId],
     queryFn: async () => {
       const response = await apiClient.get<Tag>(`/tags/${tagId}`);
       return response.data;
@@ -32,6 +45,7 @@ export const useTag = (tagId: number | null) => {
 
 export const useCreateTag = () => {
   const queryClient = useQueryClient();
+  const { activeGuildId } = useGuilds();
 
   return useMutation({
     mutationFn: async (data: TagCreate) => {
@@ -39,7 +53,7 @@ export const useCreateTag = () => {
       return response.data;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Unable to create tag.";
@@ -50,6 +64,7 @@ export const useCreateTag = () => {
 
 export const useUpdateTag = () => {
   const queryClient = useQueryClient();
+  const { activeGuildId } = useGuilds();
 
   return useMutation({
     mutationFn: async ({ tagId, data }: { tagId: number; data: TagUpdate }) => {
@@ -58,7 +73,7 @@ export const useUpdateTag = () => {
     },
     onSuccess: () => {
       toast.success("Tag updated.");
-      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Unable to update tag.";
@@ -69,6 +84,7 @@ export const useUpdateTag = () => {
 
 export const useDeleteTag = () => {
   const queryClient = useQueryClient();
+  const { activeGuildId } = useGuilds();
 
   return useMutation({
     mutationFn: async (tagId: number) => {
@@ -76,7 +92,7 @@ export const useDeleteTag = () => {
     },
     onSuccess: () => {
       toast.success("Tag deleted.");
-      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
       // Also invalidate tasks since they may have had this tag
       void queryClient.invalidateQueries({ queryKey: [TASKS_KEY] });
     },
@@ -109,6 +125,61 @@ export const useSetTaskTags = () => {
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Unable to update task tags.";
+      toast.error(message);
+    },
+  });
+};
+
+export const useTagEntities = (tagId: number | null) => {
+  const { activeGuildId } = useGuilds();
+  return useQuery<TaggedEntitiesResponse>({
+    queryKey: [TAGS_KEY, { guildId: activeGuildId }, tagId, "entities"],
+    queryFn: async () => {
+      const response = await apiClient.get<TaggedEntitiesResponse>(`/tags/${tagId}/entities`);
+      return response.data;
+    },
+    enabled: !!tagId,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+};
+
+export const useSetProjectTags = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ projectId, tagIds }: { projectId: number; tagIds: number[] }) => {
+      const response = await apiClient.put<Project>(`/projects/${projectId}/tags`, {
+        tag_ids: tagIds,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: [PROJECTS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: ["project", data.id] });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to update project tags.";
+      toast.error(message);
+    },
+  });
+};
+
+export const useSetDocumentTags = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ documentId, tagIds }: { documentId: number; tagIds: number[] }) => {
+      const response = await apiClient.put<DocumentRead>(`/documents/${documentId}/tags`, {
+        tag_ids: tagIds,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: [DOCUMENTS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: ["document", data.id] });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Unable to update document tags.";
       toast.error(message);
     },
   });

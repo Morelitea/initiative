@@ -4,7 +4,6 @@ import { Check, Plus, Tag as TagIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -191,33 +190,44 @@ export function TagPicker({
           </div>
         ) : (
           <Command shouldFilter={false}>
-            <CommandInput placeholder="Search tags..." value={search} onValueChange={setSearch} />
+            <CommandInput
+              placeholder="Search or create tags..."
+              value={search}
+              onValueChange={setSearch}
+            />
             <CommandList>
               {isLoading ? (
                 <div className="text-muted-foreground py-6 text-center text-sm">Loading...</div>
-              ) : filteredTags.length === 0 && !canCreateNew ? (
-                <CommandEmpty>No tags found.</CommandEmpty>
               ) : (
                 <>
                   {canCreateNew && (
-                    <>
-                      <CommandGroup>
-                        <CommandItem onSelect={startCreating} className="cursor-pointer">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Create &quot;{search.trim()}&quot;
-                        </CommandItem>
-                      </CommandGroup>
-                      {filteredTags.length > 0 && <CommandSeparator />}
-                    </>
+                    <CommandGroup>
+                      <CommandItem
+                        key="create-new"
+                        value="create-new"
+                        onSelect={startCreating}
+                        className="cursor-pointer"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create &quot;{search.trim()}&quot;
+                      </CommandItem>
+                    </CommandGroup>
                   )}
-                  {filteredTags.length > 0 && (
-                    <CommandGroup heading={canCreateNew ? "Existing tags" : undefined}>
-                      {filteredTags.map((tag) => {
+                  {canCreateNew && filteredTags.length > 0 && <CommandSeparator />}
+                  <CommandGroup
+                    heading={canCreateNew && filteredTags.length > 0 ? "Existing tags" : undefined}
+                  >
+                    {filteredTags.length === 0 && !canCreateNew ? (
+                      <div className="text-muted-foreground py-6 text-center text-sm">
+                        No tags found.
+                      </div>
+                    ) : (
+                      filteredTags.map((tag) => {
                         const isSelected = selectedIds.has(tag.id);
                         return (
                           <CommandItem
                             key={tag.id}
-                            value={String(tag.id)}
+                            value={`tag-${tag.id}`}
                             onSelect={() => toggleTag(tag)}
                             className="cursor-pointer"
                           >
@@ -238,9 +248,9 @@ export function TagPicker({
                             <span className="truncate">{tag.name}</span>
                           </CommandItem>
                         );
-                      })}
-                    </CommandGroup>
-                  )}
+                      })
+                    )}
+                  </CommandGroup>
                 </>
               )}
             </CommandList>

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.models.document import DocumentPermissionLevel
 from app.schemas.initiative import InitiativeRead, serialize_initiative
+from app.schemas.tag import TagSummary
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document, ProjectDocument
@@ -106,6 +107,7 @@ class DocumentSummary(DocumentBase):
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     permissions: List[DocumentPermissionRead] = Field(default_factory=list)
+    tags: List[TagSummary] = Field(default_factory=list)
     # File document fields
     document_type: DocumentTypeStr = "native"
     file_url: Optional[str] = None
@@ -156,6 +158,17 @@ def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]
     ]
 
 
+def _serialize_document_tags(document: "Document") -> List[TagSummary]:
+    """Serialize document tags to TagSummary list."""
+    tag_links = getattr(document, "tag_links", None) or []
+    tags: List[TagSummary] = []
+    for link in tag_links:
+        tag = getattr(link, "tag", None)
+        if tag:
+            tags.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
+    return tags
+
+
 def serialize_document_summary(document: "Document") -> DocumentSummary:
     initiative = serialize_initiative(document.initiative) if document.initiative else None
     return DocumentSummary(
@@ -172,6 +185,7 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
         permissions=_serialize_permissions(document),
+        tags=_serialize_document_tags(document),
         document_type=document.document_type.value if document.document_type else "native",
         file_url=document.file_url,
         file_content_type=document.file_content_type,

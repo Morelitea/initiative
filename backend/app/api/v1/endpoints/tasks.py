@@ -1433,19 +1433,22 @@ async def set_task_tags(
     await session.exec(delete_stmt)
 
     # Add new task tags
+    task_id_to_update = task.id
     if unique_tag_ids:
         session.add_all([
-            TaskTag(task_id=task.id, tag_id=tag_id, guild_id=guild_context.guild_id)
+            TaskTag(task_id=task_id_to_update, tag_id=tag_id, guild_id=guild_context.guild_id)
             for tag_id in unique_tag_ids
         ])
 
-    # Update task timestamp
-    task.updated_at = datetime.now(timezone.utc)
-    session.add(task)
+    # Fetch fresh task to avoid issues with deleted relationship objects
+    fresh_task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
+    if fresh_task is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
+    fresh_task.updated_at = datetime.now(timezone.utc)
     await session.commit()
 
     # Refresh and return
-    task = await _fetch_task(session, task.id, guild_context.guild_id)
+    task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
     await broadcast_event("task", "updated", _task_payload(task))

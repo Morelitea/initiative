@@ -159,6 +159,7 @@ export interface DocumentSummary {
   projects: DocumentProjectLink[];
   comment_count?: number;
   permissions?: DocumentPermission[];
+  tags?: TagSummary[];
   // File document fields
   document_type?: DocumentType;
   file_url?: string | null;
@@ -250,6 +251,7 @@ export interface Project {
   last_viewed_at?: string | null;
   documents?: ProjectDocumentLink[];
   task_summary?: ProjectTaskSummary;
+  tags?: TagSummary[];
 }
 
 export interface AttachmentUploadResponse {
@@ -371,6 +373,33 @@ export interface TagUpdate {
 
 export interface TagSetRequest {
   tag_ids: number[];
+}
+
+export interface TaggedTaskSummary {
+  id: number;
+  title: string;
+  project_id: number;
+  project_name: string | null;
+}
+
+export interface TaggedProjectSummary {
+  id: number;
+  name: string;
+  initiative_id: number;
+  initiative_name: string | null;
+}
+
+export interface TaggedDocumentSummary {
+  id: number;
+  title: string;
+  initiative_id: number;
+  initiative_name: string | null;
+}
+
+export interface TaggedEntitiesResponse {
+  tasks: TaggedTaskSummary[];
+  projects: TaggedProjectSummary[];
+  documents: TaggedDocumentSummary[];
 }
 
 export interface Task {
