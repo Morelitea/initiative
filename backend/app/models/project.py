@@ -14,6 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.project_activity import ProjectFavorite, RecentProjectView
     from app.models.document import ProjectDocument
     from app.models.guild import Guild
+    from app.models.tag import ProjectTag
 
 
 class Project(SQLModel, table=True):
@@ -73,6 +74,10 @@ class Project(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     document_links: List["ProjectDocument"] = Relationship(
+        back_populates="project",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    tag_links: List["ProjectTag"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

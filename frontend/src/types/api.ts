@@ -347,6 +347,32 @@ export interface TaskAssignee {
   avatar_base64?: string | null;
 }
 
+export interface TagSummary {
+  id: number;
+  name: string;
+  color: string;
+}
+
+export interface Tag extends TagSummary {
+  guild_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TagCreate {
+  name: string;
+  color?: string;
+}
+
+export interface TagUpdate {
+  name?: string;
+  color?: string;
+}
+
+export interface TagSetRequest {
+  tag_ids: number[];
+}
+
 export interface Task {
   id: number;
   title: string;
@@ -373,6 +399,7 @@ export interface Task {
   initiative_name?: string | null;
   initiative_color?: string | null;
   subtask_progress?: TaskSubtaskProgress | null;
+  tags?: TagSummary[];
 }
 
 export interface CommentAuthor {

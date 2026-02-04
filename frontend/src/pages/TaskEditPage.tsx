@@ -40,6 +40,7 @@ import type {
   TaskPriority,
   TaskRecurrence,
   TaskRecurrenceStrategy,
+  TagSummary,
   User,
 } from "@/types/api";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -50,6 +51,8 @@ import { CommentSection } from "@/components/comments/CommentSection";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TagPicker } from "@/components/tags";
+import { useSetTaskTags } from "@/hooks/useTags";
 import {
   Archive,
   ArchiveRestore,
@@ -102,6 +105,7 @@ export const TaskEditPage = () => {
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
+  const [tags, setTags] = useState<TagSummary[]>([]);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -155,6 +159,8 @@ export const TaskEditPage = () => {
     },
   });
 
+  const setTaskTagsMutation = useSetTaskTags();
+
   useEffect(() => {
     if (taskQuery.data) {
       const task = taskQuery.data;
@@ -167,6 +173,7 @@ export const TaskEditPage = () => {
       setDueDate(toLocalInputValue(task.due_date));
       setRecurrence(task.recurrence ?? null);
       setRecurrenceStrategy(task.recurrence_strategy ?? "fixed");
+      setTags(task.tags ?? []);
     }
   }, [taskQuery.data]);
 
@@ -420,6 +427,15 @@ export const TaskEditPage = () => {
     }
   }, [isReadOnly]);
 
+  const handleTagsChange = (newTags: TagSummary[]) => {
+    setTags(newTags);
+    // Save tags immediately via separate endpoint
+    setTaskTagsMutation.mutate({
+      taskId: parsedTaskId,
+      tagIds: newTags.map((t) => t.id),
+    });
+  };
+
   const handleBackClick = () => {
     router.history.back();
   };
@@ -645,6 +661,18 @@ export const TaskEditPage = () => {
                     emptyMessage={`No initiative ${memberLabel} role holders available yet.`}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Tags</Label>
+                  <TagPicker
+                    selectedTags={tags}
+                    onChange={handleTagsChange}
+                    disabled={isReadOnly}
+                    placeholder="Add tags..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="task-start-date">Start date</Label>
