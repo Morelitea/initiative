@@ -17,6 +17,8 @@ from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleMo
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.schemas.document import (
+    DocumentAutocomplete,
+    DocumentBacklink,
     DocumentCreate,
     DocumentCopyRequest,
     DocumentDuplicateRequest,
@@ -250,6 +252,84 @@ async def list_documents(
     return [serialize_document_summary(document) for document in documents]
 
 
+@router.get("/autocomplete", response_model=List[DocumentAutocomplete])
+async def autocomplete_documents(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: int = Query(...),
+    q: str = Query(..., min_length=1),
+    limit: int = Query(default=10, le=20),
+) -> List[DocumentAutocomplete]:
+    """Search documents by title within an initiative for autocomplete/wikilinks.
+
+    Returns lightweight document info (id, title, updated_at) for typeahead.
+    Only returns documents the user has permission to access.
+    """
+    await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
+
+    # Subquery: documents where user has explicit permission
+    has_permission_subq = (
+        select(DocumentPermission.document_id)
+        .where(DocumentPermission.user_id == current_user.id)
+        .scalar_subquery()
+    )
+
+    normalized = q.strip().lower()
+    stmt = (
+        select(Document)
+        .join(Document.initiative)
+        .where(
+            Document.initiative_id == initiative_id,
+            Initiative.guild_id == guild_context.guild_id,
+            Document.id.in_(has_permission_subq),
+            func.lower(Document.title).contains(normalized),
+        )
+        .order_by(Document.updated_at.desc())
+        .limit(limit)
+    )
+
+    result = await session.exec(stmt)
+    documents = result.all()
+
+    return [
+        DocumentAutocomplete(
+            id=doc.id,
+            title=doc.title,
+            updated_at=doc.updated_at,
+        )
+        for doc in documents
+    ]
+
+
+async def _check_duplicate_title(
+    session: SessionDep,
+    *,
+    initiative_id: int,
+    title: str,
+    exclude_document_id: int | None = None,
+) -> None:
+    """Check if a document with the same title already exists in the initiative.
+
+    Raises 400 if a duplicate is found.
+    """
+    normalized_title = title.strip().lower()
+    stmt = select(Document).where(
+        Document.initiative_id == initiative_id,
+        func.lower(Document.title) == normalized_title,
+    )
+    if exclude_document_id is not None:
+        stmt = stmt.where(Document.id != exclude_document_id)
+
+    result = await session.exec(stmt)
+    existing = result.first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A document with this title already exists in this initiative",
+        )
+
+
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def create_document(
     document_in: DocumentCreate,
@@ -273,6 +353,9 @@ async def create_document(
     if not title:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
 
+    # Check for duplicate title in initiative
+    await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
+
     document = Document(
         title=title,
         initiative_id=initiative.id,
@@ -294,6 +377,15 @@ async def create_document(
         guild_id=guild_context.guild_id,
     )
     session.add(owner_permission)
+
+    # Sync wikilinks to document_links table
+    await documents_service.sync_document_links(
+        session,
+        document_id=document.id,
+        content=document.content,
+        guild_id=guild_context.guild_id,
+    )
+
     await session.commit()
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
@@ -325,6 +417,9 @@ async def upload_document_file(
     title = title.strip()
     if not title:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+
+    # Check for duplicate title in initiative
+    await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
 
     # Read and validate file content
     contents = await file.read()
@@ -383,6 +478,36 @@ async def read_document(
     return serialize_document(document)
 
 
+@router.get("/{document_id}/backlinks", response_model=List[DocumentBacklink])
+async def get_backlinks(
+    document_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[DocumentBacklink]:
+    """Get documents that link to this document via wikilinks.
+
+    Only returns documents the current user has permission to access.
+    """
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    _require_document_access(document, current_user, access="read")
+
+    backlinks = await documents_service.get_backlinks(
+        session,
+        document_id=document_id,
+        user_id=current_user.id,
+    )
+
+    return [
+        DocumentBacklink(
+            id=doc.id,
+            title=doc.title,
+            updated_at=doc.updated_at,
+        )
+        for doc in backlinks
+    ]
+
+
 @router.patch("/{document_id}", response_model=DocumentRead)
 async def update_document(
     document_id: int,
@@ -403,13 +528,22 @@ async def update_document(
         title = (update_data["title"] or "").strip()
         if not title:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+        # Check for duplicate title in initiative (exclude current document)
+        await _check_duplicate_title(
+            session,
+            initiative_id=document.initiative_id,
+            title=title,
+            exclude_document_id=document.id,
+        )
         document.title = title
         updated = True
 
+    content_updated = False
     if "content" in update_data:
         document.content = documents_service.normalize_document_content(update_data["content"])
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
+        content_updated = True
         updated = True
 
     if "featured_image_url" in update_data:
@@ -426,6 +560,14 @@ async def update_document(
         document.updated_at = datetime.now(timezone.utc)
         document.updated_by_id = current_user.id
         session.add(document)
+        # Sync wikilinks if content was updated
+        if content_updated:
+            await documents_service.sync_document_links(
+                session,
+                document_id=document.id,
+                content=document.content,
+                guild_id=guild_context.guild_id,
+            )
         await session.commit()
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
@@ -699,6 +841,8 @@ async def delete_document(
     # For file documents, also delete the uploaded file
     if document.file_url:
         removed_upload_urls.add(document.file_url)
+    # Unresolve any wikilinks pointing to this document before deletion
+    await documents_service.unresolve_wikilinks_to_document(session, deleted_document_id=document_id)
     await session.delete(document)
     await session.commit()
     attachments_service.delete_uploads_by_urls(removed_upload_urls)

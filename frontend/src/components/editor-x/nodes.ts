@@ -18,6 +18,7 @@ import { KeywordNode } from "@/components/ui/editor/nodes/keyword-node";
 import { LayoutContainerNode } from "@/components/ui/editor/nodes/layout-container-node";
 import { LayoutItemNode } from "@/components/ui/editor/nodes/layout-item-node";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
+import { WikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 
 export const nodes: ReadonlyArray<Klass<LexicalNode> | LexicalNodeReplacement> = [
   HeadingNode,
@@ -46,4 +47,5 @@ export const nodes: ReadonlyArray<Klass<LexicalNode> | LexicalNodeReplacement> =
   YouTubeNode,
   AutocompleteNode,
   EmbedNode,
+  WikilinkNode,
 ];

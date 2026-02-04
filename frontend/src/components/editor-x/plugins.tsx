@@ -47,6 +47,7 @@ import { YouTubePlugin } from "@/components/ui/editor/plugins/embeds/youtube-plu
 import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-plugin";
 import { EmojisPlugin } from "@/components/ui/editor/plugins/emojis-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
+import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { ImagesPlugin } from "@/components/ui/editor/plugins/images-plugin";
 import { KeywordsPlugin } from "@/components/ui/editor/plugins/keywords-plugin";
@@ -54,6 +55,7 @@ import { LayoutPlugin } from "@/components/ui/editor/plugins/layout-plugin";
 import { LinkPlugin } from "@/components/ui/editor/plugins/link-plugin";
 import { ListMaxIndentLevelPlugin } from "@/components/ui/editor/plugins/list-max-indent-level-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
+import { WikilinksPlugin } from "@/components/ui/editor/plugins/wikilinks-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
 import { CheckListPickerPlugin } from "@/components/ui/editor/plugins/picker/check-list-picker-plugin";
@@ -104,6 +106,7 @@ import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer"
 import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
 import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
+import { WIKILINK } from "@/components/ui/editor/transformers/markdown-wikilink-transformer";
 import { Separator } from "@/components/ui/separator";
 import type { UserPublic } from "@/types/api";
 
@@ -117,6 +120,9 @@ export function Plugins({
   documentName,
   collaborative = false,
   cursorsContainerRef,
+  initiativeId = null,
+  onWikilinkNavigate,
+  onWikilinkCreate,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
@@ -124,6 +130,9 @@ export function Plugins({
   documentName?: string;
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
+  initiativeId?: number | null;
+  onWikilinkNavigate?: (documentId: number) => void;
+  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
@@ -236,6 +245,11 @@ export function Plugins({
         {!collaborative && <HistoryPlugin />}
 
         <MentionsPlugin mentionableUsers={mentionableUsers} />
+        <WikilinksPlugin
+          initiativeId={initiativeId}
+          onNavigate={onWikilinkNavigate}
+          onCreateDocument={onWikilinkCreate}
+        />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
         <KeywordsPlugin />
         <EmojisPlugin />
@@ -257,6 +271,7 @@ export function Plugins({
             IMAGE,
             EMOJI,
             TWEET,
+            WIKILINK,
             CHECK_LIST,
             ...ELEMENT_TRANSFORMERS,
             ...MULTILINE_ELEMENT_TRANSFORMERS,
@@ -304,6 +319,12 @@ export function Plugins({
           isLinkEditMode={isLinkEditMode}
           setIsLinkEditMode={setIsLinkEditMode}
         />
+        <FloatingWikilinkEditorPlugin
+          anchorElem={floatingAnchorElem}
+          initiativeId={initiativeId}
+          onNavigate={onWikilinkNavigate}
+          onCreateDocument={onWikilinkCreate}
+        />
         <FloatingTextFormatToolbarPlugin
           anchorElem={floatingAnchorElem}
           setIsLinkEditMode={setIsLinkEditMode}
@@ -333,6 +354,7 @@ export function Plugins({
                   IMAGE,
                   EMOJI,
                   TWEET,
+                  WIKILINK,
                   CHECK_LIST,
                   ...ELEMENT_TRANSFORMERS,
                   ...MULTILINE_ELEMENT_TRANSFORMERS,

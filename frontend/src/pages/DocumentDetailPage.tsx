@@ -1,5 +1,14 @@
-import { type ChangeEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import {
+  type ChangeEvent,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
@@ -10,6 +19,8 @@ import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
+import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
+import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 
@@ -49,6 +60,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 export const DocumentDetailPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -64,8 +76,16 @@ export const DocumentDetailPage = () => {
   const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
   // Refs for sendBeacon - need latest values in event handlers
-  const contentStateRef = useRef(contentState);
+  const contentStateRef = useRef<{ documentId: number; content: SerializedEditorState } | null>(
+    null
+  );
   const collaboratingRef = useRef(false);
+  const syncContentBeaconRef = useRef<(() => void) | null>(null);
+
+  // Wikilink dialog state
+  const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
+  const [wikilinkTitle, setWikilinkTitle] = useState("");
+  const wikilinkUpdateCallbackRef = useRef<((documentId: number) => void) | null>(null);
 
   // Collaboration hook - only enable when we have a valid document ID
   const collaboration = useCollaboration({
@@ -106,6 +126,12 @@ export const DocumentDetailPage = () => {
     () => normalizeEditorState(document?.content),
     [document]
   );
+
+  // Clear content state ref when document ID changes
+  // The ref now tracks which document the content belongs to
+  useEffect(() => {
+    contentStateRef.current = null;
+  }, [parsedId]);
 
   useEffect(() => {
     if (!document) {
@@ -148,6 +174,84 @@ export const DocumentDetailPage = () => {
   const mentionableUsers = useMemo(() => {
     return document?.initiative?.members?.map((member) => member.user) ?? [];
   }, [document?.initiative?.members]);
+
+  // Check if user can create documents in this initiative
+  const canCreateDocuments = useMemo(() => {
+    if (!document?.initiative || !user) {
+      return false;
+    }
+    // Check if user has create_docs permission via their role
+    const membership = document.initiative.members?.find((m) => m.user?.id === user.id);
+    if (!membership) {
+      return false;
+    }
+    // can_create_docs is populated from the initiative membership role
+    return membership.can_create_docs ?? false;
+  }, [document?.initiative, user]);
+
+  // Wikilink navigation handler
+  const handleWikilinkNavigate = useCallback(
+    (targetDocumentId: number) => {
+      void navigate({
+        to: "/documents/$documentId",
+        params: { documentId: String(targetDocumentId) },
+      });
+    },
+    [navigate]
+  );
+
+  // Wikilink create handler - opens dialog and stores update callback
+  const handleWikilinkCreate = useCallback(
+    (docTitle: string, onCreated: (documentId: number) => void) => {
+      setWikilinkTitle(docTitle);
+      wikilinkUpdateCallbackRef.current = onCreated;
+      setWikilinkDialogOpen(true);
+    },
+    []
+  );
+
+  // After creating document via wikilink, update the wikilink then navigate
+  const handleWikilinkDocumentCreated = useCallback(
+    (newDocumentId: number) => {
+      // Update the wikilink with the new document ID before navigating
+      if (wikilinkUpdateCallbackRef.current) {
+        wikilinkUpdateCallbackRef.current(newDocumentId);
+        wikilinkUpdateCallbackRef.current = null;
+      }
+      // Capture collaboration state and document ID NOW, before navigation changes them
+      const wasCollaborating = collaboratingRef.current;
+      const sourceDocumentId = parsedId;
+      // Explicitly sync content before navigating to ensure wikilinks are saved
+      // Use setTimeout(0) to allow OnChangePlugin to fire first
+      setTimeout(() => {
+        // Sync directly using captured values (they may have changed by now)
+        const stored = contentStateRef.current;
+        if (
+          wasCollaborating &&
+          token &&
+          activeGuildId &&
+          stored &&
+          stored.documentId === sourceDocumentId
+        ) {
+          const isAbsolute =
+            API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
+          const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
+          const syncUrl = `${baseUrl}/collaboration/documents/${sourceDocumentId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+          fetch(syncUrl, {
+            method: "POST",
+            body: JSON.stringify(stored.content),
+            headers: { "Content-Type": "application/json" },
+            keepalive: true,
+          }).catch(() => {});
+        }
+        void navigate({
+          to: "/documents/$documentId",
+          params: { documentId: String(newDocumentId) },
+        });
+      }, 0);
+    },
+    [navigate, token, activeGuildId, parsedId]
+  );
 
   const updateDocumentCommentCount = (delta: number) => {
     queryClient.setQueryData<DocumentRead>(["documents", parsedId], (previous) => {
@@ -230,10 +334,16 @@ export const DocumentDetailPage = () => {
     },
   });
 
-  // Keep refs updated for sendBeacon
-  useEffect(() => {
-    contentStateRef.current = contentState;
-  }, [contentState]);
+  // Handle content change - update both state and ref synchronously
+  // This ensures contentStateRef is always up-to-date for sendBeacon
+  // We track which document the content belongs to, to prevent syncing stale content
+  const handleContentChange = useCallback(
+    (newContent: SerializedEditorState) => {
+      contentStateRef.current = { documentId: parsedId, content: newContent };
+      setContentState(newContent);
+    },
+    [parsedId]
+  );
 
   useEffect(() => {
     collaboratingRef.current = collaboration.isCollaborating;
@@ -277,6 +387,7 @@ export const DocumentDetailPage = () => {
   // This is critical when users navigate away or close the tab during collaboration
   useEffect(() => {
     if (!canEditDocument || !token || !activeGuildId) {
+      syncContentBeaconRef.current = null;
       return;
     }
 
@@ -286,16 +397,28 @@ export const DocumentDetailPage = () => {
         return;
       }
 
+      // Only sync if we have content for THIS document (prevents syncing stale content)
+      const stored = contentStateRef.current;
+      if (!stored || stored.documentId !== parsedId) {
+        return;
+      }
+
       // Build the sync URL
       const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
       const syncUrl = `${baseUrl}/collaboration/documents/${parsedId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
 
-      // Send content via sendBeacon (reliable even on page unload)
-      const content = contentStateRef.current;
-      const blob = new Blob([JSON.stringify(content)], { type: "application/json" });
-      navigator.sendBeacon(syncUrl, blob);
+      // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
+      fetch(syncUrl, {
+        method: "POST",
+        body: JSON.stringify(stored.content),
+        headers: { "Content-Type": "application/json" },
+        keepalive: true, // Ensures request completes even if page unloads
+      }).catch(() => {}); // Silently ignore errors on page unload
     };
+
+    // Store ref so it can be called from other handlers
+    syncContentBeaconRef.current = syncContentBeacon;
 
     // Handle tab close / navigation
     const handleBeforeUnload = () => {
@@ -313,6 +436,8 @@ export const DocumentDetailPage = () => {
     globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      // Sync content when navigating away (component unmount or document change)
+      syncContentBeacon();
       window.removeEventListener("beforeunload", handleBeforeUnload);
       globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -553,9 +678,9 @@ export const DocumentDetailPage = () => {
               }
             >
               <Editor
-                key={document.id}
+                key={parsedId}
                 editorSerializedState={normalizedDocumentContent}
-                onSerializedChange={setContentState}
+                onSerializedChange={handleContentChange}
                 readOnly={!canEditDocument}
                 showToolbar={canEditDocument}
                 className="max-h-[80vh]"
@@ -566,6 +691,10 @@ export const DocumentDetailPage = () => {
                 // Always track changes so contentState stays updated for periodic saves
                 trackChanges={true}
                 isSynced={collaboration.isSynced}
+                // Wikilinks support
+                initiativeId={document.initiative_id}
+                onWikilinkNavigate={handleWikilinkNavigate}
+                onWikilinkCreate={handleWikilinkCreate}
               />
             </Suspense>
             <div className="flex flex-wrap items-center gap-3">
@@ -666,6 +795,9 @@ export const DocumentDetailPage = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Backlinks - documents that link to this one */}
+        <DocumentBacklinks documentId={parsedId} />
       </div>
 
       {/* Side panel for AI summary and comments */}
@@ -698,6 +830,16 @@ export const DocumentDetailPage = () => {
             />
           </>
         }
+      />
+
+      {/* Wikilink create document dialog */}
+      <CreateWikilinkDocumentDialog
+        open={wikilinkDialogOpen}
+        onOpenChange={setWikilinkDialogOpen}
+        title={wikilinkTitle}
+        initiativeId={document.initiative_id}
+        canCreate={canCreateDocuments}
+        onCreated={handleWikilinkDocumentCreated}
       />
     </div>
   );

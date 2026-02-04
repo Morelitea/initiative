@@ -140,3 +140,16 @@ class DocumentPermission(SQLModel, table=True):
     )
 
     document: Optional[Document] = Relationship(back_populates="permissions")
+
+
+class DocumentLink(SQLModel, table=True):
+    """Tracks wikilinks between documents for backlinks queries."""
+    __tablename__ = "document_links"
+
+    source_document_id: int = Field(foreign_key="documents.id", primary_key=True)
+    target_document_id: int = Field(foreign_key="documents.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
