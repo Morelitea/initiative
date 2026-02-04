@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
+import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import type { GuildRole, Initiative, Project } from "@/types/api";
@@ -82,15 +83,26 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
               <span>{project.name}</span>
             </CardTitle>
           </CardHeader>
-          <CardFooter className="text-muted-foreground flex justify-between gap-6 space-y-2 text-sm">
-            <div>
-              <InitiativeLabel initiative={initiative} />
-              <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
+          <CardFooter className="text-muted-foreground flex flex-col gap-3 text-sm">
+            <div className="flex w-full justify-between gap-6">
+              <div>
+                <InitiativeLabel initiative={initiative} />
+                <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
+              </div>
+              <div className="flex-1">
+                <ProjectProgress summary={project.task_summary} />
+              </div>
             </div>
-
-            <div className="flex-1">
-              <ProjectProgress summary={project.task_summary} />
-            </div>
+            {project.tags && project.tags.length > 0 ? (
+              <div className="flex w-full flex-wrap gap-1">
+                {project.tags.slice(0, 4).map((tag) => (
+                  <TagBadge key={tag.id} tag={tag} size="sm" />
+                ))}
+                {project.tags.length > 4 && (
+                  <span className="text-muted-foreground text-xs">+{project.tags.length - 4}</span>
+                )}
+              </div>
+            ) : null}
           </CardFooter>
         </Card>
       </Link>
@@ -149,6 +161,18 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
                     <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
                     <InitiativeLabel initiative={project.initiative} />
                   </div>
+                  {project.tags && project.tags.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {project.tags.slice(0, 4).map((tag) => (
+                        <TagBadge key={tag.id} tag={tag} size="sm" />
+                      ))}
+                      {project.tags.length > 4 && (
+                        <span className="text-muted-foreground text-xs">
+                          +{project.tags.length - 4}
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex-1">
                   <ProjectProgress summary={project.task_summary} />

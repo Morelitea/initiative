@@ -520,6 +520,7 @@ async def list_tasks(
     status_category: Optional[List[TaskStatusCategory]] = Query(default=None),
     initiative_ids: Optional[List[int]] = Query(default=None),
     guild_ids: Optional[List[int]] = Query(default=None),
+    tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
 ) -> List[TaskListRead]:
     if scope == "global":
@@ -599,6 +600,13 @@ async def list_tasks(
 
     if guild_ids:
         statement = statement.where(Initiative.guild_id.in_(tuple(guild_ids)))
+
+    if tag_ids:
+        # Use subquery to avoid duplicate rows from JOIN
+        tag_subquery = select(TaskTag.task_id).where(
+            TaskTag.tag_id.in_(tuple(tag_ids))
+        ).distinct()
+        statement = statement.where(Task.id.in_(tag_subquery))
 
     result = await session.exec(statement)
     tasks = result.all()
@@ -834,10 +842,13 @@ async def duplicate_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
-    # Fetch the original task with its subtasks
+    # Fetch the original task with its subtasks and tags
     task_stmt = (
         select(Task)
-        .options(selectinload(Task.assignees))
+        .options(
+            selectinload(Task.assignees),
+            selectinload(Task.tag_links),
+        )
         .join(Task.project)
         .join(Project.initiative)
         .where(
@@ -894,6 +905,13 @@ async def duplicate_task(
             position=original_subtask.position,
         )
         session.add(new_subtask)
+
+    # Copy tags
+    if original_task.tag_links:
+        session.add_all([
+            TaskTag(task_id=new_task.id, tag_id=link.tag_id, guild_id=guild_context.guild_id)
+            for link in original_task.tag_links
+        ])
 
     await session.commit()
     await session.refresh(new_task)

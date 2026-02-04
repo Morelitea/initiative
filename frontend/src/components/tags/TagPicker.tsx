@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Check, Plus, Tag as TagIcon } from "lucide-react";
+import { Check, ChevronDown, Plus, Tag as TagIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +37,8 @@ interface TagPickerProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** "default" shows tag badges in trigger, "filter" matches Select styling */
+  variant?: "default" | "filter";
 }
 
 export function TagPicker({
@@ -45,6 +47,7 @@ export function TagPicker({
   placeholder = "Add tags...",
   disabled = false,
   className,
+  variant = "default",
 }: TagPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -119,36 +122,60 @@ export function TagPicker({
     }
   }, [newTagName, newTagColor, createTagMutation, selectedTags, onChange, cancelCreating]);
 
+  // Display text for filter variant
+  const filterDisplayValue = useMemo(() => {
+    if (selectedTags.length === 0) return placeholder;
+    if (selectedTags.length === 1) return selectedTags[0].name;
+    return `${selectedTags.length} selected`;
+  }, [selectedTags, placeholder]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            "h-auto min-h-10 w-full justify-start",
-            selectedTags.length === 0 && "text-muted-foreground",
-            className
-          )}
-        >
-          <TagIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-          {selectedTags.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {selectedTags.map((tag) => (
-                <TagBadge
-                  key={tag.id}
-                  tag={tag}
-                  size="sm"
-                  onRemove={() => handleRemoveTag(tag.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <span>{placeholder}</span>
-          )}
-        </Button>
+        {variant === "filter" ? (
+          <button
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              "border-input ring-offset-background focus:ring-ring flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-sm focus:ring-1 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+              selectedTags.length === 0 && "text-muted-foreground",
+              className
+            )}
+          >
+            <span className="truncate">{filterDisplayValue}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </button>
+        ) : (
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              "h-auto min-h-10 w-full justify-start",
+              selectedTags.length === 0 && "text-muted-foreground",
+              className
+            )}
+          >
+            <TagIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            {selectedTags.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {selectedTags.map((tag) => (
+                  <TagBadge
+                    key={tag.id}
+                    tag={tag}
+                    size="sm"
+                    onRemove={() => handleRemoveTag(tag.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <span>{placeholder}</span>
+            )}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         {isCreating ? (

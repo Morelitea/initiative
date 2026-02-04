@@ -209,6 +209,7 @@ async def list_documents(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
 ) -> List[DocumentSummary]:
     """List documents visible to the current user.
 
@@ -247,6 +248,13 @@ async def list_documents(
         normalized = search.strip().lower()
         if normalized:
             stmt = stmt.where(func.lower(Document.title).contains(normalized))
+
+    if tag_ids:
+        # Use subquery to avoid duplicate rows from JOIN
+        tag_subquery = select(DocumentTag.document_id).where(
+            DocumentTag.tag_id.in_(tuple(tag_ids))
+        ).distinct()
+        stmt = stmt.where(Document.id.in_(tag_subquery))
 
     result = await session.exec(stmt)
     documents = result.unique().all()

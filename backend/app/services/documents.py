@@ -174,6 +174,18 @@ async def duplicate_document(
         guild_id=guild_id or source.guild_id,
     )
     session.add(owner_permission)
+
+    # Copy tags from source document
+    if hasattr(source, "tag_links") and source.tag_links:
+        session.add_all([
+            DocumentTag(
+                document_id=duplicated.id,
+                tag_id=link.tag_id,
+                guild_id=guild_id or source.guild_id,
+            )
+            for link in source.tag_links
+        ])
+
     await session.commit()
     await session.refresh(duplicated)
     return duplicated

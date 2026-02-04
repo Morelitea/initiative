@@ -23,7 +23,7 @@ from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleMo
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.models.document import ProjectDocument
-from app.models.tag import Tag, ProjectTag
+from app.models.tag import Tag, ProjectTag, TaskTag
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import documents as documents_service
@@ -282,6 +282,7 @@ async def _duplicate_template_tasks(
             selectinload(Task.assignees),
             selectinload(Task.task_status),
             selectinload(Task.subtasks),
+            selectinload(Task.tag_links),
         )
         .where(Task.project_id == template.id)
         .order_by(Task.sort_order.asc(), Task.id.asc())
@@ -330,6 +331,17 @@ async def _duplicate_template_tasks(
                         position=subtask.position,
                     )
                     for subtask in template_task.subtasks
+                ]
+            )
+        if template_task.tag_links:
+            session.add_all(
+                [
+                    TaskTag(
+                        task_id=new_task.id,
+                        tag_id=link.tag_id,
+                        guild_id=new_project.guild_id,
+                    )
+                    for link in template_task.tag_links
                 ]
             )
 
@@ -918,6 +930,17 @@ async def duplicate_project(
                     guild_id=guild_context.guild_id,
                 )
                 session.add(read_permission)
+
+    # Copy tags from source project
+    if source_project.tag_links:
+        session.add_all([
+            ProjectTag(
+                project_id=new_project.id,
+                tag_id=link.tag_id,
+                guild_id=guild_context.guild_id,
+            )
+            for link in source_project.tag_links
+        ])
 
     # Clone task statuses from source project to new project
     status_mapping = await task_statuses_service.clone_statuses(

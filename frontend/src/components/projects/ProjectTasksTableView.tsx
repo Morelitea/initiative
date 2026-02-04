@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
+import { TagBadge } from "@/components/tags/TagBadge";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -295,6 +296,27 @@ const ProjectTasksTableViewComponent = ({
           return <TaskPrioritySelector task={task} disabled={statusDisabled} />;
         },
         sortingFn: prioritySortingFn,
+      },
+      {
+        id: "tags",
+        header: () => <span className="font-medium">Tags</span>,
+        cell: ({ row }) => {
+          const taskTags = row.original.tags ?? [];
+          if (taskTags.length === 0) {
+            return <span className="text-muted-foreground text-sm">—</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {taskTags.slice(0, 3).map((tag) => (
+                <TagBadge key={tag.id} tag={tag} size="sm" />
+              ))}
+              {taskTags.length > 3 && (
+                <span className="text-muted-foreground text-xs">+{taskTags.length - 3}</span>
+              )}
+            </div>
+          );
+        },
+        size: 150,
       },
       {
         id: "comments",

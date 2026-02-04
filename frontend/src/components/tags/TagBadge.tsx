@@ -35,9 +35,20 @@ interface TagBadgeProps {
   className?: string;
 }
 
+const MAX_SEGMENT_LENGTH = 12;
+
+function truncateSegment(segment: string, maxLength: number): string {
+  if (segment.length <= maxLength) return segment;
+  return segment.slice(0, maxLength - 3) + "...";
+}
+
 export function TagBadge({ tag, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
   const textColor = getContrastColor(tag.color);
   const isClickable = !!onClick;
+
+  // Truncate each segment individually (e.g., "long-name/a" -> "long-na.../a")
+  const segments = tag.name.split("/");
+  const displayName = segments.map((s) => truncateSegment(s, MAX_SEGMENT_LENGTH)).join("/");
 
   return (
     <span
@@ -65,8 +76,9 @@ export function TagBadge({ tag, onClick, onRemove, size = "sm", className }: Tag
         backgroundColor: tag.color,
         color: textColor,
       }}
+      title={tag.name}
     >
-      <span className="truncate">{tag.name}</span>
+      <span className="truncate">{displayName}</span>
       {onRemove && (
         <button
           type="button"
