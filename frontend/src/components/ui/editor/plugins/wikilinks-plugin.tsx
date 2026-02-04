@@ -4,8 +4,12 @@ import { MenuOption, MenuTextMatch } from "@lexical/react/LexicalTypeaheadMenuPl
 import {
   $getNodeByKey,
   $getNearestNodeFromDOMNode,
+  $getSelection,
+  $isRangeSelection,
+  $isTextNode,
   CLICK_COMMAND,
   COMMAND_PRIORITY_LOW,
+  LexicalEditor,
   TextNode,
 } from "lexical";
 import { createPortal } from "react-dom";
@@ -21,19 +25,61 @@ const LexicalTypeaheadMenuPlugin = lazy(() =>
   }))
 );
 
-// Regex to match [[ followed by any characters
+// Regex to match [[ followed by any characters (for partial wikilinks)
 const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
 
-function checkForWikilinkTrigger(text: string): MenuTextMatch | null {
+// Regex to match complete wikilinks [[...]]
+const COMPLETE_WIKILINK_REGEX = /\[\[([^\]]{1,75})\]\]/;
+
+function checkForWikilinkTrigger(text: string, editor: LexicalEditor): MenuTextMatch | null {
   const match = WIKILINK_TRIGGER_REGEX.exec(text);
   if (match !== null) {
-    const matchingString = match[1];
-    // Calculate leadOffset: index where the `[[` starts
+    let matchingString = match[1];
+    let replaceableString = match[0].trim();
     const leadOffset = match.index + (match[0].startsWith(" ") ? 1 : 0);
+
+    // Check if we're inside a complete wikilink by looking at full text around cursor
+    let fullWikilinkTitle: string | null = null;
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+
+      const anchorNode = selection.anchor.getNode();
+      if (!$isTextNode(anchorNode)) return;
+
+      const fullText = anchorNode.getTextContent();
+      const cursorOffset = selection.anchor.offset;
+
+      // Find the [[ before cursor and ]] after cursor
+      const textBeforeCursor = fullText.slice(0, cursorOffset);
+      const textAfterCursor = fullText.slice(cursorOffset);
+
+      // Check if there's an opening [[ before cursor (we already know there is from the regex)
+      const openBracketIndex = textBeforeCursor.lastIndexOf("[[");
+      if (openBracketIndex === -1) return;
+
+      // Check if there's a closing ]] after cursor
+      const closeBracketIndex = textAfterCursor.indexOf("]]");
+      if (closeBracketIndex === -1) return;
+
+      // Extract the full title between [[ and ]]
+      const fullWikilink = fullText.slice(openBracketIndex, cursorOffset + closeBracketIndex + 2);
+      const fullMatch = COMPLETE_WIKILINK_REGEX.exec(fullWikilink);
+      if (fullMatch) {
+        fullWikilinkTitle = fullMatch[1];
+      }
+    });
+
+    // If we found a complete wikilink, use the full title
+    if (fullWikilinkTitle !== null) {
+      matchingString = fullWikilinkTitle;
+      replaceableString = `[[${fullWikilinkTitle}]]`;
+    }
+
     return {
       leadOffset,
       matchingString,
-      replaceableString: match[0].trim(),
+      replaceableString,
     };
   }
   return null;
@@ -206,9 +252,12 @@ export function WikilinksPlugin({
     [editor]
   );
 
-  const checkForTriggerMatch = useCallback((text: string) => {
-    return checkForWikilinkTrigger(text);
-  }, []);
+  const checkForTriggerMatch = useCallback(
+    (text: string) => {
+      return checkForWikilinkTrigger(text, editor);
+    },
+    [editor]
+  );
 
   if (initiativeId === null) {
     return null;
