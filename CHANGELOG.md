@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backlinks section shows documents that link to the current document
   - Document titles must be unique within each initiative
 
+### Fixed
+
+- Race condition in recording recent project views causing duplicate key errors
+
 ## [0.20.1] - 2026-02-03
 
 ### Changed

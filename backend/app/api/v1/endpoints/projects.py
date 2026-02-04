@@ -541,20 +541,29 @@ async def _record_recent_project_view(
     user_id: int,
     project_id: int,
 ) -> RecentProjectView:
-    stmt = select(RecentProjectView).where(
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    now = datetime.now(timezone.utc)
+    # Use upsert to handle race conditions
+    stmt = pg_insert(RecentProjectView).values(
+        user_id=user_id,
+        project_id=project_id,
+        last_viewed_at=now,
+    ).on_conflict_do_update(
+        index_elements=["user_id", "project_id"],
+        set_={"last_viewed_at": now},
+    )
+
+    await session.execute(stmt)
+    await session.commit()
+
+    # Fetch the record we just upserted
+    fetch_stmt = select(RecentProjectView).where(
         RecentProjectView.user_id == user_id,
         RecentProjectView.project_id == project_id,
     )
-    result = await session.exec(stmt)
-    record = result.one_or_none()
-    now = datetime.now(timezone.utc)
-    if record:
-        record.last_viewed_at = now
-    else:
-        record = RecentProjectView(user_id=user_id, project_id=project_id, last_viewed_at=now)
-        session.add(record)
-    await session.commit()
-    await session.refresh(record)
+    result = await session.exec(fetch_stmt)
+    record = result.one()
 
     prune_stmt = (
         select(RecentProjectView)
@@ -821,6 +830,16 @@ async def create_project(
             status_mapping=status_mapping,
             fallback_status_ids=fallback_status_ids,
         )
+        # Copy tags from template project
+        template_tag_links = getattr(template_project, "tag_links", None) or []
+        if template_tag_links:
+            session.add_all([
+                ProjectTag(
+                    project_id=project.id,
+                    tag_id=link.tag_id,
+                )
+                for link in template_tag_links
+            ])
 
     await session.commit()
 
@@ -931,13 +950,14 @@ async def duplicate_project(
                 session.add(read_permission)
 
     # Copy tags from source project
-    if source_project.tag_links:
+    source_tag_links = getattr(source_project, "tag_links", None) or []
+    if source_tag_links:
         session.add_all([
             ProjectTag(
                 project_id=new_project.id,
                 tag_id=link.tag_id,
             )
-            for link in source_project.tag_links
+            for link in source_tag_links
         ])
 
     # Clone task statuses from source project to new project
