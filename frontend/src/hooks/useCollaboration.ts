@@ -109,11 +109,15 @@ export function useCollaboration({
     return { token, guildId: activeGuildId };
   }, [token, activeGuildId]);
 
-  // Clean up provider when URL changes (token refresh, guild change, etc.)
+  // Clean up provider when URL changes (token refresh, guild change, document change, etc.)
   useEffect(() => {
     if (currentWsUrlRef.current && currentWsUrlRef.current !== wsUrl) {
       providerRef.current?.destroy();
       providerRef.current = null;
+      // Reset state when switching documents - critical for navigation
+      setConnectionStatus("disconnected");
+      setIsSynced(false);
+      setCollaborators([]);
     }
     currentWsUrlRef.current = wsUrl;
   }, [wsUrl]);
@@ -133,11 +137,20 @@ export function useCollaboration({
         return providerRef.current;
       }
 
-      // Destroy any existing provider first
+      // Switching to a new document - destroy old provider and reset state
       if (providerRef.current) {
         providerRef.current.destroy();
         providerRef.current = null;
       }
+
+      // Reset state for the new document
+      setConnectionStatus("disconnected");
+      setIsSynced(false);
+      setCollaborators([]);
+
+      // Update the URL ref BEFORE creating the provider
+      // This prevents the wsUrl effect from destroying the new provider
+      currentWsUrlRef.current = wsUrl;
 
       // Get or create the Y.Doc
       let doc = yjsDocMap.get(id);
@@ -170,7 +183,7 @@ export function useCollaboration({
           const status = statusObj.status;
           if (status === "connected") {
             setConnectionStatus("connected");
-            // Start sync timeout - if we don't sync within 10s, emit error
+            // Start sync timeout - if we don't sync within 5s, emit error
             if (syncTimeoutRef.current) {
               clearTimeout(syncTimeoutRef.current);
             }
@@ -180,7 +193,7 @@ export function useCollaboration({
                 setConnectionStatus("error");
                 onErrorRef.current?.(new Error("Sync timeout - document failed to load"));
               }
-            }, 10000);
+            }, 5000);
           } else if (status === "connecting") {
             setConnectionStatus("connecting");
           } else if (status === "disconnected") {

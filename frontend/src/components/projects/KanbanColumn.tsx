@@ -13,6 +13,7 @@ import { summarizeRecurrence } from "@/lib/recurrence";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
+import { TagBadge } from "@/components/tags";
 
 interface KanbanColumnProps {
   status: ProjectTaskStatus;
@@ -273,6 +274,9 @@ const KanbanTaskCard = ({
             {commentCount}
           </Badge>
         ) : null}
+        {task.tags &&
+          task.tags.length > 0 &&
+          task.tags.map((tag) => <TagBadge key={tag.id} tag={tag} size="sm" />)}
       </div>
     </div>
   );

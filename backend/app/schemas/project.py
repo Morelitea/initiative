@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.models.project import ProjectPermissionLevel
 from app.schemas.initiative import InitiativeRead
 from app.schemas.document import ProjectDocumentSummary
+from app.schemas.tag import TagSummary
 from app.schemas.user import UserPublic
 from app.schemas.comment import CommentAuthor
 
@@ -88,6 +89,7 @@ class ProjectRead(ProjectBase):
     last_viewed_at: Optional[datetime] = None
     documents: List[ProjectDocumentSummary] = Field(default_factory=list)
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
+    tags: List[TagSummary] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

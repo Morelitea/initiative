@@ -272,6 +272,31 @@ class CollaborationManager:
                     del self._rooms[document_id]
                     logger.info(f"Removed empty collaboration room for document {document_id}")
 
+    async def invalidate_room_if_empty(self, document_id: int) -> bool:
+        """Remove a room if it exists and has no active collaborators.
+
+        Used when document content is modified externally (e.g., unresolving wikilinks
+        when a target document is deleted) to ensure the next session loads fresh
+        state from the database instead of using stale in-memory state.
+
+        Returns True if room was removed, False if room has active collaborators
+        (in which case they'll have stale state until they reload).
+        """
+        async with self._lock:
+            room = self._rooms.get(document_id)
+            if not room:
+                return True  # No room, nothing to invalidate
+            if room.is_empty():
+                del self._rooms[document_id]
+                logger.info(f"Invalidated empty collaboration room for document {document_id}")
+                return True
+            else:
+                logger.warning(
+                    f"Document {document_id} has active collaborators - "
+                    "they may see stale wikilinks until reload"
+                )
+                return False
+
     async def persist_room(self, document_id: int, session: AsyncSession) -> None:
         """Persist the current room state to the database."""
         # Capture state while holding the lock to ensure consistency

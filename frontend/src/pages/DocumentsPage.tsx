@@ -42,13 +42,16 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
+import type { DocumentRead, DocumentSummary, Initiative, Tag, TagSummary } from "@/types/api";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
+import { TagPicker } from "@/components/tags/TagPicker";
+import { useTags } from "@/hooks/useTags";
 
 const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
+const DOCUMENT_TAG_FILTERS_KEY = "documents:tag-filters";
 const getDefaultDocumentFiltersVisibility = () => {
   if (typeof window === "undefined") {
     return true;
@@ -216,6 +219,28 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     const stored = localStorage.getItem(DOCUMENT_VIEW_KEY);
     return stored === "table" || stored === "grid" ? stored : "grid";
   });
+  const [tagFilters, setTagFilters] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(DOCUMENT_TAG_FILTERS_KEY);
+    if (!stored) return [];
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed.filter(Number.isFinite) : [];
+    } catch {
+      return [];
+    }
+  });
+  const { data: allTags = [] } = useTags();
+
+  // Convert tag IDs to Tag objects for TagPicker
+  const selectedTagsForFilter = useMemo(() => {
+    const tagMap = new Map(allTags.map((t) => [t.id, t]));
+    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is Tag => t !== undefined);
+  }, [allTags, tagFilters]);
+
+  const handleTagFiltersChange = (newTags: TagSummary[]) => {
+    setTagFilters(newTags.map((t) => t.id));
+  };
 
   useEffect(() => {
     if (lockedInitiativeId) {
@@ -238,15 +263,18 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: [
       "documents",
-      { guildId: activeGuildId, initiative: initiativeFilter, search: searchQuery },
+      { guildId: activeGuildId, initiative: initiativeFilter, search: searchQuery, tagFilters },
     ],
     queryFn: async () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | string[]> = {};
       if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
         params.initiative_id = initiativeFilter;
       }
       if (searchQuery.trim()) {
         params.search = searchQuery.trim();
+      }
+      if (tagFilters.length > 0) {
+        params.tag_ids = tagFilters.map(String);
       }
       const response = await apiClient.get<DocumentSummary[]>("/documents/", { params });
       return response.data;
@@ -361,6 +389,10 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   useEffect(() => {
     localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem(DOCUMENT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
+  }, [tagFilters]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -600,6 +632,20 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
                 </Select>
               </div>
             )}
+            <div className="w-full space-y-2 sm:w-48">
+              <Label
+                htmlFor="document-tag-filter"
+                className="text-muted-foreground text-xs font-medium"
+              >
+                Filter by tag
+              </Label>
+              <TagPicker
+                selectedTags={selectedTagsForFilter}
+                onChange={handleTagFiltersChange}
+                placeholder="All tags"
+                variant="filter"
+              />
+            </div>
           </div>
         </CollapsibleContent>
       </Collapsible>

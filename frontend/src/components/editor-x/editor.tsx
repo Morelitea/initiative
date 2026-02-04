@@ -73,6 +73,22 @@ export interface EditorProps {
    * Used to show a loading overlay while syncing.
    */
   isSynced?: boolean;
+  // Wikilinks props
+  /**
+   * Initiative ID for wikilink document search.
+   * Wikilinks only work within the same initiative.
+   */
+  initiativeId?: number | null;
+  /**
+   * Callback when a resolved wikilink is clicked.
+   * Called with the document ID to navigate to.
+   */
+  onWikilinkNavigate?: (documentId: number) => void;
+  /**
+   * Callback when an unresolved wikilink is clicked.
+   * Called with the document title and a callback to update the wikilink with the new document ID.
+   */
+  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }
 
 export function Editor({
@@ -89,6 +105,9 @@ export function Editor({
   providerFactory,
   trackChanges,
   isSynced = true,
+  initiativeId = null,
+  onWikilinkNavigate,
+  onWikilinkCreate,
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(getRandomColor());
@@ -151,6 +170,9 @@ export function Editor({
             documentName={documentName}
             collaborative={useCollaborativeMode}
             cursorsContainerRef={cursorsContainerRef}
+            initiativeId={initiativeId}
+            onWikilinkNavigate={onWikilinkNavigate}
+            onWikilinkCreate={onWikilinkCreate}
           />
 
           {/* Official Lexical CollaborationPlugin for real-time editing */}

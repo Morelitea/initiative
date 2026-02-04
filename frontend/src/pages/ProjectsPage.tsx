@@ -78,12 +78,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TagPicker } from "@/components/tags/TagPicker";
+import { useTags } from "@/hooks/useTags";
+import type { Tag, TagSummary } from "@/types/api";
 
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
 const PROJECT_VIEW_KEY = "project:list:view-mode";
+const PROJECT_TAG_FILTERS_KEY = "project:list:tag-filters";
 const getDefaultFiltersVisibility = () => {
   if (typeof window === "undefined") {
     return true;
@@ -243,6 +247,28 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   });
   const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+  const [tagFilters, setTagFilters] = useState<number[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(PROJECT_TAG_FILTERS_KEY);
+    if (!stored) return [];
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed.filter(Number.isFinite) : [];
+    } catch {
+      return [];
+    }
+  });
+  const { data: allTags = [] } = useTags();
+
+  // Convert tag IDs to Tag objects for TagPicker
+  const selectedTagsForFilter = useMemo(() => {
+    const tagMap = new Map(allTags.map((t) => [t.id, t]));
+    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is Tag => t !== undefined);
+  }, [allTags, tagFilters]);
+
+  const handleTagFiltersChange = (newTags: TagSummary[]) => {
+    setTagFilters(newTags.map((t) => t.id));
+  };
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: ["projects", { guildId: activeGuildId }],
@@ -424,6 +450,10 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   useEffect(() => {
     localStorage.setItem(PROJECT_VIEW_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem(PROJECT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
+  }, [tagFilters]);
   useEffect(() => {
     if (isTemplateProject) {
       return;
@@ -508,6 +538,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
 
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const tagFilterSet = new Set(tagFilters);
     return projects.filter((project) => {
       const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
       // Filter by viewable initiatives (role permissions)
@@ -521,9 +552,19 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
           projectInitiativeId !== undefined &&
           initiativeFilter === projectInitiativeId.toString());
       const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
-      return matchesSearch && matchesInitiative && matchesFavorites;
+      const matchesTags =
+        tagFilterSet.size === 0 || (project.tags?.some((tag) => tagFilterSet.has(tag.id)) ?? false);
+      return matchesSearch && matchesInitiative && matchesFavorites && matchesTags;
     });
-  }, [projects, searchQuery, initiativeFilter, favoritesOnly, user, viewableInitiativeIds]);
+  }, [
+    projects,
+    searchQuery,
+    initiativeFilter,
+    favoritesOnly,
+    tagFilters,
+    user,
+    viewableInitiativeIds,
+  ]);
 
   const pinnedProjects = useMemo(() => {
     return filteredProjects
@@ -859,6 +900,20 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
                       />
                       <span className="text-muted-foreground text-sm">Show only favorites</span>
                     </div>
+                  </div>
+                  <div className="w-full sm:w-48">
+                    <Label
+                      htmlFor="tag-filter"
+                      className="text-muted-foreground text-xs font-medium"
+                    >
+                      Filter by tag
+                    </Label>
+                    <TagPicker
+                      selectedTags={selectedTagsForFilter}
+                      onChange={handleTagFiltersChange}
+                      placeholder="All tags"
+                      variant="filter"
+                    />
                   </div>
                 </div>
               </CollapsibleContent>

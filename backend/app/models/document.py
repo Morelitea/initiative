@@ -9,6 +9,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
     from app.models.project import Project
+    from app.models.tag import DocumentTag
 
 
 class DocumentType(str, Enum):
@@ -93,6 +94,10 @@ class Document(SQLModel, table=True):
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    tag_links: List["DocumentTag"] = Relationship(
+        back_populates="document",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class ProjectDocument(SQLModel, table=True):
@@ -140,3 +145,16 @@ class DocumentPermission(SQLModel, table=True):
     )
 
     document: Optional[Document] = Relationship(back_populates="permissions")
+
+
+class DocumentLink(SQLModel, table=True):
+    """Tracks wikilinks between documents for backlinks queries."""
+    __tablename__ = "document_links"
+
+    source_document_id: int = Field(foreign_key="documents.id", primary_key=True)
+    target_document_id: int = Field(foreign_key="documents.id", primary_key=True)
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

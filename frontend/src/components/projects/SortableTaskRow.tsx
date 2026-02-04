@@ -17,6 +17,7 @@ import { summarizeRecurrence } from "@/lib/recurrence";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
+import { TagBadge } from "@/components/tags";
 
 interface SortableTaskRowProps {
   task: Task;
@@ -155,6 +156,13 @@ export const SortableTaskRow = ({
               progress={task.subtask_progress}
               className="mt-2 max-w-[200px]"
             />
+            {task.tags && task.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {task.tags.map((tag) => (
+                  <TagBadge key={tag.id} tag={tag} size="sm" />
+                ))}
+              </div>
+            )}
           </button>
         </div>
       </td>

@@ -57,7 +57,7 @@ type ErrorCallback = (error: Error) => void;
 // Global connection tracking to prevent rapid reconnection loops
 const activeProviders = new Map<string, CollaborationProvider>();
 const connectionAttempts = new Map<string, { count: number; lastAttempt: number }>();
-const MAX_ATTEMPTS_PER_MINUTE = 5;
+const MAX_ATTEMPTS_PER_MINUTE = 10;
 
 /**
  * Get or create a CollaborationProvider for the given URL.

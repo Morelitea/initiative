@@ -25,6 +25,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
+import { useTags } from "@/hooks/useTags";
 import type {
   TaskRecurrenceStrategy,
   ProjectTaskStatus,
@@ -67,6 +68,7 @@ type StoredFilters = {
   assigneeFilters: string[];
   dueFilter: DueFilterOption;
   statusFilters: number[];
+  tagFilters: number[];
   showArchived: boolean;
 };
 
@@ -125,7 +127,11 @@ export const ProjectTasksSection = ({
   const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
   const [statusFilters, setStatusFilters] = useState<number[]>([]);
+  const [tagFilters, setTagFilters] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+
+  // Fetch guild tags for filtering
+  const { data: tags = [] } = useTags();
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -139,7 +145,7 @@ export const ProjectTasksSection = ({
 
   // Fetch tasks with server-side filtering
   const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", projectId, assigneeFilters, statusFilters, showArchived],
+    queryKey: ["tasks", projectId, assigneeFilters, statusFilters, tagFilters, showArchived],
     queryFn: async () => {
       const params: Record<string, number | string[] | number[] | boolean> = {
         project_id: projectId,
@@ -153,6 +159,11 @@ export const ProjectTasksSection = ({
       // Add status filters (array)
       if (statusFilters.length > 0) {
         params.task_status_ids = statusFilters;
+      }
+
+      // Add tag filters (array)
+      if (tagFilters.length > 0) {
+        params.tag_ids = tagFilters;
       }
 
       // Include archived tasks if requested
@@ -230,6 +241,7 @@ export const ProjectTasksSection = ({
     setAssigneeFilters([]);
     setDueFilter("all");
     setStatusFilters([]);
+    setTagFilters([]);
     setShowArchived(false);
 
     try {
@@ -253,6 +265,9 @@ export const ProjectTasksSection = ({
         if (Array.isArray(parsed.statusFilters)) {
           setStatusFilters(parsed.statusFilters);
         }
+        if (Array.isArray(parsed.tagFilters)) {
+          setTagFilters(parsed.tagFilters);
+        }
         if (typeof parsed.showArchived === "boolean") {
           setShowArchived(parsed.showArchived);
         }
@@ -273,6 +288,7 @@ export const ProjectTasksSection = ({
       assigneeFilters,
       dueFilter,
       statusFilters,
+      tagFilters,
       showArchived,
     };
     localStorage.setItem(filterStorageKey, JSON.stringify(payload));
@@ -284,6 +300,7 @@ export const ProjectTasksSection = ({
     assigneeFilters,
     dueFilter,
     statusFilters,
+    tagFilters,
     showArchived,
   ]);
 
@@ -893,13 +910,16 @@ export const ProjectTasksSection = ({
               viewMode={viewMode}
               taskStatuses={sortedTaskStatuses}
               userOptions={userOptions}
+              tags={tags}
               assigneeFilters={assigneeFilters}
               dueFilter={dueFilter}
               statusFilters={statusFilters}
+              tagFilters={tagFilters}
               showArchived={showArchived}
               onAssigneeFiltersChange={setAssigneeFilters}
               onDueFilterChange={setDueFilter}
               onStatusFiltersChange={setStatusFilters}
+              onTagFiltersChange={setTagFilters}
               onShowArchivedChange={setShowArchived}
             />
           </CollapsibleContent>
