@@ -61,9 +61,8 @@ class TaskTag(SQLModel, table=True):
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    task_id: int = Field(foreign_key="tasks.id", primary_key=True, index=True)
+    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -79,9 +78,8 @@ class ProjectTag(SQLModel, table=True):
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    project_id: int = Field(foreign_key="projects.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    project_id: int = Field(foreign_key="projects.id", primary_key=True, index=True)
+    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -97,9 +95,8 @@ class DocumentTag(SQLModel, table=True):
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tags.id", primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    document_id: int = Field(foreign_key="documents.id", primary_key=True, index=True)
+    tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

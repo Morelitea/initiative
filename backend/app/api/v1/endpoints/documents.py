@@ -969,7 +969,6 @@ async def set_document_tags(
         document_tag = DocumentTag(
             document_id=document_id,
             tag_id=tag_id,
-            guild_id=guild_context.guild_id,
         )
         session.add(document_tag)
 

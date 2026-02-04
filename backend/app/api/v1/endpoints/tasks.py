@@ -909,7 +909,7 @@ async def duplicate_task(
     # Copy tags
     if original_task.tag_links:
         session.add_all([
-            TaskTag(task_id=new_task.id, tag_id=link.tag_id, guild_id=guild_context.guild_id)
+            TaskTag(task_id=new_task.id, tag_id=link.tag_id)
             for link in original_task.tag_links
         ])
 
@@ -1454,7 +1454,7 @@ async def set_task_tags(
     task_id_to_update = task.id
     if unique_tag_ids:
         session.add_all([
-            TaskTag(task_id=task_id_to_update, tag_id=tag_id, guild_id=guild_context.guild_id)
+            TaskTag(task_id=task_id_to_update, tag_id=tag_id)
             for tag_id in unique_tag_ids
         ])
 

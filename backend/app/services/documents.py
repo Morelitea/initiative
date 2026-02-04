@@ -181,7 +181,6 @@ async def duplicate_document(
             DocumentTag(
                 document_id=duplicated.id,
                 tag_id=link.tag_id,
-                guild_id=guild_id or source.guild_id,
             )
             for link in source.tag_links
         ])

@@ -937,7 +937,6 @@ async def duplicate_project(
             ProjectTag(
                 project_id=new_project.id,
                 tag_id=link.tag_id,
-                guild_id=guild_context.guild_id,
             )
             for link in source_project.tag_links
         ])
@@ -1737,7 +1736,6 @@ async def set_project_tags(
         project_tag = ProjectTag(
             project_id=project_id,
             tag_id=tag_id,
-            guild_id=guild_context.guild_id,
         )
         session.add(project_tag)
 
