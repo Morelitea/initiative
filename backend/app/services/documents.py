@@ -6,6 +6,7 @@ from typing import Any, Sequence
 
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -14,6 +15,7 @@ from app.models.document import Document, DocumentLink, DocumentPermission, Docu
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole, InitiativeRoleModel
 from app.models.project import Project
 from app.services import attachments as attachments_service
+from app.services.collaboration import collaboration_manager
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -286,24 +288,77 @@ def extract_wikilink_document_ids(content: dict[str, Any] | None) -> set[int]:
     return document_ids
 
 
+def unresolve_invalid_wikilinks(content: dict[str, Any], valid_doc_ids: set[int]) -> bool:
+    """Set documentId to null for wikilinks pointing to non-existent documents.
+
+    This fixes stale wikilinks that reference deleted documents.
+    Returns True if any changes were made.
+    """
+    changed = False
+
+    def walk(node: Any) -> None:
+        nonlocal changed
+        if not isinstance(node, dict):
+            return
+        if node.get("type") == "wikilink":
+            doc_id = node.get("documentId")
+            if isinstance(doc_id, int) and doc_id > 0 and doc_id not in valid_doc_ids:
+                node["documentId"] = None
+                changed = True
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                walk(child)
+
+    root = content.get("root")
+    if isinstance(root, dict):
+        walk(root)
+
+    return changed
+
+
 async def sync_document_links(
     session: AsyncSession,
     *,
     document_id: int,
     content: dict[str, Any] | None,
     guild_id: int | None = None,
-) -> None:
+    fix_content: bool = False,
+) -> dict[str, Any] | None:
     """Sync the document_links table based on WikilinkNodes in the content.
 
     This extracts all wikilink document IDs from the content and updates
     the document_links table to reflect the current state:
-    - Adds new links
+    - Adds new links (only to documents that exist)
     - Removes links that no longer exist in the content
+
+    If fix_content=True, also unresolves any wikilinks pointing to deleted
+    documents and returns the fixed content. Otherwise returns None.
 
     Called on document save to keep backlinks up to date.
     """
+    if not content or not isinstance(content, dict):
+        return None
+
     # Extract current wikilink targets
     current_target_ids = extract_wikilink_document_ids(content)
+
+    # Validate which target documents actually exist
+    # This prevents FK violations when wikilinks point to deleted documents
+    if current_target_ids:
+        valid_docs_stmt = select(Document.id).where(Document.id.in_(current_target_ids))
+        valid_docs_result = await session.exec(valid_docs_stmt)
+        valid_target_ids = set(valid_docs_result.all())
+    else:
+        valid_target_ids = set()
+
+    # Optionally fix stale wikilinks in the content
+    fixed_content = None
+    if fix_content and current_target_ids:
+        invalid_ids = current_target_ids - valid_target_ids
+        if invalid_ids:
+            fixed_content = deepcopy(content)
+            unresolve_invalid_wikilinks(fixed_content, valid_target_ids)
 
     # Get existing links from database
     stmt = select(DocumentLink).where(DocumentLink.source_document_id == document_id)
@@ -311,11 +366,11 @@ async def sync_document_links(
     existing_links = result.all()
     existing_target_ids = {link.target_document_id for link in existing_links}
 
-    # Determine adds and removes
-    to_add = current_target_ids - existing_target_ids
-    to_remove = existing_target_ids - current_target_ids
+    # Determine adds and removes (only add links to valid documents)
+    to_add = valid_target_ids - existing_target_ids
+    to_remove = existing_target_ids - valid_target_ids
 
-    # Remove old links
+    # Remove old links (including links to documents that no longer exist)
     for link in existing_links:
         if link.target_document_id in to_remove:
             await session.delete(link)
@@ -332,6 +387,8 @@ async def sync_document_links(
     # Flush but don't commit - let caller handle transaction
     if to_add or to_remove:
         await session.flush()
+
+    return fixed_content
 
 
 async def get_backlinks(
@@ -363,3 +420,88 @@ async def get_backlinks(
 
     result = await session.exec(stmt)
     return list(result.all())
+
+
+def _unresolve_wikilinks_in_content(content: dict[str, Any], target_document_id: int) -> bool:
+    """Set documentId to null for wikilinks pointing to the target document.
+
+    Returns True if any changes were made.
+    """
+    changed = False
+
+    def walk(node: Any) -> None:
+        nonlocal changed
+        if not isinstance(node, dict):
+            return
+        # Check if this is a wikilink node pointing to the target
+        if node.get("type") == "wikilink" and node.get("documentId") == target_document_id:
+            node["documentId"] = None
+            changed = True
+        # Recursively process children
+        children = node.get("children")
+        if isinstance(children, list):
+            for child in children:
+                walk(child)
+
+    root = content.get("root")
+    if isinstance(root, dict):
+        walk(root)
+
+    return changed
+
+
+async def unresolve_wikilinks_to_document(
+    session: AsyncSession,
+    *,
+    deleted_document_id: int,
+) -> None:
+    """Unresolve all wikilinks pointing to a document that is being deleted.
+
+    This updates the content of all documents that link to the deleted document,
+    setting the wikilink's documentId to null so they appear as unresolved.
+    Also removes the corresponding document_links entries and invalidates
+    any in-memory collaboration rooms.
+
+    Should be called before deleting a document.
+    """
+    # Find all documents that link to this document
+    stmt = (
+        select(Document)
+        .join(DocumentLink, DocumentLink.source_document_id == Document.id)
+        .where(DocumentLink.target_document_id == deleted_document_id)
+    )
+    result = await session.exec(stmt)
+    linking_documents = list(result.all())
+
+    # Track document IDs that need their collaboration rooms invalidated
+    affected_doc_ids: list[int] = []
+
+    # Update each document's content to unresolve the wikilinks
+    for doc in linking_documents:
+        if doc.content and isinstance(doc.content, dict):
+            # Make a deep copy to avoid mutating the original
+            updated_content = deepcopy(doc.content)
+            if _unresolve_wikilinks_in_content(updated_content, deleted_document_id):
+                doc.content = updated_content
+                # Clear yjs_state so collaboration will bootstrap from updated content
+                # This is necessary because yjs_state takes precedence when loading
+                doc.yjs_state = None
+                # Explicitly mark content as modified for SQLAlchemy to detect the change
+                flag_modified(doc, "content")
+                session.add(doc)
+                affected_doc_ids.append(doc.id)
+
+    # Delete the document_links entries pointing to this document
+    links_stmt = select(DocumentLink).where(DocumentLink.target_document_id == deleted_document_id)
+    links_result = await session.exec(links_stmt)
+    for link in links_result.all():
+        await session.delete(link)
+
+    # Flush changes (caller will commit)
+    await session.flush()
+
+    # Invalidate any in-memory collaboration rooms for affected documents
+    # This prevents persist_room from overwriting our changes when users disconnect
+    # Note: If a room has active collaborators, they'll have stale wikilinks until reload
+    for doc_id in affected_doc_ids:
+        await collaboration_manager.invalidate_room_if_empty(doc_id)

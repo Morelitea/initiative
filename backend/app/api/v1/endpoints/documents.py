@@ -377,6 +377,15 @@ async def create_document(
         guild_id=guild_context.guild_id,
     )
     session.add(owner_permission)
+
+    # Sync wikilinks to document_links table
+    await documents_service.sync_document_links(
+        session,
+        document_id=document.id,
+        content=document.content,
+        guild_id=guild_context.guild_id,
+    )
+
     await session.commit()
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
@@ -832,6 +841,8 @@ async def delete_document(
     # For file documents, also delete the uploaded file
     if document.file_url:
         removed_upload_urls.add(document.file_url)
+    # Unresolve any wikilinks pointing to this document before deletion
+    await documents_service.unresolve_wikilinks_to_document(session, deleted_document_id=document_id)
     await session.delete(document)
     await session.commit()
     attachments_service.delete_uploads_by_urls(removed_upload_urls)

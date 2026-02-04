@@ -29,6 +29,7 @@ from app.services.collaboration import (
     CollaboratorInfo,
     collaboration_manager,
 )
+from app.services import documents as documents_service
 from app.services import user_tokens
 
 router = APIRouter()
@@ -391,7 +392,17 @@ async def sync_document_content(
 
     # Update the content column
     try:
-        document.content = content
+        # Sync wikilinks to document_links table, and fix any stale wikilinks
+        # that point to deleted documents
+        fixed_content = await documents_service.sync_document_links(
+            session,
+            document_id=document_id,
+            content=content,
+            guild_id=guild_id,
+            fix_content=True,
+        )
+        # Use the fixed content if wikilinks were corrected, otherwise use original
+        document.content = fixed_content if fixed_content else content
         session.add(document)
         await session.commit()
         logger.info(f"Sync content: Updated content for document {document_id} by {user.email}")
