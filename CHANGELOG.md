@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document wikilinks with `[[Document Title]]` syntax
   - Type `[[` in the editor to search for documents in the current initiative
   - Autocomplete shows existing documents, with option to create new ones
-  - Resolved links display in blue; unresolved links display in red/italic
+  - Resolved links display in blue; unresolved links display in grey/italic
   - Click links to navigate or create documents
   - Backlinks section shows documents that link to the current document
   - Document titles must be unique within each initiative
