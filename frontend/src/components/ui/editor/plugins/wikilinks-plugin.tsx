@@ -31,15 +31,20 @@ const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
 // Regex to match complete wikilinks [[...]]
 const COMPLETE_WIKILINK_REGEX = /\[\[([^\]]{1,75})\]\]/;
 
+// Store trailing text to clean up after selection (text after cursor including ]])
+let pendingTrailingCleanup: string | null = null;
+
 function checkForWikilinkTrigger(text: string, editor: LexicalEditor): MenuTextMatch | null {
   const match = WIKILINK_TRIGGER_REGEX.exec(text);
   if (match !== null) {
     let matchingString = match[1];
-    let replaceableString = match[0].trim();
+    const replaceableString = match[0].trim();
     const leadOffset = match.index + (match[0].startsWith(" ") ? 1 : 0);
 
+    // Reset trailing cleanup
+    pendingTrailingCleanup = null;
+
     // Check if we're inside a complete wikilink by looking at full text around cursor
-    let fullWikilinkTitle: string | null = null;
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;
@@ -66,15 +71,11 @@ function checkForWikilinkTrigger(text: string, editor: LexicalEditor): MenuTextM
       const fullWikilink = fullText.slice(openBracketIndex, cursorOffset + closeBracketIndex + 2);
       const fullMatch = COMPLETE_WIKILINK_REGEX.exec(fullWikilink);
       if (fullMatch) {
-        fullWikilinkTitle = fullMatch[1];
+        matchingString = fullMatch[1];
+        // Store the text after cursor up to and including ]] for cleanup
+        pendingTrailingCleanup = textAfterCursor.slice(0, closeBracketIndex + 2);
       }
     });
-
-    // If we found a complete wikilink, use the full title
-    if (fullWikilinkTitle !== null) {
-      matchingString = fullWikilinkTitle;
-      replaceableString = `[[${fullWikilinkTitle}]]`;
-    }
 
     return {
       leadOffset,
@@ -240,11 +241,32 @@ export function WikilinksPlugin({
       nodeToReplace: TextNode | null,
       closeMenu: () => void
     ) => {
+      // Capture the trailing text to clean up before the editor update
+      const trailingToCleanup = pendingTrailingCleanup;
+      pendingTrailingCleanup = null;
+
       editor.update(() => {
         const wikilinkNode = $createWikilinkNode(selectedOption.title, selectedOption.documentId);
         if (nodeToReplace) {
           nodeToReplace.replace(wikilinkNode);
         }
+
+        // Clean up trailing text (e.g., " world]]" when cursor was in middle of [[hello world]])
+        if (trailingToCleanup) {
+          const nextSibling = wikilinkNode.getNextSibling();
+          if ($isTextNode(nextSibling)) {
+            const siblingText = nextSibling.getTextContent();
+            if (siblingText.startsWith(trailingToCleanup)) {
+              const remainingText = siblingText.slice(trailingToCleanup.length);
+              if (remainingText) {
+                nextSibling.setTextContent(remainingText);
+              } else {
+                nextSibling.remove();
+              }
+            }
+          }
+        }
+
         wikilinkNode.select();
         closeMenu();
       });
