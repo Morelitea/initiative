@@ -339,7 +339,6 @@ async def _duplicate_template_tasks(
                     TaskTag(
                         task_id=new_task.id,
                         tag_id=link.tag_id,
-                        guild_id=new_project.guild_id,
                     )
                     for link in template_task.tag_links
                 ]
