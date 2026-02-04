@@ -6,7 +6,7 @@ import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import {
   Settings,
   Plus,
-  FileText,
+  ScrollText,
   Star,
   CircleChevronRight,
   Users,
@@ -15,6 +15,7 @@ import {
   ChartColumn,
   SquareCheckBig,
   UserCog,
+  Tag,
 } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
@@ -46,6 +47,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { ModeToggle } from "@/components/ModeToggle";
@@ -53,10 +55,11 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
+import { useTags } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { Initiative, Project } from "@/types/api";
+import type { Initiative, Project, Tag as TagType } from "@/types/api";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
@@ -213,6 +216,9 @@ export const AppSidebar = () => {
       .slice(0, 2) || "U";
   const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
 
+  // Fetch tags for the tag browser
+  const tagsQuery = useTags();
+
   // Fetch latest DockerHub version
   const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
   const currentVersion = __APP_VERSION__;
@@ -244,94 +250,127 @@ export const AppSidebar = () => {
               </div>
             </SidebarHeader>
 
-            <SidebarContent className="flex-1 overflow-x-hidden overflow-y-auto">
-              {/* Favorites Section */}
-              {favoritesQuery?.data && favoritesQuery.data.length > 0 && (
-                <>
+            <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">
+              {/* <div className="border-b px-2"> */}
+              <TabsList className="h-9 w-full rounded-none">
+                <TabsTrigger value="initiatives" className="flex-1 text-xs">
+                  <Users className="mr-2 h-3.5 w-3.5" />
+                  Initiatives
+                </TabsTrigger>
+                <TabsTrigger value="tags" className="flex-1 text-xs">
+                  <Tag className="mr-2 h-3.5 w-3.5" />
+                  Tags
+                </TabsTrigger>
+              </TabsList>
+              {/* </div> */}
+
+              <TabsContent value="initiatives" className="mt-0 flex-1 overflow-hidden">
+                <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
+                  {/* Favorites Section */}
+                  {favoritesQuery?.data && favoritesQuery.data.length > 0 && (
+                    <>
+                      <SidebarGroup>
+                        <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                          <Star className="h-4 w-4" />
+                          Favorites
+                        </SidebarGroupLabel>
+                        <SidebarGroupContent>
+                          <SidebarMenu>
+                            {favoritesQuery.data.map((project) => (
+                              <SidebarMenuItem key={project.id}>
+                                <SidebarMenuButton
+                                  asChild
+                                  isActive={project.id === activeProjectId}
+                                >
+                                  <Link
+                                    to="/projects/$projectId"
+                                    params={{ projectId: String(project.id) }}
+                                    className="flex min-w-0 items-center gap-2"
+                                  >
+                                    {project.icon ? (
+                                      <span className="shrink-0 text-lg">{project.icon}</span>
+                                    ) : null}
+                                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            ))}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </SidebarGroup>
+                      <SidebarSeparator />
+                    </>
+                  )}
+
+                  {/* Initiatives Section */}
                   <SidebarGroup>
                     <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                      <Star className="h-4 w-4" />
-                      Favorites
+                      <Users className="h-4 w-4" /> Initiatives
                     </SidebarGroupLabel>
                     <SidebarGroupContent>
-                      <SidebarMenu>
-                        {favoritesQuery.data.map((project) => (
-                          <SidebarMenuItem key={project.id}>
-                            <SidebarMenuButton asChild isActive={project.id === activeProjectId}>
-                              <Link
-                                to="/projects/$projectId"
-                                params={{ projectId: String(project.id) }}
-                                className="flex min-w-0 items-center gap-2"
-                              >
-                                {project.icon ? (
-                                  <span className="shrink-0 text-lg">{project.icon}</span>
-                                ) : null}
-                                <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                      {initiativesQuery.isLoading ? (
+                        <div className="space-y-2 px-4">
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      ) : visibleInitiatives.length === 0 ? (
+                        <div className="text-muted-foreground px-4 py-2 text-sm">
+                          No initiatives available
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {visibleInitiatives.map((initiative) => {
+                            const permissions = getUserPermissions(initiative);
+                            return (
+                              <InitiativeSection
+                                key={initiative.id}
+                                initiative={initiative}
+                                projects={projectsByInitiative.get(initiative.id) ?? []}
+                                documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
+                                canManageInitiative={canManageInitiative(initiative)}
+                                activeProjectId={activeProjectId}
+                                userId={user?.id}
+                                canViewDocs={permissions.canViewDocs}
+                                canViewProjects={permissions.canViewProjects}
+                                canCreateDocs={permissions.canCreateDocs}
+                                canCreateProjects={permissions.canCreateProjects}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {isGuildAdmin && (
+                        <SidebarMenu>
+                          <SidebarMenuItem>
+                            <SidebarMenuButton asChild size="sm">
+                              <Link to="/initiatives" search={{ create: "true" }}>
+                                <Plus className="h-4 w-4" />
+                                <span>Add initiative</span>
                               </Link>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
-                        ))}
-                      </SidebarMenu>
+                        </SidebarMenu>
+                      )}
                     </SidebarGroupContent>
                   </SidebarGroup>
-                  <SidebarSeparator />
-                </>
-              )}
+                </SidebarContent>
+              </TabsContent>
 
-              {/* Initiatives Section */}
-              <SidebarGroup>
-                <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                  <Users className="h-4 w-4" /> Initiatives
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  {initiativesQuery.isLoading ? (
-                    <div className="space-y-2 px-4">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-8 w-full" />
-                    </div>
-                  ) : visibleInitiatives.length === 0 ? (
-                    <div className="text-muted-foreground px-4 py-2 text-sm">
-                      No initiatives available
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {visibleInitiatives.map((initiative) => {
-                        const permissions = getUserPermissions(initiative);
-                        return (
-                          <InitiativeSection
-                            key={initiative.id}
-                            initiative={initiative}
-                            projects={projectsByInitiative.get(initiative.id) ?? []}
-                            documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
-                            canManageInitiative={canManageInitiative(initiative)}
-                            activeProjectId={activeProjectId}
-                            userId={user?.id}
-                            canViewDocs={permissions.canViewDocs}
-                            canViewProjects={permissions.canViewProjects}
-                            canCreateDocs={permissions.canCreateDocs}
-                            canCreateProjects={permissions.canCreateProjects}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {isGuildAdmin && (
-                    <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild size="sm">
-                          <Link to="/initiatives" search={{ create: "true" }}>
-                            <Plus className="h-4 w-4" />
-                            <span>Add initiative</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </SidebarMenu>
-                  )}
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
+              <TabsContent value="tags" className="mt-0 flex-1 overflow-hidden">
+                <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
+                  <SidebarGroup>
+                    <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                      <Tag className="h-4 w-4" /> Tags
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent>
+                      <TagBrowser tags={tagsQuery.data ?? []} isLoading={tagsQuery.isLoading} />
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                </SidebarContent>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 
@@ -619,7 +658,7 @@ const InitiativeSection = ({
                     search={{ initiativeId: String(initiative.id) }}
                     className="flex items-center gap-2"
                   >
-                    <FileText className="h-4 w-4" />
+                    <ScrollText className="h-4 w-4" />
                     <span>Documents</span>
                     <span className="text-muted-foreground text-xs">{documentCount}</span>
                   </Link>
@@ -768,6 +807,237 @@ const InitiativeSection = ({
             ))}
         </SidebarMenu>
       </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
+// Maximum visual indentation depth (children still render, just don't indent further)
+const MAX_TAG_INDENT = 3;
+
+interface TagTreeNode {
+  segment: string; // The segment name (e.g., "a" for "parent/a")
+  fullPath: string; // The full path (e.g., "parent/a")
+  tag: TagType | null; // The actual tag at this node, if it exists
+  children: TagTreeNode[];
+}
+
+interface TagBrowserProps {
+  tags: TagType[];
+  isLoading: boolean;
+}
+
+const TagBrowser = ({ tags, isLoading }: TagBrowserProps) => {
+  // Build a tree structure from flat tag list
+  const tagTree = useMemo(() => {
+    const tagsByPath = new Map<string, TagType>();
+    tags.forEach((tag) => tagsByPath.set(tag.name, tag));
+
+    const root: TagTreeNode[] = [];
+
+    // Helper to find or create a node at a given path
+    const getOrCreateNode = (
+      nodes: TagTreeNode[],
+      segments: string[],
+      currentPath: string
+    ): TagTreeNode => {
+      const segment = segments[0];
+      let node = nodes.find((n) => n.segment === segment);
+
+      if (!node) {
+        node = {
+          segment,
+          fullPath: currentPath,
+          tag: tagsByPath.get(currentPath) ?? null,
+          children: [],
+        };
+        nodes.push(node);
+      }
+
+      return node;
+    };
+
+    // Insert each tag into the tree
+    tags.forEach((tag) => {
+      const segments = tag.name.split("/");
+
+      // Build path progressively and ensure all ancestor nodes exist
+      let currentNodes = root;
+      let currentPath = "";
+
+      segments.forEach((segment, index) => {
+        currentPath = index === 0 ? segment : `${currentPath}/${segment}`;
+        const node = getOrCreateNode(currentNodes, [segment], currentPath);
+
+        // Update the tag reference if this is the exact path
+        if (currentPath === tag.name) {
+          node.tag = tag;
+        }
+
+        currentNodes = node.children;
+      });
+    });
+
+    // Sort nodes recursively
+    const sortNodes = (nodes: TagTreeNode[]): TagTreeNode[] => {
+      return nodes
+        .map((node) => ({
+          ...node,
+          children: sortNodes(node.children),
+        }))
+        .sort((a, b) => a.segment.localeCompare(b.segment));
+    };
+
+    return sortNodes(root);
+  }, [tags]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 px-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  if (tags.length === 0) {
+    return <div className="text-muted-foreground px-4 py-2 text-sm">No tags created yet</div>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {tagTree.map((node) => (
+        <TagTreeNodeComponent key={node.fullPath} node={node} depth={0} />
+      ))}
+    </div>
+  );
+};
+
+interface TagTreeNodeComponentProps {
+  node: TagTreeNode;
+  depth: number;
+}
+
+const TagTreeNodeComponent = ({ node, depth }: TagTreeNodeComponentProps) => {
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem("tag-group-collapsed-states");
+      if (stored) {
+        const states = JSON.parse(stored) as Record<string, boolean>;
+        return states[node.fullPath] ?? false;
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("tag-group-collapsed-states");
+      const states = stored ? (JSON.parse(stored) as Record<string, boolean>) : {};
+      states[node.fullPath] = isOpen;
+      localStorage.setItem("tag-group-collapsed-states", JSON.stringify(states));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [isOpen, node.fullPath]);
+
+  const hasChildren = node.children.length > 0;
+  const canExpand = hasChildren;
+
+  // Get color from this node's tag, or first descendant with a tag
+  const getNodeColor = (n: TagTreeNode): string | undefined => {
+    if (n.tag?.color) return n.tag.color;
+    for (const child of n.children) {
+      const color = getNodeColor(child);
+      if (color) return color;
+    }
+    return undefined;
+  };
+  const nodeColor = getNodeColor(node);
+
+  // Count all descendant tags (for display)
+  const countDescendants = (n: TagTreeNode): number => {
+    let count = 0;
+    for (const child of n.children) {
+      if (child.tag) count++;
+      count += countDescendants(child);
+    }
+    return count;
+  };
+  const descendantCount = countDescendants(node);
+
+  // Leaf node (no children) - simple clickable item
+  if (!hasChildren) {
+    if (!node.tag) return null; // Ghost node with no tag and no children
+    return (
+      <Link
+        to="/tags/$tagId"
+        params={{ tagId: String(node.tag.id) }}
+        className="hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
+      >
+        <span
+          className="h-3 w-3 shrink-0 rounded-full"
+          style={{ backgroundColor: node.tag.color }}
+        />
+        <span className="min-w-0 flex-1 truncate">{node.segment}</span>
+      </Link>
+    );
+  }
+
+  // Node with children - collapsible
+  return (
+    <Collapsible open={isOpen} onOpenChange={canExpand ? setIsOpen : undefined}>
+      <div className="flex items-center">
+        {canExpand ? (
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              aria-label={isOpen ? "Collapse" : "Expand"}
+            >
+              <CircleChevronRight
+                className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
+                style={{ color: nodeColor || undefined }}
+              />
+            </Button>
+          </CollapsibleTrigger>
+        ) : (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+            <span
+              className="h-3 w-3 rounded-full"
+              style={{ backgroundColor: nodeColor || undefined }}
+            />
+          </span>
+        )}
+        {node.tag ? (
+          <Link
+            to="/tags/$tagId"
+            params={{ tagId: String(node.tag.id) }}
+            className="hover:bg-accent flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1.5 text-sm transition-colors"
+          >
+            <span className="min-w-0 flex-1 truncate font-medium">{node.segment}</span>
+            <span className="text-muted-foreground shrink-0 text-xs">{descendantCount}</span>
+          </Link>
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1.5 text-sm">
+            <span className="min-w-0 flex-1 truncate font-medium">{node.segment}</span>
+            <span className="text-muted-foreground shrink-0 text-xs">{descendantCount}</span>
+          </span>
+        )}
+      </div>
+      {canExpand && (
+        <CollapsibleContent
+          className={cn("space-y-0.5 border-l pl-2", depth < MAX_TAG_INDENT && "ml-3")}
+          style={{ borderColor: nodeColor || undefined }}
+        >
+          {node.children.map((child) => (
+            <TagTreeNodeComponent key={child.fullPath} node={child} depth={depth + 1} />
+          ))}
+        </CollapsibleContent>
+      )}
     </Collapsible>
   );
 };

@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.comment import Comment
 from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole, InitiativeRoleModel
+from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.services import attachments as attachments_service
 from app.services.collaboration import collaboration_manager
@@ -80,6 +81,7 @@ async def get_document(
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
+            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
         )
     )
     result = await session.exec(statement)
@@ -172,6 +174,17 @@ async def duplicate_document(
         guild_id=guild_id or source.guild_id,
     )
     session.add(owner_permission)
+
+    # Copy tags from source document
+    if hasattr(source, "tag_links") and source.tag_links:
+        session.add_all([
+            DocumentTag(
+                document_id=duplicated.id,
+                tag_id=link.tag_id,
+            )
+            for link in source.tag_links
+        ])
+
     await session.commit()
     await session.refresh(duplicated)
     return duplicated

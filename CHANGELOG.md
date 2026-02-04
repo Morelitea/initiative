@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Guild-scoped tags for tasks, projects, and documents
+  - Create tags with custom names and colors via TagPicker component
+  - Assign multiple tags to tasks, projects, and documents
+  - Filter by tags in project tasks view, projects page, and documents page
+  - Tags displayed on project cards, document cards, and task table rows
+  - Tag browser in sidebar with nested hierarchy support (e.g., "books/fiction")
+  - Tag detail page showing all entities with a specific tag
+  - Tags preserved when duplicating tasks, projects, or documents
+  - Case-insensitive unique names per guild
 - Document wikilinks with `[[Document Title]]` syntax
   - Type `[[` in the editor to search for documents in the current initiative
   - Autocomplete shows existing documents, with option to create new ones

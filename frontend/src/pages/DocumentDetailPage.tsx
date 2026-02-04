@@ -23,6 +23,8 @@ import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikil
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
+import { TagPicker } from "@/components/tags/TagPicker";
+import { useSetDocumentTags } from "@/hooks/useTags";
 
 // Lazy load heavy components
 const Editor = lazy(() =>
@@ -51,7 +53,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import type { Comment, DocumentProjectLink, DocumentRead } from "@/types/api";
+import type { Comment, DocumentProjectLink, DocumentRead, TagSummary } from "@/types/api";
 import { uploadAttachment } from "@/api/attachments";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
@@ -66,8 +68,10 @@ export const DocumentDetailPage = () => {
   const { activeGuildId } = useGuilds();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
+  const setDocumentTagsMutation = useSetDocumentTags();
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
+  const [tags, setTags] = useState<TagSummary[]>([]);
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
@@ -140,6 +144,7 @@ export const DocumentDetailPage = () => {
     setTitle(document.title);
     setContentState(normalizedDocumentContent);
     setFeaturedImageUrl(document.featured_image_url ?? null);
+    setTags(document.tags ?? []);
   }, [document, normalizedDocumentContent]);
 
   const documentContentJson = useMemo(
@@ -476,6 +481,18 @@ export const DocumentDetailPage = () => {
     featuredImageInputRef.current?.click();
   };
 
+  const handleTagsChange = useCallback(
+    (newTags: TagSummary[]) => {
+      setTags(newTags);
+      // Immediately save tag changes to the server
+      setDocumentTagsMutation.mutate({
+        documentId: parsedId,
+        tagIds: newTags.map((t) => t.id),
+      });
+    },
+    [parsedId, setDocumentTagsMutation]
+  );
+
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">Invalid document id.</p>;
   }
@@ -572,69 +589,84 @@ export const DocumentDetailPage = () => {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Featured image</CardTitle>
+            <CardTitle>Metadata</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
-                {featuredImageUrl ? (
-                  <img
-                    src={resolveUploadUrl(featuredImageUrl) ?? undefined}
-                    alt=""
-                    className="h-full w-full object-cover"
+          <CardContent className="space-y-6">
+            {/* Featured image */}
+            <div className="space-y-2">
+              <Label>Featured image</Label>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
+                  {featuredImageUrl ? (
+                    <img
+                      src={resolveUploadUrl(featuredImageUrl) ?? undefined}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-muted-foreground flex h-full items-center justify-center">
+                      <ScrollText className="h-10 w-10" />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <input
+                    ref={featuredImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFeaturedImageChange}
                   />
-                ) : (
-                  <div className="text-muted-foreground flex h-full items-center justify-center">
-                    <ScrollText className="h-10 w-10" />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <input
-                  ref={featuredImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFeaturedImageChange}
-                />
-                {canEditDocument ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={openFeaturedImagePicker}
-                      disabled={isUploadingFeaturedImage}
-                    >
-                      {isUploadingFeaturedImage ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Uploading…
-                        </>
-                      ) : (
-                        <>
-                          <ImagePlus className="mr-2 h-4 w-4" />
-                          Upload featured image
-                        </>
-                      )}
-                    </Button>
-                    {featuredImageUrl ? (
+                  {canEditDocument ? (
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
-                        variant="ghost"
-                        onClick={() => setFeaturedImageUrl(null)}
+                        variant="outline"
+                        onClick={openFeaturedImagePicker}
                         disabled={isUploadingFeaturedImage}
                       >
-                        <X className="mr-2 h-4 w-4" />
-                        Remove image
+                        {isUploadingFeaturedImage ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Uploading…
+                          </>
+                        ) : (
+                          <>
+                            <ImagePlus className="mr-2 h-4 w-4" />
+                            Upload featured image
+                          </>
+                        )}
                       </Button>
-                    ) : null}
-                  </div>
-                ) : null}
-                <p className="text-muted-foreground text-xs">
-                  Uploads are stored locally under <code>/uploads</code>. Remember to save changes
-                  to keep your new image.
-                </p>
+                      {featuredImageUrl ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setFeaturedImageUrl(null)}
+                          disabled={isUploadingFeaturedImage}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Remove image
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <p className="text-muted-foreground text-xs">
+                    Uploads are stored locally under <code>/uploads</code>. Remember to save changes
+                    to keep your new image.
+                  </p>
+                </div>
               </div>
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <TagPicker
+                selectedTags={tags}
+                onChange={handleTagsChange}
+                disabled={!canEditDocument}
+                placeholder="Add tags..."
+              />
             </div>
           </CardContent>
         </Card>

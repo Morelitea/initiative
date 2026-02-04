@@ -8,6 +8,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
     from app.models.user import User
+    from app.models.tag import TaskTag
 
 
 class TaskStatusCategory(str, Enum):
@@ -129,6 +130,10 @@ class Task(SQLModel, table=True):
     task_status: Optional[TaskStatus] = Relationship(back_populates="tasks")
     assignees: List["User"] = Relationship(back_populates="tasks_assigned", link_model=TaskAssignee)
     subtasks: List["Subtask"] = Relationship(
+        back_populates="task",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    tag_links: List["TaskTag"] = Relationship(
         back_populates="task",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

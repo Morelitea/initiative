@@ -23,6 +23,7 @@ from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleMo
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.models.document import ProjectDocument
+from app.models.tag import Tag, ProjectTag, TaskTag
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import documents as documents_service
@@ -48,6 +49,7 @@ from app.schemas.project import (
 from app.schemas.comment import CommentAuthor
 from app.schemas.initiative import serialize_initiative
 from app.schemas.document import ProjectDocumentSummary, serialize_project_document_link
+from app.schemas.tag import TagSetRequest, TagSummary
 
 router = APIRouter()
 
@@ -55,6 +57,17 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 MAX_RECENT_PROJECTS = 20
+
+
+def _project_tags(project: Project) -> List[TagSummary]:
+    """Serialize project tags to TagSummary list."""
+    tag_links = getattr(project, "tag_links", None) or []
+    tags: List[TagSummary] = []
+    for link in tag_links:
+        tag = getattr(link, "tag", None)
+        if tag:
+            tags.append(TagSummary(id=tag.id, name=tag.name, color=tag.color))
+    return tags
 
 
 def _project_documents(project: Project) -> List[ProjectDocumentSummary]:
@@ -121,6 +134,7 @@ async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: in
             selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
         ),
         selectinload(Project.document_links).selectinload(ProjectDocument.document),
+        selectinload(Project.tag_links).selectinload(ProjectTag.tag),
     )
     if guild_id is not None:
         statement = statement.join(Project.initiative).where(Initiative.guild_id == guild_id)
@@ -268,6 +282,7 @@ async def _duplicate_template_tasks(
             selectinload(Task.assignees),
             selectinload(Task.task_status),
             selectinload(Task.subtasks),
+            selectinload(Task.tag_links),
         )
         .where(Task.project_id == template.id)
         .order_by(Task.sort_order.asc(), Task.id.asc())
@@ -318,6 +333,16 @@ async def _duplicate_template_tasks(
                     for subtask in template_task.subtasks
                 ]
             )
+        if template_task.tag_links:
+            session.add_all(
+                [
+                    TaskTag(
+                        task_id=new_task.id,
+                        tag_id=link.tag_id,
+                    )
+                    for link in template_task.tag_links
+                ]
+            )
 
 
 def _matches_filters(project: Project, *, archived: Optional[bool], template: Optional[bool]) -> bool:
@@ -366,6 +391,7 @@ async def _visible_projects(
                 selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
             ),
             selectinload(Project.document_links).selectinload(ProjectDocument.document),
+            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
     result = await session.exec(base_statement)
@@ -475,6 +501,7 @@ async def _projects_by_ids(
                 selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
             ),
             selectinload(Project.document_links).selectinload(ProjectDocument.document),
+            selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
     result = await session.exec(stmt)
@@ -503,6 +530,7 @@ def _build_project_payload(
             "last_viewed_at": view_map.get(project_id),
             "documents": _project_documents(project),
             "task_summary": summary,
+            "tags": _project_tags(project),
         }
     )
 
@@ -901,6 +929,16 @@ async def duplicate_project(
                     guild_id=guild_context.guild_id,
                 )
                 session.add(read_permission)
+
+    # Copy tags from source project
+    if source_project.tag_links:
+        session.add_all([
+            ProjectTag(
+                project_id=new_project.id,
+                tag_id=link.tag_id,
+            )
+            for link in source_project.tag_links
+        ])
 
     # Clone task statuses from source project to new project
     status_mapping = await task_statuses_service.clone_statuses(
@@ -1655,3 +1693,62 @@ async def delete_project(
     await session.delete(project)
     await session.commit()
     await broadcast_event("project", "deleted", {"id": project_id})
+
+
+@router.put("/{project_id}/tags", response_model=ProjectRead)
+async def set_project_tags(
+    project_id: int,
+    tags_in: TagSetRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectRead:
+    """Set tags on a project. Replaces all existing tags with the provided list."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(
+        project, current_user, session, access="write"
+    )
+
+    # Validate all tags belong to this guild
+    if tags_in.tag_ids:
+        tags_stmt = select(Tag).where(
+            Tag.id.in_(tags_in.tag_ids),
+            Tag.guild_id == guild_context.guild_id,
+        )
+        tags_result = await session.exec(tags_stmt)
+        valid_tags = tags_result.all()
+        valid_tag_ids = {t.id for t in valid_tags}
+
+        invalid_ids = set(tags_in.tag_ids) - valid_tag_ids
+        if invalid_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid tag IDs: {sorted(invalid_ids)}",
+            )
+
+    # Remove existing tags
+    delete_stmt = sa_delete(ProjectTag).where(ProjectTag.project_id == project_id)
+    await session.exec(delete_stmt)
+
+    # Add new tags
+    for tag_id in tags_in.tag_ids:
+        project_tag = ProjectTag(
+            project_id=project_id,
+            tag_id=tag_id,
+        )
+        session.add(project_tag)
+
+    # Update timestamp directly via SQL to avoid issues with deleted relationship objects
+    update_stmt = (
+        select(Project)
+        .where(Project.id == project_id)
+    )
+    result = await session.exec(update_stmt)
+    proj = result.one()
+    proj.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    # Refetch with all relationships
+    updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _attach_task_summaries(session, [updated])
+    return await _project_read_for_user(session, current_user, updated)

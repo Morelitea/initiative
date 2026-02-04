@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { FileSpreadsheet, FileText, Presentation, ScrollText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { TagBadge } from "@/components/tags/TagBadge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
@@ -40,7 +41,7 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
         "group bg-card text-card-foreground hover:border-primary/50 block w-full overflow-hidden rounded-2xl border shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg",
         className
       )}
-      style={{ aspectRatio: "2 / 3" }}
+      // style={{ aspectRatio: "2 / 3" }}
     >
       <div className="bg-muted relative aspect-square overflow-hidden border-b">
         {document.featured_image_url ? (
@@ -111,23 +112,16 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
               {document.initiative.name}
             </Link>
           ) : null}
-        </div>
-        <div className="text-muted-foreground mt-auto space-y-1 text-sm">
-          {document.projects.length > 0 ? (
-            <>
-              <p className="text-foreground text-xs font-medium">
-                Linked to {document.projects.length} project
-                {document.projects.length === 1 ? "" : "s"}
-              </p>
-              <div className="line-clamp-2 text-xs">
-                {document.projects
-                  .map((project) => project.project_name ?? `Project #${project.project_id}`)
-                  .join(", ")}
-              </div>
-            </>
-          ) : (
-            <p className="text-xs">Not attached to any projects yet.</p>
-          )}
+          {document.tags && document.tags.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {document.tags.slice(0, 3).map((tag) => (
+                <TagBadge key={tag.id} tag={tag} size="sm" />
+              ))}
+              {document.tags.length > 3 && (
+                <span className="text-muted-foreground text-xs">+{document.tags.length - 3}</span>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </Link>

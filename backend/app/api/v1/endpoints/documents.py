@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, inspect
+from sqlalchemy import delete as sa_delete, func, inspect
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -14,6 +14,7 @@ from app.api.deps import (
 )
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentType, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
+from app.models.tag import Tag, DocumentTag
 from app.models.user import User
 from app.models.guild import GuildRole
 from app.schemas.document import (
@@ -34,6 +35,7 @@ from app.schemas.document import (
     serialize_document_summary,
 )
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
+from app.schemas.tag import TagSetRequest
 from app.services import attachments as attachments_service
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
@@ -207,6 +209,7 @@ async def list_documents(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
 ) -> List[DocumentSummary]:
     """List documents visible to the current user.
 
@@ -233,6 +236,7 @@ async def list_documents(
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
+            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
         )
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
@@ -244,6 +248,20 @@ async def list_documents(
         normalized = search.strip().lower()
         if normalized:
             stmt = stmt.where(func.lower(Document.title).contains(normalized))
+
+    if tag_ids:
+        # Use subquery to avoid duplicate rows from JOIN
+        # Join through Tag to enforce guild scoping
+        tag_subquery = (
+            select(DocumentTag.document_id)
+            .join(Tag, Tag.id == DocumentTag.tag_id)
+            .where(
+                DocumentTag.tag_id.in_(tuple(tag_ids)),
+                Tag.guild_id == guild_context.guild_id,
+            )
+            .distinct()
+        )
+        stmt = stmt.where(Document.id.in_(tag_subquery))
 
     result = await session.exec(stmt)
     documents = result.unique().all()
@@ -916,3 +934,64 @@ async def generate_summary(
         return GenerateDocumentSummaryResponse(summary=summary)
     except AIGenerationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/{document_id}/tags", response_model=DocumentRead)
+async def set_document_tags(
+    document_id: int,
+    tags_in: TagSetRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentRead:
+    """Set tags on a document. Replaces all existing tags with the provided list."""
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
+    _require_document_access(document, current_user, access="write")
+
+    # Validate all tags belong to this guild
+    if tags_in.tag_ids:
+        tags_stmt = select(Tag).where(
+            Tag.id.in_(tags_in.tag_ids),
+            Tag.guild_id == guild_context.guild_id,
+        )
+        tags_result = await session.exec(tags_stmt)
+        valid_tags = tags_result.all()
+        valid_tag_ids = {t.id for t in valid_tags}
+
+        invalid_ids = set(tags_in.tag_ids) - valid_tag_ids
+        if invalid_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid tag IDs: {sorted(invalid_ids)}",
+            )
+
+    # Remove existing tags
+    delete_stmt = sa_delete(DocumentTag).where(DocumentTag.document_id == document_id)
+    await session.exec(delete_stmt)
+
+    # Add new tags
+    for tag_id in tags_in.tag_ids:
+        document_tag = DocumentTag(
+            document_id=document_id,
+            tag_id=tag_id,
+        )
+        session.add(document_tag)
+
+    # Fetch fresh document to avoid issues with deleted relationship objects
+    doc_stmt = (
+        select(Document)
+        .where(Document.id == document_id)
+        .options(
+            selectinload(Document.initiative),
+            selectinload(Document.permissions),
+            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+        )
+    )
+    result = await session.exec(doc_stmt)
+    doc = result.one()
+    doc.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    return serialize_document(doc)

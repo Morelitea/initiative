@@ -15,6 +15,7 @@ from app.api.deps import (
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
+from app.models.tag import Tag, TaskTag
 from app.models.user import User
 from app.models.guild import GuildMembership
 from app.models.comment import Comment
@@ -30,6 +31,7 @@ from app.schemas.subtask import (
     TaskSubtaskProgress,
 )
 from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescriptionResponse
+from app.schemas.tag import TagSummary, TagSetRequest
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
@@ -102,6 +104,18 @@ def _annotate_task_guild(tasks: list[Task]) -> None:
         object.__setattr__(task, "guild", guild)
 
 
+def _annotate_task_tags(tasks: list[Task]) -> None:
+    """Annotate tasks with their tags extracted from tag_links relationship."""
+    for task in tasks:
+        tag_links = getattr(task, "tag_links", [])
+        tags = [
+            TagSummary(id=link.tag.id, name=link.tag.name, color=link.tag.color)
+            for link in tag_links
+            if link.tag is not None
+        ]
+        object.__setattr__(task, "tags", tags)
+
+
 def _task_to_list_read(task: Task) -> TaskListRead:
     """Convert Task model to lightweight TaskListRead schema"""
     from app.schemas.task import TaskAssigneeSummary
@@ -146,6 +160,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         initiative_name=initiative.name if initiative else None,
         initiative_color=initiative.color if initiative else None,
         subtask_progress=getattr(task, "subtask_progress", None),
+        tags=getattr(task, "tags", []),
     )
 
 
@@ -213,6 +228,7 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
             selectinload(Task.task_status),
+            selectinload(Task.tag_links).selectinload(TaskTag.tag),
         )
     )
     result = await session.exec(stmt)
@@ -221,6 +237,7 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
         await _annotate_task_comment_counts(session, [task])
         await _annotate_task_subtask_progress(session, [task])
         _annotate_task_guild([task])
+        _annotate_task_tags([task])
     return task
 
 
@@ -464,6 +481,7 @@ async def _list_global_tasks(
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
             selectinload(Task.task_status),
+            selectinload(Task.tag_links).selectinload(TaskTag.tag),
         )
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
@@ -502,6 +520,7 @@ async def list_tasks(
     status_category: Optional[List[TaskStatusCategory]] = Query(default=None),
     initiative_ids: Optional[List[int]] = Query(default=None),
     guild_ids: Optional[List[int]] = Query(default=None),
+    tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
 ) -> List[TaskListRead]:
     if scope == "global":
@@ -517,6 +536,7 @@ async def list_tasks(
         )
         await _annotate_task_comment_counts(session, tasks)
         await _annotate_task_subtask_progress(session, tasks)
+        _annotate_task_tags(tasks)
         return [_task_to_list_read(task) for task in tasks]
 
     statement = (
@@ -530,6 +550,7 @@ async def list_tasks(
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
             selectinload(Task.task_status),
+            selectinload(Task.tag_links).selectinload(TaskTag.tag),
         )
         .order_by(Task.sort_order.asc(), Task.id.asc())
     )
@@ -580,10 +601,25 @@ async def list_tasks(
     if guild_ids:
         statement = statement.where(Initiative.guild_id.in_(tuple(guild_ids)))
 
+    if tag_ids:
+        # Use subquery to avoid duplicate rows from JOIN
+        # Join through Tag to enforce guild scoping
+        tag_subquery = (
+            select(TaskTag.task_id)
+            .join(Tag, Tag.id == TaskTag.tag_id)
+            .where(
+                TaskTag.tag_id.in_(tuple(tag_ids)),
+                Tag.guild_id == guild_context.guild_id,
+            )
+            .distinct()
+        )
+        statement = statement.where(Task.id.in_(tag_subquery))
+
     result = await session.exec(statement)
     tasks = result.all()
     await _annotate_task_comment_counts(session, tasks)
     await _annotate_task_subtask_progress(session, tasks)
+    _annotate_task_tags(tasks)
     return [_task_to_list_read(task) for task in tasks]
 
 
@@ -813,10 +849,13 @@ async def duplicate_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
-    # Fetch the original task with its subtasks
+    # Fetch the original task with its subtasks and tags
     task_stmt = (
         select(Task)
-        .options(selectinload(Task.assignees))
+        .options(
+            selectinload(Task.assignees),
+            selectinload(Task.tag_links),
+        )
         .join(Task.project)
         .join(Project.initiative)
         .where(
@@ -873,6 +912,13 @@ async def duplicate_task(
             position=original_subtask.position,
         )
         session.add(new_subtask)
+
+    # Copy tags
+    if original_task.tag_links:
+        session.add_all([
+            TaskTag(task_id=new_task.id, tag_id=link.tag_id)
+            for link in original_task.tag_links
+        ])
 
     await session.commit()
     await session.refresh(new_task)
@@ -1370,3 +1416,65 @@ async def generate_task_description(
         return GenerateDescriptionResponse(description=description)
     except ai_generation_service.AIGenerationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/{task_id}/tags", response_model=TaskRead)
+async def set_task_tags(
+    task_id: int,
+    tags_in: TagSetRequest,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Task:
+    """Set the tags for a task. Replaces all existing tags with the provided list."""
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+    )
+
+    # Validate that all tag IDs belong to this guild
+    unique_tag_ids = list(dict.fromkeys(tags_in.tag_ids))
+    if unique_tag_ids:
+        stmt = select(Tag).where(
+            Tag.id.in_(tuple(unique_tag_ids)),
+            Tag.guild_id == guild_context.guild_id,
+        )
+        result = await session.exec(stmt)
+        tags = result.all()
+        if len(tags) != len(unique_tag_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more tags not found",
+            )
+
+    # Delete existing task tags
+    delete_stmt = delete(TaskTag).where(TaskTag.task_id == task.id)
+    await session.exec(delete_stmt)
+
+    # Add new task tags
+    task_id_to_update = task.id
+    if unique_tag_ids:
+        session.add_all([
+            TaskTag(task_id=task_id_to_update, tag_id=tag_id)
+            for tag_id in unique_tag_ids
+        ])
+
+    # Fetch fresh task to avoid issues with deleted relationship objects
+    fresh_task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
+    if fresh_task is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
+    fresh_task.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    # Refresh and return
+    task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
+    await broadcast_event("task", "updated", _task_payload(task))
+    return task

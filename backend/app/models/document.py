@@ -9,6 +9,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
     from app.models.project import Project
+    from app.models.tag import DocumentTag
 
 
 class DocumentType(str, Enum):
@@ -90,6 +91,10 @@ class Document(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     permissions: List["DocumentPermission"] = Relationship(
+        back_populates="document",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    tag_links: List["DocumentTag"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

@@ -37,8 +37,10 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
-import { Project, Initiative, ProjectPermissionLevel } from "@/types/api";
+import { Project, Initiative, ProjectPermissionLevel, TagSummary } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
+import { TagPicker } from "@/components/tags";
+import { useSetProjectTags } from "@/hooks/useTags";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 
@@ -75,6 +77,9 @@ export const ProjectSettingsPage = () => {
   const [selectedNewLevel, setSelectedNewLevel] = useState<ProjectPermissionLevel>("read");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
+  const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
+
+  const setProjectTagsMutation = useSetProjectTags();
 
   const projectQuery = useQuery<Project>({
     queryKey: ["project", parsedProjectId],
@@ -100,6 +105,7 @@ export const ProjectSettingsPage = () => {
       setNameText(projectQuery.data.name);
       setIconText(projectQuery.data.icon ?? "");
       setDescriptionText(projectQuery.data.description ?? "");
+      setProjectTags(projectQuery.data.tags ?? []);
       setAccessMessage(null);
       setAccessError(null);
       setInitiativeMessage(null);
@@ -670,6 +676,31 @@ export const ProjectSettingsPage = () => {
               <p className="text-muted-foreground text-sm">
                 You need write access to edit the description.
               </p>
+            )}
+          </div>
+
+          <div className="bg-border h-px" />
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-base font-medium">Tags</h3>
+              <p className="text-muted-foreground text-sm">
+                Add tags to organize and filter projects.
+              </p>
+            </div>
+            {canWriteProject ? (
+              <TagPicker
+                selectedTags={projectTags}
+                onChange={(newTags) => {
+                  setProjectTags(newTags);
+                  setProjectTagsMutation.mutate({
+                    projectId: parsedProjectId,
+                    tagIds: newTags.map((t) => t.id),
+                  });
+                }}
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm">You need write access to manage tags.</p>
             )}
           </div>
         </CardContent>
