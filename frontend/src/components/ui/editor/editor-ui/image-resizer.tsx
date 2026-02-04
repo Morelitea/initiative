@@ -21,7 +21,6 @@ export function ImageResizer({
   onResizeEnd,
   buttonRef,
   imageRef,
-  maxWidth,
   editor,
   showCaption,
   setShowCaption,
@@ -30,7 +29,6 @@ export function ImageResizer({
   editor: LexicalEditor;
   buttonRef: { current: null | HTMLButtonElement };
   imageRef: { current: null | HTMLElement };
-  maxWidth?: number;
   onResizeEnd: (width: "inherit" | number, height: "inherit" | number) => void;
   onResizeStart: () => void;
   setShowCaption: (show: boolean) => void;
@@ -64,12 +62,9 @@ export function ImageResizer({
     startY: 0,
   });
   const editorRootElement = editor.getRootElement();
-  // Find max width, accounting for editor padding.
-  const maxWidthContainer = maxWidth
-    ? maxWidth
-    : editorRootElement !== null
-      ? editorRootElement.getBoundingClientRect().width - 20
-      : 100;
+  // Use the editor width as the max constraint (images shouldn't overflow the editor)
+  const maxWidthContainer =
+    editorRootElement !== null ? editorRootElement.getBoundingClientRect().width - 20 : 100;
   const maxHeightContainer =
     editorRootElement !== null ? editorRootElement.getBoundingClientRect().height - 20 : 100;
 

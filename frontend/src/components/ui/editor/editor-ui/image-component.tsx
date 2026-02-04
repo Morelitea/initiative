@@ -63,15 +63,11 @@ function LazyImage({
   imageRef,
   src,
   width,
-  height,
-  maxWidth,
   onError,
 }: {
   altText: string;
   className: string | null;
-  height: "inherit" | number;
   imageRef: { current: null | HTMLImageElement };
-  maxWidth: number;
   src: string;
   width: "inherit" | number;
   onError: () => void;
@@ -84,9 +80,8 @@ function LazyImage({
       alt={altText}
       ref={imageRef}
       style={{
-        height,
-        maxWidth,
         width,
+        height: "auto",
       }}
       onError={onError}
       draggable="false"
@@ -113,8 +108,6 @@ export default function ImageComponent({
   altText,
   nodeKey,
   width,
-  height,
-  maxWidth,
   resizable,
   showCaption,
   caption,
@@ -122,8 +115,6 @@ export default function ImageComponent({
 }: {
   altText: string;
   caption: LexicalEditor;
-  height: "inherit" | number;
-  maxWidth: number;
   nodeKey: NodeKey;
   resizable: boolean;
   showCaption: boolean;
@@ -351,8 +342,6 @@ export default function ImageComponent({
               altText={altText}
               imageRef={imageRef}
               width={width}
-              height={height}
-              maxWidth={maxWidth}
               onError={() => setIsLoadError(true)}
             />
           )}
@@ -386,7 +375,6 @@ export default function ImageComponent({
             editor={editor}
             buttonRef={buttonRef}
             imageRef={imageRef}
-            maxWidth={maxWidth}
             onResizeStart={onResizeStart}
             onResizeEnd={onResizeEnd}
             captionsEnabled={!isLoadError && captionsEnabled}

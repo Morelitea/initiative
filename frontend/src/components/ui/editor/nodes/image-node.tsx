@@ -211,8 +211,6 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
           src={this.__src}
           altText={this.__altText}
           width={this.__width}
-          height={this.__height}
-          maxWidth={this.__maxWidth}
           nodeKey={this.getKey()}
           showCaption={this.__showCaption}
           caption={this.__caption}
@@ -227,7 +225,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 export function $createImageNode({
   altText,
   height,
-  maxWidth = 500,
+  maxWidth,
   captionsEnabled,
   src,
   width,
@@ -235,8 +233,20 @@ export function $createImageNode({
   caption,
   key,
 }: ImagePayload): ImageNode {
+  // Use a large value so the editor width becomes the effective constraint
+  const effectiveMaxWidth = maxWidth ?? 10000;
   return $applyNodeReplacement(
-    new ImageNode(src, altText, maxWidth, width, height, showCaption, caption, captionsEnabled, key)
+    new ImageNode(
+      src,
+      altText,
+      effectiveMaxWidth,
+      width,
+      height,
+      showCaption,
+      caption,
+      captionsEnabled,
+      key
+    )
   );
 }
 
