@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,8 +14,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import type { DocumentRead } from "@/types/api";
+import type { DocumentRead, DocumentSummary } from "@/types/api";
 
 interface CreateWikilinkDocumentDialogProps {
   open: boolean;
@@ -39,14 +49,54 @@ export function CreateWikilinkDocumentDialog({
 }: CreateWikilinkDocumentDialogProps) {
   const queryClient = useQueryClient();
   const { activeGuildId } = useGuilds();
+  const { user } = useAuth();
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+
+  // Query templates
+  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
+    queryKey: ["documents", "templates"],
+    queryFn: async () => {
+      const response = await apiClient.get<DocumentSummary[]>("/documents/");
+      return response.data;
+    },
+    enabled: open && canCreate,
+  });
+
+  // Filter templates user can access
+  const manageableTemplates = useMemo(() => {
+    if (!templateDocumentsQuery.data || !user) return [];
+    return templateDocumentsQuery.data.filter((doc) => {
+      if (!doc.is_template) return false;
+      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
+      return Boolean(permission);
+    });
+  }, [templateDocumentsQuery.data, user]);
+
+  // Reset template selection when dialog closes
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setSelectedTemplateId("");
+    }
+    onOpenChange(newOpen);
+  };
 
   const createDocument = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<DocumentRead>("/documents/", {
-        title: title.trim(),
-        initiative_id: initiativeId,
-      });
-      return response.data;
+      // Use template if selected and not "blank"
+      if (selectedTemplateId && selectedTemplateId !== "blank") {
+        const response = await apiClient.post<DocumentRead>(
+          `/documents/${selectedTemplateId}/copy`,
+          { target_initiative_id: initiativeId, title: title.trim() }
+        );
+        return response.data;
+      } else {
+        const response = await apiClient.post<DocumentRead>("/documents/", {
+          title: title.trim(),
+          initiative_id: initiativeId,
+        });
+        return response.data;
+      }
     },
     onSuccess: (document) => {
       toast.success("Document created");
@@ -68,7 +118,7 @@ export function CreateWikilinkDocumentDialog({
   });
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Create document</AlertDialogTitle>
@@ -86,6 +136,38 @@ export function CreateWikilinkDocumentDialog({
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        {canCreate && (
+          <div className="space-y-2 py-2">
+            <Label htmlFor="wikilink-template">Template (optional)</Label>
+            <Select
+              value={selectedTemplateId || undefined}
+              onValueChange={setSelectedTemplateId}
+              disabled={templateDocumentsQuery.isLoading || manageableTemplates.length === 0}
+            >
+              <SelectTrigger id="wikilink-template">
+                <SelectValue
+                  placeholder={
+                    templateDocumentsQuery.isLoading
+                      ? "Loading templates…"
+                      : manageableTemplates.length > 0
+                        ? "Blank document"
+                        : "No templates available"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="blank">Blank document</SelectItem>
+                {manageableTemplates.map((template) => (
+                  <SelectItem key={template.id} value={String(template.id)}>
+                    {template.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           {canCreate && (
