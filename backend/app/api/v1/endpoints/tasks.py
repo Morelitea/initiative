@@ -603,9 +603,16 @@ async def list_tasks(
 
     if tag_ids:
         # Use subquery to avoid duplicate rows from JOIN
-        tag_subquery = select(TaskTag.task_id).where(
-            TaskTag.tag_id.in_(tuple(tag_ids))
-        ).distinct()
+        # Join through Tag to enforce guild scoping
+        tag_subquery = (
+            select(TaskTag.task_id)
+            .join(Tag, Tag.id == TaskTag.tag_id)
+            .where(
+                TaskTag.tag_id.in_(tuple(tag_ids)),
+                Tag.guild_id == guild_context.guild_id,
+            )
+            .distinct()
+        )
         statement = statement.where(Task.id.in_(tag_subquery))
 
     result = await session.exec(statement)
