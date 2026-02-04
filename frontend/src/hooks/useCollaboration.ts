@@ -183,7 +183,7 @@ export function useCollaboration({
           const status = statusObj.status;
           if (status === "connected") {
             setConnectionStatus("connected");
-            // Start sync timeout - if we don't sync within 10s, emit error
+            // Start sync timeout - if we don't sync within 5s, emit error
             if (syncTimeoutRef.current) {
               clearTimeout(syncTimeoutRef.current);
             }
@@ -193,7 +193,7 @@ export function useCollaboration({
                 setConnectionStatus("error");
                 onErrorRef.current?.(new Error("Sync timeout - document failed to load"));
               }
-            }, 10000);
+            }, 5000);
           } else if (status === "connecting") {
             setConnectionStatus("connecting");
           } else if (status === "disconnected") {
