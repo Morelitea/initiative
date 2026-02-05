@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { summarizeRecurrence } from "@/lib/recurrence";
+import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -164,13 +165,17 @@ const TaskStatusSelector = ({
 };
 
 export const MyTasksPage = () => {
-  const { guilds, activeGuildId, switchGuild } = useGuilds();
-  const router = useRouter();
+  const { guilds, activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
   const projectStatusCache = useRef<
     Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
   >(new Map());
-  const [switchingTaskId, setSwitchingTaskId] = useState<number | null>(null);
+
+  // Helper to create guild-scoped paths for a task
+  const taskGuildPath = (task: Task, path: string) => {
+    const guildId = task.guild_id ?? activeGuildId;
+    return guildId ? guildPath(guildId, path) : path;
+  };
 
   const handleRefresh = useCallback(async () => {
     await localQueryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
@@ -348,30 +353,6 @@ export const MyTasksPage = () => {
     [fetchProjectStatuses]
   );
 
-  const ensureTaskGuildContext = useCallback(
-    async (task: Task) => {
-      if (!task.guild_id || task.guild_id === activeGuildId) {
-        return true;
-      }
-
-      setSwitchingTaskId(task.id);
-      const toastId = toast.loading(`Switching to ${task.guild_name}...`);
-      try {
-        await switchGuild(task.guild_id);
-        toast.success(`Switched to ${task.guild_name}`, { id: toastId });
-        return true;
-      } catch (error) {
-        console.error(error);
-        const message = error instanceof Error ? error.message : "Unable to switch guild";
-        toast.error(message, { id: toastId });
-        return false;
-      } finally {
-        setSwitchingTaskId(null);
-      }
-    },
-    [activeGuildId, switchGuild]
-  );
-
   const changeTaskStatusById = useCallback(
     async (task: Task, targetStatusId: number) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
@@ -415,15 +396,6 @@ export const MyTasksPage = () => {
     [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory]
   );
 
-  const handleCrossGuildNavigation = useCallback(
-    async (task: Task, targetPath: string) => {
-      const ready = await ensureTaskGuildContext(task);
-      if (ready) {
-        router.navigate({ to: targetPath });
-      }
-    },
-    [ensureTaskGuildContext, router]
-  );
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
     const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
@@ -541,20 +513,12 @@ export const MyTasksPage = () => {
           <div className="flex min-w-60 flex-col text-left">
             <div className="flex">
               <Link
-                to="/tasks/$taskId"
-                params={{ taskId: String(task.id) }}
+                to={taskGuildPath(task, `/tasks/${task.id}`)}
                 className="text-foreground flex w-full items-center gap-2 font-medium hover:underline"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void handleCrossGuildNavigation(task, `/tasks/${task.id}`);
-                }}
               >
                 {task.title}
               </Link>
               <TaskDescriptionHoverCard task={task} />
-              {switchingTaskId === task.id ? (
-                <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" aria-hidden />
-              ) : null}
             </div>
             <div className="text-muted-foreground space-y-1 text-xs">
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
@@ -624,13 +588,8 @@ export const MyTasksPage = () => {
         return (
           <div className="min-w-40">
             <Link
-              to="/initiatives/$initiativeId"
-              params={{ initiativeId: String(initiativeId) }}
+              to={taskGuildPath(task, `/initiatives/${initiativeId}`)}
               className="text-foreground flex items-center gap-2 text-sm font-medium"
-              onClick={(event) => {
-                event.preventDefault();
-                void handleCrossGuildNavigation(task, `/initiatives/${initiativeId}`);
-              }}
             >
               <InitiativeColorDot color={initiativeColor ?? undefined} />
               {initiativeName}
@@ -660,13 +619,8 @@ export const MyTasksPage = () => {
                 </>
               ) : null}
               <Link
-                to="/projects/$projectId"
-                params={{ projectId: String(projectIdentifier) }}
+                to={taskGuildPath(task, `/projects/${projectIdentifier}`)}
                 className="text-primary text-sm font-medium hover:underline"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void handleCrossGuildNavigation(task, `/projects/${projectIdentifier}`);
-                }}
               >
                 {projectLabel}
               </Link>

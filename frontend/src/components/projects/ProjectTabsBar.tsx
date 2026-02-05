@@ -2,7 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { useGuilds } from "@/hooks/useGuilds";
 import type { Project } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -20,6 +22,11 @@ export const ProjectTabsBar = ({
   loading,
   onClose,
 }: ProjectTabsBarProps) => {
+  const { activeGuildId } = useGuilds();
+
+  // Helper to create guild-scoped paths
+  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+
   if (!loading && (!projects || projects.length === 0)) {
     return null;
   }
@@ -35,8 +42,7 @@ export const ProjectTabsBar = ({
             return (
               <div key={project.id} className="flex items-center">
                 <Link
-                  to="/projects/$projectId"
-                  params={{ projectId: String(project.id) }}
+                  to={gp(`/projects/${project.id}`)}
                   className={cn(
                     "group inline-flex items-center gap-2 rounded-t-md border border-transparent px-3 py-2 text-sm transition",
                     isActive

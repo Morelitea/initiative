@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
 import { Project, Initiative, ProjectPermissionLevel, TagSummary } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
@@ -62,6 +63,7 @@ export const ProjectSettingsPage = () => {
   const parsedProjectId = Number(projectId);
   const router = useRouter();
   const { user } = useAuth();
+  const gp = useGuildPath();
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string>("");
   const [initiativeMessage, setInitiativeMessage] = useState<string | null>(null);
   const [nameText, setNameText] = useState<string>("");
@@ -223,7 +225,7 @@ export const ProjectSettingsPage = () => {
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
       });
-      router.navigate({ to: "/projects/$projectId", params: { projectId: String(data.id) } });
+      router.navigate({ to: gp(`/projects/${data.id}`) });
     },
   });
 
@@ -501,7 +503,7 @@ export const ProjectSettingsPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/projects">Back to projects</Link>
+          <Link to={gp("/projects")}>Back to projects</Link>
         </Button>
       </div>
     );
@@ -520,9 +522,7 @@ export const ProjectSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button asChild variant="link" className="px-0">
-          <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
-            Back to project
-          </Link>
+          <Link to={gp(`/projects/${project.id}`)}>Back to project</Link>
         </Button>
         <Card className="shadow-sm">
           <CardHeader>
@@ -542,10 +542,7 @@ export const ProjectSettingsPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link
-                    to="/initiatives/$initiativeId"
-                    params={{ initiativeId: String(project.initiative.id) }}
-                  >
+                  <Link to={gp(`/initiatives/${project.initiative.id}`)}>
                     {project.initiative.name}
                   </Link>
                 </BreadcrumbLink>
@@ -555,9 +552,7 @@ export const ProjectSettingsPage = () => {
           )}
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
-                {project.name}
-              </Link>
+              <Link to={gp(`/projects/${project.id}`)}>{project.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -922,7 +917,7 @@ export const ProjectSettingsPage = () => {
           )}
           {project.is_template ? (
             <Button asChild variant="link" className="px-0">
-              <Link to="/projects">View all templates</Link>
+              <Link to={gp("/projects")}>View all templates</Link>
             </Button>
           ) : null}
         </CardFooter>

@@ -2,6 +2,7 @@ import { Fragment, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 
 import { useGuilds } from "@/hooks/useGuilds";
+import { guildPath } from "@/lib/guildUrl";
 
 interface MentionPart {
   type: "text" | "user" | "task" | "doc" | "project" | "url";
@@ -189,10 +190,8 @@ export const CommentContent = ({ content }: CommentContentProps) => {
 
   const parts = useMemo(() => parseContent(content), [content]);
 
-  const buildSmartLink = (targetPath: string) => {
-    if (!guildId) return targetPath;
-    return `/navigate?guild_id=${guildId}&target=${encodeURIComponent(targetPath)}`;
-  };
+  // Build guild-scoped link directly instead of using /navigate redirect
+  const gp = (path: string) => (guildId ? guildPath(guildId, path) : path);
 
   return (
     <span className="break-words whitespace-pre-wrap">
@@ -228,11 +227,7 @@ export const CommentContent = ({ content }: CommentContentProps) => {
 
         if (part.type === "task") {
           return (
-            <Link
-              key={index}
-              to={buildSmartLink(`/tasks/${part.id}`)}
-              className="text-primary hover:underline"
-            >
+            <Link key={index} to={gp(`/tasks/${part.id}`)} className="text-primary hover:underline">
               Task: {part.displayText}
             </Link>
           );
@@ -242,7 +237,7 @@ export const CommentContent = ({ content }: CommentContentProps) => {
           return (
             <Link
               key={index}
-              to={buildSmartLink(`/documents/${part.id}`)}
+              to={gp(`/documents/${part.id}`)}
               className="text-primary hover:underline"
             >
               Doc: {part.displayText}
@@ -254,7 +249,7 @@ export const CommentContent = ({ content }: CommentContentProps) => {
           return (
             <Link
               key={index}
-              to={buildSmartLink(`/projects/${part.id}`)}
+              to={gp(`/projects/${part.id}`)}
               className="text-primary hover:underline"
             >
               Project: {part.displayText}

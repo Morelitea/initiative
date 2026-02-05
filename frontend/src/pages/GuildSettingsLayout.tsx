@@ -1,19 +1,41 @@
-import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { Outlet, useLocation, useRouter, useParams } from "@tanstack/react-router";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGuilds } from "@/hooks/useGuilds";
-
-const guildSettingsTabs = [
-  { value: "guild", label: "Guild", path: "/settings/guild" },
-  { value: "ai", label: "AI", path: "/settings/guild/ai" },
-  { value: "users", label: "Users", path: "/settings/guild/users" },
-] as const;
+import { guildPath, extractSubPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
-  const { activeGuild } = useGuilds();
+  const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.role === "admin";
   const location = useLocation();
   const router = useRouter();
+  const params = useParams({ strict: false }) as { guildId?: string };
+
+  // Get guild ID from URL params or active guild
+  const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
+
+  // Define tabs with guild-scoped paths
+  const guildSettingsTabs = useMemo(
+    () => [
+      {
+        value: "guild",
+        label: "Guild",
+        path: urlGuildId ? guildPath(urlGuildId, "/settings") : "/settings",
+      },
+      {
+        value: "ai",
+        label: "AI",
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/ai") : "/settings/ai",
+      },
+      {
+        value: "users",
+        label: "Users",
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
+      },
+    ],
+    [urlGuildId]
+  );
 
   const canViewSettings = isGuildAdmin;
   const availableTabs = isGuildAdmin ? guildSettingsTabs : [];
@@ -29,14 +51,26 @@ export const GuildSettingsLayout = () => {
     );
   }
 
-  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
+  // Normalize path for tab matching
+  const currentPath = location.pathname;
+  const normalizedPath = isGuildScopedPath(currentPath)
+    ? extractSubPath(currentPath).replace(/\/+$/, "") || "/"
+    : currentPath.replace(/\/+$/, "") || "/";
+
+  // Map normalized sub-paths to tab values
+  const tabSubPaths = [
+    { value: "guild", subPath: "/settings" },
+    { value: "ai", subPath: "/settings/ai" },
+    { value: "users", subPath: "/settings/users" },
+  ];
+
   const activeTab =
-    [...availableTabs]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((tab) => normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`))
+    [...tabSubPaths]
+      .sort((a, b) => b.subPath.length - a.subPath.length)
+      .find((tab) => normalizedPath === tab.subPath || normalizedPath.startsWith(`${tab.subPath}/`))
       ?.value ??
     availableTabs[0]?.value ??
-    "users";
+    "guild";
 
   return (
     <div className="space-y-6">

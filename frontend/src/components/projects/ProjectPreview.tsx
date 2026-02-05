@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
@@ -38,6 +39,7 @@ const canPinProject = (project: Project, userId?: number, guildRole?: GuildRole)
 
 export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
+  const gp = useGuildPath();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
@@ -68,7 +70,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
           </button>
         ) : null}
       </div>
-      <Link to="/projects/$projectId" params={{ projectId: String(project.id) }} className="block">
+      <Link to={gp(`/projects/${project.id}`)} className="block">
         <Card className="overflow-hidden shadow-sm">
           {initiativeColor ? (
             <div
@@ -112,6 +114,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
 
 export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
+  const gp = useGuildPath();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
     : null;
@@ -146,7 +149,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
           />
         </div>
       </div>
-      <Link to="/projects/$projectId" params={{ projectId: String(project.id) }} className="block">
+      <Link to={gp(`/projects/${project.id}`)} className="block">
         <Card
           className={`p-4 pr-16 shadow-sm ${initiativeColor ? "border-l-4" : ""}`}
           style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
@@ -187,13 +190,13 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
 };
 
 export const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => {
+  const gp = useGuildPath();
   if (!initiative) {
     return null;
   }
   return (
     <Link
-      to="/initiatives/$initiativeId"
-      params={{ initiativeId: String(initiative.id) }}
+      to={gp(`/initiatives/${initiative.id}`)}
       className="text-muted-foreground flex items-center gap-2 text-xs font-medium"
     >
       <InitiativeColorDot color={initiative.color} />

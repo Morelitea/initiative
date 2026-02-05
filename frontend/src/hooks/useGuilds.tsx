@@ -23,6 +23,7 @@ interface GuildContextValue {
   error: string | null;
   refreshGuilds: () => Promise<void>;
   switchGuild: (guildId: number) => Promise<void>;
+  syncGuildFromUrl: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<Guild>;
   updateGuildInState: (guild: Guild) => void;
   reorderGuilds: (guildIds: number[]) => void;
@@ -228,6 +229,34 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     [user, activeGuildId, refreshGuilds, refreshUser]
   );
 
+  /**
+   * Sync guild context from URL without full navigation.
+   * Used by guild-scoped routes to sync context from URL params.
+   * This is lighter weight than switchGuild - it doesn't call backend /switch
+   * unless necessary, as the URL already contains the guild context.
+   */
+  const syncGuildFromUrl = useCallback(
+    async (guildId: number) => {
+      if (guildId === activeGuildId) {
+        return;
+      }
+
+      // Update local state immediately
+      setActiveGuildId(guildId);
+      setCurrentGuildId(guildId);
+      persistGuildId(guildId);
+
+      // Background sync with backend to update "last used guild"
+      try {
+        await apiClient.post(`/guilds/${guildId}/switch`);
+      } catch (err) {
+        console.error("Failed to sync guild from URL", err);
+        // Don't throw - the URL already has the correct guild context
+      }
+    },
+    [activeGuildId]
+  );
+
   const reorderGuilds = useCallback(
     (guildIds: number[]) => {
       if (guildIds.length === 0) {
@@ -328,6 +357,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     error,
     refreshGuilds,
     switchGuild,
+    syncGuildFromUrl,
     createGuild,
     updateGuildInState,
     reorderGuilds,

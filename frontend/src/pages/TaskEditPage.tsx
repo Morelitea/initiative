@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useGuildPath } from "@/lib/guildUrl";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   Comment,
@@ -91,6 +92,7 @@ export const TaskEditPage = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
+  const gp = useGuildPath();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
   const { isEnabled: aiEnabled } = useAIEnabled();
@@ -223,7 +225,7 @@ export const TaskEditPage = () => {
       toast.success("Task duplicated");
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
-      router.navigate({ to: "/tasks/$taskId", params: { taskId: String(newTask.id) } });
+      router.navigate({ to: gp(`/tasks/${newTask.id}`) });
     },
   });
 
@@ -235,7 +237,7 @@ export const TaskEditPage = () => {
       toast.success("Task deleted");
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
-      router.navigate({ to: "/projects/$projectId", params: { projectId: String(projectId) } });
+      router.navigate({ to: gp(`/projects/${projectId}`) });
     },
   });
 
@@ -489,10 +491,7 @@ export const TaskEditPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link
-                    to="/initiatives/$initiativeId"
-                    params={{ initiativeId: String(project.initiative.id) }}
-                  >
+                  <Link to={gp(`/initiatives/${project.initiative.id}`)}>
                     {project.initiative.name}
                   </Link>
                 </BreadcrumbLink>
@@ -504,9 +503,7 @@ export const TaskEditPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
-                    {project.name}
-                  </Link>
+                  <Link to={gp(`/projects/${project.id}`)}>{project.name}</Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
@@ -722,12 +719,7 @@ export const TaskEditPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() =>
-                    router.navigate({
-                      to: "/projects/$projectId",
-                      params: { projectId: String(projectId) },
-                    })
-                  }
+                  onClick={() => router.navigate({ to: gp(`/projects/${projectId}`) })}
                 >
                   <X className="h-4 w-4" />
                   Cancel

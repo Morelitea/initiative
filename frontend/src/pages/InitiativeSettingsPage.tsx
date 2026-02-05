@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGuildPath } from "@/lib/guildUrl";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -86,6 +87,7 @@ export const InitiativeSettingsPage = () => {
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
+  const gp = useGuildPath();
 
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -200,7 +202,7 @@ export const InitiativeSettingsPage = () => {
     onSuccess: () => {
       toast.success("Initiative deleted.");
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
-      router.navigate({ to: "/initiatives" });
+      router.navigate({ to: gp("/initiatives") });
     },
     onError: (error) => {
       const message =
@@ -556,7 +558,7 @@ export const InitiativeSettingsPage = () => {
   ]);
 
   if (!hasValidInitiativeId) {
-    return <Navigate to="/initiatives" replace />;
+    return <Navigate to={gp("/initiatives")} replace />;
   }
 
   if (initiativesQuery.isLoading || !initiativesQuery.data) {
@@ -572,7 +574,7 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives">&larr; Back to My Initiatives</Link>
+          <Link to={gp("/initiatives")}>&larr; Back to My Initiatives</Link>
         </Button>
         <div className="rounded-lg border p-6">
           <h1 className="text-2xl font-semibold">Initiative not found</h1>
@@ -588,9 +590,7 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives/$initiativeId" params={{ initiativeId: String(initiative.id) }}>
-            &larr; Back to initiative
-          </Link>
+          <Link to={gp(`/initiatives/${initiative.id}`)}>&larr; Back to initiative</Link>
         </Button>
         <Card>
           <CardHeader>
@@ -610,12 +610,7 @@ export const InitiativeSettingsPage = () => {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link
-                to="/initiatives/$initiativeId"
-                params={{ initiativeId: String(initiative.id) }}
-              >
-                {initiative.name}
-              </Link>
+              <Link to={gp(`/initiatives/${initiative.id}`)}>{initiative.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

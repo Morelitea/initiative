@@ -38,6 +38,7 @@ import {
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { DocumentRead, DocumentPermissionLevel, Initiative, TagSummary } from "@/types/api";
 import { TagPicker } from "@/components/tags";
@@ -62,6 +63,7 @@ export const DocumentSettingsPage = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const gp = useGuildPath();
 
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
@@ -333,8 +335,7 @@ export const DocumentSettingsPage = () => {
       setDuplicateDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       router.navigate({
-        to: "/documents/$documentId",
-        params: { documentId: String(duplicated.id) },
+        to: gp(`/documents/${duplicated.id}`),
       });
     },
     onError: (error) => {
@@ -370,7 +371,7 @@ export const DocumentSettingsPage = () => {
       toast.success("Document copied");
       setCopyDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      router.navigate({ to: "/documents/$documentId", params: { documentId: String(copied.id) } });
+      router.navigate({ to: gp(`/documents/${copied.id}`) });
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Unable to copy document right now.";
@@ -386,7 +387,7 @@ export const DocumentSettingsPage = () => {
       toast.success("Document deleted");
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       setDeleteDialogOpen(false);
-      router.navigate({ to: "/documents" });
+      router.navigate({ to: gp("/documents") });
     },
     onError: () => {
       toast.error("Unable to delete document right now.");
@@ -530,10 +531,7 @@ export const DocumentSettingsPage = () => {
             <>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link
-                    to="/initiatives/$initiativeId"
-                    params={{ initiativeId: String(document.initiative.id) }}
-                  >
+                  <Link to={gp(`/initiatives/${document.initiative.id}`)}>
                     {document.initiative.name}
                   </Link>
                 </BreadcrumbLink>
@@ -543,9 +541,7 @@ export const DocumentSettingsPage = () => {
           )}
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/documents/$documentId" params={{ documentId: String(document.id) }}>
-                {document.title}
-              </Link>
+              <Link to={gp(`/documents/${document.id}`)}>{document.title}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

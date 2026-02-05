@@ -1,4 +1,4 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 type ProjectsSearchParams = {
   create?: string;
@@ -10,7 +10,16 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/projects")
     create: typeof search.create === "string" ? search.create : undefined,
     initiativeId: typeof search.initiativeId === "string" ? search.initiativeId : undefined,
   }),
-  component: lazyRouteComponent(() =>
-    import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage }))
-  ),
+  beforeLoad: ({ context, search }) => {
+    const guildId = context.guilds?.activeGuildId;
+    if (guildId) {
+      throw redirect({
+        to: "/g/$guildId/projects",
+        params: { guildId: String(guildId) },
+        search,
+      });
+    }
+    // No active guild - go to home
+    throw redirect({ to: "/" });
+  },
 });
