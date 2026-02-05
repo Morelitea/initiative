@@ -13,6 +13,7 @@ const EXPANDED_STORAGE_KEY = "documents:tag-tree-expanded";
 const MAX_INDENT = 3;
 
 function loadExpandedState(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
   try {
     const stored = localStorage.getItem(EXPANDED_STORAGE_KEY);
     if (stored) return JSON.parse(stored) as Record<string, boolean>;
@@ -23,6 +24,7 @@ function loadExpandedState(): Record<string, boolean> {
 }
 
 function saveExpandedState(state: Record<string, boolean>) {
+  if (typeof window === "undefined") return;
   try {
     localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(state));
   } catch {
