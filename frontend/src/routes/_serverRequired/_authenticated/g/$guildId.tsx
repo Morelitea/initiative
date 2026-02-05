@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { createFileRoute, Outlet, redirect, useNavigate, useParams } from "@tanstack/react-router";
+import { createFileRoute, Navigate, Outlet, redirect, useParams } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { setCurrentGuildId } from "@/api/client";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -42,18 +42,6 @@ function GuildLayout() {
   const params = useParams({ from: "/_serverRequired/_authenticated/g/$guildId" });
   const guildId = Number(params.guildId);
   const { guilds, activeGuildId, loading, syncGuildFromUrl } = useGuilds();
-  const navigate = useNavigate();
-
-  // Validate membership once guilds are loaded
-  useEffect(() => {
-    if (loading) return;
-
-    const guild = guilds.find((g) => g.id === guildId);
-    if (!guild) {
-      // User is not a member of this guild - redirect to home
-      void navigate({ to: "/" });
-    }
-  }, [loading, guilds, guildId, navigate]);
 
   // Sync guild context when URL guild ID changes
   useEffect(() => {
@@ -71,10 +59,10 @@ function GuildLayout() {
     );
   }
 
-  // Verify membership before rendering children
+  // Verify membership synchronously before rendering children
   const guild = guilds.find((g) => g.id === guildId);
   if (!guild) {
-    return null; // Will redirect via useEffect
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
