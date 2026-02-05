@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Tags view on Documents page for browsing documents by tag
+  - Collapsible tag tree with document counts and hierarchical expand/collapse
+  - Click to filter by tag, Ctrl/Cmd+Click for multi-select (OR filtering)
+  - "Not tagged" filter for documents without any tags
+  - Responsive layout: side panel on desktop, collapsible header on mobile
+  - Tags view is now the default view mode (Tags / Grid / List)
+
 ## [0.22.0] - 2026-02-04
 
 ### Added

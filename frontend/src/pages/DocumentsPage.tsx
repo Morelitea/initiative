@@ -13,6 +13,7 @@ import {
   Plus,
   Presentation,
   Table,
+  Tags,
   Copy,
   Trash2,
 } from "lucide-react";
@@ -48,6 +49,8 @@ import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
 import { TagPicker } from "@/components/tags/TagPicker";
+import { TagTreeView, UNTAGGED_PATH } from "@/components/tags/TagTreeView";
+import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { useTags } from "@/hooks/useTags";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -216,13 +219,14 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
-  const [viewMode, setViewMode] = useState<"grid" | "table">(() => {
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "tags">(() => {
     if (typeof window === "undefined") {
-      return "grid";
+      return "tags";
     }
     const stored = localStorage.getItem(DOCUMENT_VIEW_KEY);
-    return stored === "table" || stored === "grid" ? stored : "grid";
+    return stored === "list" || stored === "grid" || stored === "tags" ? stored : "tags";
   });
+  const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<number[]>(() => {
     if (typeof window === "undefined") return [];
     const stored = localStorage.getItem(DOCUMENT_TAG_FILTERS_KEY);
@@ -245,6 +249,36 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const handleTagFiltersChange = (newTags: TagSummary[]) => {
     setTagFilters(newTags.map((t) => t.id));
   };
+
+  const handleTreeTagToggle = (fullPath: string, ctrlKey: boolean) => {
+    setTreeSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (ctrlKey) {
+        // Ctrl/Cmd+Click: toggle in selection
+        if (next.has(fullPath)) {
+          next.delete(fullPath);
+        } else {
+          next.add(fullPath);
+        }
+      } else {
+        // Plain click: replace selection, or deselect if already the only selection
+        if (next.size === 1 && next.has(fullPath)) {
+          next.clear();
+        } else {
+          next.clear();
+          next.add(fullPath);
+        }
+      }
+      return next;
+    });
+  };
+
+  // Reset tree selection when switching away from tags view
+  useEffect(() => {
+    if (viewMode !== "tags") {
+      setTreeSelectedPaths(new Set());
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     if (lockedInitiativeId) {
@@ -505,6 +539,38 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     return allDocs.filter((doc) => viewableInitiativeIds.has(doc.initiative_id));
   }, [documentsQuery.data, user, viewableInitiativeIds]);
 
+  // For tags view: filter documents by selected tree paths (union / OR)
+  const treeFilteredDocuments = useMemo(() => {
+    if (treeSelectedPaths.size === 0) return documents;
+
+    const wantsUntagged = treeSelectedPaths.has(UNTAGGED_PATH);
+    const tagPaths = new Set(treeSelectedPaths);
+    tagPaths.delete(UNTAGGED_PATH);
+
+    const tree = buildTagTree(allTags);
+    // Merge all descendant tag IDs from every selected path into one set
+    const matchingTagIds = new Set<number>();
+    for (const path of tagPaths) {
+      const node = findNodeByPath(tree, path);
+      if (node) {
+        for (const id of collectDescendantTagIds(node)) {
+          matchingTagIds.add(id);
+        }
+      }
+    }
+
+    // Union: document matches if it has ANY selected tag OR is untagged (if selected)
+    return documents.filter((doc) => {
+      const docTags = doc.tags ?? [];
+
+      if (wantsUntagged && docTags.length === 0) return true;
+
+      if (matchingTagIds.size === 0) return false;
+
+      return docTags.some((t) => matchingTagIds.has(t.id));
+    });
+  }, [documents, treeSelectedPaths, allTags]);
+
   return (
     <div className="space-y-6">
       {!lockedInitiativeId && (
@@ -525,17 +591,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
           </div>
           <Tabs
             value={viewMode}
-            onValueChange={(value) => setViewMode(value as "grid" | "table")}
+            onValueChange={(value) => setViewMode(value as "grid" | "list" | "tags")}
             className="w-auto"
           >
-            <TabsList className="grid grid-cols-2">
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="tags" className="inline-flex items-center gap-2">
+                <Tags className="h-4 w-4" />
+                Tags
+              </TabsTrigger>
               <TabsTrigger value="grid" className="inline-flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4" />
                 Grid
               </TabsTrigger>
               <TabsTrigger value="list" className="inline-flex items-center gap-2">
                 <Table className="h-4 w-4" />
-                Table
+                List
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -552,17 +622,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
           )}
           <Tabs
             value={viewMode}
-            onValueChange={(value) => setViewMode(value as "grid" | "table")}
+            onValueChange={(value) => setViewMode(value as "grid" | "list" | "tags")}
             className="w-auto"
           >
-            <TabsList className="grid grid-cols-2">
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="tags" className="inline-flex items-center gap-2">
+                <Tags className="h-4 w-4" />
+                Tags
+              </TabsTrigger>
               <TabsTrigger value="grid" className="inline-flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4" />
                 Grid
               </TabsTrigger>
               <TabsTrigger value="list" className="inline-flex items-center gap-2">
                 <Table className="h-4 w-4" />
-                Table
+                List
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -635,20 +709,22 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
                 </Select>
               </div>
             )}
-            <div className="w-full space-y-2 sm:w-48">
-              <Label
-                htmlFor="document-tag-filter"
-                className="text-muted-foreground text-xs font-medium"
-              >
-                Filter by tag
-              </Label>
-              <TagPicker
-                selectedTags={selectedTagsForFilter}
-                onChange={handleTagFiltersChange}
-                placeholder="All tags"
-                variant="filter"
-              />
-            </div>
+            {viewMode !== "tags" && (
+              <div className="w-full space-y-2 sm:w-48">
+                <Label
+                  htmlFor="document-tag-filter"
+                  className="text-muted-foreground text-xs font-medium"
+                >
+                  Filter by tag
+                </Label>
+                <TagPicker
+                  selectedTags={selectedTagsForFilter}
+                  onChange={handleTagFiltersChange}
+                  placeholder="All tags"
+                  variant="filter"
+                />
+              </div>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -671,7 +747,62 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">Unable to load documents right now.</p>
       ) : documents.length > 0 ? (
-        viewMode === "grid" ? (
+        viewMode === "tags" ? (
+          <div className="flex flex-col gap-4 md:flex-row">
+            {/* Mobile: collapsible tag panel */}
+            <Collapsible className="border-muted bg-background/40 rounded-md border md:hidden">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
+                >
+                  <span className="flex items-center gap-2">
+                    <Tags className="h-4 w-4" />
+                    Browse by tag
+                    {treeSelectedPaths.size > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                        {treeSelectedPaths.size}
+                      </Badge>
+                    )}
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="max-h-64">
+                  <TagTreeView
+                    tags={allTags}
+                    documents={documents}
+                    selectedTagPaths={treeSelectedPaths}
+                    onToggleTag={handleTreeTagToggle}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+            {/* Desktop: fixed sidebar */}
+            <div className="border-muted bg-background/40 hidden w-64 shrink-0 rounded-md border md:block">
+              <TagTreeView
+                tags={allTags}
+                documents={documents}
+                selectedTagPaths={treeSelectedPaths}
+                onToggleTag={handleTreeTagToggle}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              {treeFilteredDocuments.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                  {treeFilteredDocuments.map((document) => (
+                    <DocumentCard key={document.id} document={document} hideInitiative />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-muted-foreground py-8 text-center text-sm">
+                  No documents match the selected tags.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : viewMode === "grid" ? (
           <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {documents.map((document) => (
               <DocumentCard key={document.id} document={document} hideInitiative />
