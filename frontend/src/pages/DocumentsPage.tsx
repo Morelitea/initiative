@@ -320,10 +320,18 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     }
   }, [activeGuildId, lockedInitiativeId]);
 
+  // In tags view, the tree does its own client-side filtering, so skip backend tag filters
+  const effectiveTagFilters = viewMode === "tags" ? [] : tagFilters;
+
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: [
       "documents",
-      { guildId: activeGuildId, initiative: initiativeFilter, search: searchQuery, tagFilters },
+      {
+        guildId: activeGuildId,
+        initiative: initiativeFilter,
+        search: searchQuery,
+        tagFilters: effectiveTagFilters,
+      },
     ],
     queryFn: async () => {
       const params: Record<string, string | string[]> = {};
@@ -333,8 +341,8 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       if (searchQuery.trim()) {
         params.search = searchQuery.trim();
       }
-      if (tagFilters.length > 0) {
-        params.tag_ids = tagFilters.map(String);
+      if (effectiveTagFilters.length > 0) {
+        params.tag_ids = effectiveTagFilters.map(String);
       }
       const response = await apiClient.get<DocumentSummary[]>("/documents/", { params });
       return response.data;
