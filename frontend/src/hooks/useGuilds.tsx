@@ -23,6 +23,7 @@ interface GuildContextValue {
   error: string | null;
   refreshGuilds: () => Promise<void>;
   switchGuild: (guildId: number) => Promise<void>;
+  syncGuildFromUrl: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<Guild>;
   updateGuildInState: (guild: Guild) => void;
   reorderGuilds: (guildIds: number[]) => void;
@@ -70,7 +71,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, token, refreshUser } = useAuth();
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
-  const [loading, setLoading] = useState(false);
+  // Start as true - we're loading until first fetch completes (or until we know we shouldn't fetch)
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reorderDebounceRef = useRef<number | null>(null);
   const pendingOrderRef = useRef<number[] | null>(null);
@@ -127,10 +129,11 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
+      setLoading(false);
       return;
     }
 
-    // Avoid setting loading=true on background refreshes if we already have data
+    // Only show loading indicator on initial load, not background refreshes
     if (guilds.length === 0) setLoading(true);
 
     setError(null);
@@ -199,6 +202,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
+      setLoading(false);
       return;
     }
     void refreshGuilds();
@@ -226,6 +230,34 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       }
     },
     [user, activeGuildId, refreshGuilds, refreshUser]
+  );
+
+  /**
+   * Sync guild context from URL without full navigation.
+   * Used by guild-scoped routes to sync context from URL params.
+   * This is lighter weight than switchGuild - it doesn't call backend /switch
+   * unless necessary, as the URL already contains the guild context.
+   */
+  const syncGuildFromUrl = useCallback(
+    async (guildId: number) => {
+      if (guildId === activeGuildId) {
+        return;
+      }
+
+      // Update local state immediately
+      setActiveGuildId(guildId);
+      setCurrentGuildId(guildId);
+      persistGuildId(guildId);
+
+      // Background sync with backend to update "last used guild"
+      try {
+        await apiClient.post(`/guilds/${guildId}/switch`);
+      } catch (err) {
+        console.error("Failed to sync guild from URL", err);
+        // Don't throw - the URL already has the correct guild context
+      }
+    },
+    [activeGuildId]
   );
 
   const reorderGuilds = useCallback(
@@ -328,6 +360,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     error,
     refreshGuilds,
     switchGuild,
+    syncGuildFromUrl,
     createGuild,
     updateGuildInState,
     reorderGuilds,

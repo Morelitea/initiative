@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
@@ -103,6 +104,7 @@ type ProjectsViewProps = {
 export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const router = useRouter();
   const localQueryClient = useQueryClient();
@@ -980,9 +982,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to="/projects/$projectId" params={{ projectId: String(template.id) }}>
-                          View template
-                        </Link>
+                        <Link to={gp(`/projects/${template.id}`)}>View template</Link>
                       </Button>
                       {hasProjectWritePermission(template) ? (
                         <Button
@@ -1046,9 +1046,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to="/projects/$projectId" params={{ projectId: String(archived.id) }}>
-                          View details
-                        </Link>
+                        <Link to={gp(`/projects/${archived.id}`)}>View details</Link>
                       </Button>
                       {hasProjectWritePermission(archived) ? (
                         <Button

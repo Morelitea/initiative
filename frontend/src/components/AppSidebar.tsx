@@ -59,6 +59,7 @@ import { useTags } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { guildPath } from "@/lib/guildUrl";
 import type { Initiative, Project, Tag as TagType } from "@/types/api";
 
 export const AppSidebar = () => {
@@ -75,11 +76,16 @@ export const AppSidebar = () => {
   // Platform admins can access platform settings (separate from guild admin role)
   const isPlatformAdmin = user?.role === "admin";
 
-  // Extract active project ID from URL
+  // Extract active project ID from URL (support both old and new URL patterns)
   const activeProjectId = useMemo(() => {
-    const match = location.pathname.match(/^\/projects\/(\d+)/);
+    const match =
+      location.pathname.match(/^\/g\/\d+\/projects\/(\d+)/) ||
+      location.pathname.match(/^\/projects\/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   }, [location.pathname]);
+
+  // Helper to create guild-scoped paths
+  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: ["initiatives", activeGuildId],
@@ -242,7 +248,7 @@ export const AppSidebar = () => {
                 </h2>
                 {activeGuild && isGuildAdmin && (
                   <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-                    <Link to="/settings/guild" aria-label="Guild settings">
+                    <Link to={gp("/settings")} aria-label="Guild settings">
                       <Settings className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -283,8 +289,7 @@ export const AppSidebar = () => {
                                   isActive={project.id === activeProjectId}
                                 >
                                   <Link
-                                    to="/projects/$projectId"
-                                    params={{ projectId: String(project.id) }}
+                                    to={gp(`/projects/${project.id}`)}
                                     className="flex min-w-0 items-center gap-2"
                                   >
                                     {project.icon ? (
@@ -335,6 +340,7 @@ export const AppSidebar = () => {
                                 canViewProjects={permissions.canViewProjects}
                                 canCreateDocs={permissions.canCreateDocs}
                                 canCreateProjects={permissions.canCreateProjects}
+                                activeGuildId={activeGuildId}
                               />
                             );
                           })}
@@ -345,7 +351,7 @@ export const AppSidebar = () => {
                         <SidebarMenu>
                           <SidebarMenuItem>
                             <SidebarMenuButton asChild size="sm">
-                              <Link to="/initiatives" search={{ create: "true" }}>
+                              <Link to={gp("/initiatives")} search={{ create: "true" }}>
                                 <Plus className="h-4 w-4" />
                                 <span>Add initiative</span>
                               </Link>
@@ -365,7 +371,11 @@ export const AppSidebar = () => {
                       <Tag className="h-4 w-4" /> Tags
                     </SidebarGroupLabel>
                     <SidebarGroupContent>
-                      <TagBrowser tags={tagsQuery.data ?? []} isLoading={tagsQuery.isLoading} />
+                      <TagBrowser
+                        tags={tagsQuery.data ?? []}
+                        isLoading={tagsQuery.isLoading}
+                        activeGuildId={activeGuildId}
+                      />
                     </SidebarGroupContent>
                   </SidebarGroup>
                 </SidebarContent>
@@ -413,9 +423,9 @@ export const AppSidebar = () => {
                       <UserCog className="h-4 w-4" /> User Settings
                     </Link>
                   </DropdownMenuItem>
-                  {isGuildAdmin && (
+                  {isGuildAdmin && activeGuildId && (
                     <DropdownMenuItem asChild>
-                      <Link to="/settings/guild">
+                      <Link to={gp("/settings")}>
                         <Settings className="h-4 w-4" /> Guild Settings
                       </Link>
                     </DropdownMenuItem>
@@ -493,6 +503,7 @@ interface InitiativeSectionProps {
   canViewProjects: boolean;
   canCreateDocs: boolean;
   canCreateProjects: boolean;
+  activeGuildId: number | null;
 }
 
 const InitiativeSection = ({
@@ -506,7 +517,10 @@ const InitiativeSection = ({
   canViewProjects,
   canCreateDocs,
   canCreateProjects,
+  activeGuildId,
 }: InitiativeSectionProps) => {
+  // Helper to create guild-scoped paths
+  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   // Pure DAC: check if user has write access to a specific project
   const canManageProject = (project: Project): boolean => {
     if (!userId) return false;
@@ -561,11 +575,7 @@ const InitiativeSection = ({
             className="hover:bg-accent min-w-0 flex-1 justify-start px-0 py-1.5 text-sm font-medium"
             asChild
           >
-            <Link
-              to="/initiatives/$initiativeId"
-              params={{ initiativeId: String(initiative.id) }}
-              className="flex min-w-0 items-center"
-            >
+            <Link to={gp(`/initiatives/${initiative.id}`)} className="flex min-w-0 items-center">
               <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
             </Link>
           </Button>
@@ -581,10 +591,7 @@ const InitiativeSection = ({
                   className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/initiative:opacity-100 lg:flex"
                   asChild
                 >
-                  <Link
-                    to="/initiatives/$initiativeId/settings"
-                    params={{ initiativeId: String(initiative.id) }}
-                  >
+                  <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
                     <Settings className="h-3 w-3" />
                   </Link>
                 </Button>
@@ -608,10 +615,7 @@ const InitiativeSection = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
-                  <Link
-                    to="/initiatives/$initiativeId/settings"
-                    params={{ initiativeId: String(initiative.id) }}
-                  >
+                  <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
                     <Settings className="mr-2 h-4 w-4" />
                     Initiative Settings
                   </Link>
@@ -619,7 +623,7 @@ const InitiativeSection = ({
                 {canCreateDocs && (
                   <DropdownMenuItem asChild>
                     <Link
-                      to="/documents"
+                      to={gp("/documents")}
                       search={{ create: "true", initiativeId: String(initiative.id) }}
                     >
                       <Plus className="mr-2 h-4 w-4" />
@@ -630,7 +634,7 @@ const InitiativeSection = ({
                 {canCreateProjects && (
                   <DropdownMenuItem asChild>
                     <Link
-                      to="/projects"
+                      to={gp("/projects")}
                       search={{ create: "true", initiativeId: String(initiative.id) }}
                     >
                       <Plus className="mr-2 h-4 w-4" />
@@ -654,7 +658,7 @@ const InitiativeSection = ({
               <div className="group/documents flex w-full min-w-0 items-center gap-1">
                 <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                   <Link
-                    to="/documents"
+                    to={gp("/documents")}
                     search={{ initiativeId: String(initiative.id) }}
                     className="flex items-center gap-2"
                   >
@@ -673,7 +677,7 @@ const InitiativeSection = ({
                         asChild
                       >
                         <Link
-                          to="/documents"
+                          to={gp("/documents")}
                           search={{ create: "true", initiativeId: String(initiative.id) }}
                         >
                           <Plus className="h-3 w-3" />
@@ -695,7 +699,7 @@ const InitiativeSection = ({
               <div className="group/projects flex w-full min-w-0 items-center gap-1">
                 <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                   <Link
-                    to="/projects"
+                    to={gp("/projects")}
                     search={{ initiativeId: String(initiative.id) }}
                     className="flex items-center gap-2"
                   >
@@ -714,7 +718,7 @@ const InitiativeSection = ({
                         asChild
                       >
                         <Link
-                          to="/projects"
+                          to={gp("/projects")}
                           search={{ create: "true", initiativeId: String(initiative.id) }}
                         >
                           <Plus className="h-3 w-3" />
@@ -742,8 +746,7 @@ const InitiativeSection = ({
                     isActive={project.id === activeProjectId}
                   >
                     <Link
-                      to="/projects/$projectId"
-                      params={{ projectId: String(project.id) }}
+                      to={gp(`/projects/${project.id}`)}
                       className="flex min-w-0 items-center gap-2"
                     >
                       {project.icon ? (
@@ -763,10 +766,7 @@ const InitiativeSection = ({
                             className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
                             asChild
                           >
-                            <Link
-                              to="/projects/$projectId/settings"
-                              params={{ projectId: String(project.id) }}
-                            >
+                            <Link to={gp(`/projects/${project.id}/settings`)}>
                               <Settings className="h-3 w-3" />
                             </Link>
                           </Button>
@@ -790,10 +790,7 @@ const InitiativeSection = ({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuItem asChild>
-                            <Link
-                              to="/projects/$projectId/settings"
-                              params={{ projectId: String(project.id) }}
-                            >
+                            <Link to={gp(`/projects/${project.id}/settings`)}>
                               <Settings className="mr-2 h-4 w-4" />
                               Project Settings
                             </Link>
@@ -824,9 +821,10 @@ interface TagTreeNode {
 interface TagBrowserProps {
   tags: TagType[];
   isLoading: boolean;
+  activeGuildId: number | null;
 }
 
-const TagBrowser = ({ tags, isLoading }: TagBrowserProps) => {
+const TagBrowser = ({ tags, isLoading, activeGuildId }: TagBrowserProps) => {
   // Build a tree structure from flat tag list
   const tagTree = useMemo(() => {
     const tagsByPath = new Map<string, TagType>();
@@ -907,7 +905,12 @@ const TagBrowser = ({ tags, isLoading }: TagBrowserProps) => {
   return (
     <div className="space-y-1">
       {tagTree.map((node) => (
-        <TagTreeNodeComponent key={node.fullPath} node={node} depth={0} />
+        <TagTreeNodeComponent
+          key={node.fullPath}
+          node={node}
+          depth={0}
+          activeGuildId={activeGuildId}
+        />
       ))}
     </div>
   );
@@ -916,9 +919,12 @@ const TagBrowser = ({ tags, isLoading }: TagBrowserProps) => {
 interface TagTreeNodeComponentProps {
   node: TagTreeNode;
   depth: number;
+  activeGuildId: number | null;
 }
 
-const TagTreeNodeComponent = ({ node, depth }: TagTreeNodeComponentProps) => {
+const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeComponentProps) => {
+  // Helper to create guild-scoped paths
+  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   const [isOpen, setIsOpen] = useState(() => {
     try {
       const stored = localStorage.getItem("tag-group-collapsed-states");
@@ -973,8 +979,7 @@ const TagTreeNodeComponent = ({ node, depth }: TagTreeNodeComponentProps) => {
     if (!node.tag) return null; // Ghost node with no tag and no children
     return (
       <Link
-        to="/tags/$tagId"
-        params={{ tagId: String(node.tag.id) }}
+        to={gp(`/tags/${node.tag.id}`)}
         className="hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
       >
         <span
@@ -1014,8 +1019,7 @@ const TagTreeNodeComponent = ({ node, depth }: TagTreeNodeComponentProps) => {
         )}
         {node.tag ? (
           <Link
-            to="/tags/$tagId"
-            params={{ tagId: String(node.tag.id) }}
+            to={gp(`/tags/${node.tag.id}`)}
             className="hover:bg-accent flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1.5 text-sm transition-colors"
           >
             <span className="min-w-0 flex-1 truncate font-medium">{node.segment}</span>
@@ -1034,7 +1038,12 @@ const TagTreeNodeComponent = ({ node, depth }: TagTreeNodeComponentProps) => {
           style={{ borderColor: nodeColor || undefined }}
         >
           {node.children.map((child) => (
-            <TagTreeNodeComponent key={child.fullPath} node={child} depth={depth + 1} />
+            <TagTreeNodeComponent
+              key={child.fullPath}
+              node={child}
+              depth={depth + 1}
+              activeGuildId={activeGuildId}
+            />
           ))}
         </CollapsibleContent>
       )}

@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,21 @@ const getDefaultDocumentFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
+// Cell component that uses guild-scoped URLs
+const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
+  const gp = useGuildPath();
+  return (
+    <div className="min-w-[220px] sm:min-w-0">
+      <Link
+        to={gp(`/documents/${document.id}`)}
+        className="text-primary font-medium hover:underline"
+      >
+        {document.title}
+      </Link>
+    </div>
+  );
+};
+
 const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     accessorKey: "title",
@@ -73,20 +89,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
         </div>
       );
     },
-    cell: ({ row }) => {
-      const document = row.original;
-      return (
-        <div className="min-w-[220px] sm:min-w-0">
-          <Link
-            to="/documents/$documentId"
-            params={{ documentId: String(document.id) }}
-            className="text-primary font-medium hover:underline"
-          >
-            {document.title}
-          </Link>
-        </div>
-      );
-    },
+    cell: ({ row }) => <DocumentTitleCell document={row.original} />,
     enableSorting: true,
     sortingFn: "alphanumeric",
     enableHiding: false,
@@ -185,6 +188,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { initiativeId?: string; create?: string };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
@@ -413,8 +417,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const handleDocumentCreated = (document: { id: number }) => {
     router.navigate({
-      to: "/documents/$documentId",
-      params: { documentId: String(document.id) },
+      to: gp(`/documents/${document.id}`),
     });
   };
 
@@ -424,7 +427,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     if (!open && searchParams.create) {
       isClosingCreateDialog.current = true;
       router.navigate({
-        to: "/documents",
+        to: gp("/documents"),
         search: { initiativeId: searchParams.initiativeId },
         replace: true,
       });

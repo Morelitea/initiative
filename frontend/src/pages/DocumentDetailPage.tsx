@@ -36,6 +36,7 @@ const FileDocumentViewer = lazy(() =>
   }))
 );
 import { findNewMentions } from "@/lib/mentionUtils";
+import { useGuildPath } from "@/lib/guildUrl";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import {
   Breadcrumb,
@@ -66,6 +67,7 @@ export const DocumentDetailPage = () => {
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
+  const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
   const setDocumentTagsMutation = useSetDocumentTags();
@@ -198,11 +200,10 @@ export const DocumentDetailPage = () => {
   const handleWikilinkNavigate = useCallback(
     (targetDocumentId: number) => {
       void navigate({
-        to: "/documents/$documentId",
-        params: { documentId: String(targetDocumentId) },
+        to: gp(`/documents/${targetDocumentId}`),
       });
     },
-    [navigate]
+    [navigate, gp]
   );
 
   // Wikilink create handler - opens dialog and stores update callback
@@ -250,12 +251,11 @@ export const DocumentDetailPage = () => {
           }).catch(() => {});
         }
         void navigate({
-          to: "/documents/$documentId",
-          params: { documentId: String(newDocumentId) },
+          to: gp(`/documents/${newDocumentId}`),
         });
       }, 0);
     },
-    [navigate, token, activeGuildId, parsedId]
+    [navigate, gp, token, activeGuildId, parsedId]
   );
 
   const updateDocumentCommentCount = (delta: number) => {
@@ -521,10 +521,7 @@ export const DocumentDetailPage = () => {
               <>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link
-                      to="/initiatives/$initiativeId"
-                      params={{ initiativeId: String(document.initiative.id) }}
-                    >
+                    <Link to={gp(`/initiatives/${document.initiative.id}`)}>
                       {document.initiative.name}
                     </Link>
                   </BreadcrumbLink>
@@ -541,8 +538,7 @@ export const DocumentDetailPage = () => {
           {canEditDocument && (
             <Button asChild variant="outline" size="sm">
               <Link
-                to="/documents/$documentId/settings"
-                params={{ documentId: String(document.id) }}
+                to={gp(`/documents/${document.id}/settings`)}
                 className="inline-flex items-center gap-2"
               >
                 <Settings className="h-4 w-4" />
@@ -572,8 +568,7 @@ export const DocumentDetailPage = () => {
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
           {document.initiative ? (
             <Link
-              to="/initiatives/$initiativeId"
-              params={{ initiativeId: String(document.initiative.id) }}
+              to={gp(`/initiatives/${document.initiative.id}`)}
               className="inline-flex items-center gap-1 rounded-full border px-3 py-1"
             >
               <InitiativeColorDot color={document.initiative.color} />
@@ -810,8 +805,7 @@ export const DocumentDetailPage = () => {
                   >
                     <div className="space-y-0.5">
                       <Link
-                        to="/projects/$projectId"
-                        params={{ projectId: String(link.project_id) }}
+                        to={gp(`/projects/${link.project_id}`)}
                         className="font-medium hover:underline"
                       >
                         {link.project_name ?? `Project #${link.project_id}`}

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { useTag, useTagEntities, useDeleteTag, useUpdateTag } from "@/hooks/useTags";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -35,6 +36,7 @@ export const TagDetailPage = () => {
   const tagId = hasValidTagId ? parsedTagId : null;
 
   const router = useRouter();
+  const gp = useGuildPath();
 
   const { data: tag, isLoading: tagLoading, error: tagError } = useTag(tagId);
   const { data: entities, isLoading: entitiesLoading } = useTagEntities(tagId);
@@ -208,8 +210,7 @@ export const TagDetailPage = () => {
                 entities?.tasks.map((task) => (
                   <Link
                     key={task.id}
-                    to="/tasks/$taskId"
-                    params={{ taskId: String(task.id) }}
+                    to={gp(`/tasks/${task.id}`)}
                     className="hover:bg-accent block rounded-md p-2 transition-colors"
                   >
                     <p className="text-sm font-medium">{task.title}</p>
@@ -240,8 +241,7 @@ export const TagDetailPage = () => {
                 entities?.projects.map((project) => (
                   <Link
                     key={project.id}
-                    to="/projects/$projectId"
-                    params={{ projectId: String(project.id) }}
+                    to={gp(`/projects/${project.id}`)}
                     className="hover:bg-accent block rounded-md p-2 transition-colors"
                   >
                     <p className="text-sm font-medium">{project.name}</p>
@@ -272,8 +272,7 @@ export const TagDetailPage = () => {
                 entities?.documents.map((doc) => (
                   <Link
                     key={doc.id}
-                    to="/documents/$documentId"
-                    params={{ documentId: String(doc.id) }}
+                    to={gp(`/documents/${doc.id}`)}
                     className="hover:bg-accent block rounded-md p-2 transition-colors"
                   >
                     <p className="text-sm font-medium">{doc.title}</p>

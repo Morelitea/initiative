@@ -5,6 +5,7 @@ import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 
 import { getDocumentBacklinks } from "@/api/documents";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -14,6 +15,7 @@ interface DocumentBacklinksProps {
 
 export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const gp = useGuildPath();
 
   const {
     data: backlinks = [],
@@ -63,8 +65,7 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
             {backlinks.map((backlink) => (
               <li key={backlink.id}>
                 <Link
-                  to="/documents/$documentId"
-                  params={{ documentId: String(backlink.id) }}
+                  to={gp(`/documents/${backlink.id}`)}
                   className="group hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5"
                 >
                   <FileText className="text-muted-foreground h-4 w-4 shrink-0" />

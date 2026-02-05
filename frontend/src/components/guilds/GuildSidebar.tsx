@@ -23,6 +23,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { useGuilds } from "@/hooks/useGuilds";
+import { extractSubPath, isGuildScopedPath, guildPath } from "@/lib/guildUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -242,31 +243,42 @@ export const GuildSidebar = () => {
   const handleGuildSwitch = async (guildId: number) => {
     if (guildId === activeGuildId) return;
 
-    // Determine where to go based on current page
     const currentPath = location.pathname;
-    let targetPath = "/"; // Default to My Tasks
+
+    // If on a guild-scoped route, navigate to same sub-path in new guild
+    if (isGuildScopedPath(currentPath)) {
+      const subPath = extractSubPath(currentPath);
+      // For detail pages (e.g., /projects/123), redirect to list instead
+      // since the ID won't exist in the new guild
+      let targetSubPath = subPath;
+      if (/^\/(projects|initiatives|documents|tasks|tags)\/\d+/.test(subPath)) {
+        // Extract just the section name (e.g., "/projects")
+        const match = subPath.match(/^\/([^/]+)/);
+        targetSubPath = match ? `/${match[1]}` : "/projects";
+      }
+      await switchGuild(guildId);
+      router.navigate({ to: guildPath(guildId, targetSubPath) });
+      return;
+    }
+
+    // Legacy: handle old URL patterns during transition
+    let targetPath = "/"; // Default to My Tasks for global pages
     if (currentPath.startsWith("/projects")) {
-      // Projects are guild-scoped, so return to the list.
-      targetPath = "/projects";
+      targetPath = guildPath(guildId, "/projects");
     } else if (currentPath.startsWith("/initiatives")) {
-      // Initiative detail IDs are guild-scoped, so return to the list.
-      targetPath = "/initiatives";
+      targetPath = guildPath(guildId, "/initiatives");
     } else if (currentPath.startsWith("/documents")) {
-      // If we are on a document detail page (/documents/123), that ID won't exist in the new guild.
-      // So we fallback to the Document List page (/documents).
-      targetPath = "/documents";
-    } else if (currentPath.startsWith("/settings")) {
-      // Settings pages are generally safe to persist
-      targetPath = currentPath;
+      targetPath = guildPath(guildId, "/documents");
+    } else if (currentPath.startsWith("/settings/guild")) {
+      targetPath = guildPath(guildId, "/settings");
     } else if (currentPath.startsWith("/profile")) {
-      // User profile is global
+      // User profile is global, stay on current path
       targetPath = currentPath;
     }
 
     await switchGuild(guildId);
 
     if (targetPath !== "/") {
-      // My tasks is global, don't navigate/refresh
       router.navigate({ to: targetPath });
     }
   };

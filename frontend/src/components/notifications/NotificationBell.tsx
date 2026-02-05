@@ -14,13 +14,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Notification } from "@/types/api";
 import { useAuth } from "@/hooks/useAuth";
+import { guildPath } from "@/lib/guildUrl";
 
 const NOTIFICATION_QUERY_KEY = ["notifications"];
 
-const buildNavigatePath = (guildId: number, targetPath: string): string => {
+// Build guild-scoped URL directly
+const buildGuildPath = (guildId: number, targetPath: string): string => {
   const normalized = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  const encodedTarget = encodeURIComponent(normalized);
-  return `/navigate?guild_id=${guildId}&target=${encodedTarget}`;
+  return guildPath(guildId, normalized);
 };
 
 const resolveSmartLink = (notification: Notification): string | null => {
@@ -38,7 +39,7 @@ const resolveSmartLink = (notification: Notification): string | null => {
 
   const targetPath = typeof targetValue === "string" ? targetValue : null;
   if (guildId !== null && targetPath) {
-    return buildNavigatePath(guildId, targetPath);
+    return buildGuildPath(guildId, targetPath);
   }
 
   if (typeof data.smart_link === "string" && data.smart_link) {

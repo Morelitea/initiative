@@ -8,14 +8,20 @@ import { apiClient } from "@/api/client";
 import type { ProjectActivityEntry, ProjectActivityResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { guildPath } from "@/lib/guildUrl";
+import { useGuilds } from "@/hooks/useGuilds";
 
 interface ProjectActivitySidebarProps {
   projectId: number | null;
 }
 
 export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
+  const { activeGuildId } = useGuilds();
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
+
+  // Helper to create guild-scoped paths
+  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
     queryKey: ["projects", projectId, "activity"],
@@ -118,8 +124,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                       <p className="text-foreground text-sm">
                         commented on{" "}
                         <Link
-                          to="/tasks/$taskId"
-                          params={{ taskId: String(entry.task_id) }}
+                          to={gp(`/tasks/${entry.task_id}`)}
                           className="font-medium hover:underline"
                         >
                           {entry.task_title}

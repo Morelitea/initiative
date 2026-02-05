@@ -1,7 +1,14 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/settings/guild/")({
-  component: lazyRouteComponent(() =>
-    import("@/pages/SettingsGuildPage").then((m) => ({ default: m.SettingsGuildPage }))
-  ),
+  beforeLoad: ({ context }) => {
+    const guildId = context.guilds?.activeGuildId;
+    if (guildId) {
+      throw redirect({
+        to: "/g/$guildId/settings",
+        params: { guildId: String(guildId) },
+      });
+    }
+    throw redirect({ to: "/" });
+  },
 });

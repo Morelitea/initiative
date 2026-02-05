@@ -8,6 +8,7 @@ import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -42,6 +43,7 @@ export const InitiativesPage = () => {
   const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
+  const gp = useGuildPath();
   const queryClient = useQueryClient();
   const searchParams = useSearch({ strict: false }) as { create?: string };
 
@@ -264,12 +266,7 @@ export const InitiativesPage = () => {
                   </CardContent>
                   <CardFooter>
                     <Button asChild variant="outline" size="sm">
-                      <Link
-                        to="/initiatives/$initiativeId"
-                        params={{ initiativeId: String(initiative.id) }}
-                      >
-                        Open initiative
-                      </Link>
+                      <Link to={gp(`/initiatives/${initiative.id}`)}>Open initiative</Link>
                     </Button>
                   </CardFooter>
                 </Card>

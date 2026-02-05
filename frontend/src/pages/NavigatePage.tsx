@@ -5,6 +5,7 @@ import { useRouter, useSearch } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useAuth } from "@/hooks/useAuth";
+import { isGuildScopedPath, guildPath } from "@/lib/guildUrl";
 
 const normalizeTarget = (raw: string): string => {
   const decoded = decodeURIComponent(raw);
@@ -16,7 +17,7 @@ const normalizeTarget = (raw: string): string => {
 
 export const NavigatePage = () => {
   const { user, loading: authLoading } = useAuth();
-  const { activeGuildId, switchGuild } = useGuilds();
+  const { guilds, activeGuildId, switchGuild } = useGuilds();
   const searchParams = useSearch({ strict: false }) as { guild_id?: string; target?: string };
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -60,14 +61,29 @@ export const NavigatePage = () => {
       return;
     }
 
+    // Check if user has access to this guild
+    const hasAccess = guilds.some((g) => g.id === parsedGuildId);
+    if (!hasAccess) {
+      setError("You don't have access to this guild.");
+      setIsProcessing(false);
+      return;
+    }
+
     setError(null);
     setIsProcessing(true);
+
+    // Redirect to new guild-scoped URL format if the target isn't already guild-scoped
+    const finalDestination = isGuildScopedPath(destination)
+      ? destination
+      : guildPath(parsedGuildId, destination);
+
     const performNavigation = async () => {
       try {
+        // Sync guild context in background (but URL already has guild info)
         if (activeGuildId !== parsedGuildId) {
           await switchGuild(parsedGuildId);
         }
-        router.navigate({ to: destination, replace: true });
+        router.navigate({ to: finalDestination, replace: true });
       } catch (err) {
         console.error("Failed to follow smart link", err);
         setError("Unable to switch guild for this link.");
@@ -75,7 +91,7 @@ export const NavigatePage = () => {
       }
     };
     void performNavigation();
-  }, [authLoading, user, guildParam, activeGuildId, switchGuild, router, destination]);
+  }, [authLoading, user, guilds, guildParam, activeGuildId, switchGuild, router, destination]);
 
   if (error) {
     return (

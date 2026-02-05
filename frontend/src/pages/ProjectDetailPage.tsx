@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus, User } from "@/types/api";
 
@@ -27,6 +28,7 @@ export const ProjectDetailPage = () => {
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  const gp = useGuildPath();
   const localQueryClient = useQueryClient();
   const parsedProjectId = Number(projectId);
 
@@ -130,7 +132,7 @@ export const ProjectDetailPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Invalid project id.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/projects">← Back to projects</Link>
+          <Link to={gp("/projects")}>← Back to projects</Link>
         </Button>
       </div>
     );
@@ -145,7 +147,7 @@ export const ProjectDetailPage = () => {
       <div className="space-y-4">
         <p className="text-destructive">Unable to load project.</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/projects">← Back to projects</Link>
+          <Link to={gp("/projects")}>← Back to projects</Link>
         </Button>
       </div>
     );
@@ -174,7 +176,7 @@ export const ProjectDetailPage = () => {
     if (!canViewTaskDetails) {
       return;
     }
-    router.navigate({ to: "/tasks/$taskId", params: { taskId: String(taskId) } });
+    router.navigate({ to: gp(`/tasks/${taskId}`) });
   };
 
   return (
@@ -187,10 +189,7 @@ export const ProjectDetailPage = () => {
                 <>
                   <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                      <Link
-                        to="/initiatives/$initiativeId"
-                        params={{ initiativeId: String(project.initiative.id) }}
-                      >
+                      <Link to={gp(`/initiatives/${project.initiative.id}`)}>
                         {project.initiative.name}
                       </Link>
                     </BreadcrumbLink>
@@ -205,7 +204,7 @@ export const ProjectDetailPage = () => {
           </Breadcrumb>
           {canManageSettings ? (
             <Button asChild variant="outline" size="sm" aria-label="Open project settings">
-              <Link to="/projects/$projectId/settings" params={{ projectId: String(project.id) }}>
+              <Link to={gp(`/projects/${project.id}/settings`)}>
                 <Settings className="h-5 w-5" /> Project Settings
               </Link>
             </Button>

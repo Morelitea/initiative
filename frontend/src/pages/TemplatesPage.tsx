@@ -16,11 +16,15 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
+import { guildPath } from "@/lib/guildUrl";
 import { Project } from "@/types/api";
 
 export const TemplatesPage = () => {
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+
+  // Helper to create guild-scoped paths
+  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   const managedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
@@ -90,9 +94,7 @@ export const TemplatesPage = () => {
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">
                 <Button asChild variant="link" className="px-0">
-                  <Link to="/projects/$projectId" params={{ projectId: String(project.id) }}>
-                    View template
-                  </Link>
+                  <Link to={gp(`/projects/${project.id}`)}>View template</Link>
                 </Button>
                 {canManageProjects ? (
                   <Button

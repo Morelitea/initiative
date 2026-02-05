@@ -120,7 +120,10 @@ function AppLayout() {
     clearRecent.mutate(projectId);
   };
 
-  const activeProjectMatch = location.pathname.match(/^\/projects\/(\d+)/);
+  // Match both old /projects/:id and new /g/:guildId/projects/:id patterns
+  const activeProjectMatch =
+    location.pathname.match(/^\/g\/\d+\/projects\/(\d+)/) ||
+    location.pathname.match(/^\/projects\/(\d+)/);
   const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
 
   return (

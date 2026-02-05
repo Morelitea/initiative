@@ -1,30 +1,14 @@
-import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-import { apiClient } from "@/api/client";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/tags_/$tagId")({
-  loader: async ({ context, params }) => {
-    const tagId = Number(params.tagId);
-    const { queryClient } = context;
-
-    // Prefetch tag and entities in parallel
-    try {
-      await Promise.all([
-        queryClient.ensureQueryData({
-          queryKey: ["tags", tagId],
-          queryFn: () => apiClient.get(`/tags/${tagId}`).then((r) => r.data),
-          staleTime: 60_000,
-        }),
-        queryClient.ensureQueryData({
-          queryKey: ["tags", tagId, "entities"],
-          queryFn: () => apiClient.get(`/tags/${tagId}/entities`).then((r) => r.data),
-          staleTime: 30_000,
-        }),
-      ]);
-    } catch {
-      // Silently fail - component will fetch its own data
+  beforeLoad: ({ context, params }) => {
+    const guildId = context.guilds?.activeGuildId;
+    if (guildId) {
+      throw redirect({
+        to: "/g/$guildId/tags/$tagId",
+        params: { guildId: String(guildId), tagId: params.tagId },
+      });
     }
+    throw redirect({ to: "/" });
   },
-  component: lazyRouteComponent(() =>
-    import("@/pages/TagDetailPage").then((m) => ({ default: m.TagDetailPage }))
-  ),
 });

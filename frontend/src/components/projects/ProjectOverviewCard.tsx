@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Markdown } from "@/components/Markdown";
 import { FavoriteProjectButton } from "./FavoriteProjectButton";
 import {
@@ -18,6 +19,7 @@ type ProjectOverviewCardProps = {
 };
 
 export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverviewCardProps) => {
+  const gp = useGuildPath();
   const detailCardStyle = useMemo(() => {
     const initiativeColor = resolveInitiativeColor(project.initiative?.color);
     return buildProjectDetailBackground(initiativeColor);
@@ -45,8 +47,7 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
       </div>
       {project.initiative ? (
         <Link
-          to="/initiatives/$initiativeId"
-          params={{ initiativeId: String(project.initiative.id) }}
+          to={gp(`/initiatives/${project.initiative.id}`)}
           className="text-muted-foreground flex items-center gap-2 text-sm font-medium"
         >
           <InitiativeColorDot color={project.initiative.color} />
