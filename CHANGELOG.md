@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Guild-scoped URLs for shareable cross-guild links
+  - Routes changed from `/projects/47` to `/g/:guildId/projects/47`
+  - Links can be shared directly without losing guild context
+  - Old URLs automatically redirect to new format for backward compatibility
+  - Cross-guild navigation on My Tasks page works without manual guild switching
+
 ## [0.21.0] - 2026-02-04
 
 ### Added
