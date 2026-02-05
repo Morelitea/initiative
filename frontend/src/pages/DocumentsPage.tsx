@@ -587,9 +587,9 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
       if (wantsUntagged && docTags.length === 0) return true;
 
-      if (matchingTagIds.size === 0) return false;
+      if (matchingTagIds.size > 0 && docTags.some((t) => matchingTagIds.has(t.id))) return true;
 
-      return docTags.some((t) => matchingTagIds.has(t.id));
+      return false;
     });
   }, [documents, treeSelectedPaths, allTags]);
 
