@@ -71,7 +71,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, token, refreshUser } = useAuth();
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
-  const [loading, setLoading] = useState(false);
+  // Start as true - we're loading until first fetch completes (or until we know we shouldn't fetch)
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reorderDebounceRef = useRef<number | null>(null);
   const pendingOrderRef = useRef<number[] | null>(null);
@@ -128,10 +129,11 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
+      setLoading(false);
       return;
     }
 
-    // Avoid setting loading=true on background refreshes if we already have data
+    // Only show loading indicator on initial load, not background refreshes
     if (guilds.length === 0) setLoading(true);
 
     setError(null);
@@ -200,6 +202,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
+      setLoading(false);
       return;
     }
     void refreshGuilds();
