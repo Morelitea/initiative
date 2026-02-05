@@ -61,8 +61,6 @@ async def resolve_user_guild_id(
 ) -> int:
     if guild_id is not None:
         return guild_id
-    if user and getattr(user, "active_guild_id", None):
-        return user.active_guild_id
     if user and getattr(user, "id", None):
         result = await session.exec(
             select(GuildMembership.guild_id).where(GuildMembership.user_id == user.id).limit(1)
@@ -194,19 +192,6 @@ async def list_memberships(
     )
     result = await session.exec(stmt)
     return result.all()
-
-
-async def set_active_guild(
-    session: AsyncSession,
-    *,
-    user: User,
-    guild_id: int,
-) -> User:
-    user.active_guild_id = guild_id
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
 
 
 async def create_guild(
@@ -369,7 +354,6 @@ async def redeem_invite_for_user(
     *,
     code: str,
     user: User,
-    promote_to_active: bool = True,
 ) -> Guild:
     invite = await get_invite_by_code(session, code=code)
     if not invite:
@@ -385,9 +369,6 @@ async def redeem_invite_for_user(
     )
     invite.uses += 1
     session.add(invite)
-    if promote_to_active:
-        user.active_guild_id = invite.guild_id
-        session.add(user)
     guild = await get_guild(session, guild_id=invite.guild_id)
     return guild
 

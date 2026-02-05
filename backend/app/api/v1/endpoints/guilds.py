@@ -26,7 +26,7 @@ from app.services import initiatives as initiatives_service
 router = APIRouter()
 
 
-def _serialize_guild(guild: Guild, membership: GuildMembership, active_guild_id: int | None) -> GuildRead:
+def _serialize_guild(guild: Guild, membership: GuildMembership) -> GuildRead:
     return GuildRead(
         id=guild.id,
         name=guild.name,
@@ -35,7 +35,6 @@ def _serialize_guild(guild: Guild, membership: GuildMembership, active_guild_id:
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=membership.role,
-        is_active=guild.id == active_guild_id,
         position=membership.position,
     )
 
@@ -59,7 +58,7 @@ async def list_guilds(session: SessionDep, current_user: Annotated[User, Depends
     memberships = await guilds_service.list_memberships(session, user_id=current_user.id)
     payloads: List[GuildRead] = []
     for guild, membership in memberships:
-        payloads.append(_serialize_guild(guild, membership, current_user.active_guild_id))
+        payloads.append(_serialize_guild(guild, membership))
     return payloads
 
 
@@ -116,30 +115,12 @@ async def create_guild(
         creator=current_user,
     )
     await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
-    current_user.active_guild_id = guild.id
-    session.add(current_user)
     await session.commit()
     await session.refresh(guild)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create guild membership")
-    return _serialize_guild(guild, membership, current_user.active_guild_id)
-
-
-@router.post("/{guild_id}/switch", response_model=GuildRead)
-async def switch_active_guild(
-    guild_id: int,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> GuildRead:
-    membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
-    if membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild access denied")
-    current_user.active_guild_id = guild_id
-    session.add(current_user)
-    await session.commit()
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    return _serialize_guild(guild, membership, current_user.active_guild_id)
+    return _serialize_guild(guild, membership)
 
 
 @router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
@@ -172,7 +153,7 @@ async def update_guild(
     )
     await session.commit()
     await session.refresh(guild)
-    return _serialize_guild(guild, membership, current_user.active_guild_id)
+    return _serialize_guild(guild, membership)
 
 
 @router.delete("/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
@@ -185,10 +166,6 @@ async def delete_guild(
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     await guilds_service.delete_guild(session, guild)
     await session.commit()
-    if current_user.active_guild_id == guild_id:
-        current_user.active_guild_id = None
-        session.add(current_user)
-        await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -244,7 +221,7 @@ async def accept_invite(
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Guild membership missing")
-    return _serialize_guild(guild, membership, current_user.active_guild_id)
+    return _serialize_guild(guild, membership)
 
 
 @router.patch("/{guild_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
@@ -357,11 +334,6 @@ async def leave_guild(
         )
 
     await guilds_service.remove_user_from_guild(session, guild_id=guild_id, user_id=current_user.id)
-
-    # Clear active guild if leaving the active one
-    if current_user.active_guild_id == guild_id:
-        current_user.active_guild_id = None
-        session.add(current_user)
 
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

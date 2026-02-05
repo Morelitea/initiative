@@ -85,21 +85,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     persistGuildId(activeGuildId);
   }, [activeGuildId]);
 
-  // Sync Tabs: If another tab updates the guild, this tab should follow suit.
-  useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === GUILD_STORAGE_KEY) {
-        const newId = event.newValue ? Number(event.newValue) : null;
-        if (newId !== activeGuildId) {
-          setActiveGuildId(newId);
-        }
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [activeGuildId]);
-
   const applyGuildState = useCallback((guildList: Guild[]) => {
     const sortedGuilds = sortGuilds(guildList);
     setGuilds(sortedGuilds);
@@ -112,15 +97,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // 2. FALLBACK: Server State
-    // Only trust the server's "active" flag if we have no local preference.
-    const serverActive = sortedGuilds.find((guild) => guild.is_active);
-    if (serverActive) {
-      setActiveGuildId(serverActive.id);
-      return;
-    }
-
-    // 3. FINAL FALLBACK: First available guild
+    // 2. FALLBACK: First available guild
     setActiveGuildId(sortedGuilds[0]?.id ?? null);
   }, []);
 
@@ -215,19 +192,11 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      try {
-        // Tell backend we switched (for future default logins)
-        await apiClient.post(`/guilds/${guildId}/switch`);
+      // Update local state immediately so UI reacts
+      setActiveGuildId(guildId);
 
-        // Update local state immediately so UI reacts
-        setActiveGuildId(guildId);
-
-        // Refresh data in background to ensure everything is synced
-        await Promise.all([refreshGuilds(), refreshUser()]);
-      } catch (err) {
-        console.error("Failed to switch guild", err);
-        throw err;
-      }
+      // Refresh data in background to ensure everything is synced
+      await Promise.all([refreshGuilds(), refreshUser()]);
     },
     [user, activeGuildId, refreshGuilds, refreshUser]
   );
@@ -235,8 +204,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   /**
    * Sync guild context from URL without full navigation.
    * Used by guild-scoped routes to sync context from URL params.
-   * This is lighter weight than switchGuild - it doesn't call backend /switch
-   * unless necessary, as the URL already contains the guild context.
    */
   const syncGuildFromUrl = useCallback(
     async (guildId: number) => {
@@ -248,14 +215,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setActiveGuildId(guildId);
       setCurrentGuildId(guildId);
       persistGuildId(guildId);
-
-      // Background sync with backend to update "last used guild"
-      try {
-        await apiClient.post(`/guilds/${guildId}/switch`);
-      } catch (err) {
-        console.error("Failed to sync guild from URL", err);
-        // Don't throw - the URL already has the correct guild context
-      }
     },
     [activeGuildId]
   );
@@ -341,10 +300,6 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       const merged = replaced ? next : next.concat(guild);
       return sortGuilds(merged);
     });
-
-    if (guild.is_active) {
-      setActiveGuildId(guild.id);
-    }
   }, []);
 
   const activeGuild = useMemo(

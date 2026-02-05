@@ -63,7 +63,6 @@ async def test_register_first_user(client: AsyncClient):
     assert data["full_name"] == "First User"
     assert data["is_active"] is True
     assert data["role"] == "admin"  # First user should be admin
-    assert data["active_guild_id"] is not None
 
 
 @pytest.mark.integration
