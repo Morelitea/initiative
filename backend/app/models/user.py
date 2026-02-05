@@ -88,12 +88,6 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    active_guild_id: Optional[int] = Field(
-        default=None,
-        foreign_key="guilds.id",
-        nullable=True,
-    )
-
     # AI Settings (nullable = inherit from guild/platform)
     ai_enabled: Optional[bool] = Field(
         default=None,

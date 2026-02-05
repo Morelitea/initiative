@@ -23,7 +23,6 @@ export interface UserGuildMember extends UserPublic {
 }
 
 export interface User extends UserPublic {
-  active_guild_id?: number | null;
   role: UserRole;
   can_create_guilds?: boolean;
   is_active: boolean;
@@ -195,7 +194,6 @@ export interface Guild {
   description?: string | null;
   icon_base64?: string | null;
   role: GuildRole;
-  is_active: boolean;
   position: number;
   created_at: string;
   updated_at: string;

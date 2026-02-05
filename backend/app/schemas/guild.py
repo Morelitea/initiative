@@ -21,7 +21,6 @@ class GuildCreate(GuildBase):
 class GuildRead(GuildBase):
     id: int
     role: GuildRole
-    is_active: bool
     position: int
     created_at: datetime
     updated_at: datetime

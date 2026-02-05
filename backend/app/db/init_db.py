@@ -28,9 +28,6 @@ async def init_superuser() -> None:
                     user_id=user.id,
                     role=GuildRole.admin,
                 )
-                if not user.active_guild_id:
-                    user.active_guild_id = primary_guild.id
-                    session.add(user)
                 await initiatives_service.ensure_default_initiative(session, user, guild_id=primary_guild.id)
             return
 
@@ -40,7 +37,6 @@ async def init_superuser() -> None:
             hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
             role=UserRole.admin,
             email_verified=True,
-            active_guild_id=primary_guild.id,
         )
         async with session.begin():
             session.add(superuser)

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Multi-tab guild stability: opening different guilds in separate tabs no longer causes rapid switching or ping-pong loops
+  - Removed server-side `active_guild_id` tracking (each tab derives guild from URL)
+  - Removed cross-tab localStorage sync that caused cascading re-renders
+  - Removed `POST /guilds/{id}/switch` endpoint (no longer needed with guild-scoped URLs)
+
 ## [0.22.0] - 2026-02-04
 
 ### Added

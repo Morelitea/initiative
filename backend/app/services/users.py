@@ -380,7 +380,6 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
 
     # Deactivate user
     user.is_active = False
-    user.active_guild_id = None
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()

@@ -93,7 +93,7 @@ async def get_user_ai_settings(
     x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
 ) -> UserAISettingsResponse:
     """Get user-level AI settings."""
-    guild_id = x_guild_id or current_user.active_guild_id
+    guild_id = x_guild_id
     return await ai_settings_service.get_user_ai_settings(session, current_user, guild_id)
 
 
@@ -106,7 +106,7 @@ async def update_user_ai_settings(
 ) -> UserAISettingsResponse:
     """Update user-level AI settings."""
     try:
-        guild_id = x_guild_id or current_user.active_guild_id
+        guild_id = x_guild_id
         data = payload.model_dump(exclude_unset=True)
         api_key_provided = "api_key" in data
         return await ai_settings_service.update_user_ai_settings(
@@ -127,7 +127,7 @@ async def get_resolved_ai_settings(
 
     This returns the final computed settings without exposing API keys.
     """
-    guild_id = x_guild_id or current_user.active_guild_id
+    guild_id = x_guild_id
     return await ai_settings_service.get_resolved_ai_settings_response(session, current_user, guild_id)
 
 
@@ -147,7 +147,7 @@ async def test_ai_connection(
     api_key = payload.api_key
     if not api_key:
         # Get existing key from resolved settings
-        guild_id = x_guild_id or current_user.active_guild_id
+        guild_id = x_guild_id
         resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_id)
         api_key = resolved.api_key
 
@@ -170,7 +170,7 @@ async def fetch_ai_models(
     api_key = payload.api_key
     if not api_key:
         # Get existing key from resolved settings
-        guild_id = x_guild_id or current_user.active_guild_id
+        guild_id = x_guild_id
         resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_id)
         api_key = resolved.api_key
 

@@ -163,7 +163,6 @@ async def create_user(
         hashed_password=get_password_hash(user_in.password),
         role=user_in.role,
         email_verified=True,
-        active_guild_id=guild_id,
     )
     session.add(user)
     await session.flush()
