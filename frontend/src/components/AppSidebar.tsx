@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { guildPath } from "@/lib/guildUrl";
+import { buildTagTree, type TagTreeNode } from "@/lib/tagTree";
 import type { Initiative, Project, Tag as TagType } from "@/types/api";
 
 export const AppSidebar = () => {
@@ -811,13 +812,6 @@ const InitiativeSection = ({
 // Maximum visual indentation depth (children still render, just don't indent further)
 const MAX_TAG_INDENT = 3;
 
-interface TagTreeNode {
-  segment: string; // The segment name (e.g., "a" for "parent/a")
-  fullPath: string; // The full path (e.g., "parent/a")
-  tag: TagType | null; // The actual tag at this node, if it exists
-  children: TagTreeNode[];
-}
-
 interface TagBrowserProps {
   tags: TagType[];
   isLoading: boolean;
@@ -825,68 +819,7 @@ interface TagBrowserProps {
 }
 
 const TagBrowser = ({ tags, isLoading, activeGuildId }: TagBrowserProps) => {
-  // Build a tree structure from flat tag list
-  const tagTree = useMemo(() => {
-    const tagsByPath = new Map<string, TagType>();
-    tags.forEach((tag) => tagsByPath.set(tag.name, tag));
-
-    const root: TagTreeNode[] = [];
-
-    // Helper to find or create a node at a given path
-    const getOrCreateNode = (
-      nodes: TagTreeNode[],
-      segments: string[],
-      currentPath: string
-    ): TagTreeNode => {
-      const segment = segments[0];
-      let node = nodes.find((n) => n.segment === segment);
-
-      if (!node) {
-        node = {
-          segment,
-          fullPath: currentPath,
-          tag: tagsByPath.get(currentPath) ?? null,
-          children: [],
-        };
-        nodes.push(node);
-      }
-
-      return node;
-    };
-
-    // Insert each tag into the tree
-    tags.forEach((tag) => {
-      const segments = tag.name.split("/");
-
-      // Build path progressively and ensure all ancestor nodes exist
-      let currentNodes = root;
-      let currentPath = "";
-
-      segments.forEach((segment, index) => {
-        currentPath = index === 0 ? segment : `${currentPath}/${segment}`;
-        const node = getOrCreateNode(currentNodes, [segment], currentPath);
-
-        // Update the tag reference if this is the exact path
-        if (currentPath === tag.name) {
-          node.tag = tag;
-        }
-
-        currentNodes = node.children;
-      });
-    });
-
-    // Sort nodes recursively
-    const sortNodes = (nodes: TagTreeNode[]): TagTreeNode[] => {
-      return nodes
-        .map((node) => ({
-          ...node,
-          children: sortNodes(node.children),
-        }))
-        .sort((a, b) => a.segment.localeCompare(b.segment));
-    };
-
-    return sortNodes(root);
-  }, [tags]);
+  const tagTree = useMemo(() => buildTagTree(tags), [tags]);
 
   if (isLoading) {
     return (
