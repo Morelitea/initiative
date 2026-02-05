@@ -48,6 +48,7 @@ import type { DocumentRead, DocumentSummary, Initiative, Tag, TagSummary } from 
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
+import { TagBadge } from "@/components/tags/TagBadge";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { TagTreeView, UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
@@ -130,6 +131,27 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
       const count = row.original.projects.length;
       return <span>{count}</span>;
     },
+  },
+  {
+    id: "tags",
+    header: "Tags",
+    cell: ({ row }) => {
+      const docTags = row.original.tags ?? [];
+      if (docTags.length === 0) {
+        return <span className="text-muted-foreground text-sm">—</span>;
+      }
+      return (
+        <div className="flex flex-wrap gap-1">
+          {docTags.slice(0, 3).map((tag) => (
+            <TagBadge key={tag.id} tag={tag} size="sm" />
+          ))}
+          {docTags.length > 3 && (
+            <span className="text-muted-foreground text-xs">+{docTags.length - 3}</span>
+          )}
+        </div>
+      );
+    },
+    size: 150,
   },
   {
     id: "owner",
