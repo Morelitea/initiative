@@ -82,7 +82,7 @@ async def test_list_guilds_includes_role(client: AsyncClient, session: AsyncSess
 
 @pytest.mark.integration
 async def test_list_guilds_shows_active_guild(client: AsyncClient, session: AsyncSession):
-    """Test that active guild is marked correctly."""
+    """Test listing guilds returns role and position."""
     user = await create_user(session, email="test@example.com")
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
@@ -90,20 +90,17 @@ async def test_list_guilds_shows_active_guild(client: AsyncClient, session: Asyn
     await create_guild_membership(session, user=user, guild=guild1)
     await create_guild_membership(session, user=user, guild=guild2)
 
-    # Set guild2 as active
-    user.active_guild_id = guild2.id
-    session.add(user)
-    await session.commit()
-
     headers = get_auth_headers(user)
     response = await client.get("/api/v1/guilds/", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
 
-    guild_active = {g["name"]: g["is_active"] for g in data}
-    assert guild_active["Guild 1"] is False
-    assert guild_active["Guild 2"] is True
+    guild_names = {g["name"] for g in data}
+    assert "Guild 1" in guild_names
+    assert "Guild 2" in guild_names
+    # is_active is no longer returned; active guild is client-side only
+    assert "is_active" not in data[0]
 
 
 @pytest.mark.integration
@@ -244,62 +241,6 @@ async def test_delete_guild_as_member_forbidden(client: AsyncClient, session: As
 
     headers = get_auth_headers(user)
     response = await client.delete(f"/api/v1/guilds/{guild.id}", headers=headers)
-
-    assert response.status_code == 403
-
-
-@pytest.mark.integration
-async def test_delete_guild_clears_active_guild(client: AsyncClient, session: AsyncSession):
-    """Test that deleting active guild clears user's active_guild_id."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, name="Active Guild")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    user.active_guild_id = guild.id
-    session.add(user)
-    await session.commit()
-
-    headers = get_auth_headers(user)
-    response = await client.delete(f"/api/v1/guilds/{guild.id}", headers=headers)
-
-    assert response.status_code == 204
-
-    # Verify user's active guild is cleared
-    await session.refresh(user)
-    assert user.active_guild_id is None
-
-
-@pytest.mark.integration
-async def test_switch_active_guild(client: AsyncClient, session: AsyncSession):
-    """Test switching active guild."""
-    user = await create_user(session, email="test@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
-
-    await create_guild_membership(session, user=user, guild=guild1)
-    await create_guild_membership(session, user=user, guild=guild2)
-
-    headers = get_auth_headers(user)
-    response = await client.post(f"/api/v1/guilds/{guild2.id}/switch", headers=headers)
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == guild2.id
-    assert data["is_active"] is True
-
-    # Verify user's active guild changed
-    await session.refresh(user)
-    assert user.active_guild_id == guild2.id
-
-
-@pytest.mark.integration
-async def test_switch_to_guild_without_membership_forbidden(client: AsyncClient, session: AsyncSession):
-    """Test that switching to guild without membership is forbidden."""
-    user = await create_user(session, email="test@example.com")
-    guild = await create_guild(session, name="Other Guild")
-
-    headers = get_auth_headers(user)
-    response = await client.post(f"/api/v1/guilds/{guild.id}/switch", headers=headers)
 
     assert response.status_code == 403
 

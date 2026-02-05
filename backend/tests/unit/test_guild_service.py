@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import Guild, GuildInvite, GuildMembership, GuildRole
+from app.models.guild import GuildInvite, GuildRole
 from app.services import guilds as guild_service
 from tests.factories import create_guild, create_guild_membership, create_user
 
@@ -202,31 +202,6 @@ async def test_resolve_user_guild_id_from_header(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_resolve_user_guild_id_from_active_guild(session: AsyncSession):
-    """Test that active_guild_id is used when no explicit guild_id."""
-    user = await create_user(session)
-    guild1 = await create_guild(session)
-    guild2 = await create_guild(session)
-
-    await create_guild_membership(session, user=user, guild=guild1)
-    await create_guild_membership(session, user=user, guild=guild2)
-
-    # Set active guild
-    user.active_guild_id = guild2.id
-    session.add(user)
-    await session.commit()
-
-    resolved = await guild_service.resolve_user_guild_id(
-        session,
-        user=user,
-        guild_id=None,
-    )
-
-    assert resolved == guild2.id
-
-
-@pytest.mark.unit
-@pytest.mark.service
 async def test_list_memberships(session: AsyncSession):
     """Test listing all memberships for a user."""
     user = await create_user(session)
@@ -395,7 +370,6 @@ async def test_redeem_invite_for_user(session: AsyncSession):
         session,
         code=invite.code,
         user=invitee,
-        promote_to_active=False,
     )
 
     assert redeemed_guild.id == guild.id
@@ -414,32 +388,6 @@ async def test_redeem_invite_for_user(session: AsyncSession):
     result = await session.exec(stmt)
     updated_invite = result.one()
     assert updated_invite.uses == 1
-
-
-@pytest.mark.unit
-@pytest.mark.service
-async def test_redeem_invite_promotes_to_active(session: AsyncSession):
-    """Test that redeeming invite can promote guild to active."""
-    guild = await create_guild(session)
-    creator = await create_user(session)
-    invitee = await create_user(session, email="invitee@example.com")
-
-    invite = await guild_service.create_guild_invite(
-        session,
-        guild_id=guild.id,
-        creator_user_id=creator.id,
-    )
-
-    await guild_service.redeem_invite_for_user(
-        session,
-        code=invite.code,
-        user=invitee,
-        promote_to_active=True,
-    )
-
-    # Refresh user and check active_guild_id
-    await session.refresh(invitee)
-    assert invitee.active_guild_id == guild.id
 
 
 @pytest.mark.unit

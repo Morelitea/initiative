@@ -194,4 +194,3 @@ async def test_soft_delete_user(session: AsyncSession):
     deleted_user = result.one()
 
     assert deleted_user.is_active is False
-    assert deleted_user.active_guild_id is None
