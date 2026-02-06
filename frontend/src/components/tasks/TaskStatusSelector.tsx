@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -33,6 +33,20 @@ export const TaskStatusSelector = ({
     const cached = projectStatusCache.current.get(task.project_id);
     return cached?.statuses ?? [task.task_status];
   });
+
+  // Re-sync from cache when the task's project or status changes (e.g. after refetch)
+  useEffect(() => {
+    const cached = projectStatusCache.current.get(task.project_id);
+    if (cached) {
+      // Ensure the current task_status is present in the cached list
+      if (!cached.statuses.some((s) => s.id === task.task_status.id)) {
+        cached.statuses.push(task.task_status);
+      }
+      setStatuses(cached.statuses);
+    } else {
+      setStatuses([task.task_status]);
+    }
+  }, [task.project_id, task.task_status, projectStatusCache]);
 
   const handleOpenChange = useCallback(
     async (open: boolean) => {
