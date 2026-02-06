@@ -232,6 +232,7 @@ export function BulkEditAccessDialog({
             setMode(v as "grant" | "revoke");
             setSelectedUserIds(new Set());
             setUserSearch("");
+            setUserPickerOpen(false);
           }}
         >
           <TabsList className="w-full">
