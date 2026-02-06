@@ -339,7 +339,14 @@ async def _advance_recurrence_if_needed(
     await _clone_subtasks(session, task.id, new_task.id)
     assignee_ids = [assignee.id for assignee in task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
-    await session.refresh(new_task, attribute_names=["assignees"])
+    if task.tag_links:
+        session.add_all([
+            TaskTag(task_id=new_task.id, tag_id=link.tag_id)
+            for link in task.tag_links
+        ])
+        await session.flush()
+    await session.refresh(new_task, attribute_names=["assignees", "tag_links"])
+    _annotate_task_tags([new_task])
     await broadcast_event("task", "created", _task_payload(new_task))
 
     task.recurrence = None
