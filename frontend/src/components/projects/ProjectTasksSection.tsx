@@ -538,8 +538,8 @@ export const ProjectTasksSection = ({
 
   const tasks = useMemo(() => localOverride ?? projectTasks, [localOverride, projectTasks]);
   const activeTask = useMemo(
-    () => tasks.find((task) => task.id === activeTaskId) ?? null,
-    [tasks, activeTaskId]
+    () => projectTasks.find((task) => task.id === activeTaskId) ?? null,
+    [projectTasks, activeTaskId]
   );
 
   // Client-side filtering for due date (not yet supported server-side)
