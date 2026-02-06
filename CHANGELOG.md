@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Guild switching no longer flashes back and forth between old and new guild before settling
+
 ## [0.23.0] - 2026-02-05
 
 ### Added
