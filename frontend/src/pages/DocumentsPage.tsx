@@ -208,10 +208,15 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
+  fixedTagIds?: number[];
   canCreate?: boolean;
 };
 
-export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewProps) => {
+export const DocumentsView = ({
+  fixedInitiativeId,
+  fixedTagIds,
+  canCreate,
+}: DocumentsViewProps) => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -245,6 +250,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
   const [viewMode, setViewMode] = useState<"grid" | "list" | "tags">(() => {
+    if (fixedTagIds) return "list";
     if (typeof window === "undefined") {
       return "tags";
     }
@@ -253,6 +259,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   });
   const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<number[]>(() => {
+    if (fixedTagIds) return fixedTagIds;
     if (typeof window === "undefined") return [];
     const stored = localStorage.getItem(DOCUMENT_TAG_FILTERS_KEY);
     if (!stored) return [];
@@ -263,6 +270,14 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       return [];
     }
   });
+
+  // Sync tagFilters when fixedTagIds prop changes (e.g. navigating between tag detail pages)
+  useEffect(() => {
+    if (fixedTagIds) {
+      setTagFilters(fixedTagIds);
+    }
+  }, [fixedTagIds]);
+
   const { data: allTags = [] } = useTags();
 
   // Convert tag IDs to Tag objects for TagPicker
@@ -324,7 +339,8 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   }, [activeGuildId, lockedInitiativeId]);
 
   // In tags view, the tree does its own client-side filtering, so skip backend tag filters
-  const effectiveTagFilters = viewMode === "tags" ? [] : tagFilters;
+  // When fixedTagIds is provided, always use them regardless of view mode
+  const effectiveTagFilters = fixedTagIds ? fixedTagIds : viewMode === "tags" ? [] : tagFilters;
 
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: [
@@ -463,12 +479,14 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   }, [searchParams, lockedInitiativeId, createDialogOpen]);
 
   useEffect(() => {
+    if (fixedTagIds) return;
     localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
-  }, [viewMode]);
+  }, [viewMode, fixedTagIds]);
 
   useEffect(() => {
+    if (fixedTagIds) return;
     localStorage.setItem(DOCUMENT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
-  }, [tagFilters]);
+  }, [tagFilters, fixedTagIds]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -611,7 +629,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   return (
     <div className="space-y-6">
-      {!lockedInitiativeId && (
+      {!lockedInitiativeId && !fixedTagIds && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-baseline gap-4">
@@ -747,7 +765,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
                 </Select>
               </div>
             )}
-            {viewMode !== "tags" && (
+            {viewMode !== "tags" && !fixedTagIds && (
               <div className="w-full space-y-2 sm:w-48">
                 <Label
                   htmlFor="document-tag-filter"

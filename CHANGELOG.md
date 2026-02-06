@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bulk edit tags for tasks and documents (add/remove modes)
 - Bulk edit access permissions for documents (grant/revoke modes)
+- Tag detail page now uses a tabbed layout (Tasks, Projects, Documents) with full filtering, sorting, and inline status/priority editing
 
 ### Fixed
 
