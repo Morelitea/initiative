@@ -437,6 +437,7 @@ export const ProjectTasksSection = ({
       toast.success(`${count} task${count === 1 ? "" : "s"} updated`);
       // setSelectedTasks([]);
       setIsBulkEditDialogOpen(false);
+      setLocalOverride(null);
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
@@ -455,6 +456,7 @@ export const ProjectTasksSection = ({
       const count = taskIds.length;
       toast.success(`${count} task${count === 1 ? "" : "s"} deleted`);
       setSelectedTasks([]);
+      setLocalOverride(null);
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
@@ -476,6 +478,7 @@ export const ProjectTasksSection = ({
       const count = updatedTasks.length;
       toast.success(`${count} task${count === 1 ? "" : "s"} archived`);
       setSelectedTasks([]);
+      setLocalOverride(null);
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
