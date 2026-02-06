@@ -89,16 +89,22 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     const sortedGuilds = sortGuilds(guildList);
     setGuilds(sortedGuilds);
 
-    // 1. PRIORITY: Check Local Storage (Client Session Preference)
-    // This allows unique browsing sessions on different devices.
-    const stored = readStoredGuildId();
-    if (stored && sortedGuilds.some((guild) => guild.id === stored)) {
-      setActiveGuildId(stored);
-      return;
-    }
+    // Use functional update to avoid overriding in-flight guild switches.
+    // Only change activeGuildId when the current value is no longer valid.
+    setActiveGuildId((prev) => {
+      if (prev !== null && sortedGuilds.some((guild) => guild.id === prev)) {
+        return prev;
+      }
 
-    // 2. FALLBACK: First available guild
-    setActiveGuildId(sortedGuilds[0]?.id ?? null);
+      // Fall back to localStorage (client session preference)
+      const stored = readStoredGuildId();
+      if (stored && sortedGuilds.some((guild) => guild.id === stored)) {
+        return stored;
+      }
+
+      // Last resort: first available guild
+      return sortedGuilds[0]?.id ?? null;
+    });
   }, []);
 
   const refreshGuilds = useCallback(async () => {
