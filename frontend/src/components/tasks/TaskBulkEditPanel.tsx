@@ -1,4 +1,4 @@
-import { Archive, Pencil, Trash2 } from "lucide-react";
+import { Archive, Pencil, Tags, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/types/api";
@@ -6,6 +6,7 @@ import type { Task } from "@/types/api";
 type TaskBulkEditPanelProps = {
   selectedTasks: Task[];
   onEdit: () => void;
+  onEditTags: () => void;
   onArchive: () => void;
   onDelete: () => void;
   isArchiving?: boolean;
@@ -14,6 +15,7 @@ type TaskBulkEditPanelProps = {
 export const TaskBulkEditPanel = ({
   selectedTasks,
   onEdit,
+  onEditTags,
   onArchive,
   onDelete,
   isArchiving,
@@ -25,6 +27,10 @@ export const TaskBulkEditPanel = ({
       </div>
 
       <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onEditTags}>
+          <Tags className="h-4 w-4" />
+          Edit Tags
+        </Button>
         <Button variant="outline" size="sm" onClick={onEdit}>
           <Pencil className="h-4 w-4" />
           Edit

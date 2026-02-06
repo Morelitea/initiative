@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   Presentation,
+  Shield,
   Table,
   Tags,
   Copy,
@@ -38,6 +39,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
+import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
+import { BulkEditAccessDialog } from "@/components/documents/BulkEditAccessDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
@@ -385,7 +388,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     });
   }, [selectedDocuments, user]);
 
-  // Check if user has write access on all selected documents (required for duplicate)
+  // Check if user has write access on all selected documents (required for duplicate and bulk edit)
   const canDuplicateSelectedDocuments = useMemo(() => {
     if (!user || selectedDocuments.length === 0) {
       return false;
@@ -395,6 +398,11 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       return permission?.level === "owner" || permission?.level === "write";
     });
   }, [selectedDocuments, user]);
+
+  const canEditSelectedDocuments = canDuplicateSelectedDocuments;
+
+  const [bulkEditTagsOpen, setBulkEditTagsOpen] = useState(false);
+  const [bulkEditAccessOpen, setBulkEditAccessOpen] = useState(false);
 
   // Check if user can view docs for the filtered initiative
   const canViewDocs = useMemo(() => {
@@ -850,6 +858,32 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => setBulkEditTagsOpen(true)}
+                    disabled={!canEditSelectedDocuments}
+                    title={
+                      canEditSelectedDocuments ? undefined : "You need edit access to modify tags"
+                    }
+                  >
+                    <Tags className="h-4 w-4" />
+                    Edit Tags
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBulkEditAccessOpen(true)}
+                    disabled={!canEditSelectedDocuments}
+                    title={
+                      canEditSelectedDocuments
+                        ? undefined
+                        : "You need edit access to modify permissions"
+                    }
+                  >
+                    <Shield className="h-4 w-4" />
+                    Edit Access
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       duplicateDocuments.mutate(selectedDocuments);
                     }}
@@ -862,12 +896,12 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
                   >
                     {duplicateDocuments.isPending ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         Duplicating…
                       </>
                     ) : (
                       <>
-                        <Copy className="mr-2 h-4 w-4" />
+                        <Copy className="h-4 w-4" />
                         Duplicate
                       </>
                     )}
@@ -893,12 +927,12 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
                   >
                     {deleteDocuments.isPending ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         Deleting…
                       </>
                     ) : (
                       <>
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                         Delete
                       </>
                     )}
@@ -949,6 +983,20 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         }
         initiatives={creatableInitiatives}
         onSuccess={handleDocumentCreated}
+      />
+
+      <BulkEditTagsDialog
+        open={bulkEditTagsOpen}
+        onOpenChange={setBulkEditTagsOpen}
+        documents={selectedDocuments}
+        onSuccess={() => {}}
+      />
+
+      <BulkEditAccessDialog
+        open={bulkEditAccessOpen}
+        onOpenChange={setBulkEditAccessOpen}
+        documents={selectedDocuments}
+        onSuccess={() => {}}
       />
 
       {canCreateDocuments ? (

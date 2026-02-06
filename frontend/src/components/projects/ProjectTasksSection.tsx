@@ -47,6 +47,7 @@ import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanban
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
 import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
 import { TaskBulkEditDialog, type TaskBulkUpdate } from "@/components/tasks/TaskBulkEditDialog";
+import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -139,6 +140,7 @@ export const ProjectTasksSection = ({
   const [filtersLoadedForProject, setFiltersLoadedForProject] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [isBulkEditTagsDialogOpen, setIsBulkEditTagsDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [archiveDialogStatusId, setArchiveDialogStatusId] = useState<number | undefined>(undefined);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
@@ -437,7 +439,7 @@ export const ProjectTasksSection = ({
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
       toast.success(`${count} task${count === 1 ? "" : "s"} updated`);
-      setSelectedTasks([]);
+      // setSelectedTasks([]);
       setIsBulkEditDialogOpen(false);
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
@@ -958,6 +960,7 @@ export const ProjectTasksSection = ({
             <TaskBulkEditPanel
               selectedTasks={selectedTasks}
               onEdit={() => setIsBulkEditDialogOpen(true)}
+              onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
               onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}
               onDelete={() => {
                 if (
@@ -1086,6 +1089,12 @@ export const ProjectTasksSection = ({
               onCancel={() => setIsBulkEditDialogOpen(false)}
             />
           </Dialog>
+          <BulkEditTaskTagsDialog
+            open={isBulkEditTagsDialogOpen}
+            onOpenChange={setIsBulkEditTagsDialogOpen}
+            tasks={selectedTasks}
+            onSuccess={() => {}}
+          />
         </>
       ) : null}
 
