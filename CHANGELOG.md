@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Duplicate rows appearing in task table when sorting with filters applied
 - Guild switching no longer flashes back and forth between old and new guild before settling
+- Tags now carry over when recurring tasks create their next instance
 
 ## [0.23.0] - 2026-02-05
 
