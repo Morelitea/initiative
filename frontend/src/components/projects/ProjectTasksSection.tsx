@@ -134,7 +134,7 @@ export const ProjectTasksSection = ({
   // Fetch guild tags for filtering
   const { data: tags = [] } = useTags();
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [orderedTasks, setOrderedTasks] = useState<Task[]>([]);
+  const [localOverride, setLocalOverride] = useState<Task[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [filtersLoadedForProject, setFiltersLoadedForProject] = useState<number | null>(null);
@@ -214,7 +214,7 @@ export const ProjectTasksSection = ({
   };
 
   useEffect(() => {
-    setOrderedTasks(projectTasks);
+    setLocalOverride(null);
   }, [projectTasks]);
 
   useEffect(() => {
@@ -383,7 +383,7 @@ export const ProjectTasksSection = ({
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
       setIsComposerOpen(false);
-      setOrderedTasks((prev) => [...prev, newTask]);
+      setLocalOverride((prev) => [...(prev ?? projectTasks), newTask]);
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
@@ -402,19 +402,15 @@ export const ProjectTasksSection = ({
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      setOrderedTasks((prev) => {
-        if (!prev.length) {
-          return prev;
-        }
-        // Check if the new status matches current filters
+      setLocalOverride((prev) => {
+        const base = prev ?? projectTasks;
+        if (!base.length) return prev;
         const matchesFilters =
           statusFilters.length === 0 || statusFilters.includes(updatedTask.task_status_id);
         if (matchesFilters) {
-          // Update task in place (preserves order)
-          return prev.map((task) => (task.id === updatedTask.id ? updatedTask : task));
+          return base.map((task) => (task.id === updatedTask.id ? updatedTask : task));
         }
-        // Remove task from list (doesn't match filters anymore)
-        return prev.filter((task) => task.id !== updatedTask.id);
+        return base.filter((task) => task.id !== updatedTask.id);
       });
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
@@ -528,9 +524,9 @@ export const ProjectTasksSection = ({
       return response.data;
     },
     onSuccess: () => {
-      // Don't set orderedTasks from response - it returns unfiltered tasks
-      // which causes a flash of all tasks. The optimistic update already
-      // shows the new order, and query invalidation will confirm with filters.
+      // Don't set localOverride from response - it returns unfiltered tasks.
+      // The optimistic update already shows the new order, and query
+      // invalidation will confirm with filters (clearing localOverride).
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
@@ -540,14 +536,10 @@ export const ProjectTasksSection = ({
   const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
   const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
 
-  const fetchedTasks = useMemo(() => projectTasks ?? [], [projectTasks]);
-  const tasks = useMemo(
-    () => (orderedTasks.length > 0 ? orderedTasks : fetchedTasks),
-    [orderedTasks, fetchedTasks]
-  );
+  const tasks = useMemo(() => localOverride ?? projectTasks, [localOverride, projectTasks]);
   const activeTask = useMemo(
-    () => orderedTasks.find((task) => task.id === activeTaskId) ?? null,
-    [orderedTasks, activeTaskId]
+    () => tasks.find((task) => task.id === activeTaskId) ?? null,
+    [tasks, activeTaskId]
   );
 
   // Client-side filtering for due date (not yet supported server-side)
@@ -678,8 +670,9 @@ export const ProjectTasksSection = ({
         return;
       }
       let nextState: Task[] | null = null;
-      setOrderedTasks((prev) => {
-        const currentTask = prev.find((task) => task.id === taskId);
+      setLocalOverride((prev) => {
+        const base = prev ?? projectTasks;
+        const currentTask = base.find((task) => task.id === taskId);
         if (!currentTask) {
           return prev;
         }
@@ -688,7 +681,7 @@ export const ProjectTasksSection = ({
           task_status_id: targetStatus.id,
           task_status: targetStatus,
         };
-        const withoutActive = prev.filter((task) => task.id !== taskId);
+        const withoutActive = base.filter((task) => task.id !== taskId);
         const next = [...withoutActive];
 
         if (overTaskId !== null) {
@@ -714,26 +707,27 @@ export const ProjectTasksSection = ({
         persistOrder(nextState);
       }
     },
-    [persistOrder, statusLookup]
+    [persistOrder, statusLookup, projectTasks]
   );
 
   const reorderListTasks = useCallback(
     (activeId: number, overId: number) => {
       let nextState: Task[] | null = null;
-      setOrderedTasks((prev) => {
-        const oldIndex = prev.findIndex((task) => task.id === activeId);
-        const newIndex = prev.findIndex((task) => task.id === overId);
+      setLocalOverride((prev) => {
+        const base = prev ?? projectTasks;
+        const oldIndex = base.findIndex((task) => task.id === activeId);
+        const newIndex = base.findIndex((task) => task.id === overId);
         if (oldIndex === -1 || newIndex === -1) {
           return prev;
         }
-        nextState = arrayMove(prev, oldIndex, newIndex);
+        nextState = arrayMove(base, oldIndex, newIndex);
         return nextState;
       });
       if (nextState) {
         persistOrder(nextState);
       }
     },
-    [persistOrder]
+    [persistOrder, projectTasks]
   );
 
   const mouseSensorConfig = useMemo(() => ({ activationConstraint: { distance: 4 } }), []);
