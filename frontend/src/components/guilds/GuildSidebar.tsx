@@ -240,7 +240,7 @@ export const GuildSidebar = () => {
     [guilds, activeDragId]
   );
 
-  const handleGuildSwitch = async (guildId: number) => {
+  const handleGuildSwitch = (guildId: number) => {
     if (guildId === activeGuildId) return;
 
     const currentPath = location.pathname;
@@ -256,7 +256,9 @@ export const GuildSidebar = () => {
         const match = subPath.match(/^\/([^/]+)/);
         targetSubPath = match ? `/${match[1]}` : "/projects";
       }
-      await switchGuild(guildId);
+      // Fire both in the same tick so URL and context update together,
+      // preventing GuildLayout's useEffect from seeing a mismatch.
+      void switchGuild(guildId);
       router.navigate({ to: guildPath(guildId, targetSubPath) });
       return;
     }
@@ -276,7 +278,7 @@ export const GuildSidebar = () => {
       targetPath = currentPath;
     }
 
-    await switchGuild(guildId);
+    void switchGuild(guildId);
 
     if (targetPath !== "/") {
       router.navigate({ to: targetPath });
