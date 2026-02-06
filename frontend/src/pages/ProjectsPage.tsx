@@ -98,10 +98,11 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectsViewProps = {
   fixedInitiativeId?: number;
+  fixedTagIds?: number[];
   canCreate?: boolean;
 };
 
-export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
+export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
@@ -250,6 +251,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [tagFilters, setTagFilters] = useState<number[]>(() => {
+    if (fixedTagIds) return fixedTagIds;
     if (typeof window === "undefined") return [];
     const stored = localStorage.getItem(PROJECT_TAG_FILTERS_KEY);
     if (!stored) return [];
@@ -260,6 +262,14 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
       return [];
     }
   });
+
+  // Sync tagFilters when fixedTagIds prop changes (e.g. navigating between tag detail pages)
+  useEffect(() => {
+    if (fixedTagIds) {
+      setTagFilters(fixedTagIds);
+    }
+  }, [fixedTagIds]);
+
   const { data: allTags = [] } = useTags();
 
   // Convert tag IDs to Tag objects for TagPicker
@@ -454,8 +464,9 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   }, [viewMode]);
 
   useEffect(() => {
+    if (fixedTagIds) return;
     localStorage.setItem(PROJECT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
-  }, [tagFilters]);
+  }, [tagFilters, fixedTagIds]);
   useEffect(() => {
     if (isTemplateProject) {
       return;
@@ -726,7 +737,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        {!lockedInitiativeId && (
+        {!lockedInitiativeId && !fixedTagIds && (
           <div>
             <div className="flex items-baseline gap-4">
               <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
@@ -748,20 +759,22 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
           onValueChange={(value) => setTabValue(value as "active" | "templates" | "archive")}
           className="space-y-6"
         >
-          <TabsList className="w-full justify-start overflow-x-auto">
-            <TabsTrigger value="active" className="inline-flex items-center gap-2">
-              <LayoutGrid className="h-4 w-4" />
-              Active Projects
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="inline-flex items-center gap-2">
-              <ScrollText className="h-4 w-4" />
-              Templates
-            </TabsTrigger>
-            <TabsTrigger value="archive" className="inline-flex items-center gap-2">
-              <Archive className="h-4 w-4" />
-              Archive
-            </TabsTrigger>
-          </TabsList>
+          {!fixedTagIds && (
+            <TabsList className="w-full justify-start overflow-x-auto">
+              <TabsTrigger value="active" className="inline-flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Active Projects
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="inline-flex items-center gap-2">
+                <ScrollText className="h-4 w-4" />
+                Templates
+              </TabsTrigger>
+              <TabsTrigger value="archive" className="inline-flex items-center gap-2">
+                <Archive className="h-4 w-4" />
+                Archive
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="active" className="space-y-4">
             <div className="flex flex-wrap items-center justify-end gap-3">
@@ -903,20 +916,22 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
                       <span className="text-muted-foreground text-sm">Show only favorites</span>
                     </div>
                   </div>
-                  <div className="w-full sm:w-48">
-                    <Label
-                      htmlFor="tag-filter"
-                      className="text-muted-foreground text-xs font-medium"
-                    >
-                      Filter by tag
-                    </Label>
-                    <TagPicker
-                      selectedTags={selectedTagsForFilter}
-                      onChange={handleTagFiltersChange}
-                      placeholder="All tags"
-                      variant="filter"
-                    />
-                  </div>
+                  {!fixedTagIds && (
+                    <div className="w-full sm:w-48">
+                      <Label
+                        htmlFor="tag-filter"
+                        className="text-muted-foreground text-xs font-medium"
+                      >
+                        Filter by tag
+                      </Label>
+                      <TagPicker
+                        selectedTags={selectedTagsForFilter}
+                        onChange={handleTagFiltersChange}
+                        placeholder="All tags"
+                        variant="filter"
+                      />
+                    </div>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>

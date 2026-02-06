@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Navigate, useParams, Link, useRouter } from "@tanstack/react-router";
+import { Navigate, useParams, useRouter } from "@tanstack/react-router";
 import {
   Loader2,
   ScrollText,
@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 
 import { useTag, useTagEntities, useDeleteTag, useUpdateTag } from "@/hooks/useTags";
-import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -27,7 +26,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TagTasksTable } from "@/components/tasks/TagTasksTable";
+import { ProjectsView } from "@/pages/ProjectsPage";
+import { DocumentsView } from "@/pages/DocumentsPage";
 
 export const TagDetailPage = () => {
   const { tagId: tagIdParam } = useParams({ strict: false }) as { tagId: string };
@@ -36,16 +38,22 @@ export const TagDetailPage = () => {
   const tagId = hasValidTagId ? parsedTagId : null;
 
   const router = useRouter();
-  const gp = useGuildPath();
 
   const { data: tag, isLoading: tagLoading, error: tagError } = useTag(tagId);
-  const { data: entities, isLoading: entitiesLoading } = useTagEntities(tagId);
+  const { data: entities } = useTagEntities(tagId);
   const deleteTagMutation = useDeleteTag();
   const updateTagMutation = useUpdateTag();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
+
+  // Reset edit state when navigating between tags
+  useEffect(() => {
+    setIsEditing(false);
+    setEditName("");
+    setEditColor("");
+  }, [parsedTagId]);
 
   if (!hasValidTagId) {
     return <Navigate to="/" replace />;
@@ -185,107 +193,32 @@ export const TagDetailPage = () => {
         )}
       </div>
 
-      {/* Content */}
-      {entitiesLoading ? (
-        <div className="flex h-32 items-center justify-center">
-          <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Tasks */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <SquareCheckBig className="h-4 w-4" />
-                Tasks
-              </CardTitle>
-              <CardDescription>
-                {taskCount} task{taskCount === 1 ? "" : "s"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-64 space-y-2 overflow-y-auto">
-              {taskCount === 0 ? (
-                <p className="text-muted-foreground text-sm">No tasks with this tag</p>
-              ) : (
-                entities?.tasks.map((task) => (
-                  <Link
-                    key={task.id}
-                    to={gp(`/tasks/${task.id}`)}
-                    className="hover:bg-accent block rounded-md p-2 transition-colors"
-                  >
-                    <p className="text-sm font-medium">{task.title}</p>
-                    {task.project_name && (
-                      <p className="text-muted-foreground text-xs">{task.project_name}</p>
-                    )}
-                  </Link>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Projects */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListTodo className="h-4 w-4" />
-                Projects
-              </CardTitle>
-              <CardDescription>
-                {projectCount} project{projectCount === 1 ? "" : "s"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-64 space-y-2 overflow-y-auto">
-              {projectCount === 0 ? (
-                <p className="text-muted-foreground text-sm">No projects with this tag</p>
-              ) : (
-                entities?.projects.map((project) => (
-                  <Link
-                    key={project.id}
-                    to={gp(`/projects/${project.id}`)}
-                    className="hover:bg-accent block rounded-md p-2 transition-colors"
-                  >
-                    <p className="text-sm font-medium">{project.name}</p>
-                    {project.initiative_name && (
-                      <p className="text-muted-foreground text-xs">{project.initiative_name}</p>
-                    )}
-                  </Link>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Documents */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ScrollText className="h-4 w-4" />
-                Documents
-              </CardTitle>
-              <CardDescription>
-                {documentCount} document{documentCount === 1 ? "" : "s"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="max-h-64 space-y-2 overflow-y-auto">
-              {documentCount === 0 ? (
-                <p className="text-muted-foreground text-sm">No documents with this tag</p>
-              ) : (
-                entities?.documents.map((doc) => (
-                  <Link
-                    key={doc.id}
-                    to={gp(`/documents/${doc.id}`)}
-                    className="hover:bg-accent block rounded-md p-2 transition-colors"
-                  >
-                    <p className="text-sm font-medium">{doc.title}</p>
-                    {doc.initiative_name && (
-                      <p className="text-muted-foreground text-xs">{doc.initiative_name}</p>
-                    )}
-                  </Link>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Tabbed Content */}
+      <Tabs defaultValue="tasks" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="tasks" className="inline-flex items-center gap-2">
+            <SquareCheckBig className="h-4 w-4" />
+            Tasks ({taskCount})
+          </TabsTrigger>
+          <TabsTrigger value="projects" className="inline-flex items-center gap-2">
+            <ListTodo className="h-4 w-4" />
+            Projects ({projectCount})
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="inline-flex items-center gap-2">
+            <ScrollText className="h-4 w-4" />
+            Documents ({documentCount})
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="tasks">
+          <TagTasksTable tagId={parsedTagId} />
+        </TabsContent>
+        <TabsContent value="projects">
+          <ProjectsView fixedTagIds={[parsedTagId]} canCreate={false} />
+        </TabsContent>
+        <TabsContent value="documents">
+          <DocumentsView fixedTagIds={[parsedTagId]} canCreate={false} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
