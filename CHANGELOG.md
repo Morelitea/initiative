@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bulk edit tags for tasks and documents (add/remove modes)
+- Bulk edit access permissions for documents (grant/revoke modes)
+
 ### Fixed
 
+- Duplicate rows appearing in task table when sorting with filters applied
 - Guild switching no longer flashes back and forth between old and new guild before settling
 
 ## [0.23.0] - 2026-02-05
