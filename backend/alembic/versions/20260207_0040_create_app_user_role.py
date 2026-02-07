@@ -42,6 +42,32 @@ def _password_from_url(env_var: str) -> str | None:
         return None
 
 
+def _exec_role_ddl(connection, ddl_template: str, password: str | None) -> None:
+    """Execute a role DDL statement with an optional password.
+
+    PostgreSQL DDL (CREATE/ALTER ROLE) doesn't support bind parameters,
+    so we pass the password through set_config() and use format('%L')
+    for safe literal quoting inside a DO block.
+    """
+    if password is not None:
+        connection.execute(
+            text("SELECT set_config('app._migration_pw', :pw, true)"),
+            {"pw": password},
+        )
+        connection.execute(text(
+            "DO $$ BEGIN "
+            f"EXECUTE format('{ddl_template} PASSWORD %L', "
+            "current_setting('app._migration_pw')); "
+            "END $$"
+        ))
+        # Clear the temporary variable
+        connection.execute(
+            text("SELECT set_config('app._migration_pw', '', true)")
+        )
+    else:
+        connection.execute(text(ddl_template))
+
+
 def upgrade() -> None:
     connection = op.get_bind()
 
@@ -50,9 +76,11 @@ def upgrade() -> None:
 
     if not _role_exists(connection, "app_user"):
         if app_user_pw:
-            connection.execute(text(
-                "CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD :pw"
-            ), {"pw": app_user_pw})
+            _exec_role_ddl(
+                connection,
+                "CREATE ROLE app_user WITH LOGIN NOINHERIT",
+                app_user_pw,
+            )
         else:
             print(
                 "NOTE: app_user role does not exist and DATABASE_URL_APP is not set.\n"
@@ -61,13 +89,12 @@ def upgrade() -> None:
                 "For Docker deployments, docker/init-db.sh handles this automatically."
             )
     else:
-        # Ensure correct attributes on pre-existing role
-        connection.execute(text("ALTER ROLE app_user WITH LOGIN NOINHERIT"))
-        # Sync password from env if available (fixes passwordless roles)
-        if app_user_pw:
-            connection.execute(text(
-                "ALTER ROLE app_user WITH PASSWORD :pw"
-            ), {"pw": app_user_pw})
+        # Ensure correct attributes and sync password from env
+        _exec_role_ddl(
+            connection,
+            "ALTER ROLE app_user WITH LOGIN NOINHERIT",
+            app_user_pw,
+        )
 
     if _role_exists(connection, "app_user"):
         connection.execute(
@@ -94,15 +121,17 @@ def upgrade() -> None:
 
     if not _role_exists(connection, "app_admin"):
         if app_admin_pw:
-            connection.execute(text(
-                "CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD :pw"
-            ), {"pw": app_admin_pw})
+            _exec_role_ddl(
+                connection,
+                "CREATE ROLE app_admin WITH LOGIN BYPASSRLS",
+                app_admin_pw,
+            )
     else:
-        connection.execute(text("ALTER ROLE app_admin WITH LOGIN BYPASSRLS"))
-        if app_admin_pw:
-            connection.execute(text(
-                "ALTER ROLE app_admin WITH PASSWORD :pw"
-            ), {"pw": app_admin_pw})
+        _exec_role_ddl(
+            connection,
+            "ALTER ROLE app_admin WITH LOGIN BYPASSRLS",
+            app_admin_pw,
+        )
 
     if _role_exists(connection, "app_admin"):
         connection.execute(
