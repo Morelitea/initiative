@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
+from app.db.session import reapply_rls_context
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.task import Task
 from app.models.project import Project, ProjectPermission
@@ -91,6 +92,7 @@ async def create_tag(
     )
     session.add(tag)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(tag)
     return tag
 
@@ -133,6 +135,7 @@ async def update_tag(
     tag.updated_at = datetime.now(timezone.utc)
     session.add(tag)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(tag)
     return tag
 

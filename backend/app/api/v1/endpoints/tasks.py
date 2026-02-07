@@ -13,6 +13,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
+from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
@@ -686,6 +687,7 @@ async def create_task(
                 guild_id=guild_context.guild_id,
             )
     await session.commit()
+    await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task not found after creation")
@@ -794,6 +796,7 @@ async def update_task(
             )
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
@@ -842,6 +845,7 @@ async def move_task(
     task.updated_at = now
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
 
     updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
     if updated_task is None:
@@ -929,6 +933,7 @@ async def duplicate_task(
         ])
 
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(new_task)
 
     # Annotate and return the task
@@ -1044,6 +1049,7 @@ async def reorder_tasks(
         )
 
     await session.commit()
+    await reapply_rls_context(session)
 
     refreshed_stmt = (
         select(Task)
@@ -1174,6 +1180,7 @@ async def create_subtask(
     session.add(subtask)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
@@ -1225,6 +1232,7 @@ async def create_subtasks_batch(
         _touch_task(task, timestamp=now)
         session.add(task)
         await session.commit()
+        await reapply_rls_context(session)
         for subtask in created_subtasks:
             await session.refresh(subtask)
         await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
@@ -1274,6 +1282,7 @@ async def reorder_subtasks(
     _touch_task(task, timestamp=now)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return await _list_subtasks_for_task(session, task.id)
 
@@ -1320,6 +1329,7 @@ async def update_subtask(
     session.add(subtask)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
@@ -1351,6 +1361,7 @@ async def delete_subtask(
     _touch_task(task)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return None
 
@@ -1479,6 +1490,7 @@ async def set_task_tags(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
     fresh_task.updated_at = datetime.now(timezone.utc)
     await session.commit()
+    await reapply_rls_context(session)
 
     # Refresh and return
     task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)

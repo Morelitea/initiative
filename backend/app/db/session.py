@@ -41,22 +41,17 @@ AdminSessionLocal = sessionmaker(
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    # Pin the DBAPI connection for the entire request lifetime.
-    # Without this, session.commit() may release the connection back to the
-    # pool and the next query may get a DIFFERENT connection that doesn't
-    # have our SET variables for RLS context.
-    async with engine.connect() as conn:
-        async with AsyncSession(bind=conn, autoflush=False, expire_on_commit=False) as session:
-            if settings.ENABLE_RLS:
-                # Reset RLS variables from any previous request on this pooled connection.
-                # Uses set_config() in a single round-trip for efficiency.
-                await session.execute(text(
-                    "SELECT set_config('app.current_user_id', '', false), "
-                    "set_config('app.current_guild_id', '', false), "
-                    "set_config('app.current_guild_role', '', false), "
-                    "set_config('app.is_superadmin', 'false', false)"
-                ))
-            yield session
+    async with AsyncSessionLocal() as session:
+        if settings.ENABLE_RLS:
+            # Reset RLS variables from any previous request on this pooled connection.
+            # Uses set_config() in a single round-trip for efficiency.
+            await session.execute(text(
+                "SELECT set_config('app.current_user_id', '', false), "
+                "set_config('app.current_guild_id', '', false), "
+                "set_config('app.current_guild_role', '', false), "
+                "set_config('app.is_superadmin', 'false', false)"
+            ))
+        yield session
 
 
 async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
@@ -75,9 +70,9 @@ async def set_rls_context(
     """Set PostgreSQL session variables for RLS policy evaluation.
 
     These variables are used by RLS policies to determine which rows
-    the current session can access. Uses SET (not SET LOCAL) so the
-    settings persist across transaction boundaries — service functions
-    that call session.commit() won't clear the context.
+    the current session can access. Uses set_config() with is_local=false
+    so the settings persist across transaction boundaries and are
+    guaranteed to execute on the same connection as subsequent queries.
 
     All four variables are always written (defaulting to empty/false)
     so that stale values from a previous request on the same pooled
@@ -86,29 +81,48 @@ async def set_rls_context(
     if not settings.ENABLE_RLS:
         return
 
-    # SET does not support bind parameters ($1) in PostgreSQL,
-    # so we must use literal values. Integer IDs are safe by type;
-    # guild_role is validated against a known allowlist.
     _VALID_ROLES = {"admin", "member"}
     if guild_role is not None and guild_role not in _VALID_ROLES:
         raise ValueError(f"Invalid guild_role: {guild_role!r}")
 
+    # Store params on the session so reapply_rls_context() can re-set them
+    # after session.commit() which may release the connection to the pool.
+    session._rls_params = {  # type: ignore[attr-defined]
+        "user_id": user_id,
+        "guild_id": guild_id,
+        "guild_role": guild_role,
+        "is_superadmin": is_superadmin,
+    }
+
+    # Use set_config() (a regular SQL function) instead of SET commands.
+    # SET is a special PostgreSQL command that asyncpg may execute outside
+    # the normal query path, potentially on a different connection.
+    # set_config() is a standard SQL query guaranteed to run on the same
+    # connection as other session queries.
+    uid = str(int(user_id)) if user_id is not None else ""
+    gid = str(int(guild_id)) if guild_id is not None else ""
+    grole = guild_role if guild_role is not None else ""
+    sa = "true" if is_superadmin else "false"
+
     await session.execute(text(
-        f"SET app.current_user_id = '{int(user_id)}'" if user_id is not None
-        else "SET app.current_user_id = ''"
-    ))
-    await session.execute(text(
-        f"SET app.current_guild_id = '{int(guild_id)}'" if guild_id is not None
-        else "SET app.current_guild_id = ''"
-    ))
-    await session.execute(text(
-        f"SET app.current_guild_role = '{guild_role}'" if guild_role is not None
-        else "SET app.current_guild_role = ''"
-    ))
-    await session.execute(text(
-        "SET app.is_superadmin = 'true'" if is_superadmin
-        else "SET app.is_superadmin = 'false'"
-    ))
+        "SELECT set_config('app.current_user_id', :uid, false), "
+        "set_config('app.current_guild_id', :gid, false), "
+        "set_config('app.current_guild_role', :grole, false), "
+        "set_config('app.is_superadmin', :sa, false)"
+    ), {"uid": uid, "gid": gid, "grole": grole, "sa": sa})
+
+
+async def reapply_rls_context(session: AsyncSession) -> None:
+    """Re-apply stored RLS context after session.commit().
+
+    After commit(), SQLAlchemy may release the connection back to the pool
+    and acquire a different one for subsequent queries. The new connection
+    won't have our SET variables. Call this after any commit that is
+    followed by more queries in the same request.
+    """
+    params = getattr(session, "_rls_params", None)
+    if params:
+        await set_rls_context(session, **params)
 
 
 @asynccontextmanager

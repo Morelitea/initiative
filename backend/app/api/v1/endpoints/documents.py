@@ -13,6 +13,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
+from app.db.session import reapply_rls_context
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentType, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.tag import Tag, DocumentTag
@@ -406,6 +407,7 @@ async def create_document(
     )
 
     await session.commit()
+    await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     return serialize_document(hydrated)
@@ -480,6 +482,7 @@ async def upload_document_file(
     )
     session.add(owner_permission)
     await session.commit()
+    await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     return serialize_document(hydrated)
@@ -588,6 +591,7 @@ async def update_document(
                 guild_id=guild_context.guild_id,
             )
         await session.commit()
+        await reapply_rls_context(session)
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(hydrated)
@@ -691,6 +695,7 @@ async def add_document_member(
         existing.level = member_in.level
         session.add(existing)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(existing)
         return existing
 
@@ -702,6 +707,7 @@ async def add_document_member(
     )
     session.add(permission)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(permission)
     return permission
 
@@ -763,6 +769,7 @@ async def add_document_members_bulk(
         created_permissions.append(permission)
 
     await session.commit()
+    await reapply_rls_context(session)
     for permission in created_permissions:
         await session.refresh(permission)
     return created_permissions
@@ -821,6 +828,7 @@ async def update_document_member(
     permission.level = update_in.level
     session.add(permission)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(permission)
     return permission
 

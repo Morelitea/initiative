@@ -149,7 +149,7 @@ export const InitiativesPage = () => {
       setNewName("");
       setNewDescription("");
       setNewColor(DEFAULT_INITIATIVE_COLOR);
-      void queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
+      void queryClient.invalidateQueries({ queryKey: ["initiatives"] });
     },
     onError: (error) => {
       const message =

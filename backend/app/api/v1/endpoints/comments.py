@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 
 from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
+from app.db.session import reapply_rls_context
 from app.models.document import Document
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
@@ -43,6 +44,7 @@ async def create_comment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
     await broadcast_event("comment", "created", response.model_dump(mode="json"))
@@ -101,6 +103,7 @@ async def update_comment(
     # CommentValidationError from service indicates data integrity issues (500).
 
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
     await broadcast_event("comment", "updated", response.model_dump(mode="json"))

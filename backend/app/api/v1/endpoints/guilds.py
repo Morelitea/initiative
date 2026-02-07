@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.config import settings
-from app.db.session import get_admin_session, set_rls_context
+from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User, UserRole
 from app.schemas.guild import (
@@ -122,9 +122,11 @@ async def get_invite_status(
 @router.post("/", response_model=GuildRead, status_code=status.HTTP_201_CREATED)
 async def create_guild(
     guild_in: GuildCreate,
-    session: UserSessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
+    """Create a new guild. Uses admin session because the guild doesn't exist
+    yet — no guild context or membership exists for RLS to match against."""
     if settings.DISABLE_GUILD_CREATION and current_user.role != UserRole.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild creation is disabled")
     name = guild_in.name.strip()
@@ -246,6 +248,7 @@ async def accept_invite(
     except guilds_service.GuildInviteError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     await session.commit()
+    await reapply_rls_context(session)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Guild membership missing")

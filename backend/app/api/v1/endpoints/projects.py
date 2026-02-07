@@ -15,6 +15,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
@@ -557,6 +558,7 @@ async def _record_recent_project_view(
 
     await session.execute(stmt)
     await session.commit()
+    await reapply_rls_context(session)
 
     # Fetch the record we just upserted
     fetch_stmt = select(RecentProjectView).where(
@@ -843,6 +845,7 @@ async def create_project(
             ])
 
     await session.commit()
+    await reapply_rls_context(session)
 
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if project.initiative_id and project.initiative:
@@ -883,6 +886,7 @@ async def archive_project(
         project.archived_at = datetime.now(timezone.utc)
         session.add(project)
         await session.commit()
+        await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await broadcast_event("project", "updated", _project_payload(updated))
@@ -980,6 +984,7 @@ async def duplicate_project(
         fallback_status_ids=fallback_status_ids,
     )
     await session.commit()
+    await reapply_rls_context(session)
 
     new_project = await _get_project_or_404(new_project.id, session, guild_context.guild_id)
     if new_project.initiative_id and new_project.initiative:
@@ -1020,6 +1025,7 @@ async def unarchive_project(
         project.archived_at = None
         session.add(project)
         await session.commit()
+        await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await broadcast_event("project", "updated", _project_payload(updated))
@@ -1306,6 +1312,7 @@ async def update_project(
 
     session.add(project)
     await session.commit()
+    await reapply_rls_context(session)
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if (
         project.initiative_id
@@ -1431,6 +1438,7 @@ async def add_project_member(
         existing.level = member_in.level
         session.add(existing)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(existing)
         return existing
 
@@ -1442,6 +1450,7 @@ async def add_project_member(
     )
     session.add(permission)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(permission)
     return permission
 
@@ -1519,6 +1528,7 @@ async def add_project_members_bulk(
         created_permissions.append(permission)
 
     await session.commit()
+    await reapply_rls_context(session)
     for permission in created_permissions:
         await session.refresh(permission)
     return created_permissions
@@ -1606,6 +1616,7 @@ async def update_project_member(
     permission.level = update_in.level
     session.add(permission)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(permission)
     return permission
 
@@ -1693,6 +1704,7 @@ async def reorder_projects(
         session.add(order)
 
     await session.commit()
+    await reapply_rls_context(session)
     return await _project_reads_with_order(session, current_user, visible_projects)
 
 
@@ -1768,6 +1780,7 @@ async def set_project_tags(
     proj = result.one()
     proj.updated_at = datetime.now(timezone.utc)
     await session.commit()
+    await reapply_rls_context(session)
 
     # Refetch with all relationships
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)

@@ -13,6 +13,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.guild import GuildRole
@@ -214,6 +215,7 @@ async def create_initiative(
         )
     )
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(initiative, attribute_names=["memberships"])
     return serialize_initiative(initiative)
 
@@ -242,6 +244,7 @@ async def update_initiative(
         setattr(initiative, field, value)
     session.add(initiative)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(initiative)
     await session.refresh(initiative, attribute_names=["memberships"])
     return serialize_initiative(initiative)
@@ -401,6 +404,7 @@ async def update_initiative_role(
         )
 
     await session.commit()
+    await reapply_rls_context(session)
     member_count = await initiatives_service.count_role_members(session, role_id=role.id)
     return serialize_role(role, member_count=member_count)
 
@@ -578,6 +582,7 @@ async def add_initiative_member(
         created = True
 
     await session.commit()
+    await reapply_rls_context(session)
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if created:
@@ -694,6 +699,7 @@ async def remove_initiative_member(
                 await session.exec(delete_stmt)
 
         await session.commit()
+        await reapply_rls_context(session)
 
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
@@ -740,6 +746,7 @@ async def update_initiative_member(
         membership.role_id = payload.role_id
         session.add(membership)
         await session.commit()
+        await reapply_rls_context(session)
 
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
