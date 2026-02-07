@@ -130,7 +130,9 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 The fastest way to get Initiative running:
 
 ```bash
-# 1. Copy the example configuration
+# 1. Download the example compose file and database init script
+curl -O https://raw.githubusercontent.com/Morelitea/initiative/main/docker-compose.example.yml
+mkdir -p docker && curl -o docker/init-db.sh https://raw.githubusercontent.com/Morelitea/initiative/main/docker/init-db.sh
 cp docker-compose.example.yml docker-compose.yml
 
 # 2. Edit configuration
