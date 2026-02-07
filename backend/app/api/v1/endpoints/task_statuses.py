@@ -261,7 +261,7 @@ async def delete_task_status(
 
     stmt = select(func.count(Task.id)).where(Task.task_status_id == target.id)
     result = await session.exec(stmt)
-    task_count = result.first() or 0
+    task_count = result.one() or 0
 
     fallback_obj: TaskStatus | None = None
     if task_count:
