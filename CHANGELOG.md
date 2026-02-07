@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Row Level Security (RLS) enforcement** across all API endpoints
+  - Database-level access control ensures users can only access data within their guild
+  - All guild-scoped endpoints now set RLS context (user, guild, role) before querying
+  - Super admin bypass via `app.is_superadmin` session variable
+  - RLS policies added for tags, document_links, task_tags, project_tags, and document_tags tables
+  - Guild table now has command-specific policies (SELECT/INSERT/UPDATE/DELETE) instead of a single blanket policy
+  - Guild memberships allow cross-guild SELECT for own memberships (needed for guild list, leave checks)
+  - NULLIF-safe policies prevent empty string cast crashes (fail-closed with 0 rows instead of 500 errors)
+
+### Changed
+
+- Admin endpoints now use dedicated admin database sessions (bypass RLS for cross-guild platform operations)
+- Registration, invite acceptance, and account deletion use admin sessions (bootstrapping operations that span guilds)
+- Database sessions pin their connection for the entire request lifetime to prevent RLS context loss after commits
+
+### Upgrade Notes
+
+**Docker deployments** should update their setup to enable RLS enforcement:
+
+1. **Add the init script** — copy `docker/init-db.sh` from the repository into a `docker/` directory next to your `docker-compose.yml`. This script creates two PostgreSQL roles:
+   - `app_user` — RLS-enforced, used for normal API queries
+   - `app_admin` — BYPASSRLS, used for migrations and background jobs
+
+2. **Update `docker-compose.yml`** — add the following to your `db` service:
+
+   ```yaml
+   services:
+     db:
+       environment:
+         APP_USER_PASSWORD: ${APP_USER_PASSWORD:-app_user_password}
+         APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-app_admin_password}
+       volumes:
+         - ./docker/init-db.sh:/docker-entrypoint-initdb.d/01-create-roles.sh
+   ```
+
+   And add these environment variables to your `initiative` service:
+
+   ```yaml
+   services:
+     initiative:
+       environment:
+         # RLS-enforced connection (app_user role, no BYPASSRLS)
+         DATABASE_URL_APP: postgresql+asyncpg://app_user:${APP_USER_PASSWORD:-app_user_password}@db:5432/initiative
+         # Admin connection for migrations and background jobs (app_admin role, BYPASSRLS)
+         DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:${APP_ADMIN_PASSWORD:-app_admin_password}@db:5432/initiative
+   ```
+
+   See `docker-compose.example.yml` for a complete reference.
+
+3. **Fresh databases only** — the init script runs on first `docker-compose up` (when the postgres data volume is empty). For existing databases, the Alembic migration (`20260207_0040`) creates the roles automatically. You will still need to set `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` environment variables.
+
+4. **Backward compatible** — if `DATABASE_URL_APP` is not set, the app falls back to `DATABASE_URL` and RLS remains inert (existing behavior).
+
 ## [0.24.0] - 2026-02-06
 
 ### Added
