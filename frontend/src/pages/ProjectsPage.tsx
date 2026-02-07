@@ -443,7 +443,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       setInitiativeId(null);
       setSelectedTemplateId(NO_TEMPLATE_VALUE);
       setIsTemplateProject(false);
-      setIsComposerOpen(false);
+      handleComposerOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({
         queryKey: ["projects", "templates"],
@@ -1217,21 +1217,23 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       }}
                     />
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={createProject.isPending}>
-                      {createProject.isPending ? "Creating…" : "Create project"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={createProject.isPending}
-                      onClick={() => setIsComposerOpen(false)}
-                    >
-                      Cancel
-                    </Button>
+                  <div className="flex flex-wrap items-center gap-2">
                     {createProject.isError ? (
                       <p className="text-destructive text-sm">Unable to create project.</p>
                     ) : null}
+                    <div className="ml-auto flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={createProject.isPending}
+                        onClick={() => handleComposerOpenChange(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={createProject.isPending}>
+                        {createProject.isPending ? "Creating…" : "Create project"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </form>
