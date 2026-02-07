@@ -60,7 +60,6 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 **Project/Document access control:**
 <img width="1920" height="1079" alt="Project DAC permissions" src="https://github.com/user-attachments/assets/135a733e-3a2b-4cbc-aa66-b1eaf6234d75" />
 
-
 ### Rich Task Management
 
 - **Kanban boards**: Custom task statuses organized into backlog, todo, in-progress, and done categories
@@ -134,7 +133,9 @@ The fastest way to get Initiative running:
 # 1. Copy the example configuration
 cp docker-compose.example.yml docker-compose.yml
 
-# 2. Edit configuration (set a secure SECRET_KEY)
+# 2. Edit configuration
+#    - Set a secure SECRET_KEY
+#    - Optionally change APP_USER_PASSWORD and APP_ADMIN_PASSWORD
 nano docker-compose.yml
 
 # 3. Start the application
@@ -147,17 +148,31 @@ Also configure env variables according to your preferences, see [Key Environment
 
 **What's included:**
 
-- PostgreSQL 17 database with persistent storage
+- PostgreSQL 17 database with persistent storage and Row Level Security
+- Automatic database role creation (`app_user` for RLS-enforced queries, `app_admin` for migrations)
 - FastAPI backend with automatic migrations
 - React frontend served via FastAPI
 - Health checks and automatic restarts
 - Volume mounts for persistent uploads
+
+**How database security works:**
+
+The example compose file sets up two database roles automatically via `docker/init-db.sh`:
+
+- **`app_user`** — Used for all user-facing API queries. This role has no `BYPASSRLS` privilege, so PostgreSQL Row Level Security policies enforce guild-level data isolation at the database layer.
+- **`app_admin`** — Used for migrations, startup seeding, and background jobs. Has `BYPASSRLS` for administrative operations.
+
+Passwords for these roles are configured via `APP_USER_PASSWORD` and `APP_ADMIN_PASSWORD` in the compose file. The corresponding connection strings (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN`) are built from these passwords automatically.
 
 **First-time setup:**
 
 - The first user to register will be prompted to create an account
 - Configure SMTP settings in the admin panel to enable email notifications
 - Create your first guild and start inviting team members
+
+**Upgrading from pre-RLS versions:**
+
+If you're upgrading an existing deployment, add `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` to your compose file (see `docker-compose.example.yml`). The database migration will automatically create the roles and set passwords from these URLs. Existing setups without these variables continue to work via the `DATABASE_URL` fallback, but RLS enforcement will not be active.
 
 ---
 
@@ -302,28 +317,29 @@ For detailed development guidelines, coding standards, and workflow, see [AGENTS
 
 ### Key Environment Variables
 
-| Variable                     | Description                                                   | Default  | Example                                                        |
-| ---------------------------- | ------------------------------------------------------------- | -------- | -------------------------------------------------------------- |
-| `DATABASE_URL`               | PostgreSQL connection string                                  | -        | `postgresql+asyncpg://user:pass@localhost:5432/initiative`     |
-| `DATABASE_URL_ADMIN`         | Superuser connection for migrations (required for RLS setup)  | -        | `postgresql+asyncpg://postgres:pass@localhost:5432/initiative` |
-| `SECRET_KEY`                 | JWT signing key (use a secure random string)                  | Required | `your-secret-key-here`                                         |
-| `APP_URL`                    | Public base URL (required for OIDC callbacks)                 | -        | `https://initiative.example.com`                               |
-| `DISABLE_GUILD_CREATION`     | Restrict guild creation to super admin only                   | `false`  | `true` or `false`                                              |
-| `ENABLE_PUBLIC_REGISTRATION` | Allow public registration without invite link                 | `true`   | `true` or `false`                                              |
-| `BEHIND_PROXY`               | Trust X-Forwarded-For headers (behind nginx/load balancer)    | `false`  | `true` or `false`                                              |
-| `FIRST_SUPERUSER_EMAIL`      | Bootstrap admin email                                         | -        | `admin@example.com`                                            |
-| `FIRST_SUPERUSER_PASSWORD`   | Bootstrap admin password                                      | -        | `secure-password`                                              |
-| `SMTP_HOST`                  | SMTP server hostname                                          | -        | `smtp.gmail.com`                                               |
-| `SMTP_PORT`                  | SMTP server port                                              | `587`    | `587`                                                          |
-| `SMTP_USERNAME`              | SMTP authentication username                                  | -        | `your-email@gmail.com`                                         |
-| `SMTP_PASSWORD`              | SMTP authentication password                                  | -        | `your-app-password`                                            |
-| `SMTP_FROM_ADDRESS`          | Email sender address                                          | -        | `Initiative <noreply@example.com>`                             |
-| `FCM_ENABLED`                | Enable Firebase Cloud Messaging for mobile push notifications | `false`  | `true` or `false`                                              |
-| `FCM_PROJECT_ID`             | Firebase project ID                                           | -        | `my-project-id`                                                |
-| `FCM_APPLICATION_ID`         | Firebase app ID from google-services.json                     | -        | `1:123456:android:abc123`                                      |
-| `FCM_API_KEY`                | Firebase Web API key (from Firebase Console)                  | -        | `AIzaSy...`                                                    |
-| `FCM_SENDER_ID`              | FCM sender ID (project_number from google-services.json)      | -        | `123456789`                                                    |
-| `FCM_SERVICE_ACCOUNT_JSON`   | Service account JSON for backend (minified, keep secure)      | -        | `{"type":"service_account",...}`                               |
+| Variable                     | Description                                                    | Default  | Example                                                       |
+| ---------------------------- | -------------------------------------------------------------- | -------- | ------------------------------------------------------------- |
+| `DATABASE_URL`               | Fallback PostgreSQL connection (used if \_APP/\_ADMIN not set) | -        | `postgresql+asyncpg://user:pass@localhost:5432/initiative`    |
+| `DATABASE_URL_APP`           | RLS-enforced connection (app_user role, no BYPASSRLS)          | -        | `postgresql+asyncpg://app_user:pw@localhost:5432/initiative`  |
+| `DATABASE_URL_ADMIN`         | Admin connection for migrations/background jobs (BYPASSRLS)    | -        | `postgresql+asyncpg://app_admin:pw@localhost:5432/initiative` |
+| `SECRET_KEY`                 | JWT signing key (use a secure random string)                   | Required | `your-secret-key-here`                                        |
+| `APP_URL`                    | Public base URL (required for OIDC callbacks)                  | -        | `https://initiative.example.com`                              |
+| `DISABLE_GUILD_CREATION`     | Restrict guild creation to super admin only                    | `false`  | `true` or `false`                                             |
+| `ENABLE_PUBLIC_REGISTRATION` | Allow public registration without invite link                  | `true`   | `true` or `false`                                             |
+| `BEHIND_PROXY`               | Trust X-Forwarded-For headers (behind nginx/load balancer)     | `false`  | `true` or `false`                                             |
+| `FIRST_SUPERUSER_EMAIL`      | Bootstrap admin email                                          | -        | `admin@example.com`                                           |
+| `FIRST_SUPERUSER_PASSWORD`   | Bootstrap admin password                                       | -        | `secure-password`                                             |
+| `SMTP_HOST`                  | SMTP server hostname                                           | -        | `smtp.gmail.com`                                              |
+| `SMTP_PORT`                  | SMTP server port                                               | `587`    | `587`                                                         |
+| `SMTP_USERNAME`              | SMTP authentication username                                   | -        | `your-email@gmail.com`                                        |
+| `SMTP_PASSWORD`              | SMTP authentication password                                   | -        | `your-app-password`                                           |
+| `SMTP_FROM_ADDRESS`          | Email sender address                                           | -        | `Initiative <noreply@example.com>`                            |
+| `FCM_ENABLED`                | Enable Firebase Cloud Messaging for mobile push notifications  | `false`  | `true` or `false`                                             |
+| `FCM_PROJECT_ID`             | Firebase project ID                                            | -        | `my-project-id`                                               |
+| `FCM_APPLICATION_ID`         | Firebase app ID from google-services.json                      | -        | `1:123456:android:abc123`                                     |
+| `FCM_API_KEY`                | Firebase Web API key (from Firebase Console)                   | -        | `AIzaSy...`                                                   |
+| `FCM_SENDER_ID`              | FCM sender ID (project_number from google-services.json)       | -        | `123456789`                                                   |
+| `FCM_SERVICE_ACCOUNT_JSON`   | Service account JSON for backend (minified, keep secure)       | -        | `{"type":"service_account",...}`                              |
 
 For detailed Firebase/FCM setup instructions, see [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md).
 
