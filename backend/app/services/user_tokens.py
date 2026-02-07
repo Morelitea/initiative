@@ -5,6 +5,7 @@ from typing import Optional, List
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import reapply_rls_context
 from app.models.user_token import UserToken, UserTokenPurpose
 
 
@@ -79,6 +80,7 @@ async def consume_token(
     record.consumed_at = datetime.now(timezone.utc)
     session.add(record)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(record)
     return record
 

@@ -6,6 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
+from app.db.session import reapply_rls_context
 from app.models.app_setting import AppSetting, DEFAULT_ROLE_LABELS
 from app.models.guild_setting import GuildSetting
 from app.services import guilds as guilds_service
@@ -60,6 +61,7 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
     settings_row = GuildSetting(guild_id=guild_id)
     session.add(settings_row)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -97,6 +99,7 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         if updated:
             session.add(settings_row)
             await session.commit()
+            await reapply_rls_context(session)
             await session.refresh(settings_row)
         return settings_row
     app_settings = AppSetting(
@@ -121,6 +124,7 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     )
     session.add(app_settings)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(app_settings)
     return app_settings
 
@@ -155,6 +159,7 @@ async def update_oidc_settings(
     settings_row.oidc_scopes = _normalize_scopes(scopes)
     session.add(settings_row)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -170,6 +175,7 @@ async def update_interface_colors(
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
     session.add(settings_row)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -182,6 +188,7 @@ async def update_role_labels(
     settings_row.role_labels = _normalize_role_labels(labels, base=settings_row.role_labels)
     session.add(settings_row)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -211,6 +218,7 @@ async def update_email_settings(
     settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(settings_row)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 

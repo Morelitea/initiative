@@ -13,6 +13,8 @@ from __future__ import annotations
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import reapply_rls_context
+
 from app.models.user import User
 from app.schemas.ai_settings import (
     AIProvider,
@@ -73,6 +75,7 @@ async def update_platform_ai_settings(
 
     session.add(settings)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(settings)
 
     return PlatformAISettingsResponse(
@@ -178,6 +181,7 @@ async def update_guild_ai_settings(
 
     session.add(guild_settings)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(guild_settings)
 
     return await get_guild_ai_settings(session, guild_id)
@@ -305,6 +309,7 @@ async def update_user_ai_settings(
 
     session.add(user)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(user)
 
     return await get_user_ai_settings(session, user, guild_id)

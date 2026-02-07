@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import reapply_rls_context
 from app.models.push_token import PushToken
 
 
@@ -35,6 +36,7 @@ async def register_push_token(
         existing_token.updated_at = datetime.now(timezone.utc)
         session.add(existing_token)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(existing_token)
         return existing_token
     else:
@@ -47,6 +49,7 @@ async def register_push_token(
         )
         session.add(new_token)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(new_token)
         return new_token
 
