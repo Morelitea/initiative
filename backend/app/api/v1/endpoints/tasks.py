@@ -7,11 +7,13 @@ from sqlalchemy import case, func
 from sqlmodel import select, delete
 
 from app.api.deps import (
+    RLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
 )
+from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
@@ -516,7 +518,7 @@ async def _list_global_tasks(
 
 @router.get("/", response_model=List[TaskListRead])
 async def list_tasks(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: Optional[int] = Query(default=None),
@@ -633,7 +635,7 @@ async def list_tasks(
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def create_task(
     task_in: TaskCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -685,6 +687,7 @@ async def create_task(
                 guild_id=guild_context.guild_id,
             )
     await session.commit()
+    await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task not found after creation")
@@ -695,7 +698,7 @@ async def create_task(
 @router.get("/{task_id}", response_model=TaskRead)
 async def read_task(
     task_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -717,7 +720,7 @@ async def read_task(
 async def update_task(
     task_id: int,
     task_in: TaskUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -793,6 +796,7 @@ async def update_task(
             )
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
@@ -804,7 +808,7 @@ async def update_task(
 async def move_task(
     task_id: int,
     move_in: TaskMoveRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -841,6 +845,7 @@ async def move_task(
     task.updated_at = now
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
 
     updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
     if updated_task is None:
@@ -852,7 +857,7 @@ async def move_task(
 @router.post("/{task_id}/duplicate", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def duplicate_task(
     task_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -928,6 +933,7 @@ async def duplicate_task(
         ])
 
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(new_task)
 
     # Annotate and return the task
@@ -941,7 +947,7 @@ async def duplicate_task(
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -974,7 +980,7 @@ async def delete_task(
 @router.post("/reorder", response_model=List[TaskRead])
 async def reorder_tasks(
     reorder_in: TaskReorderRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Task]:
@@ -1043,6 +1049,7 @@ async def reorder_tasks(
         )
 
     await session.commit()
+    await reapply_rls_context(session)
 
     refreshed_stmt = (
         select(Task)
@@ -1071,7 +1078,7 @@ class ArchiveDoneResponse(BaseModel):
 
 @router.post("/archive-done", response_model=ArchiveDoneResponse)
 async def archive_done_tasks(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: int = Query(..., description="Project to archive done tasks from"),
@@ -1120,7 +1127,7 @@ async def archive_done_tasks(
 @router.get("/{task_id}/subtasks", response_model=List[SubtaskRead])
 async def list_subtasks(
     task_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Subtask]:
@@ -1142,7 +1149,7 @@ async def list_subtasks(
 async def create_subtask(
     task_id: int,
     subtask_in: SubtaskCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Subtask:
@@ -1173,6 +1180,7 @@ async def create_subtask(
     session.add(subtask)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
@@ -1182,7 +1190,7 @@ async def create_subtask(
 async def create_subtasks_batch(
     task_id: int,
     subtask_batch: SubtaskBatchCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Subtask]:
@@ -1224,6 +1232,7 @@ async def create_subtasks_batch(
         _touch_task(task, timestamp=now)
         session.add(task)
         await session.commit()
+        await reapply_rls_context(session)
         for subtask in created_subtasks:
             await session.refresh(subtask)
         await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
@@ -1235,7 +1244,7 @@ async def create_subtasks_batch(
 async def reorder_subtasks(
     task_id: int,
     reorder_in: SubtaskReorderRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Subtask]:
@@ -1273,6 +1282,7 @@ async def reorder_subtasks(
     _touch_task(task, timestamp=now)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return await _list_subtasks_for_task(session, task.id)
 
@@ -1281,7 +1291,7 @@ async def reorder_subtasks(
 async def update_subtask(
     subtask_id: int,
     subtask_in: SubtaskUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Subtask:
@@ -1319,6 +1329,7 @@ async def update_subtask(
     session.add(subtask)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
@@ -1327,7 +1338,7 @@ async def update_subtask(
 @subtasks_router.delete("/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_subtask(
     subtask_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1350,6 +1361,7 @@ async def delete_subtask(
     _touch_task(task)
     session.add(task)
     await session.commit()
+    await reapply_rls_context(session)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return None
 
@@ -1358,7 +1370,7 @@ async def delete_subtask(
 @router.post("/{task_id}/ai/subtasks", response_model=GenerateSubtasksResponse)
 async def generate_task_subtasks(
     task_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> GenerateSubtasksResponse:
@@ -1393,7 +1405,7 @@ async def generate_task_subtasks(
 @router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
 async def generate_task_description(
     task_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> GenerateDescriptionResponse:
@@ -1429,7 +1441,7 @@ async def generate_task_description(
 async def set_task_tags(
     task_id: int,
     tags_in: TagSetRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -1478,6 +1490,7 @@ async def set_task_tags(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
     fresh_task.updated_at = datetime.now(timezone.utc)
     await session.commit()
+    await reapply_rls_context(session)
 
     # Refresh and return
     task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)

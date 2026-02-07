@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import (
+    RLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -109,7 +110,7 @@ async def parse_todoist_csv(
 @router.post("/todoist", response_model=ImportResult)
 async def import_from_todoist(
     request: TodoistImportRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ImportResult:
@@ -176,7 +177,7 @@ async def parse_vikunja_json(
 @router.post("/vikunja", response_model=ImportResult)
 async def import_from_vikunja(
     request: VikunjaImportRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ImportResult:
@@ -244,7 +245,7 @@ async def parse_ticktick_csv(
 @router.post("/ticktick", response_model=ImportResult)
 async def import_from_ticktick(
     request: TickTickImportRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ImportResult:

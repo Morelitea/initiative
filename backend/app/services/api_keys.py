@@ -6,6 +6,7 @@ from secrets import token_urlsafe
 from typing import Optional, Tuple
 
 from sqlmodel import select
+from app.db.session import reapply_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.api_key import UserApiKey
@@ -49,6 +50,7 @@ async def create_api_key(
     )
     session.add(api_key)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(api_key)
     return secret, api_key
 

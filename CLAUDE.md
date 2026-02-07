@@ -303,6 +303,33 @@ History favors short subjects (e.g., `MVP WIP 1`), so keep the first line impera
 
 Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
 
+## Row-Level Security (RLS)
+
+This project enforces PostgreSQL Row-Level Security at the database level. **Every backend endpoint must use the correct session type** to ensure data isolation between guilds.
+
+### Session Types (choose the right one)
+
+| Session Dep | When to use | RLS context set? |
+|---|---|---|
+| `RLSSessionDep` | Guild-scoped data endpoints (projects, tasks, documents, initiatives, tags, comments, task statuses, collaboration, imports, guild-scoped settings) | Yes — user + guild + role + superadmin |
+| `UserSessionDep` | Cross-guild user operations (list guilds, reorder guilds, leave guild, leave eligibility) | Yes — user + superadmin only (no guild) |
+| `AdminSessionDep` | Bootstrapping operations where the entity doesn't exist yet (create guild, accept invite), admin/auth/user management, background jobs, startup seeding | No — bypasses RLS entirely |
+| `SessionDep` | Only for unauthenticated endpoints or where another dep manually calls `set_rls_context()` in the handler (e.g., guild admin endpoints that validate role first) | No — raw session, no RLS context |
+
+### Rules for writing backend endpoints
+
+1. **Default to `RLSSessionDep`** for any endpoint that reads/writes guild-scoped data. It requires `GuildContextDep` in the same endpoint signature.
+2. **After every `session.commit()` that is followed by a database query** (including `session.refresh()`), call `await reapply_rls_context(session)`. Commits may release the connection back to the pool; the next query could land on a connection without RLS variables set.
+3. **Use `AdminSessionDep`** for operations that can't work under RLS — e.g., creating a guild (the guild and membership don't exist yet, so INSERT...RETURNING triggers a SELECT policy that can't match).
+4. **Never use `SessionDep` for guild-scoped data** — it has no RLS context and will either return all rows (if connected as superuser) or zero rows (if connected as `app_user`).
+5. **`set_rls_context()` uses `set_config()`** (not `SET` commands) to guarantee execution on the same pooled connection as subsequent queries.
+6. **New RLS policies** for new tables must be added via Alembic migration. Include `FORCE ROW LEVEL SECURITY` and add a superadmin bypass (`OR current_setting('app.is_superadmin', true) = 'true'`).
+
+### Rules for writing frontend code
+
+1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", guildId]` and a page uses `["initiatives", { guildId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
+2. **Always include the `X-Guild-ID` header** when calling guild-scoped endpoints. The `apiClient` interceptor handles this automatically via `activeGuildId`.
+
 ## Guild Architecture Notes
 
 - Guilds are the primary tenancy boundary. Every user can join multiple guilds, and most API endpoints infer the active guild from the `X-Guild-ID` header (set by the SPA) or fall back to `users.active_guild_id`. Always include the guild header in new client calls when the route depends on guild context.

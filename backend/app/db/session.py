@@ -13,12 +13,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True)
+# Primary engine: prefer non-superuser (DATABASE_URL_APP) for RLS enforcement,
+# fall back to DATABASE_URL for backward compatibility.
+_primary_url = settings.DATABASE_URL_APP or settings.DATABASE_URL
+engine = create_async_engine(_primary_url, echo=False, future=True)
 
-# Admin engine for operations that need to bypass RLS (migrations, background jobs)
-admin_engine = None
-if settings.DATABASE_URL_ADMIN:
-    admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False, future=True)
+# Admin engine: for migrations, background jobs, startup seeding.
+# Prefer DATABASE_URL_ADMIN (BYPASSRLS), fall back to DATABASE_URL.
+_admin_url = settings.DATABASE_URL_ADMIN or settings.DATABASE_URL
+admin_engine = create_async_engine(_admin_url, echo=False, future=True)
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
@@ -28,63 +31,106 @@ AsyncSessionLocal = sessionmaker(
     class_=AsyncSession,
 )
 
-AdminSessionLocal = None
-if admin_engine:
-    AdminSessionLocal = sessionmaker(
-        bind=admin_engine,
-        autocommit=False,
-        autoflush=False,
-        expire_on_commit=False,
-        class_=AsyncSession,
-    )
+AdminSessionLocal = sessionmaker(
+    bind=admin_engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
+        if settings.ENABLE_RLS:
+            # Reset RLS variables from any previous request on this pooled connection.
+            # Uses set_config() in a single round-trip for efficiency.
+            await session.execute(text(
+                "SELECT set_config('app.current_user_id', '', false), "
+                "set_config('app.current_guild_id', '', false), "
+                "set_config('app.current_guild_role', '', false), "
+                "set_config('app.is_superadmin', 'false', false)"
+            ))
         yield session
 
 
 async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session that bypasses RLS (for migrations, background jobs, etc.)."""
-    if AdminSessionLocal:
-        async with AdminSessionLocal() as session:
-            yield session
-    else:
-        # Fall back to regular session if no admin URL configured
-        async with AsyncSessionLocal() as session:
-            yield session
+    async with AdminSessionLocal() as session:
+        yield session
 
 
 async def set_rls_context(
     session: AsyncSession,
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
+    guild_role: Optional[str] = None,
+    is_superadmin: bool = False,
 ) -> None:
     """Set PostgreSQL session variables for RLS policy evaluation.
 
     These variables are used by RLS policies to determine which rows
-    the current session can access. Uses SET LOCAL so the settings
-    only apply to the current transaction.
+    the current session can access. Uses set_config() with is_local=false
+    so the settings persist across transaction boundaries and are
+    guaranteed to execute on the same connection as subsequent queries.
+
+    All four variables are always written (defaulting to empty/false)
+    so that stale values from a previous request on the same pooled
+    connection can never leak into the current request.
     """
     if not settings.ENABLE_RLS:
         return
 
-    if user_id is not None:
-        await session.execute(
-            text("SET LOCAL app.current_user_id = :uid"),
-            {"uid": str(user_id)},
-        )
-    if guild_id is not None:
-        await session.execute(
-            text("SET LOCAL app.current_guild_id = :gid"),
-            {"gid": str(guild_id)},
-        )
+    _VALID_ROLES = {"admin", "member"}
+    if guild_role is not None and guild_role not in _VALID_ROLES:
+        raise ValueError(f"Invalid guild_role: {guild_role!r}")
+
+    # Store params on the session so reapply_rls_context() can re-set them
+    # after session.commit() which may release the connection to the pool.
+    session._rls_params = {  # type: ignore[attr-defined]
+        "user_id": user_id,
+        "guild_id": guild_id,
+        "guild_role": guild_role,
+        "is_superadmin": is_superadmin,
+    }
+
+    # Use set_config() (a regular SQL function) instead of SET commands.
+    # SET is a special PostgreSQL command that asyncpg may execute outside
+    # the normal query path, potentially on a different connection.
+    # set_config() is a standard SQL query guaranteed to run on the same
+    # connection as other session queries.
+    uid = str(int(user_id)) if user_id is not None else ""
+    gid = str(int(guild_id)) if guild_id is not None else ""
+    grole = guild_role if guild_role is not None else ""
+    sa = "true" if is_superadmin else "false"
+
+    await session.execute(text(
+        "SELECT set_config('app.current_user_id', :uid, false), "
+        "set_config('app.current_guild_id', :gid, false), "
+        "set_config('app.current_guild_role', :grole, false), "
+        "set_config('app.is_superadmin', :sa, false)"
+    ), {"uid": uid, "gid": gid, "grole": grole, "sa": sa})
+
+
+async def reapply_rls_context(session: AsyncSession) -> None:
+    """Re-apply stored RLS context after session.commit().
+
+    After commit(), SQLAlchemy may release the connection back to the pool
+    and acquire a different one for subsequent queries. The new connection
+    won't have our SET variables. Call this after any commit that is
+    followed by more queries in the same request.
+    """
+    params = getattr(session, "_rls_params", None)
+    if params:
+        await set_rls_context(session, **params)
 
 
 @asynccontextmanager
 async def rls_session(
     user_id: int,
     guild_id: int,
+    guild_role: Optional[str] = None,
+    is_superadmin: bool = False,
 ) -> AsyncGenerator[AsyncSession, None]:
     """Context manager that provides a session with RLS context set.
 
@@ -95,7 +141,13 @@ async def rls_session(
     """
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            await set_rls_context(session, user_id=user_id, guild_id=guild_id)
+            await set_rls_context(
+                session,
+                user_id=user_id,
+                guild_id=guild_id,
+                guild_role=guild_role,
+                is_superadmin=is_superadmin,
+            )
             yield session
 
 

@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import select, delete, update
 
-from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
+from app.db.session import reapply_rls_context
 from app.api.v1.endpoints.tasks import _get_project_with_access, _ensure_can_manage
 from app.models.task import Task, TaskStatus, TaskStatusCategory
 from app.models.project import Project
@@ -99,7 +100,7 @@ async def _ensure_category_not_last(
 @router.get("/", response_model=List[TaskStatusRead])
 async def list_task_statuses(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[TaskStatus]:
@@ -117,7 +118,7 @@ async def list_task_statuses(
 async def create_task_status(
     project_id: int,
     status_in: TaskStatusCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
@@ -147,6 +148,7 @@ async def create_task_status(
     _ensure_default(statuses)
     session.add(new_status)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(new_status)
     return new_status
 
@@ -156,7 +158,7 @@ async def update_task_status(
     project_id: int,
     status_id: int,
     status_in: TaskStatusUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
@@ -194,6 +196,7 @@ async def update_task_status(
 
     _ensure_default(statuses)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(target)
     return target
 
@@ -202,7 +205,7 @@ async def update_task_status(
 async def reorder_task_statuses(
     project_id: int,
     reorder_in: TaskStatusReorderRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[TaskStatus]:
@@ -233,6 +236,7 @@ async def reorder_task_statuses(
     combined = ordered + remaining
     _resequence(combined)
     await session.commit()
+    await reapply_rls_context(session)
     return await task_statuses_service.list_statuses(session, project.id)
 
 
@@ -241,7 +245,7 @@ async def delete_task_status(
     project_id: int,
     status_id: int,
     delete_in: TaskStatusDeleteRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -257,7 +261,7 @@ async def delete_task_status(
 
     stmt = select(func.count(Task.id)).where(Task.task_status_id == target.id)
     result = await session.exec(stmt)
-    task_count = result.first() or 0
+    task_count = result.one() or 0
 
     fallback_obj: TaskStatus | None = None
     if task_count:

@@ -8,12 +8,14 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 
 from app.api.deps import (
+    RLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
     require_guild_roles,
 )
+from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
@@ -556,6 +558,7 @@ async def _record_recent_project_view(
 
     await session.execute(stmt)
     await session.commit()
+    await reapply_rls_context(session)
 
     # Fetch the record we just upserted
     fetch_stmt = select(RecentProjectView).where(
@@ -695,7 +698,7 @@ def _has_project_write_access(
 
 @router.get("/", response_model=List[ProjectRead])
 async def list_projects(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     archived: Optional[bool] = Query(default=None),
@@ -713,7 +716,7 @@ async def list_projects(
 
 @router.get("/writable", response_model=List[ProjectRead])
 async def list_writable_projects(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
@@ -735,7 +738,7 @@ async def list_writable_projects(
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_in: ProjectCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -842,6 +845,7 @@ async def create_project(
             ])
 
     await session.commit()
+    await reapply_rls_context(session)
 
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if project.initiative_id and project.initiative:
@@ -866,7 +870,7 @@ async def create_project(
 @router.post("/{project_id}/archive", response_model=ProjectRead)
 async def archive_project(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -882,6 +886,7 @@ async def archive_project(
         project.archived_at = datetime.now(timezone.utc)
         session.add(project)
         await session.commit()
+        await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await broadcast_event("project", "updated", _project_payload(updated))
@@ -892,7 +897,7 @@ async def archive_project(
 async def duplicate_project(
     project_id: int,
     duplicate_in: ProjectDuplicateRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -979,6 +984,7 @@ async def duplicate_project(
         fallback_status_ids=fallback_status_ids,
     )
     await session.commit()
+    await reapply_rls_context(session)
 
     new_project = await _get_project_or_404(new_project.id, session, guild_context.guild_id)
     if new_project.initiative_id and new_project.initiative:
@@ -1003,7 +1009,7 @@ async def duplicate_project(
 @router.post("/{project_id}/unarchive", response_model=ProjectRead)
 async def unarchive_project(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -1019,6 +1025,7 @@ async def unarchive_project(
         project.archived_at = None
         session.add(project)
         await session.commit()
+        await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await broadcast_event("project", "updated", _project_payload(updated))
@@ -1027,7 +1034,7 @@ async def unarchive_project(
 
 @router.get("/recent", response_model=List[ProjectRead])
 async def recent_projects(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
@@ -1072,7 +1079,7 @@ async def recent_projects(
 
 @router.get("/favorites", response_model=List[ProjectRead])
 async def favorite_projects(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
@@ -1117,7 +1124,7 @@ async def favorite_projects(
 @router.post("/{project_id}/view", response_model=ProjectRecentViewRead)
 async def record_project_view(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRecentViewRead:
@@ -1135,7 +1142,7 @@ async def record_project_view(
 @router.delete("/{project_id}/view", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_project_view(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1152,7 +1159,7 @@ async def clear_project_view(
 @router.post("/{project_id}/favorite", response_model=ProjectFavoriteStatus)
 async def favorite_project(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectFavoriteStatus:
@@ -1170,7 +1177,7 @@ async def favorite_project(
 @router.delete("/{project_id}/favorite", response_model=ProjectFavoriteStatus)
 async def unfavorite_project(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectFavoriteStatus:
@@ -1188,7 +1195,7 @@ async def unfavorite_project(
 @router.get("/{project_id}/activity", response_model=ProjectActivityResponse)
 async def project_activity_feed(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     page: int = Query(default=1, ge=1),
@@ -1235,7 +1242,7 @@ async def project_activity_feed(
 @router.get("/{project_id}", response_model=ProjectRead)
 async def read_project(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -1253,7 +1260,7 @@ async def read_project(
 async def update_project(
     project_id: int,
     project_in: ProjectUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -1305,6 +1312,7 @@ async def update_project(
 
     session.add(project)
     await session.commit()
+    await reapply_rls_context(session)
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if (
         project.initiative_id
@@ -1333,7 +1341,7 @@ async def update_project(
 async def attach_project_document(
     project_id: int,
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -1370,7 +1378,7 @@ async def attach_project_document(
 async def detach_project_document(
     project_id: int,
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -1406,7 +1414,7 @@ async def detach_project_document(
 async def add_project_member(
     project_id: int,
     member_in: ProjectPermissionCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectPermission:
@@ -1430,6 +1438,7 @@ async def add_project_member(
         existing.level = member_in.level
         session.add(existing)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(existing)
         return existing
 
@@ -1441,6 +1450,7 @@ async def add_project_member(
     )
     session.add(permission)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(permission)
     return permission
 
@@ -1449,7 +1459,7 @@ async def add_project_member(
 async def add_project_members_bulk(
     project_id: int,
     bulk_in: ProjectPermissionBulkCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectPermission]:
@@ -1518,6 +1528,7 @@ async def add_project_members_bulk(
         created_permissions.append(permission)
 
     await session.commit()
+    await reapply_rls_context(session)
     for permission in created_permissions:
         await session.refresh(permission)
     return created_permissions
@@ -1527,7 +1538,7 @@ async def add_project_members_bulk(
 async def remove_project_members_bulk(
     project_id: int,
     bulk_in: ProjectPermissionBulkDelete,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1573,7 +1584,7 @@ async def update_project_member(
     project_id: int,
     user_id: int,
     update_in: ProjectPermissionUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectPermission:
@@ -1605,6 +1616,7 @@ async def update_project_member(
     permission.level = update_in.level
     session.add(permission)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(permission)
     return permission
 
@@ -1613,7 +1625,7 @@ async def update_project_member(
 async def remove_project_member(
     project_id: int,
     user_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1639,7 +1651,7 @@ async def remove_project_member(
 @router.post("/reorder", response_model=List[ProjectRead])
 async def reorder_projects(
     reorder_in: ProjectReorderRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
@@ -1692,13 +1704,14 @@ async def reorder_projects(
         session.add(order)
 
     await session.commit()
+    await reapply_rls_context(session)
     return await _project_reads_with_order(session, current_user, visible_projects)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1719,7 +1732,7 @@ async def delete_project(
 async def set_project_tags(
     project_id: int,
     tags_in: TagSetRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> ProjectRead:
@@ -1767,6 +1780,7 @@ async def set_project_tags(
     proj = result.one()
     proj.updated_at = datetime.now(timezone.utc)
     await session.commit()
+    await reapply_rls_context(session)
 
     # Refetch with all relationships
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)

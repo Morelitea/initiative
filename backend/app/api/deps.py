@@ -116,6 +116,14 @@ async def get_guild_membership(
     current_user: Annotated[User, Depends(get_current_active_user)],
     requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
 ) -> GuildContext:
+    # Set minimal RLS context before querying guild_memberships (RLS-protected).
+    # Full guild context is set later by get_guild_session / RLSSessionDep.
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     guild_id = await guilds_service.resolve_user_guild_id(
         session,
         user=current_user,
@@ -148,20 +156,45 @@ async def get_guild_session(
 ) -> AsyncSession:
     """Get a session with RLS context set for the current user and guild.
 
-    This dependency injects PostgreSQL session variables that RLS policies
-    use to filter data. Use this instead of SessionDep when you need
-    database-level access control.
+    This dependency injects PostgreSQL session variables (via set_config
+    with is_local=false) that RLS policies use to filter data. Use this
+    instead of SessionDep when you need database-level access control.
 
-    The RLS context is set using SET LOCAL, so it only applies to the
-    current transaction and is automatically cleared when the transaction ends.
+    Variables persist for the lifetime of the underlying connection, not
+    just the current transaction. After session.commit() the connection
+    may be returned to the pool, so call reapply_rls_context(session)
+    before any post-commit queries.
     """
     await set_rls_context(
         session,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
+        guild_role=guild_context.role.value,
+        is_superadmin=(current_user.role == UserRole.admin),
     )
     return session
 
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
+
+
+async def get_user_session(
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> AsyncSession:
+    """Get a session with user context only (no guild).
+
+    For cross-guild operations like guild creation, listing user's guilds,
+    or accepting invites where no specific guild context is needed.
+    """
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+    return session
+
+
+# Dependency for routes that need user-level RLS without guild context
+UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]

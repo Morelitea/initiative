@@ -4,7 +4,7 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.db.session import AsyncSessionLocal, run_migrations
+from app.db.session import AdminSessionLocal, run_migrations
 from app.models.user import User, UserRole
 from app.models.guild import GuildRole
 from app.services import app_settings as app_settings_service
@@ -16,7 +16,7 @@ async def init_superuser() -> None:
     if not (settings.FIRST_SUPERUSER_EMAIL and settings.FIRST_SUPERUSER_PASSWORD):
         return
 
-    async with AsyncSessionLocal() as session:
+    async with AdminSessionLocal() as session:
         primary_guild = await guilds_service.get_primary_guild(session)
         result = await session.exec(select(User).where(User.email == settings.FIRST_SUPERUSER_EMAIL))
         user = result.one_or_none()
@@ -54,7 +54,7 @@ async def init_superuser() -> None:
 async def init() -> None:
     await run_migrations()
     await init_superuser()
-    async with AsyncSessionLocal() as session:
+    async with AdminSessionLocal() as session:
         await app_settings_service.get_or_create_guild_settings(
             session, default_domains=settings.AUTO_APPROVED_EMAIL_DOMAINS
         )

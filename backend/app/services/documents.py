@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from sqlalchemy import func
+from app.db.session import reapply_rls_context
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
@@ -115,6 +116,7 @@ async def attach_document_to_project(
     )
     session.add(link)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(link)
     return link
 

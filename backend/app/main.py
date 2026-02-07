@@ -14,7 +14,7 @@ from app.api.v1.api import api_router
 from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
-from app.db.session import AsyncSessionLocal, run_migrations
+from app.db.session import AdminSessionLocal, run_migrations
 from app.services import app_settings as app_settings_service
 from app.services import notifications as notifications_service
 
@@ -130,7 +130,7 @@ app.openapi = custom_openapi
 @app.on_event("startup")
 async def on_startup() -> None:
     await run_migrations()
-    async with AsyncSessionLocal() as session:
+    async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
     app.state.notification_tasks = notifications_service.start_background_tasks()
 
