@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import (
+    RLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -204,7 +205,7 @@ def _get_document_permission(document: Document, user_id: int) -> DocumentPermis
 
 @router.get("/", response_model=List[DocumentSummary])
 async def list_documents(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
@@ -272,7 +273,7 @@ async def list_documents(
 
 @router.get("/autocomplete", response_model=List[DocumentAutocomplete])
 async def autocomplete_documents(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: int = Query(...),
@@ -351,7 +352,7 @@ async def _check_duplicate_title(
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def create_document(
     document_in: DocumentCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
@@ -412,7 +413,7 @@ async def create_document(
 
 @router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def upload_document_file(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     title: str = Form(...),
@@ -487,7 +488,7 @@ async def upload_document_file(
 @router.get("/{document_id}", response_model=DocumentRead)
 async def read_document(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
@@ -499,7 +500,7 @@ async def read_document(
 @router.get("/{document_id}/backlinks", response_model=List[DocumentBacklink])
 async def get_backlinks(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[DocumentBacklink]:
@@ -530,7 +531,7 @@ async def get_backlinks(
 async def update_document(
     document_id: int,
     document_in: DocumentUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
@@ -595,7 +596,7 @@ async def update_document(
 @router.post("/{document_id}/duplicate", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def duplicate_document(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     payload: DocumentDuplicateRequest | None = Body(default=None),
@@ -623,7 +624,7 @@ async def duplicate_document(
 async def copy_document(
     document_id: int,
     payload: DocumentCopyRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
@@ -663,7 +664,7 @@ async def copy_document(
 async def add_document_member(
     document_id: int,
     member_in: DocumentPermissionCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentPermission:
@@ -709,7 +710,7 @@ async def add_document_member(
 async def add_document_members_bulk(
     document_id: int,
     bulk_in: DocumentPermissionBulkCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[DocumentPermission]:
@@ -771,7 +772,7 @@ async def add_document_members_bulk(
 async def remove_document_members_bulk(
     document_id: int,
     bulk_in: DocumentPermissionBulkDelete,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -801,7 +802,7 @@ async def update_document_member(
     document_id: int,
     user_id: int,
     update_in: DocumentPermissionUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentPermission:
@@ -828,7 +829,7 @@ async def update_document_member(
 async def remove_document_member(
     document_id: int,
     user_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -847,7 +848,7 @@ async def remove_document_member(
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -869,7 +870,7 @@ async def delete_document(
 @router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)
 async def notify_mentions(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     mentioned_user_ids: List[int] = Body(..., embed=True),
@@ -904,7 +905,7 @@ async def notify_mentions(
 @router.post("/{document_id}/ai/summary", response_model=GenerateDocumentSummaryResponse)
 async def generate_summary(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> GenerateDocumentSummaryResponse:
@@ -940,7 +941,7 @@ async def generate_summary(
 async def set_document_tags(
     document_id: int,
     tags_in: TagSetRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:

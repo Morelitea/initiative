@@ -3,7 +3,7 @@ from typing import Annotated, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 
-from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
 from app.models.document import Document
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
@@ -20,7 +20,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)
 async def create_comment(
     comment_in: CommentCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CommentRead:
@@ -51,7 +51,7 @@ async def create_comment(
 
 @router.get("/", response_model=List[CommentRead])
 async def list_comments(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     task_id: Optional[int] = Query(default=None, gt=0),
@@ -80,7 +80,7 @@ async def list_comments(
 async def update_comment(
     comment_id: int,
     comment_in: CommentUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CommentRead:
@@ -110,7 +110,7 @@ async def update_comment(
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
     comment_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -144,7 +144,7 @@ async def delete_comment(
 
 @router.get("/mentions/search", response_model=List[MentionSuggestion])
 async def search_mentionables(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     entity_type: Literal["user", "task", "doc", "project"] = Query(...),

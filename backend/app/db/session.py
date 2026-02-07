@@ -13,12 +13,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True)
+# Primary engine: prefer non-superuser (DATABASE_URL_APP) for RLS enforcement,
+# fall back to DATABASE_URL for backward compatibility.
+_primary_url = settings.DATABASE_URL_APP or settings.DATABASE_URL
+engine = create_async_engine(_primary_url, echo=False, future=True)
 
-# Admin engine for operations that need to bypass RLS (migrations, background jobs)
-admin_engine = None
-if settings.DATABASE_URL_ADMIN:
-    admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False, future=True)
+# Admin engine: for migrations, background jobs, startup seeding.
+# Prefer DATABASE_URL_ADMIN (BYPASSRLS), fall back to DATABASE_URL.
+_admin_url = settings.DATABASE_URL_ADMIN or settings.DATABASE_URL
+admin_engine = create_async_engine(_admin_url, echo=False, future=True)
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
@@ -28,63 +31,92 @@ AsyncSessionLocal = sessionmaker(
     class_=AsyncSession,
 )
 
-AdminSessionLocal = None
-if admin_engine:
-    AdminSessionLocal = sessionmaker(
-        bind=admin_engine,
-        autocommit=False,
-        autoflush=False,
-        expire_on_commit=False,
-        class_=AsyncSession,
-    )
+AdminSessionLocal = sessionmaker(
+    bind=admin_engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        yield session
+    # Pin the DBAPI connection for the entire request lifetime.
+    # Without this, session.commit() may release the connection back to the
+    # pool and the next query may get a DIFFERENT connection that doesn't
+    # have our SET variables for RLS context.
+    async with engine.connect() as conn:
+        async with AsyncSession(bind=conn, autoflush=False, expire_on_commit=False) as session:
+            if settings.ENABLE_RLS:
+                # Reset RLS variables from any previous request on this pooled connection.
+                # Uses set_config() in a single round-trip for efficiency.
+                await session.execute(text(
+                    "SELECT set_config('app.current_user_id', '', false), "
+                    "set_config('app.current_guild_id', '', false), "
+                    "set_config('app.current_guild_role', '', false), "
+                    "set_config('app.is_superadmin', 'false', false)"
+                ))
+            yield session
 
 
 async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session that bypasses RLS (for migrations, background jobs, etc.)."""
-    if AdminSessionLocal:
-        async with AdminSessionLocal() as session:
-            yield session
-    else:
-        # Fall back to regular session if no admin URL configured
-        async with AsyncSessionLocal() as session:
-            yield session
+    async with AdminSessionLocal() as session:
+        yield session
 
 
 async def set_rls_context(
     session: AsyncSession,
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
+    guild_role: Optional[str] = None,
+    is_superadmin: bool = False,
 ) -> None:
     """Set PostgreSQL session variables for RLS policy evaluation.
 
     These variables are used by RLS policies to determine which rows
-    the current session can access. Uses SET LOCAL so the settings
-    only apply to the current transaction.
+    the current session can access. Uses SET (not SET LOCAL) so the
+    settings persist across transaction boundaries — service functions
+    that call session.commit() won't clear the context.
+
+    All four variables are always written (defaulting to empty/false)
+    so that stale values from a previous request on the same pooled
+    connection can never leak into the current request.
     """
     if not settings.ENABLE_RLS:
         return
 
-    if user_id is not None:
-        await session.execute(
-            text("SET LOCAL app.current_user_id = :uid"),
-            {"uid": str(user_id)},
-        )
-    if guild_id is not None:
-        await session.execute(
-            text("SET LOCAL app.current_guild_id = :gid"),
-            {"gid": str(guild_id)},
-        )
+    # SET does not support bind parameters ($1) in PostgreSQL,
+    # so we must use literal values. Integer IDs are safe by type;
+    # guild_role is validated against a known allowlist.
+    _VALID_ROLES = {"admin", "member"}
+    if guild_role is not None and guild_role not in _VALID_ROLES:
+        raise ValueError(f"Invalid guild_role: {guild_role!r}")
+
+    await session.execute(text(
+        f"SET app.current_user_id = '{int(user_id)}'" if user_id is not None
+        else "SET app.current_user_id = ''"
+    ))
+    await session.execute(text(
+        f"SET app.current_guild_id = '{int(guild_id)}'" if guild_id is not None
+        else "SET app.current_guild_id = ''"
+    ))
+    await session.execute(text(
+        f"SET app.current_guild_role = '{guild_role}'" if guild_role is not None
+        else "SET app.current_guild_role = ''"
+    ))
+    await session.execute(text(
+        "SET app.is_superadmin = 'true'" if is_superadmin
+        else "SET app.is_superadmin = 'false'"
+    ))
 
 
 @asynccontextmanager
 async def rls_session(
     user_id: int,
     guild_id: int,
+    guild_role: Optional[str] = None,
+    is_superadmin: bool = False,
 ) -> AsyncGenerator[AsyncSession, None]:
     """Context manager that provides a session with RLS context set.
 
@@ -95,7 +127,13 @@ async def rls_session(
     """
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            await set_rls_context(session, user_id=user_id, guild_id=guild_id)
+            await set_rls_context(
+                session,
+                user_id=user_id,
+                guild_id=guild_id,
+                guild_role=guild_role,
+                is_superadmin=is_superadmin,
+            )
             yield session
 
 

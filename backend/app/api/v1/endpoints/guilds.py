@@ -4,8 +4,9 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.config import settings
+from app.db.session import get_admin_session, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User, UserRole
 from app.schemas.guild import (
@@ -22,6 +23,9 @@ from app.schemas.guild import (
 )
 from app.services import guilds as guilds_service
 from app.services import initiatives as initiatives_service
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 router = APIRouter()
 
@@ -44,7 +48,11 @@ async def _ensure_guild_admin(
     *,
     guild_id: int,
     user_id: int,
+    is_superadmin: bool = False,
 ) -> GuildMembership:
+    # Set minimal RLS context so the guild_memberships query succeeds.
+    # Full context is set by _set_guild_admin_rls after validation.
+    await set_rls_context(session, user_id=user_id, is_superadmin=is_superadmin)
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild access denied")
@@ -53,8 +61,24 @@ async def _ensure_guild_admin(
     return membership
 
 
+async def _set_guild_admin_rls(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user: User,
+) -> None:
+    """Set RLS context after _ensure_guild_admin has validated the user's role."""
+    await set_rls_context(
+        session,
+        user_id=user.id,
+        guild_id=guild_id,
+        guild_role="admin",
+        is_superadmin=(user.role == UserRole.admin),
+    )
+
+
 @router.get("/", response_model=List[GuildRead])
-async def list_guilds(session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> List[GuildRead]:
+async def list_guilds(session: UserSessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> List[GuildRead]:
     memberships = await guilds_service.list_memberships(session, user_id=current_user.id)
     payloads: List[GuildRead] = []
     for guild, membership in memberships:
@@ -65,7 +89,7 @@ async def list_guilds(session: SessionDep, current_user: Annotated[User, Depends
 @router.put("/order", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def reorder_guilds(
     payload: GuildOrderUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     await guilds_service.reorder_memberships(
@@ -80,7 +104,7 @@ async def reorder_guilds(
 @router.get("/invite/{code}", response_model=GuildInviteStatus)
 async def get_invite_status(
     code: str,
-    session: SessionDep,
+    session: AdminSessionDep,
 ) -> GuildInviteStatus:
     invite, guild, is_valid, reason = await guilds_service.describe_invite_code(session, code=code)
     return GuildInviteStatus(
@@ -98,7 +122,7 @@ async def get_invite_status(
 @router.post("/", response_model=GuildRead, status_code=status.HTTP_201_CREATED)
 async def create_guild(
     guild_in: GuildCreate,
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
     if settings.DISABLE_GUILD_CREATION and current_user.role != UserRole.admin:
@@ -116,7 +140,6 @@ async def create_guild(
     )
     await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
     await session.commit()
-    await session.refresh(guild)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create guild membership")
@@ -129,10 +152,11 @@ async def list_guild_invites(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> List[GuildInviteRead]:
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     invites = await guilds_service.list_guild_invites(session, guild_id=guild_id)
     return [GuildInviteRead.model_validate(invite) for invite in invites]
- 
+
 
 @router.patch("/{guild_id}", response_model=GuildRead)
 async def update_guild(
@@ -141,7 +165,8 @@ async def update_guild(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
-    membership = await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    membership = await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
     guild = await guilds_service.update_guild(
         session,
@@ -152,7 +177,6 @@ async def update_guild(
         icon_provided=icon_provided,
     )
     await session.commit()
-    await session.refresh(guild)
     return _serialize_guild(guild, membership)
 
 
@@ -162,7 +186,8 @@ async def delete_guild(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     await guilds_service.delete_guild(session, guild)
     await session.commit()
@@ -176,7 +201,8 @@ async def create_guild_invite(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildInviteRead:
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     invite = await guilds_service.create_guild_invite(
         session,
         guild_id=guild_id,
@@ -186,7 +212,6 @@ async def create_guild_invite(
         invitee_email=invite_in.invitee_email,
     )
     await session.commit()
-    await session.refresh(invite)
     return GuildInviteRead.model_validate(invite)
 
 
@@ -201,7 +226,8 @@ async def delete_guild_invite(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     await guilds_service.delete_guild_invite(session, guild_id=guild_id, invite_id=invite_id)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -210,9 +236,11 @@ async def delete_guild_invite(
 @router.post("/invite/accept", response_model=GuildRead)
 async def accept_invite(
     payload: GuildInviteAcceptRequest,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildRead:
+    """Accept a guild invite. Uses admin session because the user doesn't
+    belong to the guild yet — the invite code is the authorization."""
     try:
         guild = await guilds_service.redeem_invite_for_user(session, code=payload.code, user=current_user)
     except guilds_service.GuildInviteError as exc:
@@ -238,7 +266,8 @@ async def update_guild_membership(
     - Cannot change your own role
     - Cannot demote the last guild admin
     """
-    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
+    await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
 
     if user_id == current_user.id:
         raise HTTPException(
@@ -268,7 +297,7 @@ async def update_guild_membership(
 @router.get("/{guild_id}/leave/eligibility", response_model=LeaveGuildEligibilityResponse)
 async def check_leave_eligibility(
     guild_id: int,
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> LeaveGuildEligibilityResponse:
     """Check if the current user can leave a guild.
@@ -302,7 +331,7 @@ async def check_leave_eligibility(
 @router.delete("/{guild_id}/leave", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def leave_guild(
     guild_id: int,
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     """Leave a guild.

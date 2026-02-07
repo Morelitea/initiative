@@ -6,11 +6,18 @@ Provides hierarchical AI settings management:
 - User level: Any authenticated user (if allowed)
 """
 
-from typing import Annotated, Optional
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.api.deps import SessionDep, get_current_active_user, GuildContext, require_guild_roles
+from app.api.deps import (
+    GuildContext,
+    RLSSessionDep,
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+    require_guild_roles,
+)
 from app.api.v1.endpoints.admin import AdminUserDep
 from app.models.guild import GuildRole
 from app.models.user import User
@@ -32,6 +39,7 @@ from app.services import ai_settings as ai_settings_service
 router = APIRouter()
 
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 # Platform-level endpoints (platform admin only)
@@ -61,7 +69,7 @@ async def update_platform_ai_settings(
 # Guild-level endpoints (guild admin only)
 @router.get("/ai/guild", response_model=GuildAISettingsResponse)
 async def get_guild_ai_settings(
-    session: SessionDep,
+    session: RLSSessionDep,
     guild_ctx: GuildAdminContext,
 ) -> GuildAISettingsResponse:
     """Get guild-level AI settings. Guild admin only."""
@@ -71,7 +79,7 @@ async def get_guild_ai_settings(
 @router.put("/ai/guild", response_model=GuildAISettingsResponse)
 async def update_guild_ai_settings(
     payload: GuildAISettingsUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     guild_ctx: GuildAdminContext,
 ) -> GuildAISettingsResponse:
     """Update guild-level AI settings. Guild admin only."""
@@ -88,29 +96,27 @@ async def update_guild_ai_settings(
 # User-level endpoints (any authenticated user)
 @router.get("/ai/user", response_model=UserAISettingsResponse)
 async def get_user_ai_settings(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+    guild_context: GuildContextDep,
 ) -> UserAISettingsResponse:
     """Get user-level AI settings."""
-    guild_id = x_guild_id
-    return await ai_settings_service.get_user_ai_settings(session, current_user, guild_id)
+    return await ai_settings_service.get_user_ai_settings(session, current_user, guild_context.guild_id)
 
 
 @router.put("/ai/user", response_model=UserAISettingsResponse)
 async def update_user_ai_settings(
     payload: UserAISettingsUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+    guild_context: GuildContextDep,
 ) -> UserAISettingsResponse:
     """Update user-level AI settings."""
     try:
-        guild_id = x_guild_id
         data = payload.model_dump(exclude_unset=True)
         api_key_provided = "api_key" in data
         return await ai_settings_service.update_user_ai_settings(
-            session, current_user, payload, guild_id, api_key_provided=api_key_provided
+            session, current_user, payload, guild_context.guild_id, api_key_provided=api_key_provided
         )
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -119,25 +125,24 @@ async def update_user_ai_settings(
 # Resolved settings endpoint (any authenticated user)
 @router.get("/ai/resolved", response_model=ResolvedAISettingsResponse)
 async def get_resolved_ai_settings(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+    guild_context: GuildContextDep,
 ) -> ResolvedAISettingsResponse:
     """Get resolved (effective) AI settings for the current user.
 
     This returns the final computed settings without exposing API keys.
     """
-    guild_id = x_guild_id
-    return await ai_settings_service.get_resolved_ai_settings_response(session, current_user, guild_id)
+    return await ai_settings_service.get_resolved_ai_settings_response(session, current_user, guild_context.guild_id)
 
 
 # Test connection endpoint (any authenticated user)
 @router.post("/ai/test", response_model=AITestConnectionResponse)
 async def test_ai_connection(
     payload: AITestConnectionRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+    guild_context: GuildContextDep,
 ) -> AITestConnectionResponse:
     """Test connection to an AI provider.
 
@@ -146,9 +151,7 @@ async def test_ai_connection(
     """
     api_key = payload.api_key
     if not api_key:
-        # Get existing key from resolved settings
-        guild_id = x_guild_id
-        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_id)
+        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_context.guild_id)
         api_key = resolved.api_key
 
     return await ai_settings_service.test_ai_connection(payload, existing_api_key=api_key)
@@ -158,9 +161,9 @@ async def test_ai_connection(
 @router.post("/ai/models", response_model=AIModelsResponse)
 async def fetch_ai_models(
     payload: AIModelsRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    x_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+    guild_context: GuildContextDep,
 ) -> AIModelsResponse:
     """Fetch available models from an AI provider.
 
@@ -169,9 +172,7 @@ async def fetch_ai_models(
     """
     api_key = payload.api_key
     if not api_key:
-        # Get existing key from resolved settings
-        guild_id = x_guild_id
-        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_id)
+        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_context.guild_id)
         api_key = resolved.api_key
 
     models, error = await ai_settings_service.fetch_models(

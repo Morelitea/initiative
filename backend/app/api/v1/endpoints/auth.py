@@ -16,7 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_user
+from app.db.session import get_admin_session
 from app.core.config import settings
+from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
@@ -40,6 +42,7 @@ from app.services import guilds as guilds_service
 from app.models.user_token import UserTokenPurpose
 
 router = APIRouter()
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 STATE_TTL_SECONDS = 600
 _oidc_metadata_cache: dict[str, dict[str, Any]] = {}
@@ -51,7 +54,7 @@ logger = logging.getLogger(__name__)
 async def register_user(
     request: Request,
     user_in: UserCreate,
-    session: SessionDep,
+    session: AdminSessionDep,
     invite_code: str | None = Query(default=None),
 ) -> User:
     normalized_invite = (invite_code or "").strip() or None

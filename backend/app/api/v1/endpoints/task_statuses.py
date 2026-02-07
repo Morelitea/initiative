@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import select, delete, update
 
-from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
 from app.api.v1.endpoints.tasks import _get_project_with_access, _ensure_can_manage
 from app.models.task import Task, TaskStatus, TaskStatusCategory
 from app.models.project import Project
@@ -99,7 +99,7 @@ async def _ensure_category_not_last(
 @router.get("/", response_model=List[TaskStatusRead])
 async def list_task_statuses(
     project_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[TaskStatus]:
@@ -117,7 +117,7 @@ async def list_task_statuses(
 async def create_task_status(
     project_id: int,
     status_in: TaskStatusCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
@@ -156,7 +156,7 @@ async def update_task_status(
     project_id: int,
     status_id: int,
     status_in: TaskStatusUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
@@ -202,7 +202,7 @@ async def update_task_status(
 async def reorder_task_statuses(
     project_id: int,
     reorder_in: TaskStatusReorderRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[TaskStatus]:
@@ -241,7 +241,7 @@ async def delete_task_status(
     project_id: int,
     status_id: int,
     delete_in: TaskStatusDeleteRequest,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:

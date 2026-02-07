@@ -229,27 +229,37 @@ async def get_initiative_blocker_details(
     Get detailed info about initiatives where user is the sole PM.
     Returns list of dicts with initiative_id, initiative_name, guild_id, and other_members.
     """
-    from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+    from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 
-    # Find initiatives where user is sole PM
-    subquery = (
+    # Find initiatives where user is sole manager (PM).
+    # InitiativeMember links to InitiativeRoleModel via role_id;
+    # manager roles have is_manager=True.
+    manager_count_subquery = (
         select(
             InitiativeMember.initiative_id,
             func.count().label("pm_count"),
         )
-        .where(InitiativeMember.role == InitiativeRole.project_manager)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(InitiativeRoleModel.is_manager.is_(True))
         .group_by(InitiativeMember.initiative_id)
         .subquery()
     )
 
-    stmt = (
-        select(Initiative)
-        .join(InitiativeMember, InitiativeMember.initiative_id == Initiative.id)
-        .join(subquery, subquery.c.initiative_id == Initiative.id)
+    user_manager_initiatives = (
+        select(InitiativeMember.initiative_id)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
         .where(
             InitiativeMember.user_id == user_id,
-            InitiativeMember.role == InitiativeRole.project_manager,
-            subquery.c.pm_count == 1,
+            InitiativeRoleModel.is_manager.is_(True),
+        )
+    )
+
+    stmt = (
+        select(Initiative)
+        .join(manager_count_subquery, manager_count_subquery.c.initiative_id == Initiative.id)
+        .where(
+            Initiative.id.in_(user_manager_initiatives),
+            manager_count_subquery.c.pm_count == 1,
         )
     )
     result = await session.exec(stmt)

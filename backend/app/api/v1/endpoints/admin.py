@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlmodel import select
 
-from app.api.deps import SessionDep, require_roles
+from app.api.deps import require_roles
+from app.db.session import get_admin_session
+from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import Guild, GuildRole
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
 from app.models.user import User, UserRole
@@ -30,11 +32,12 @@ from app.services import guilds as guilds_service
 router = APIRouter()
 
 AdminUserDep = Annotated[User, Depends(require_roles(UserRole.admin))]
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
 @router.get("/users", response_model=List[UserRead])
 async def list_all_users(
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> List[User]:
     """List all users in the platform (admin only)."""
@@ -50,7 +53,7 @@ async def list_all_users(
 @router.post("/users/{user_id}/reset-password", response_model=VerificationSendResponse)
 async def trigger_password_reset(
     user_id: int,
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> VerificationSendResponse:
     """Trigger a password reset email for a user (admin only)."""
@@ -87,7 +90,7 @@ async def trigger_password_reset(
 @router.post("/users/{user_id}/reactivate", response_model=UserRead)
 async def reactivate_user(
     user_id: int,
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> User:
     """Reactivate a deactivated user account (admin only)."""
@@ -111,7 +114,7 @@ async def reactivate_user(
 
 @router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
 async def get_platform_admin_count(
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> PlatformAdminCountResponse:
     """Get the count of platform admins (admin only)."""
@@ -123,7 +126,7 @@ async def get_platform_admin_count(
 async def update_platform_role(
     user_id: int,
     payload: PlatformRoleUpdate,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: AdminUserDep,
 ) -> User:
     """Update a user's platform role (admin only).
@@ -164,7 +167,7 @@ async def update_platform_role(
 @router.get("/users/{user_id}/deletion-eligibility", response_model=AdminDeletionEligibilityResponse)
 async def check_user_deletion_eligibility(
     user_id: int,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: AdminUserDep,
 ) -> AdminDeletionEligibilityResponse:
     """Check if a user can be deleted (admin only).
@@ -248,7 +251,7 @@ async def check_user_deletion_eligibility(
 async def delete_user(
     user_id: int,
     payload: AdminUserDeleteRequest,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: AdminUserDep,
 ) -> AccountDeletionResponse:
     """Delete a user account (admin only).
@@ -326,7 +329,7 @@ async def delete_user(
 @router.delete("/guilds/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def admin_delete_guild(
     guild_id: int,
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> Response:
     """Delete a guild (platform admin only).
@@ -354,7 +357,7 @@ async def admin_update_guild_member_role(
     guild_id: int,
     user_id: int,
     payload: AdminGuildRoleUpdate,
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> Response:
     """Update a guild member's role (platform admin only).
@@ -402,7 +405,7 @@ async def admin_update_initiative_member_role(
     initiative_id: int,
     user_id: int,
     payload: AdminInitiativeRoleUpdate,
-    session: SessionDep,
+    session: AdminSessionDep,
     _current_user: AdminUserDep,
 ) -> Response:
     """Update an initiative member's role (platform admin only).

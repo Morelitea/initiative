@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import GuildContext, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.task import Task
 from app.models.project import Project, ProjectPermission
@@ -60,7 +60,7 @@ async def _check_duplicate_name(
 
 @router.get("/", response_model=List[TagRead])
 async def list_tags(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Tag]:
@@ -77,7 +77,7 @@ async def list_tags(
 @router.post("/", response_model=TagRead, status_code=status.HTTP_201_CREATED)
 async def create_tag(
     tag_in: TagCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Tag:
@@ -98,7 +98,7 @@ async def create_tag(
 @router.get("/{tag_id}", response_model=TagRead)
 async def get_tag(
     tag_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Tag:
@@ -110,7 +110,7 @@ async def get_tag(
 async def update_tag(
     tag_id: int,
     tag_in: TagUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Tag:
@@ -140,7 +140,7 @@ async def update_tag(
 @router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tag(
     tag_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -153,7 +153,7 @@ async def delete_tag(
 @router.get("/{tag_id}/entities", response_model=TaggedEntitiesResponse)
 async def get_tag_entities(
     tag_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaggedEntitiesResponse:

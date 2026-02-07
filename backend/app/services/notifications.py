@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import AdminSessionLocal
 from app.core.config import settings as app_config
 from app.models.initiative import Initiative
 from app.models.project import Project
@@ -625,7 +625,7 @@ async def _load_user(session: AsyncSession, user_id: int) -> User | None:
 
 
 async def process_task_assignment_digests() -> None:
-    async with AsyncSessionLocal() as session:
+    async with AdminSessionLocal() as session:
         user_ids = await _pending_assignment_user_ids(session)
         if not user_ids:
             logger.debug("task-digest: no pending assignment events")
@@ -730,7 +730,7 @@ async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dic
 
 
 async def process_overdue_notifications() -> None:
-    async with AsyncSessionLocal() as session:
+    async with AdminSessionLocal() as session:
         stmt = select(User).where(User.notify_overdue_tasks.is_(True))
         result = await session.exec(stmt)
         users = result.scalars().all()

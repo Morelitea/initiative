@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
 from app.api.deps import (
+    RLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -129,7 +130,7 @@ async def _ensure_remaining_manager(
 
 @router.get("/", response_model=List[InitiativeRead])
 async def list_initiatives(
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[InitiativeRead]:
@@ -157,7 +158,7 @@ async def list_initiatives(
 @router.get("/{initiative_id}", response_model=InitiativeRead)
 async def get_initiative(
     initiative_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
@@ -186,7 +187,7 @@ async def get_initiative(
 @router.post("/", response_model=InitiativeRead, status_code=status.HTTP_201_CREATED)
 async def create_initiative(
     initiative_in: InitiativeCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))],
 ) -> InitiativeRead:
@@ -221,7 +222,7 @@ async def create_initiative(
 async def update_initiative(
     initiative_id: int,
     initiative_in: InitiativeUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
@@ -249,7 +250,7 @@ async def update_initiative(
 @router.delete("/{initiative_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_initiative(
     initiative_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     guild_context: GuildAdminContext,
 ) -> None:
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
@@ -270,7 +271,7 @@ async def delete_initiative(
 @router.get("/{initiative_id}/roles", response_model=List[InitiativeRoleRead])
 async def list_initiative_roles(
     initiative_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[InitiativeRoleRead]:
@@ -297,7 +298,7 @@ async def list_initiative_roles(
 async def create_initiative_role(
     initiative_id: int,
     role_in: InitiativeRoleCreate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRoleRead:
@@ -329,7 +330,7 @@ async def update_initiative_role(
     initiative_id: int,
     role_id: int,
     role_in: InitiativeRoleUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRoleRead:
@@ -408,7 +409,7 @@ async def update_initiative_role(
 async def delete_initiative_role(
     initiative_id: int,
     role_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> None:
@@ -432,7 +433,7 @@ async def delete_initiative_role(
 @router.get("/{initiative_id}/my-permissions", response_model=MyInitiativePermissions)
 async def get_my_initiative_permissions(
     initiative_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> MyInitiativePermissions:
@@ -484,7 +485,7 @@ async def get_my_initiative_permissions(
 @router.get("/{initiative_id}/members", response_model=List[UserPublic])
 async def get_initiative_members(
     initiative_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[User]:
@@ -515,7 +516,7 @@ async def get_initiative_members(
 async def add_initiative_member(
     initiative_id: int,
     payload: InitiativeMemberAdd,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
@@ -593,7 +594,7 @@ async def add_initiative_member(
 async def remove_initiative_member(
     initiative_id: int,
     user_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
@@ -704,7 +705,7 @@ async def update_initiative_member(
     initiative_id: int,
     user_id: int,
     payload: InitiativeMemberUpdate,
-    session: SessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:

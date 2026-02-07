@@ -19,7 +19,7 @@ from sqlmodel import select
 
 from app.api.deps import SessionDep
 from app.core.config import settings
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.document import Document, DocumentPermissionLevel
 from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
@@ -213,6 +213,9 @@ async def websocket_collaborate(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
+        # Set RLS context so queries against guild-scoped tables work
+        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+
         # Get document and check permissions
         document = await _get_document_with_permissions(session, document_id, guild_id)
         if not document:
@@ -334,6 +337,7 @@ async def websocket_collaborate(
 
         # Persist and potentially clean up room (using a new short-lived session)
         async with AsyncSessionLocal() as session:
+            await set_rls_context(session, user_id=user.id, guild_id=guild_id)
             await collaboration_manager.persist_room(document_id, session)
         await collaboration_manager.remove_room(document_id)
 
@@ -378,6 +382,9 @@ async def sync_document_content(
     if not user:
         logger.warning(f"Sync content: Auth failed for document {document_id}")
         return {"status": "error", "message": "Authentication failed"}
+
+    # Set RLS context so queries against guild-scoped tables work
+    await set_rls_context(session, user_id=user.id, guild_id=guild_id)
 
     # Get document and check write permission
     document = await _get_document_with_permissions(session, document_id, guild_id)

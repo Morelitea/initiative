@@ -15,6 +15,8 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.core.security import get_password_hash, verify_password
+from app.db.session import get_admin_session
+from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
 from app.models.user import User
 from app.schemas.user import (
@@ -43,6 +45,7 @@ from app.services import stats_service
 
 router = APIRouter()
 
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
@@ -344,7 +347,7 @@ async def approve_user(
 
 @router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
 async def check_deletion_eligibility(
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DeletionEligibilityResponse:
     """Check if the current user can be deleted and what blockers exist."""
@@ -371,7 +374,7 @@ async def check_deletion_eligibility(
 @router.post("/me/delete-account", response_model=AccountDeletionResponse)
 async def delete_own_account(
     request: AccountDeletionRequest,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> AccountDeletionResponse:
     """Delete or deactivate the current user's account."""
