@@ -194,8 +194,9 @@ async def websocket_collaborate(
             auth_payload = json.loads(auth_data[1:].decode())
             token = auth_payload.get("token")
             guild_id = auth_payload.get("guild_id")
-            if not token or not guild_id:
+            if not token or guild_id is None:
                 raise ValueError("Missing token or guild_id")
+            guild_id = int(guild_id)
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Collaboration: Invalid auth payload for document {document_id}: {e}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
