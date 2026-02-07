@@ -65,29 +65,36 @@ export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }:
     color: textColor,
   };
 
-  const content = (
-    <>
-      <span className="truncate">{displayName}</span>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="ml-0.5 rounded-sm hover:opacity-70 focus:outline-none"
-          aria-label={`Remove ${tag.name} tag`}
-        >
-          <X className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
-        </button>
-      )}
-    </>
-  );
+  const removeButton = onRemove ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onRemove();
+      }}
+      className="ml-0.5 rounded-sm hover:opacity-70 focus:outline-none"
+      aria-label={`Remove ${tag.name} tag`}
+    >
+      <X className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
+    </button>
+  ) : null;
 
   if (to) {
+    // When onRemove is also set, wrap in a span so the button isn't nested inside the link
+    if (removeButton) {
+      return (
+        <span className={sharedClassName} style={sharedStyle} title={tag.name}>
+          <Link to={to} className="truncate hover:underline">
+            {displayName}
+          </Link>
+          {removeButton}
+        </span>
+      );
+    }
     return (
       <Link to={to} className={sharedClassName} style={sharedStyle} title={tag.name}>
-        {content}
+        <span className="truncate">{displayName}</span>
       </Link>
     );
   }
@@ -111,7 +118,8 @@ export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }:
       style={sharedStyle}
       title={tag.name}
     >
-      {content}
+      <span className="truncate">{displayName}</span>
+      {removeButton}
     </span>
   );
 }
