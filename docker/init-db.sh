@@ -14,14 +14,15 @@ APP_USER_PASSWORD="${APP_USER_PASSWORD:-app_user_password}"
 APP_ADMIN_PASSWORD="${APP_ADMIN_PASSWORD:-app_admin_password}"
 
 echo "Creating app_user role (RLS-enforced)..."
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    DO \$\$
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+    -v app_user_pw="$APP_USER_PASSWORD" <<-'EOSQL'
+    DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-            CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD '${APP_USER_PASSWORD}';
+            EXECUTE format('CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD %L', :'app_user_pw');
         END IF;
     END
-    \$\$;
+    $$;
 
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
@@ -30,14 +31,15 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 EOSQL
 
 echo "Creating app_admin role (BYPASSRLS)..."
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    DO \$\$
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+    -v app_admin_pw="$APP_ADMIN_PASSWORD" <<-'EOSQL'
+    DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_admin') THEN
-            CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD '${APP_ADMIN_PASSWORD}';
+            EXECUTE format('CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD %L', :'app_admin_pw');
         END IF;
     END
-    \$\$;
+    $$;
 
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_admin;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app_admin;
