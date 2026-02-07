@@ -577,7 +577,7 @@ export const InitiativeSettingsPage = () => {
           <Link to={gp("/initiatives")}>&larr; Back to My Initiatives</Link>
         </Button>
         <div className="rounded-lg border p-6">
-          <h1 className="text-2xl font-semibold">Initiative not found</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Initiative not found</h1>
           <p className="text-muted-foreground">
             The initiative you&apos;re looking for doesn&apos;t exist or you no longer have access.
           </p>

@@ -552,7 +552,7 @@ export const DocumentSettingsPage = () => {
       </Breadcrumb>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Document settings</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Document settings</h1>
           <p className="text-muted-foreground text-sm">
             Manage access, template status, duplication, and deletion.
           </p>

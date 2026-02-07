@@ -820,10 +820,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               </div>
               <CollapsibleContent forceMount className="data-[state=closed]:hidden">
                 <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
-                  <div className="w-full lg:flex-1">
+                  <div className="w-full space-y-2 lg:flex-1">
                     <Label
                       htmlFor="project-search"
-                      className="text-muted-foreground text-xs font-medium"
+                      className="text-muted-foreground block text-xs font-medium"
                     >
                       Filter by name
                     </Label>
@@ -836,8 +836,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                     />
                   </div>
                   {lockedInitiativeId ? (
-                    <div className="w-full sm:w-60">
-                      <Label className="text-muted-foreground text-xs font-medium">
+                    <div className="w-full space-y-2 sm:w-60">
+                      <Label className="text-muted-foreground block text-xs font-medium">
                         Initiative
                       </Label>
                       <p className="text-sm font-medium">
@@ -845,10 +845,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       </p>
                     </div>
                   ) : (
-                    <div className="w-full sm:w-60">
+                    <div className="w-full space-y-2 sm:w-60">
                       <Label
                         htmlFor="project-initiative-filter"
-                        className="text-muted-foreground text-xs font-medium"
+                        className="text-muted-foreground block text-xs font-medium"
                       >
                         Filter by initiative
                       </Label>
@@ -867,10 +867,26 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       </Select>
                     </div>
                   )}
-                  <div className="w-full sm:w-60">
+                  {!fixedTagIds && (
+                    <div className="w-full space-y-2 sm:w-48">
+                      <Label
+                        htmlFor="tag-filter"
+                        className="text-muted-foreground block text-xs font-medium"
+                      >
+                        Filter by tag
+                      </Label>
+                      <TagPicker
+                        selectedTags={selectedTagsForFilter}
+                        onChange={handleTagFiltersChange}
+                        placeholder="All tags"
+                        variant="filter"
+                      />
+                    </div>
+                  )}
+                  <div className="w-full space-y-2 sm:w-60">
                     <Label
                       htmlFor="project-sort"
-                      className="text-muted-foreground text-xs font-medium"
+                      className="text-muted-foreground block text-xs font-medium"
                     >
                       Sort projects
                     </Label>
@@ -899,10 +915,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="w-full sm:w-60">
+                  <div className="w-full space-y-2 sm:w-60">
                     <Label
                       htmlFor="favorites-only"
-                      className="text-muted-foreground text-xs font-medium"
+                      className="text-muted-foreground block text-xs font-medium"
                     >
                       Favorites
                     </Label>
@@ -916,22 +932,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       <span className="text-muted-foreground text-sm">Show only favorites</span>
                     </div>
                   </div>
-                  {!fixedTagIds && (
-                    <div className="w-full sm:w-48">
-                      <Label
-                        htmlFor="tag-filter"
-                        className="text-muted-foreground text-xs font-medium"
-                      >
-                        Filter by tag
-                      </Label>
-                      <TagPicker
-                        selectedTags={selectedTagsForFilter}
-                        onChange={handleTagFiltersChange}
-                        placeholder="All tags"
-                        variant="filter"
-                      />
-                    </div>
-                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
