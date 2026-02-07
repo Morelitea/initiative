@@ -61,10 +61,10 @@ export const ProjectTasksFilters = ({
 
   return (
     <div className="border-muted bg-background/40 flex flex-wrap items-end gap-4 rounded-md border p-3">
-      <div className="w-full sm:w-48">
+      <div className="w-full space-y-2 sm:w-48">
         <Label
           htmlFor="assignee-filter"
-          className="text-muted-foreground mb-2 block text-xs font-medium"
+          className="text-muted-foreground block text-xs font-medium"
         >
           Filter by assignee
         </Label>
@@ -79,8 +79,8 @@ export const ProjectTasksFilters = ({
           emptyMessage="No users available"
         />
       </div>
-      <div className="w-full sm:w-48">
-        <Label htmlFor="due-filter" className="text-muted-foreground text-xs font-medium">
+      <div className="w-full space-y-2 sm:w-48">
+        <Label htmlFor="due-filter" className="text-muted-foreground block text-xs font-medium">
           Due filter
         </Label>
         <Select
@@ -100,10 +100,10 @@ export const ProjectTasksFilters = ({
         </Select>
       </div>
       {viewMode === "table" || viewMode === "calendar" || viewMode === "gantt" ? (
-        <div className="w-full sm:w-48">
+        <div className="w-full space-y-2 sm:w-48">
           <Label
             htmlFor="status-filter"
-            className="text-muted-foreground mb-2 block text-xs font-medium"
+            className="text-muted-foreground block text-xs font-medium"
           >
             Filter by status
           </Label>
@@ -122,11 +122,8 @@ export const ProjectTasksFilters = ({
           />
         </div>
       ) : null}
-      <div className="w-full sm:w-48">
-        <Label
-          htmlFor="tag-filter"
-          className="text-muted-foreground mb-2 block text-xs font-medium"
-        >
+      <div className="w-full space-y-2 sm:w-48">
+        <Label htmlFor="tag-filter" className="text-muted-foreground block text-xs font-medium">
           Filter by tag
         </Label>
         <TagPicker

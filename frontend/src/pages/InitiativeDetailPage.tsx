@@ -114,7 +114,7 @@ export const InitiativeDetailPage = () => {
           <Link to="/initiatives">&larr; Back to My Initiatives</Link>
         </Button>
         <div className="rounded-lg border p-6">
-          <h1 className="text-2xl font-semibold">Initiative not found</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Initiative not found</h1>
           <p className="text-muted-foreground">
             The initiative you&apos;re looking for doesn&apos;t exist or you no longer have access.
           </p>
@@ -133,7 +133,7 @@ export const InitiativeDetailPage = () => {
         <div className="rounded-lg border p-6">
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
-            <h1 className="text-2xl font-semibold">{initiative.name}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">{initiative.name}</h1>
           </div>
           <p className="text-muted-foreground mt-4">
             You do not have access to any features in this initiative. Contact an initiative manager

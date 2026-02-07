@@ -148,7 +148,7 @@ export const TagDetailPage = () => {
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold">{tag.name}</h1>
+                <h1 className="text-3xl font-semibold tracking-tight">{tag.name}</h1>
                 <p className="text-muted-foreground text-sm">
                   {totalCount} tagged item{totalCount === 1 ? "" : "s"}
                 </p>

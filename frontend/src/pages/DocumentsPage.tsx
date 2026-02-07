@@ -82,6 +82,21 @@ const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
   );
 };
 
+const DocumentTagsCell = ({ tags }: { tags: TagSummary[] }) => {
+  const gp = useGuildPath();
+  if (tags.length === 0) {
+    return <span className="text-muted-foreground text-sm">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.slice(0, 3).map((tag) => (
+        <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+      ))}
+      {tags.length > 3 && <span className="text-muted-foreground text-xs">+{tags.length - 3}</span>}
+    </div>
+  );
+};
+
 const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     accessorKey: "title",
@@ -138,22 +153,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     id: "tags",
     header: "Tags",
-    cell: ({ row }) => {
-      const docTags = row.original.tags ?? [];
-      if (docTags.length === 0) {
-        return <span className="text-muted-foreground text-sm">—</span>;
-      }
-      return (
-        <div className="flex flex-wrap gap-1">
-          {docTags.slice(0, 3).map((tag) => (
-            <TagBadge key={tag.id} tag={tag} size="sm" />
-          ))}
-          {docTags.length > 3 && (
-            <span className="text-muted-foreground text-xs">+{docTags.length - 3}</span>
-          )}
-        </div>
-      );
-    },
+    cell: ({ row }) => <DocumentTagsCell tags={row.original.tags ?? []} />,
     size: 150,
   },
   {
@@ -633,7 +633,7 @@ export const DocumentsView = ({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-baseline gap-4">
-              <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">Documents</h1>
               {canCreateDocuments ? (
                 <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4" />
@@ -719,7 +719,7 @@ export const DocumentsView = ({
             <div className="w-full space-y-2 sm:flex-1">
               <Label
                 htmlFor="document-search"
-                className="text-muted-foreground text-xs font-medium"
+                className="text-muted-foreground block text-xs font-medium"
               >
                 Search
               </Label>
@@ -733,7 +733,9 @@ export const DocumentsView = ({
             </div>
             {lockedInitiativeId ? (
               <div className="w-full space-y-2 sm:w-60">
-                <Label className="text-muted-foreground text-xs font-medium">Initiative</Label>
+                <Label className="text-muted-foreground block text-xs font-medium">
+                  Initiative
+                </Label>
                 <p className="text-sm font-medium">
                   {lockedInitiative?.name ?? "Selected initiative"}
                 </p>
@@ -742,7 +744,7 @@ export const DocumentsView = ({
               <div className="w-full space-y-2 sm:w-60">
                 <Label
                   htmlFor="document-initiative-filter"
-                  className="text-muted-foreground text-xs font-medium"
+                  className="text-muted-foreground block text-xs font-medium"
                 >
                   Initiative
                 </Label>
@@ -769,7 +771,7 @@ export const DocumentsView = ({
               <div className="w-full space-y-2 sm:w-48">
                 <Label
                   htmlFor="document-tag-filter"
-                  className="text-muted-foreground text-xs font-medium"
+                  className="text-muted-foreground block text-xs font-medium"
                 >
                   Filter by tag
                 </Label>

@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags";
+import { useGuildPath } from "@/lib/guildUrl";
 
 interface SortableTaskRowProps {
   task: Task;
@@ -41,6 +42,7 @@ export const SortableTaskRow = ({
   canOpenTask,
 }: SortableTaskRowProps) => {
   const router = useRouter();
+  const gp = useGuildPath();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "list-task" },
@@ -159,7 +161,7 @@ export const SortableTaskRow = ({
             {task.tags && task.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {task.tags.map((tag) => (
-                  <TagBadge key={tag.id} tag={tag} size="sm" />
+                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
                 ))}
               </div>
             )}

@@ -14,6 +14,7 @@ import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags";
+import { useGuildPath } from "@/lib/guildUrl";
 
 interface KanbanColumnProps {
   status: ProjectTaskStatus;
@@ -196,6 +197,7 @@ const KanbanTaskCard = ({
   canOpenTask,
 }: KanbanTaskCardProps) => {
   const router = useRouter();
+  const gp = useGuildPath();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "task", statusId: task.task_status_id },
@@ -276,7 +278,9 @@ const KanbanTaskCard = ({
         ) : null}
         {task.tags &&
           task.tags.length > 0 &&
-          task.tags.map((tag) => <TagBadge key={tag.id} tag={tag} size="sm" />)}
+          task.tags.map((tag) => (
+            <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+          ))}
       </div>
     </div>
   );

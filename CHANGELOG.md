@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Tag badges now link to their tag detail page across all views (My Tasks, project table, Kanban, project previews, documents)
+- Added tags column to My Tasks table
+- Create project dialog no longer reopens after clicking cancel or create
+- Make heading and filter styling more consistent across pages
+
 ## [0.25.0] - 2026-02-06
 
 ### Added

@@ -98,7 +98,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
             {project.tags && project.tags.length > 0 ? (
               <div className="flex w-full flex-wrap gap-1">
                 {project.tags.slice(0, 4).map((tag) => (
-                  <TagBadge key={tag.id} tag={tag} size="sm" />
+                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
                 ))}
                 {project.tags.length > 4 && (
                   <span className="text-muted-foreground text-xs">+{project.tags.length - 4}</span>
@@ -167,7 +167,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
                   {project.tags && project.tags.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {project.tags.slice(0, 4).map((tag) => (
-                        <TagBadge key={tag.id} tag={tag} size="sm" />
+                        <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
                       ))}
                       {project.tags.length > 4 && (
                         <span className="text-muted-foreground text-xs">
