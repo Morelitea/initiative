@@ -157,20 +157,24 @@ export const GuildInvitePage = () => {
                 {acceptError ? <p className="text-destructive text-sm">{acceptError}</p> : null}
                 {accepted ? (
                   <p className="text-primary text-sm">
-                    Invite accepted! You now have access to this guild.{" "}
-                    <Link className="underline-offset-4 hover:underline" to="/">
-                      Continue to dashboard
-                    </Link>
+                    Invite accepted! You now have access to this guild.
                   </p>
                 ) : null}
                 <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={handleAccept}
-                    disabled={!user || !inviteValid || accepting || accepted}
-                    className="w-full"
-                  >
-                    {accepting ? "Accepting…" : "Accept invite"}
-                  </Button>
+                  {accepted ? (
+                    <Button asChild className="w-full">
+                      <Link to="/">Continue to Initiative</Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleAccept}
+                      disabled={!user || !inviteValid || accepting || accepted}
+                      className="w-full"
+                    >
+                      {accepting ? "Accepting…" : "Accept invite"}
+                    </Button>
+                  )}
+
                   {!user ? (
                     <Link
                       className="text-primary text-center text-sm underline-offset-4 hover:underline"
