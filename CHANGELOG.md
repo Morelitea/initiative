@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-02-07
+
 ### Fixed
 
 - Tag badges now link to their tag detail page across all views (My Tasks, project table, Kanban, project previews, documents)
