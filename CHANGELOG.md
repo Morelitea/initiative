@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-02-06
+
 ### Added
 
 - **Row Level Security (RLS) enforcement** across all API endpoints
