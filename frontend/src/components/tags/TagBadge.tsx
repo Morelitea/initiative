@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ function getContrastColor(bgColor: string): string {
 
 interface TagBadgeProps {
   tag: TagSummary;
+  to?: string;
   onClick?: () => void;
   onRemove?: () => void;
   size?: "sm" | "md";
@@ -42,13 +44,53 @@ function truncateSegment(segment: string, maxLength: number): string {
   return segment.slice(0, maxLength - 3) + "...";
 }
 
-export function TagBadge({ tag, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
+export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
   const textColor = getContrastColor(tag.color);
-  const isClickable = !!onClick;
+  const isClickable = !!onClick || !!to;
 
   // Truncate each segment individually (e.g., "long-name/a" -> "long-na.../a")
   const segments = tag.name.split("/");
   const displayName = segments.map((s) => truncateSegment(s, MAX_SEGMENT_LENGTH)).join("/");
+
+  const sharedClassName = cn(
+    "inline-flex max-w-full items-center gap-1 rounded-md font-medium",
+    size === "sm" && "px-1.5 py-0.5 text-xs",
+    size === "md" && "px-2 py-1 text-sm",
+    isClickable && "cursor-pointer hover:opacity-80",
+    className
+  );
+
+  const sharedStyle = {
+    backgroundColor: tag.color,
+    color: textColor,
+  };
+
+  const content = (
+    <>
+      <span className="truncate">{displayName}</span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="ml-0.5 rounded-sm hover:opacity-70 focus:outline-none"
+          aria-label={`Remove ${tag.name} tag`}
+        >
+          <X className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
+        </button>
+      )}
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className={sharedClassName} style={sharedStyle} title={tag.name}>
+        {content}
+      </Link>
+    );
+  }
 
   return (
     <span
@@ -65,33 +107,11 @@ export function TagBadge({ tag, onClick, onRemove, size = "sm", className }: Tag
             }
           : undefined
       }
-      className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-md font-medium",
-        size === "sm" && "px-1.5 py-0.5 text-xs",
-        size === "md" && "px-2 py-1 text-sm",
-        isClickable && "cursor-pointer hover:opacity-80",
-        className
-      )}
-      style={{
-        backgroundColor: tag.color,
-        color: textColor,
-      }}
+      className={sharedClassName}
+      style={sharedStyle}
       title={tag.name}
     >
-      <span className="truncate">{displayName}</span>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="ml-0.5 rounded-sm hover:opacity-70 focus:outline-none"
-          aria-label={`Remove ${tag.name} tag`}
-        >
-          <X className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
-        </button>
-      )}
+      {content}
     </span>
   );
 }

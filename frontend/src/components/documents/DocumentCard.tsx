@@ -115,7 +115,7 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           {document.tags && document.tags.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {document.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" />
+                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
               ))}
               {document.tags.length > 3 && (
                 <span className="text-muted-foreground text-xs">+{document.tags.length - 3}</span>

@@ -37,6 +37,7 @@ import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { useGuildPath } from "@/lib/guildUrl";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
@@ -131,6 +132,7 @@ const ProjectTasksTableViewComponent = ({
   onExitSelection,
 }: ProjectTasksListViewProps) => {
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
+  const gp = useGuildPath();
 
   // Memoize status lookups to avoid repeated array searches
   const statusLookup = useMemo(() => {
@@ -308,7 +310,7 @@ const ProjectTasksTableViewComponent = ({
           return (
             <div className="flex flex-wrap gap-1">
               {taskTags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" />
+                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
               ))}
               {taskTags.length > 3 && (
                 <span className="text-muted-foreground text-xs">+{taskTags.length - 3}</span>
@@ -369,7 +371,7 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: false,
       },
     ],
-    [canOpenTask, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup]
+    [canOpenTask, gp, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup]
   );
   const groupingOptions = useMemo(() => [{ id: "date group", label: "Date" }], []);
 

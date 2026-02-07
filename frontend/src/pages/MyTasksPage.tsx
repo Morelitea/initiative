@@ -33,6 +33,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { DateCell } from "@/components/tasks/TaskDateCell";
 import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
+import { TagBadge } from "@/components/tags/TagBadge";
 
 const statusOptions: { value: TaskStatusCategory; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -501,39 +502,17 @@ export const MyTasksPage = () => {
       sortingFn: dateSortingFn,
     },
     {
-      id: "initiative",
-      header: () => <span className="font-medium">Initiative</span>,
-      cell: ({ row }) => {
-        const task = row.original;
-        const project = projectsById[task.project_id];
-        const initiativeId = task.initiative_id ?? project?.initiative_id;
-        const initiativeName = task.initiative_name ?? project?.initiative?.name;
-        const initiativeColor = task.initiative_color ?? project?.initiative?.color;
-        if (!initiativeId || !initiativeName) {
-          return <span className="text-muted-foreground text-sm">—</span>;
-        }
-        return (
-          <div className="min-w-40">
-            <Link
-              to={taskGuildPath(task, `/initiatives/${initiativeId}`)}
-              className="text-foreground flex items-center gap-2 text-sm font-medium"
-            >
-              <InitiativeColorDot color={initiativeColor ?? undefined} />
-              {initiativeName}
-            </Link>
-          </div>
-        );
-      },
-    },
-    {
-      id: "project",
-      header: () => <span className="font-medium">Project</span>,
+      id: "path",
+      header: () => <span className="font-medium">Project Path</span>,
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
         const projectLabel = task.project_name ?? project?.name ?? `Project #${task.project_id}`;
         const projectIdentifier = project?.id ?? task.project_id;
         const guildName = task.guild_name;
+        const initiativeId = task.initiative_id ?? project?.initiative_id;
+        const initiativeName = task.initiative_name ?? project?.initiative?.name;
+        const initiativeColor = task.initiative_color ?? project?.initiative?.color;
         return (
           <div className="min-w-30">
             <div className="flex flex-wrap items-center gap-2">
@@ -541,7 +520,22 @@ export const MyTasksPage = () => {
                 <>
                   <span className="text-muted-foreground text-xs sm:text-sm">{guildName}</span>
                   <span className="text-muted-foreground text-sm" aria-hidden>
-                    {"\u00B7"}
+                    &gt;
+                  </span>
+                </>
+              ) : null}
+              {initiativeId && initiativeName ? (
+                <>
+                  <Link
+                    to={taskGuildPath(task, `/initiatives/${initiativeId}`)}
+                    className="text-muted-foreground flex items-center gap-2 text-sm"
+                  >
+                    <InitiativeColorDot color={initiativeColor ?? undefined} />
+                    {initiativeName}
+                  </Link>
+
+                  <span className="text-muted-foreground text-sm" aria-hidden>
+                    &gt;
                   </span>
                 </>
               ) : null}
@@ -581,6 +575,33 @@ export const MyTasksPage = () => {
         );
       },
       sortingFn: prioritySortingFn,
+    },
+    {
+      id: "tags",
+      header: () => <span className="font-medium">Tags</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        const taskTags = task.tags ?? [];
+        if (taskTags.length === 0) {
+          return <span className="text-muted-foreground text-sm">—</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {taskTags.slice(0, 3).map((tag) => (
+              <TagBadge
+                key={tag.id}
+                tag={tag}
+                size="sm"
+                to={taskGuildPath(task, `/tags/${tag.id}`)}
+              />
+            ))}
+            {taskTags.length > 3 && (
+              <span className="text-muted-foreground text-xs">+{taskTags.length - 3}</span>
+            )}
+          </div>
+        );
+      },
+      size: 150,
     },
     {
       id: "status",
@@ -673,7 +694,7 @@ export const MyTasksPage = () => {
                   htmlFor="task-status-filter"
                   className="text-muted-foreground mb-2 block text-xs font-medium"
                 >
-                  Status category
+                  Filter by status category
                 </Label>
                 <MultiSelect
                   selectedValues={statusFilters}
@@ -691,7 +712,7 @@ export const MyTasksPage = () => {
                   htmlFor="task-priority-filter"
                   className="text-muted-foreground mb-2 block text-xs font-medium"
                 >
-                  Priority
+                  Filter by priority
                 </Label>
                 <MultiSelect
                   selectedValues={priorityFilters}
@@ -709,7 +730,7 @@ export const MyTasksPage = () => {
                   htmlFor="task-guild-filter"
                   className="text-muted-foreground mb-2 block text-xs font-medium"
                 >
-                  Guild
+                  Filter by guild
                 </Label>
                 <MultiSelect
                   selectedValues={guildFilters.map(String)}

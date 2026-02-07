@@ -82,6 +82,21 @@ const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
   );
 };
 
+const DocumentTagsCell = ({ tags }: { tags: TagSummary[] }) => {
+  const gp = useGuildPath();
+  if (tags.length === 0) {
+    return <span className="text-muted-foreground text-sm">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.slice(0, 3).map((tag) => (
+        <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+      ))}
+      {tags.length > 3 && <span className="text-muted-foreground text-xs">+{tags.length - 3}</span>}
+    </div>
+  );
+};
+
 const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     accessorKey: "title",
@@ -138,22 +153,7 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
   {
     id: "tags",
     header: "Tags",
-    cell: ({ row }) => {
-      const docTags = row.original.tags ?? [];
-      if (docTags.length === 0) {
-        return <span className="text-muted-foreground text-sm">—</span>;
-      }
-      return (
-        <div className="flex flex-wrap gap-1">
-          {docTags.slice(0, 3).map((tag) => (
-            <TagBadge key={tag.id} tag={tag} size="sm" />
-          ))}
-          {docTags.length > 3 && (
-            <span className="text-muted-foreground text-xs">+{docTags.length - 3}</span>
-          )}
-        </div>
-      );
-    },
+    cell: ({ row }) => <DocumentTagsCell tags={row.original.tags ?? []} />,
     size: 150,
   },
   {
