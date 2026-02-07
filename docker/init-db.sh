@@ -14,15 +14,19 @@ APP_USER_PASSWORD="${APP_USER_PASSWORD:-app_user_password}"
 APP_ADMIN_PASSWORD="${APP_ADMIN_PASSWORD:-app_admin_password}"
 
 echo "Creating app_user role (RLS-enforced)..."
+# Note: psql does NOT interpolate :'variables' inside DO $$ blocks,
+# so role creation and password setting must be separate statements.
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     -v app_user_pw="$APP_USER_PASSWORD" <<-'EOSQL'
     DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-            EXECUTE format('CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD %L', :'app_user_pw');
+            CREATE ROLE app_user WITH LOGIN NOINHERIT;
         END IF;
     END
     $$;
+
+    ALTER ROLE app_user WITH PASSWORD :'app_user_pw';
 
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
     GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
@@ -36,10 +40,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
     DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_admin') THEN
-            EXECUTE format('CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD %L', :'app_admin_pw');
+            CREATE ROLE app_admin WITH LOGIN BYPASSRLS;
         END IF;
     END
     $$;
+
+    ALTER ROLE app_admin WITH PASSWORD :'app_admin_pw';
 
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_admin;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app_admin;

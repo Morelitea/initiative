@@ -1,17 +1,16 @@
-"""Grant privileges to app_user and app_admin roles for RLS
+"""Create and configure app_user and app_admin roles for RLS
 
 Revision ID: 20260207_0040
 Revises: 20260202_0038
 Create Date: 2026-02-07
 
-Grants DML on all tables and USAGE/SELECT on sequences to app_user
-(non-superuser, RLS-enforced) and refreshes app_admin grants for
-tables created since Phase 6.
-
-Role creation is handled by infrastructure (docker/init-db.sh or
-manual DBA setup) — not by this migration — because roles require
-passwords for authentication.
+Creates app_user (non-superuser, RLS-enforced) and refreshes app_admin
+grants. Passwords are extracted from DATABASE_URL_APP / DATABASE_URL_ADMIN
+environment variables so self-hosted upgrades work without manual SQL.
 """
+
+import os
+from urllib.parse import urlparse
 
 from alembic import op
 from sqlalchemy import text
@@ -31,23 +30,52 @@ def _role_exists(connection, rolname: str) -> bool:
     return result.fetchone() is not None
 
 
+def _password_from_url(env_var: str) -> str | None:
+    """Extract the password component from a DATABASE_URL env var."""
+    url = os.environ.get(env_var)
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        return parsed.password
+    except Exception:
+        return None
+
+
 def upgrade() -> None:
     connection = op.get_bind()
 
     # --- app_user: non-superuser for RLS-enforced queries ---
-    if _role_exists(connection, "app_user"):
+    app_user_pw = _password_from_url("DATABASE_URL_APP")
+
+    if not _role_exists(connection, "app_user"):
+        if app_user_pw:
+            connection.execute(text(
+                "CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD :pw"
+            ), {"pw": app_user_pw})
+        else:
+            print(
+                "NOTE: app_user role does not exist and DATABASE_URL_APP is not set.\n"
+                "RLS enforcement requires this role. Create it with:\n"
+                "  CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD 'your_password';\n"
+                "For Docker deployments, docker/init-db.sh handles this automatically."
+            )
+    else:
         # Ensure correct attributes on pre-existing role
         connection.execute(text("ALTER ROLE app_user WITH LOGIN NOINHERIT"))
+        # Sync password from env if available (fixes passwordless roles)
+        if app_user_pw:
+            connection.execute(text(
+                "ALTER ROLE app_user WITH PASSWORD :pw"
+            ), {"pw": app_user_pw})
 
-        # Grant DML on all existing tables
+    if _role_exists(connection, "app_user"):
         connection.execute(
             text("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user")
         )
-        # Grant sequence access (needed for serial/identity columns)
         connection.execute(
             text("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user")
         )
-        # Default privileges for future tables/sequences
         connection.execute(
             text(
                 "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
@@ -60,18 +88,23 @@ def upgrade() -> None:
                 "GRANT USAGE, SELECT ON SEQUENCES TO app_user"
             )
         )
-    else:
-        print(
-            "NOTE: app_user role does not exist — skipping grants. "
-            "RLS enforcement requires this role. Create it with:\n"
-            "  CREATE ROLE app_user WITH LOGIN NOINHERIT PASSWORD 'your_password';\n"
-            "Then re-run this migration or grant privileges manually.\n"
-            "For Docker deployments, docker/init-db.sh handles this automatically."
-        )
 
-    # --- Refresh app_admin grants (tables created after Phase 6) ---
-    if _role_exists(connection, "app_admin"):
+    # --- app_admin: BYPASSRLS for migrations and background jobs ---
+    app_admin_pw = _password_from_url("DATABASE_URL_ADMIN")
+
+    if not _role_exists(connection, "app_admin"):
+        if app_admin_pw:
+            connection.execute(text(
+                "CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD :pw"
+            ), {"pw": app_admin_pw})
+    else:
         connection.execute(text("ALTER ROLE app_admin WITH LOGIN BYPASSRLS"))
+        if app_admin_pw:
+            connection.execute(text(
+                "ALTER ROLE app_admin WITH PASSWORD :pw"
+            ), {"pw": app_admin_pw})
+
+    if _role_exists(connection, "app_admin"):
         connection.execute(
             text("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_admin")
         )
