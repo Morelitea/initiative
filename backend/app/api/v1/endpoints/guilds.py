@@ -142,6 +142,7 @@ async def create_guild(
     )
     await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
     await session.commit()
+    await reapply_rls_context(session)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create guild membership")
