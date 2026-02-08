@@ -79,16 +79,16 @@ async def test_update_current_user_notification_preferences(
     headers = get_auth_headers(user)
 
     update_data = {
-        "notify_task_assignment": False,
-        "notify_overdue_tasks": False,
+        "email_task_assignment": False,
+        "email_overdue_tasks": False,
     }
 
     response = await client.patch("/api/v1/users/me", headers=headers, json=update_data)
 
     assert response.status_code == 200
     data = response.json()
-    assert data["notify_task_assignment"] is False
-    assert data["notify_overdue_tasks"] is False
+    assert data["email_task_assignment"] is False
+    assert data["email_overdue_tasks"] is False
 
 
 @pytest.mark.integration

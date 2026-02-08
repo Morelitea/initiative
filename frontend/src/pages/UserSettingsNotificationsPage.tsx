@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -42,15 +42,35 @@ const resolveTimezones = () => {
 const TIMEZONE_OPTIONS = resolveTimezones();
 
 type NotificationField =
-  | "notify_initiative_addition"
-  | "notify_task_assignment"
-  | "notify_project_added"
-  | "notify_overdue_tasks"
-  | "notify_mentions";
+  | "email_initiative_addition"
+  | "email_task_assignment"
+  | "email_project_added"
+  | "email_overdue_tasks"
+  | "email_mentions"
+  | "push_initiative_addition"
+  | "push_task_assignment"
+  | "push_project_added"
+  | "push_overdue_tasks"
+  | "push_mentions";
 
 interface UserSettingsNotificationsPageProps {
   user: User;
   refreshUser: () => Promise<void>;
+}
+
+interface FCMConfigResponse {
+  enabled: boolean;
+}
+
+interface NotificationCategory {
+  label: string;
+  description: string;
+  emailField: NotificationField;
+  emailValue: boolean;
+  emailSetter: (v: boolean) => void;
+  pushField: NotificationField;
+  pushValue: boolean;
+  pushSetter: (v: boolean) => void;
 }
 
 export const UserSettingsNotificationsPage = ({
@@ -58,24 +78,49 @@ export const UserSettingsNotificationsPage = ({
   refreshUser,
 }: UserSettingsNotificationsPageProps) => {
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
+
+  const { data: fcmConfig } = useQuery({
+    queryKey: ["fcm-config"],
+    queryFn: async () => {
+      const res = await apiClient.get<FCMConfigResponse>("/settings/fcm-config");
+      return res.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const showPushColumn = fcmConfig?.enabled ?? false;
+
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [notificationTime, setNotificationTime] = useState(
     user.overdue_notification_time ?? "21:00"
   );
-  const [notifyInitiative, setNotifyInitiative] = useState(user.notify_initiative_addition ?? true);
-  const [notifyAssignment, setNotifyAssignment] = useState(user.notify_task_assignment ?? true);
-  const [notifyProjectAdded, setNotifyProjectAdded] = useState(user.notify_project_added ?? true);
-  const [notifyOverdue, setNotifyOverdue] = useState(user.notify_overdue_tasks ?? true);
-  const [notifyMentions, setNotifyMentions] = useState(user.notify_mentions ?? true);
+
+  // Email preference states
+  const [emailInitiative, setEmailInitiative] = useState(user.email_initiative_addition ?? true);
+  const [emailAssignment, setEmailAssignment] = useState(user.email_task_assignment ?? true);
+  const [emailProjectAdded, setEmailProjectAdded] = useState(user.email_project_added ?? true);
+  const [emailOverdue, setEmailOverdue] = useState(user.email_overdue_tasks ?? true);
+  const [emailMentions, setEmailMentions] = useState(user.email_mentions ?? true);
+
+  // Push preference states
+  const [pushInitiative, setPushInitiative] = useState(user.push_initiative_addition ?? true);
+  const [pushAssignment, setPushAssignment] = useState(user.push_task_assignment ?? true);
+  const [pushProjectAdded, setPushProjectAdded] = useState(user.push_project_added ?? true);
+  const [pushOverdue, setPushOverdue] = useState(user.push_overdue_tasks ?? true);
+  const [pushMentions, setPushMentions] = useState(user.push_mentions ?? true);
 
   useEffect(() => {
     setTimezone(user.timezone ?? "UTC");
     setNotificationTime(user.overdue_notification_time ?? "21:00");
-    setNotifyInitiative(user.notify_initiative_addition ?? true);
-    setNotifyAssignment(user.notify_task_assignment ?? true);
-    setNotifyProjectAdded(user.notify_project_added ?? true);
-    setNotifyOverdue(user.notify_overdue_tasks ?? true);
-    setNotifyMentions(user.notify_mentions ?? true);
+    setEmailInitiative(user.email_initiative_addition ?? true);
+    setEmailAssignment(user.email_task_assignment ?? true);
+    setEmailProjectAdded(user.email_project_added ?? true);
+    setEmailOverdue(user.email_overdue_tasks ?? true);
+    setEmailMentions(user.email_mentions ?? true);
+    setPushInitiative(user.push_initiative_addition ?? true);
+    setPushAssignment(user.push_task_assignment ?? true);
+    setPushProjectAdded(user.push_project_added ?? true);
+    setPushOverdue(user.push_overdue_tasks ?? true);
+    setPushMentions(user.push_mentions ?? true);
   }, [user]);
 
   const updateNotificationToggles = useMutation({
@@ -128,12 +173,66 @@ export const UserSettingsNotificationsPage = ({
     );
   };
 
+  const categories: NotificationCategory[] = [
+    {
+      label: "Initiative invites",
+      description: "When you\u2019re added to a new initiative.",
+      emailField: "email_initiative_addition",
+      emailValue: emailInitiative,
+      emailSetter: setEmailInitiative,
+      pushField: "push_initiative_addition",
+      pushValue: pushInitiative,
+      pushSetter: setPushInitiative,
+    },
+    {
+      label: "Task assignments",
+      description: "Hourly summary when others assign you tasks.",
+      emailField: "email_task_assignment",
+      emailValue: emailAssignment,
+      emailSetter: setEmailAssignment,
+      pushField: "push_task_assignment",
+      pushValue: pushAssignment,
+      pushSetter: setPushAssignment,
+    },
+    {
+      label: "Mentions",
+      description: "When someone mentions you or comments on your work.",
+      emailField: "email_mentions",
+      emailValue: emailMentions,
+      emailSetter: setEmailMentions,
+      pushField: "push_mentions",
+      pushValue: pushMentions,
+      pushSetter: setPushMentions,
+    },
+    {
+      label: "New project in initiative",
+      description: "When projects are created in your initiatives.",
+      emailField: "email_project_added",
+      emailValue: emailProjectAdded,
+      emailSetter: setEmailProjectAdded,
+      pushField: "push_project_added",
+      pushValue: pushProjectAdded,
+      pushSetter: setPushProjectAdded,
+    },
+    {
+      label: "Overdue tasks",
+      description: "Daily reminder for tasks past due at your scheduled time.",
+      emailField: "email_overdue_tasks",
+      emailValue: emailOverdue,
+      emailSetter: setEmailOverdue,
+      pushField: "push_overdue_tasks",
+      pushValue: pushOverdue,
+      pushSetter: setPushOverdue,
+    },
+  ];
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle>Notification settings</CardTitle>
         <CardDescription>
-          Control which emails you receive and when overdue reminders send.
+          Control which notifications you receive by channel. Bell notifications always appear
+          regardless of these settings.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -202,106 +301,66 @@ export const UserSettingsNotificationsPage = ({
               onClick={handleScheduleSave}
               disabled={updateNotificationSchedule.isPending}
             >
-              {updateNotificationSchedule.isPending ? "Saving…" : "Save schedule"}
+              {updateNotificationSchedule.isPending ? "Saving\u2026" : "Save schedule"}
             </Button>
           </div>
         </div>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-medium">Initiative invites</p>
-              <p className="text-muted-foreground text-sm">
-                Receive an email when you&apos;re added to a new initiative.
+
+        {/* Notification preferences table */}
+        <div className="space-y-1">
+          {/* Header row */}
+          <div
+            className={`grid items-center gap-4 border-b pb-2 ${showPushColumn ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}
+          >
+            <p className="text-muted-foreground text-sm font-medium">Category</p>
+            <p className="text-muted-foreground w-16 text-center text-sm font-medium">Email</p>
+            {showPushColumn && (
+              <p className="text-muted-foreground w-16 text-center text-sm font-medium">
+                Mobile App
               </p>
-            </div>
-            <Switch
-              checked={notifyInitiative}
-              onCheckedChange={(checked) =>
-                handleNotificationToggle(
-                  "notify_initiative_addition",
-                  checked,
-                  setNotifyInitiative,
-                  notifyInitiative
-                )
-              }
-            />
+            )}
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-medium">Task assignments</p>
-              <p className="text-muted-foreground text-sm">
-                Get an hourly summary when others assign you tasks.
-              </p>
+
+          {/* Data rows */}
+          {categories.map((cat) => (
+            <div
+              key={cat.emailField}
+              className={`grid items-center gap-4 py-3 ${showPushColumn ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}
+            >
+              <div>
+                <p className="font-medium">{cat.label}</p>
+                <p className="text-muted-foreground text-sm">{cat.description}</p>
+              </div>
+              <div className="flex w-16 justify-center">
+                <Switch
+                  checked={cat.emailValue}
+                  onCheckedChange={(checked) =>
+                    handleNotificationToggle(
+                      cat.emailField,
+                      checked,
+                      cat.emailSetter,
+                      cat.emailValue
+                    )
+                  }
+                />
+              </div>
+              {showPushColumn && (
+                <div className="flex w-16 justify-center">
+                  <Switch
+                    checked={cat.pushValue}
+                    onCheckedChange={(checked) =>
+                      handleNotificationToggle(
+                        cat.pushField,
+                        checked,
+                        cat.pushSetter,
+                        cat.pushValue
+                      )
+                    }
+                  />
+                </div>
+              )}
             </div>
-            <Switch
-              checked={notifyAssignment}
-              onCheckedChange={(checked) =>
-                handleNotificationToggle(
-                  "notify_task_assignment",
-                  checked,
-                  setNotifyAssignment,
-                  notifyAssignment
-                )
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-medium">Mentions</p>
-              <p className="text-muted-foreground text-sm">
-                Get notified when someone mentions you or a task you&apos;re assigned to.
-              </p>
-            </div>
-            <Switch
-              checked={notifyMentions}
-              onCheckedChange={(checked) =>
-                handleNotificationToggle(
-                  "notify_mentions",
-                  checked,
-                  setNotifyMentions,
-                  notifyMentions
-                )
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-medium">New project in initiative</p>
-              <p className="text-muted-foreground text-sm">
-                Be alerted when projects are created inside initiatives you belong to.
-              </p>
-            </div>
-            <Switch
-              checked={notifyProjectAdded}
-              onCheckedChange={(checked) =>
-                handleNotificationToggle(
-                  "notify_project_added",
-                  checked,
-                  setNotifyProjectAdded,
-                  notifyProjectAdded
-                )
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="font-medium">Overdue tasks</p>
-              <p className="text-muted-foreground text-sm">
-                Receive a daily reminder for tasks past due at your scheduled time.
-              </p>
-            </div>
-            <Switch
-              checked={notifyOverdue}
-              onCheckedChange={(checked) =>
-                handleNotificationToggle(
-                  "notify_overdue_tasks",
-                  checked,
-                  setNotifyOverdue,
-                  notifyOverdue
-                )
-              }
-            />
-          </div>
+          ))}
         </div>
       </CardContent>
     </Card>

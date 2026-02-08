@@ -84,20 +84,9 @@ async def enqueue_task_assignment_event(
 ) -> None:
     if assignee.id == assigned_by.id:
         return
-    if assignee.notify_task_assignment is False:
-        return
-    event = TaskAssignmentDigestItem(
-        user_id=assignee.id,
-        task_id=task.id,
-        project_id=task.project_id,
-        task_title=task.title,
-        project_name=project_name,
-        assigned_by_name=assigned_by.full_name or assigned_by.email,
-        assigned_by_id=assigned_by.id,
-    )
-    session.add(event)
     target_path = _task_target_path(task.id, task.project_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=assignee.id,
@@ -113,23 +102,36 @@ async def enqueue_task_assignment_event(
             "smart_link": smart_link,
         },
     )
-    # Send push notification
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
+    # Email: enqueue digest if email preference enabled
+    if assignee.email_task_assignment is not False:
+        event = TaskAssignmentDigestItem(
             user_id=assignee.id,
-            notification_type=NotificationType.task_assignment,
-            title="New Task Assignment",
-            body=f"{task.title} in {project_name}",
-            data={
-                "type": "task_assignment",
-                "task_id": str(task.id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
+            task_id=task.id,
+            project_id=task.project_id,
+            task_title=task.title,
+            project_name=project_name,
+            assigned_by_name=assigned_by.full_name or assigned_by.email,
+            assigned_by_id=assigned_by.id,
         )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+        session.add(event)
+    # Push notification
+    if assignee.push_task_assignment is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=assignee.id,
+                notification_type=NotificationType.task_assignment,
+                title="New Task Assignment",
+                body=f"{task.title} in {project_name}",
+                data={
+                    "type": "task_assignment",
+                    "task_id": str(task.id),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: int) -> None:
@@ -146,36 +148,38 @@ async def notify_initiative_membership(
     initiative_id: int,
     initiative_name: str,
 ) -> None:
-    if user.notify_initiative_addition is False:
-        return
-    try:
-        await email_service.send_initiative_added_email(session, user, initiative_name)
-    except email_service.EmailNotConfiguredError:
-        logger.warning("SMTP not configured; skipping initiative notification for %s", user.email)
-    except RuntimeError as exc:  # pragma: no cover
-        logger.error("Failed to send initiative notification: %s", exc)
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=user.id,
         notification_type=NotificationType.initiative_added,
         data={"initiative_id": initiative_id, "initiative_name": initiative_name},
     )
-    # Send push notification
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.initiative_added,
-            title="Added to Initiative",
-            body=f"You've been added to {initiative_name}",
-            data={
-                "type": "initiative_added",
-                "initiative_id": str(initiative_id),
-                "target_path": f"/initiatives/{initiative_id}",
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if user.email_initiative_addition is not False:
+        try:
+            await email_service.send_initiative_added_email(session, user, initiative_name)
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping initiative notification for %s", user.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send initiative notification: %s", exc)
+    # Push notification
+    if user.push_initiative_addition is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=user.id,
+                notification_type=NotificationType.initiative_added,
+                title="Added to Initiative",
+                body=f"You've been added to {initiative_name}",
+                data={
+                    "type": "initiative_added",
+                    "initiative_id": str(initiative_id),
+                    "target_path": f"/initiatives/{initiative_id}",
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
     await session.commit()
 
 
@@ -189,21 +193,8 @@ async def notify_project_added(
     initiative_id: int,
     guild_id: int,
 ) -> None:
-    if user.notify_project_added is False:
-        return
-    try:
-        await email_service.send_project_added_to_initiative_email(
-            session,
-            user,
-            initiative_name=initiative_name,
-            project_name=project_name,
-            project_id=project_id,
-        )
-    except email_service.EmailNotConfiguredError:
-        logger.warning("SMTP not configured; skipping project notification for %s", user.email)
-    except RuntimeError as exc:  # pragma: no cover
-        logger.error("Failed to send project notification: %s", exc)
     target_path = _project_target_path(project_id)
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=user.id,
@@ -221,23 +212,38 @@ async def notify_project_added(
             ),
         },
     )
-    # Send push notification
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.project_added,
-            title="New Project Added",
-            body=f"{project_name} in {initiative_name}",
-            data={
-                "type": "project_added",
-                "project_id": str(project_id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if user.email_project_added is not False:
+        try:
+            await email_service.send_project_added_to_initiative_email(
+                session,
+                user,
+                initiative_name=initiative_name,
+                project_name=project_name,
+                project_id=project_id,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping project notification for %s", user.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send project notification: %s", exc)
+    # Push notification
+    if user.push_project_added is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=user.id,
+                notification_type=NotificationType.project_added,
+                title="New Project Added",
+                body=f"{project_name} in {initiative_name}",
+                data={
+                    "type": "project_added",
+                    "project_id": str(project_id),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
     await session.commit()
 
 
@@ -269,10 +275,10 @@ async def notify_document_mention(
     """Notify a user they were mentioned in a document."""
     if mentioned_user.id == mentioned_by.id:
         return
-    if getattr(mentioned_user, "notify_mentions", True) is False:
-        return
     target_path = f"/documents/{document_id}"
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=mentioned_user.id,
@@ -280,31 +286,46 @@ async def notify_document_mention(
         data={
             "document_id": document_id,
             "document_title": document_title,
-            "mentioned_by_name": mentioned_by.full_name or mentioned_by.email,
+            "mentioned_by_name": mentioned_by_name,
             "mentioned_by_id": mentioned_by.id,
             "guild_id": guild_id,
             "target_path": target_path,
             "smart_link": smart_link,
         },
     )
-    # Send push notification
-    try:
-        mentioned_by_name = mentioned_by.full_name or mentioned_by.email
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=mentioned_user.id,
-            notification_type=NotificationType.mention,
-            title="You were mentioned",
-            body=f"{mentioned_by_name} mentioned you in {document_title}",
-            data={
-                "type": "mention",
-                "document_id": str(document_id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if getattr(mentioned_user, "email_mentions", True) is not False:
+        try:
+            await email_service.send_mention_email(
+                session,
+                mentioned_user,
+                subject=f"You were mentioned in {document_title}",
+                headline="You were mentioned",
+                body_text=f"{mentioned_by_name} mentioned you in {document_title}",
+                link=smart_link,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping mention email for %s", mentioned_user.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send mention email: %s", exc)
+    # Push notification
+    if getattr(mentioned_user, "push_mentions", True) is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=mentioned_user.id,
+                notification_type=NotificationType.mention,
+                title="You were mentioned",
+                body=f"{mentioned_by_name} mentioned you in {document_title}",
+                data={
+                    "type": "mention",
+                    "document_id": str(document_id),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_mention(
@@ -321,8 +342,6 @@ async def notify_comment_mention(
     """Notify a user they were mentioned in a comment."""
     if mentioned_user.id == mentioned_by.id:
         return
-    if getattr(mentioned_user, "notify_mentions", True) is False:
-        return
 
     if task_id:
         target_path = f"/tasks/{task_id}"
@@ -334,6 +353,7 @@ async def notify_comment_mention(
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = mentioned_by.full_name or mentioned_by.email
 
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=mentioned_user.id,
@@ -350,24 +370,41 @@ async def notify_comment_mention(
             "smart_link": smart_link,
         },
     )
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=mentioned_user.id,
-            notification_type=NotificationType.mention,
-            title="You were mentioned",
-            body=f"{mentioned_by_name} mentioned you in a comment on {context_title}",
-            data={
-                "type": "mention",
-                "comment_id": str(comment_id),
-                "task_id": str(task_id) if task_id else None,
-                "document_id": str(document_id) if document_id else None,
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if getattr(mentioned_user, "email_mentions", True) is not False:
+        try:
+            await email_service.send_mention_email(
+                session,
+                mentioned_user,
+                subject="You were mentioned in a comment",
+                headline="You were mentioned",
+                body_text=f"{mentioned_by_name} mentioned you in a comment on {context_title}",
+                link=smart_link,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping mention email for %s", mentioned_user.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send mention email: %s", exc)
+    # Push notification
+    if getattr(mentioned_user, "push_mentions", True) is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=mentioned_user.id,
+                notification_type=NotificationType.mention,
+                title="You were mentioned",
+                body=f"{mentioned_by_name} mentioned you in a comment on {context_title}",
+                data={
+                    "type": "mention",
+                    "comment_id": str(comment_id),
+                    "task_id": str(task_id) if task_id else None,
+                    "document_id": str(document_id) if document_id else None,
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_task_mentioned_in_comment(
@@ -386,8 +423,6 @@ async def notify_task_mentioned_in_comment(
     """Notify task assignee that their task was mentioned in a comment."""
     if assignee.id == mentioned_by.id:
         return
-    if getattr(assignee, "notify_mentions", True) is False:
-        return
 
     if context_task_id:
         target_path = f"/tasks/{context_task_id}"
@@ -399,6 +434,7 @@ async def notify_task_mentioned_in_comment(
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = mentioned_by.full_name or mentioned_by.email
 
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=assignee.id,
@@ -417,23 +453,40 @@ async def notify_task_mentioned_in_comment(
             "smart_link": smart_link,
         },
     )
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=assignee.id,
-            notification_type=NotificationType.mention,
-            title="Your task was mentioned",
-            body=f"{mentioned_by_name} mentioned {mentioned_task_title} in {context_title}",
-            data={
-                "type": "mention",
-                "comment_id": str(comment_id),
-                "mentioned_task_id": str(mentioned_task_id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if getattr(assignee, "email_mentions", True) is not False:
+        try:
+            await email_service.send_mention_email(
+                session,
+                assignee,
+                subject="Your task was mentioned",
+                headline="Your task was mentioned",
+                body_text=f"{mentioned_by_name} mentioned {mentioned_task_title} in {context_title}",
+                link=smart_link,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping mention email for %s", assignee.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send mention email: %s", exc)
+    # Push notification
+    if getattr(assignee, "push_mentions", True) is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=assignee.id,
+                notification_type=NotificationType.mention,
+                title="Your task was mentioned",
+                body=f"{mentioned_by_name} mentioned {mentioned_task_title} in {context_title}",
+                data={
+                    "type": "mention",
+                    "comment_id": str(comment_id),
+                    "mentioned_task_id": str(mentioned_task_id),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_on_task(
@@ -450,13 +503,12 @@ async def notify_comment_on_task(
     """Notify task assignee that someone commented on their task."""
     if assignee.id == commenter.id:
         return
-    if getattr(assignee, "notify_mentions", True) is False:
-        return
 
     target_path = f"/tasks/{task_id}"
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
 
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=assignee.id,
@@ -473,23 +525,40 @@ async def notify_comment_on_task(
             "smart_link": smart_link,
         },
     )
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=assignee.id,
-            notification_type=NotificationType.comment_on_task,
-            title="New comment on your task",
-            body=f"{commenter_name} commented on {task_title}",
-            data={
-                "type": "comment_on_task",
-                "comment_id": str(comment_id),
-                "task_id": str(task_id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if getattr(assignee, "email_mentions", True) is not False:
+        try:
+            await email_service.send_mention_email(
+                session,
+                assignee,
+                subject=f"New comment on {task_title}",
+                headline="New comment on your task",
+                body_text=f"{commenter_name} commented on {task_title}",
+                link=smart_link,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping comment email for %s", assignee.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send comment email: %s", exc)
+    # Push notification
+    if getattr(assignee, "push_mentions", True) is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=assignee.id,
+                notification_type=NotificationType.comment_on_task,
+                title="New comment on your task",
+                body=f"{commenter_name} commented on {task_title}",
+                data={
+                    "type": "comment_on_task",
+                    "comment_id": str(comment_id),
+                    "task_id": str(task_id),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_on_document(
@@ -505,13 +574,12 @@ async def notify_comment_on_document(
     """Notify document author that someone commented on their document."""
     if author.id == commenter.id:
         return
-    if getattr(author, "notify_mentions", True) is False:
-        return
 
     target_path = f"/documents/{document_id}"
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
 
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=author.id,
@@ -527,23 +595,40 @@ async def notify_comment_on_document(
             "smart_link": smart_link,
         },
     )
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=author.id,
-            notification_type=NotificationType.comment_on_document,
-            title="New comment on your document",
-            body=f"{commenter_name} commented on {document_title}",
-            data={
-                "type": "comment_on_document",
-                "comment_id": str(comment_id),
-                "document_id": str(document_id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if getattr(author, "email_mentions", True) is not False:
+        try:
+            await email_service.send_mention_email(
+                session,
+                author,
+                subject=f"New comment on {document_title}",
+                headline="New comment on your document",
+                body_text=f"{commenter_name} commented on {document_title}",
+                link=smart_link,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping comment email for %s", author.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send comment email: %s", exc)
+    # Push notification
+    if getattr(author, "push_mentions", True) is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=author.id,
+                notification_type=NotificationType.comment_on_document,
+                title="New comment on your document",
+                body=f"{commenter_name} commented on {document_title}",
+                data={
+                    "type": "comment_on_document",
+                    "comment_id": str(comment_id),
+                    "document_id": str(document_id),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def notify_comment_reply(
@@ -560,8 +645,6 @@ async def notify_comment_reply(
     """Notify parent comment author that someone replied to their comment."""
     if parent_author.id == replier.id:
         return
-    if getattr(parent_author, "notify_mentions", True) is False:
-        return
 
     if task_id:
         target_path = f"/tasks/{task_id}"
@@ -573,6 +656,7 @@ async def notify_comment_reply(
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     replier_name = replier.full_name or replier.email
 
+    # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=parent_author.id,
@@ -589,24 +673,41 @@ async def notify_comment_reply(
             "smart_link": smart_link,
         },
     )
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=parent_author.id,
-            notification_type=NotificationType.comment_reply,
-            title="Reply to your comment",
-            body=f"{replier_name} replied to your comment on {context_title}",
-            data={
-                "type": "comment_reply",
-                "comment_id": str(comment_id),
-                "task_id": str(task_id) if task_id else None,
-                "document_id": str(document_id) if document_id else None,
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    # Email
+    if getattr(parent_author, "email_mentions", True) is not False:
+        try:
+            await email_service.send_mention_email(
+                session,
+                parent_author,
+                subject="Reply to your comment",
+                headline="Reply to your comment",
+                body_text=f"{replier_name} replied to your comment on {context_title}",
+                link=smart_link,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping reply email for %s", parent_author.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send reply email: %s", exc)
+    # Push notification
+    if getattr(parent_author, "push_mentions", True) is not False:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=parent_author.id,
+                notification_type=NotificationType.comment_reply,
+                title="Reply to your comment",
+                body=f"{replier_name} replied to your comment on {context_title}",
+                data={
+                    "type": "comment_reply",
+                    "comment_id": str(comment_id),
+                    "task_id": str(task_id) if task_id else None,
+                    "document_id": str(document_id) if document_id else None,
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
 async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
@@ -634,7 +735,7 @@ async def process_task_assignment_digests() -> None:
         now = datetime.now(timezone.utc)
         for user_id in user_ids:
             user = await _load_user(session, int(user_id))
-            if not user or user.notify_task_assignment is False:
+            if not user or user.email_task_assignment is False:
                 await clear_task_assignment_queue_for_user(session, user_id)
                 await session.commit()
                 continue
@@ -731,7 +832,7 @@ async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dic
 
 async def process_overdue_notifications() -> None:
     async with AdminSessionLocal() as session:
-        stmt = select(User).where(User.notify_overdue_tasks.is_(True))
+        stmt = select(User).where(User.email_overdue_tasks.is_(True))
         result = await session.exec(stmt)
         users = result.scalars().all()
         if not users:

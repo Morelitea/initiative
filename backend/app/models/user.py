@@ -60,23 +60,43 @@ class User(SQLModel, table=True):
         default="21:00",
         sa_column=Column(String(5), nullable=False, server_default="21:00"),
     )
-    notify_initiative_addition: bool = Field(
+    email_initiative_addition: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-    notify_task_assignment: bool = Field(
+    email_task_assignment: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-    notify_project_added: bool = Field(
+    email_project_added: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-    notify_overdue_tasks: bool = Field(
+    email_overdue_tasks: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-    notify_mentions: bool = Field(
+    email_mentions: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_initiative_addition: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_task_assignment: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_project_added: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_overdue_tasks: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_mentions: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )

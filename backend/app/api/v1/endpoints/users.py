@@ -229,15 +229,21 @@ async def update_users_me(
         if normalized_time:
             current_user.overdue_notification_time = normalized_time
     for field in [
-        "notify_initiative_addition",
-        "notify_task_assignment",
-        "notify_project_added",
-        "notify_overdue_tasks",
+        "email_initiative_addition",
+        "email_task_assignment",
+        "email_project_added",
+        "email_overdue_tasks",
+        "email_mentions",
+        "push_initiative_addition",
+        "push_task_assignment",
+        "push_project_added",
+        "push_overdue_tasks",
+        "push_mentions",
     ]:
         if field in update_data:
             new_value = bool(update_data[field])
             setattr(current_user, field, new_value)
-            if field == "notify_task_assignment" and not new_value:
+            if field == "email_task_assignment" and not new_value:
                 await notifications_service.clear_task_assignment_queue_for_user(session, current_user.id)
     if "color_theme" in update_data:
         current_user.color_theme = update_data["color_theme"]
@@ -304,7 +310,7 @@ async def update_user(
             if normalized_week_start is not None:
                 setattr(user, field, normalized_week_start)
             continue
-        if field == "notify_task_assignment" and value is False:
+        if field == "email_task_assignment" and value is False:
             await notifications_service.clear_task_assignment_queue_for_user(session, user.id)
         setattr(user, field, value)
     user.updated_at = datetime.now(timezone.utc)
