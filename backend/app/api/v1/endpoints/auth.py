@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -247,40 +248,45 @@ async def revoke_device_token(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found")
 
 
-def _generate_state(mobile: bool = False) -> str:
+def _generate_state(mobile: bool = False, device_name: str = "") -> str:
     timestamp = str(int(time.time()))
     mobile_flag = "1" if mobile else "0"
-    payload = f"{timestamp}.{mobile_flag}"
+    encoded_device_name = base64.urlsafe_b64encode(device_name.encode()).decode()
+    payload = f"{timestamp}.{mobile_flag}.{encoded_device_name}"
     signature = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{signature}"
 
 
-def _validate_state(value: str | None) -> tuple[bool, bool]:
-    """Validate OIDC state parameter and extract mobile flag.
+def _validate_state(value: str | None) -> tuple[bool, bool, str]:
+    """Validate OIDC state parameter and extract mobile flag and device name.
 
     Returns:
-        Tuple of (is_valid, is_mobile)
+        Tuple of (is_valid, is_mobile, device_name)
     """
     if not value:
-        return (False, False)
+        return (False, False, "")
     try:
         parts = value.split(".")
-        if len(parts) != 3:
-            return (False, False)
-        ts_str, mobile_flag, signature = parts
+        if len(parts) != 4:
+            return (False, False, "")
+        ts_str, mobile_flag, encoded_device_name, signature = parts
     except ValueError:
-        return (False, False)
-    payload = f"{ts_str}.{mobile_flag}"
+        return (False, False, "")
+    payload = f"{ts_str}.{mobile_flag}.{encoded_device_name}"
     expected = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        return (False, False)
+        return (False, False, "")
     try:
         ts = int(ts_str)
     except ValueError:
-        return (False, False)
+        return (False, False, "")
     if int(time.time()) - ts > STATE_TTL_SECONDS:
-        return (False, False)
-    return (True, mobile_flag == "1")
+        return (False, False, "")
+    try:
+        device_name = base64.urlsafe_b64decode(encoded_device_name.encode()).decode()
+    except Exception:
+        device_name = ""
+    return (True, mobile_flag == "1", device_name)
 
 
 def _backend_redirect_uri() -> str:
@@ -345,9 +351,10 @@ async def oidc_login(
     request: Request,
     session: SessionDep,
     mobile: bool = Query(default=False),
+    device_name: str = Query(default="Mobile Device"),
 ) -> RedirectResponse:
     app_settings, metadata = await _get_oidc_runtime_config(session)
-    state = _generate_state(mobile=mobile)
+    state = _generate_state(mobile=mobile, device_name=device_name if mobile else "")
     params = {
         "client_id": app_settings.oidc_client_id,
         "response_type": "code",
@@ -373,7 +380,7 @@ async def oidc_callback(
 ):
     if not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing authorization code")
-    is_valid, is_mobile = _validate_state(state)
+    is_valid, is_mobile, device_name = _validate_state(state)
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state parameter")
 
@@ -457,12 +464,17 @@ async def oidc_callback(
             await session.commit()
             await session.refresh(user)
 
-    app_token = create_access_token(subject=str(user.id))
-
-    redirect_params = {"token": app_token}
     if is_mobile:
+        device_token = await user_tokens.create_device_token(
+            session,
+            user_id=user.id,
+            device_name=device_name or "Mobile Device",
+        )
+        redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
     else:
+        app_token = create_access_token(subject=str(user.id))
+        redirect_params = {"token": app_token}
         redirect_url = f"{_frontend_redirect_uri()}?{urlencode(redirect_params)}"
     return RedirectResponse(redirect_url)
 

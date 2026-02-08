@@ -26,7 +26,7 @@ interface AuthContextValue {
   isDeviceToken: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<User>;
-  completeOidcLogin: (token: string) => Promise<void>;
+  completeOidcLogin: (token: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -172,12 +172,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return response.data;
   };
 
-  const completeOidcLogin = async (accessToken: string) => {
+  const completeOidcLogin = async (accessToken: string, isDevice = false) => {
     setTokenState(accessToken);
-    setIsDeviceToken(false);
-    localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
-    localStorage.removeItem(DEVICE_TOKEN_KEY);
-    setAuthToken(accessToken, false);
+    setIsDeviceToken(isDevice);
+    if (isDevice) {
+      await setStoredToken(accessToken); // Capacitor Preferences (persistent)
+      localStorage.setItem(DEVICE_TOKEN_KEY, "true");
+    } else {
+      localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+      localStorage.removeItem(DEVICE_TOKEN_KEY);
+    }
+    setAuthToken(accessToken, isDevice);
     const me = await apiClient.get<User>("/users/me");
     setUser(me.data);
   };
