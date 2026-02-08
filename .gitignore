@@ -39,5 +39,8 @@ frontend/capacitor.config.d.ts
 # Firebase (keep template, ignore actual config)
 frontend/android/app/google-services.json
 
+# AI planning documents
+history/
+
 # Docker
 docker-compose.yml
