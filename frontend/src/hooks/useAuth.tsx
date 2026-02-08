@@ -173,8 +173,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const completeOidcLogin = async (accessToken: string, isDevice = false) => {
-    setTokenState(accessToken);
-    setIsDeviceToken(isDevice);
+    // Set auth token BEFORE React state to avoid race with bootstrap effect
+    setAuthToken(accessToken, isDevice);
     if (isDevice) {
       await setStoredToken(accessToken); // Capacitor Preferences (persistent)
       localStorage.setItem(DEVICE_TOKEN_KEY, "true");
@@ -182,7 +182,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
       localStorage.removeItem(DEVICE_TOKEN_KEY);
     }
-    setAuthToken(accessToken, isDevice);
+    setTokenState(accessToken);
+    setIsDeviceToken(isDevice);
     const me = await apiClient.get<User>("/users/me");
     setUser(me.data);
   };
