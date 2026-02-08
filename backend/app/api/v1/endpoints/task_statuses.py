@@ -167,10 +167,10 @@ async def update_task_status(
         insert_at = max(0, min(update_data["position"], len(current_list)))
         current_list.insert(insert_at, target)
         _resequence(current_list)
+        _ensure_default(current_list)
     else:
         _resequence(statuses)
-
-    _ensure_default(statuses)
+        _ensure_default(statuses)
     await session.commit()
     await reapply_rls_context(session)
     await session.refresh(target)
