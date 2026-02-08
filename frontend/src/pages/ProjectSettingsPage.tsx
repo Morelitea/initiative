@@ -54,6 +54,7 @@ const PERMISSION_LABELS: Record<ProjectPermissionLevel, string> = {
 interface PermissionRow {
   userId: number;
   displayName: string;
+  email: string;
   level: ProjectPermissionLevel;
   isOwner: boolean;
 }
@@ -397,9 +398,13 @@ export const ProjectSettingsPage = () => {
           (permission.user_id === project?.owner_id
             ? ownerInfo?.full_name?.trim() || ownerInfo?.email || "Project owner"
             : `User ${permission.user_id}`);
+        const email =
+          member?.user?.email ||
+          (permission.user_id === project?.owner_id ? ownerInfo?.email || "" : "");
         return {
           userId: permission.user_id,
           displayName,
+          email,
           level: permission.level,
           isOwner: permission.user_id === project?.owner_id,
         };
@@ -414,6 +419,11 @@ export const ProjectSettingsPage = () => {
         accessorKey: "displayName",
         header: "Name",
         cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
+      },
+      {
+        accessorKey: "email",
+        header: "Email",
+        cell: ({ row }) => <span className="text-muted-foreground">{row.original.email}</span>,
       },
       {
         accessorKey: "level",
