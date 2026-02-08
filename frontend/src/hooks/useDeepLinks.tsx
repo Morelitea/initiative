@@ -27,9 +27,10 @@ export function useDeepLinks() {
         ) {
           const token = url.searchParams.get("token");
           if (token) {
+            const token_type = url.searchParams.get("token_type");
             router.navigate({
               to: "/oidc/callback",
-              search: { token },
+              search: token_type ? { token, token_type } : { token },
               replace: true,
             });
           }
