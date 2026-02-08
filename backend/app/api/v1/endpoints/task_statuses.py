@@ -211,6 +211,7 @@ async def reorder_task_statuses(
     remaining = [status for status in statuses if status.id not in seen]
     combined = ordered + remaining
     _resequence(combined)
+    _ensure_default(combined)
     await session.commit()
     await reapply_rls_context(session)
     return await task_statuses_service.list_statuses(session, project.id)
