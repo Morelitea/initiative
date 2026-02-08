@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-02-07
+
 ### Fixed
 
 - OIDC login on mobile now issues a long-lived device token instead of a short-lived JWT, so sessions persist across app restarts
