@@ -53,6 +53,7 @@ const PERMISSION_LABELS: Record<DocumentPermissionLevel, string> = {
 interface PermissionRow {
   userId: number;
   displayName: string;
+  email: string;
   level: DocumentPermissionLevel;
   isOwner: boolean;
 }
@@ -163,9 +164,11 @@ export const DocumentSettingsPage = () => {
       const member = initiativeMembers.find((entry) => entry.user?.id === permission.user_id);
       const displayName =
         member?.user?.full_name?.trim() || member?.user?.email || `User ${permission.user_id}`;
+      const email = member?.user?.email || "";
       return {
         userId: permission.user_id,
         displayName,
+        email,
         level: permission.level,
         isOwner: permission.level === "owner",
       };
@@ -432,6 +435,11 @@ export const DocumentSettingsPage = () => {
         accessorKey: "displayName",
         header: "Name",
         cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
+      },
+      {
+        accessorKey: "email",
+        header: "Email",
+        cell: ({ row }) => <span className="text-muted-foreground">{row.original.email}</span>,
       },
       {
         accessorKey: "level",

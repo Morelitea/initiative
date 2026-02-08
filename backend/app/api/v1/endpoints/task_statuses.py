@@ -8,9 +8,6 @@ from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_ac
 from app.db.session import reapply_rls_context
 from app.api.v1.endpoints.tasks import _get_project_with_access, _ensure_can_manage
 from app.models.task import Task, TaskStatus, TaskStatusCategory
-from app.models.project import Project
-from app.models.initiative import InitiativeMember, InitiativeRole
-from app.models.guild import GuildRole
 from app.models.user import User
 from app.schemas.task_status import (
     TaskStatusCreate,
@@ -44,27 +41,6 @@ def _ensure_default(statuses: List[TaskStatus]) -> None:
             return
     if statuses:
         statuses[0].is_default = True
-
-
-async def _ensure_project_manager_role(
-    session: SessionDep,
-    project: Project,
-    current_user: User,
-    guild_role: GuildRole | None,
-) -> None:
-    if guild_role == GuildRole.admin:
-        return
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == project.initiative_id,
-        InitiativeMember.user_id == current_user.id,
-    )
-    result = await session.exec(stmt)
-    membership = result.one_or_none()
-    if not membership or membership.role != InitiativeRole.project_manager:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Project manager role required",
-        )
 
 
 async def _load_status_or_404(session: SessionDep, project_id: int, status_id: int) -> TaskStatus:
@@ -128,7 +104,7 @@ async def create_task_status(
         current_user,
         guild_id=guild_context.guild_id,
     )
-    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
+
     statuses = await task_statuses_service.list_statuses(session, project.id)
     insert_at = status_in.position if status_in.position is not None else len(statuses)
     insert_at = max(0, min(insert_at, len(statuses)))
@@ -162,13 +138,13 @@ async def update_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
-    project = await _ensure_can_manage(
+    await _ensure_can_manage(
         session,
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
     )
-    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
+
     target = await _load_status_or_404(session, project_id, status_id)
     statuses = await task_statuses_service.list_statuses(session, project_id)
     update_data = status_in.model_dump(exclude_unset=True)
@@ -191,10 +167,10 @@ async def update_task_status(
         insert_at = max(0, min(update_data["position"], len(current_list)))
         current_list.insert(insert_at, target)
         _resequence(current_list)
+        _ensure_default(current_list)
     else:
         _resequence(statuses)
-
-    _ensure_default(statuses)
+        _ensure_default(statuses)
     await session.commit()
     await reapply_rls_context(session)
     await session.refresh(target)
@@ -215,7 +191,7 @@ async def reorder_task_statuses(
         current_user,
         guild_id=guild_context.guild_id,
     )
-    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
+
 
     if not reorder_in.items:
         return await task_statuses_service.list_statuses(session, project.id)
@@ -235,6 +211,7 @@ async def reorder_task_statuses(
     remaining = [status for status in statuses if status.id not in seen]
     combined = ordered + remaining
     _resequence(combined)
+    _ensure_default(combined)
     await session.commit()
     await reapply_rls_context(session)
     return await task_statuses_service.list_statuses(session, project.id)
@@ -249,13 +226,13 @@ async def delete_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    project = await _ensure_can_manage(
+    await _ensure_can_manage(
         session,
         project_id,
         current_user,
         guild_id=guild_context.guild_id,
     )
-    await _ensure_project_manager_role(session, project, current_user, guild_context.role)
+
     target = await _load_status_or_404(session, project_id, status_id)
     await _ensure_category_not_last(session, project_id=project_id, target=target)
 
