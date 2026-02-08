@@ -195,10 +195,16 @@ export const LoginPage = () => {
                   className="w-full"
                   onClick={async () => {
                     if (isNativePlatform && serverUrl) {
-                      // On mobile, open in system browser with mobile flag
-                      // serverUrl includes /api/v1, so strip it to get base URL
+                      // On mobile, open in system browser with mobile flag and device name
                       const baseUrl = serverUrl.replace(/\/api\/v1\/?(\?.*)?$/, "");
-                      const mobileLoginUrl = `${baseUrl}${oidcLoginUrl}?mobile=true`;
+                      let deviceName = "Mobile Device";
+                      try {
+                        const info = await Device.getInfo();
+                        deviceName = info.name || info.model || "Mobile Device";
+                      } catch {
+                        // Fall back to default device name
+                      }
+                      const mobileLoginUrl = `${baseUrl}${oidcLoginUrl}?mobile=true&device_name=${encodeURIComponent(deviceName)}`;
                       await Browser.open({ url: mobileLoginUrl });
                     } else {
                       // On web, redirect directly

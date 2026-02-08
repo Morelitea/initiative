@@ -7,7 +7,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 
 export const OidcCallbackPage = () => {
-  const searchParams = useSearch({ strict: false }) as { token?: string; error?: string };
+  const searchParams = useSearch({ strict: false }) as {
+    token?: string;
+    token_type?: string;
+    error?: string;
+  };
   const router = useRouter();
   const { completeOidcLogin } = useAuth();
   const { isNativePlatform } = useServer();
@@ -26,7 +30,7 @@ export const OidcCallbackPage = () => {
     }
     const run = async () => {
       try {
-        await completeOidcLogin(token);
+        await completeOidcLogin(token, searchParams.token_type === "device_token");
         // Close the browser on mobile before navigating
         if (isNativePlatform) {
           try {
