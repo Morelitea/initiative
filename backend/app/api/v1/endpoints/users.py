@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
+    RLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_guild_membership,
@@ -119,7 +120,7 @@ async def get_user_stats(
 
 @router.get("/", response_model=List[UserGuildMember])
 async def list_users(
-    session: SessionDep,
+    session: RLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
