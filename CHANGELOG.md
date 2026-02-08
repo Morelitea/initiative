@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.4] - 2026-02-07
+
+### Fixed
+
+- Attempt: My Tasks page now shows tasks from all guilds the user belongs to, not just the active guild (RLS SELECT policies now check membership instead of active guild)
+
 ## [0.25.3] - 2026-02-07
 
 ### Fixed
