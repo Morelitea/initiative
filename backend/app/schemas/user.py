@@ -28,10 +28,16 @@ class UserUpdate(BaseModel):
     week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
-    notify_initiative_addition: Optional[bool] = None
-    notify_task_assignment: Optional[bool] = None
-    notify_project_added: Optional[bool] = None
-    notify_overdue_tasks: Optional[bool] = None
+    email_initiative_addition: Optional[bool] = None
+    email_task_assignment: Optional[bool] = None
+    email_project_added: Optional[bool] = None
+    email_overdue_tasks: Optional[bool] = None
+    email_mentions: Optional[bool] = None
+    push_initiative_addition: Optional[bool] = None
+    push_task_assignment: Optional[bool] = None
+    push_project_added: Optional[bool] = None
+    push_overdue_tasks: Optional[bool] = None
+    push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
 
 
@@ -71,10 +77,16 @@ class UserRead(UserBase):
     week_starts_on: int = 0
     timezone: str = "UTC"
     overdue_notification_time: str = "21:00"
-    notify_initiative_addition: bool = True
-    notify_task_assignment: bool = True
-    notify_project_added: bool = True
-    notify_overdue_tasks: bool = True
+    email_initiative_addition: bool = True
+    email_task_assignment: bool = True
+    email_project_added: bool = True
+    email_overdue_tasks: bool = True
+    email_mentions: bool = True
+    push_initiative_addition: bool = True
+    push_task_assignment: bool = True
+    push_project_added: bool = True
+    push_overdue_tasks: bool = True
+    push_mentions: bool = True
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
     color_theme: str = "kobold"
@@ -110,10 +122,16 @@ class UserSelfUpdate(BaseModel):
     week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
-    notify_initiative_addition: Optional[bool] = None
-    notify_task_assignment: Optional[bool] = None
-    notify_project_added: Optional[bool] = None
-    notify_overdue_tasks: Optional[bool] = None
+    email_initiative_addition: Optional[bool] = None
+    email_task_assignment: Optional[bool] = None
+    email_project_added: Optional[bool] = None
+    email_overdue_tasks: Optional[bool] = None
+    email_mentions: Optional[bool] = None
+    push_initiative_addition: Optional[bool] = None
+    push_task_assignment: Optional[bool] = None
+    push_project_added: Optional[bool] = None
+    push_overdue_tasks: Optional[bool] = None
+    push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
 
 

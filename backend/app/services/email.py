@@ -364,6 +364,43 @@ async def send_task_assignment_digest_email(
     )
 
 
+async def send_mention_email(
+    session: AsyncSession,
+    user: User,
+    *,
+    subject: str,
+    headline: str,
+    body_text: str,
+    link: str | None = None,
+) -> None:
+    settings_obj, accent = await _email_context(session)
+    if link:
+        body = f"""
+    <p>Hi {user.full_name or user.email},</p>
+    <p>{body_text}</p>
+    <p style="margin:24px 0;">
+      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">View</a>
+    </p>
+    """
+    else:
+        body = f"""
+    <p>Hi {user.full_name or user.email},</p>
+    <p>{body_text}</p>
+    """
+    html_body = _build_html_layout(headline, body, accent)
+    plain = f"{body_text}"
+    if link:
+        plain += f"\n\nView: {link}"
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject=subject,
+        html_body=html_body,
+        text_body=plain,
+        settings_obj=settings_obj,
+    )
+
+
 async def send_overdue_tasks_email(
     session: AsyncSession,
     user: User,

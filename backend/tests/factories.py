@@ -50,10 +50,16 @@ async def create_user(
         "week_starts_on": 0,
         "timezone": "UTC",
         "overdue_notification_time": "21:00",
-        "notify_initiative_addition": True,
-        "notify_task_assignment": True,
-        "notify_project_added": True,
-        "notify_overdue_tasks": True,
+        "email_initiative_addition": True,
+        "email_task_assignment": True,
+        "email_project_added": True,
+        "email_overdue_tasks": True,
+        "email_mentions": True,
+        "push_initiative_addition": True,
+        "push_task_assignment": True,
+        "push_project_added": True,
+        "push_overdue_tasks": True,
+        "push_mentions": True,
     }
 
     user_data = {**defaults, **overrides}
