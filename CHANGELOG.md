@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Task status editing no longer crashes with 500 error for custom roles
 - Task status management now uses project-level write access (DAC) instead of requiring initiative manager role
+- Guild admins can now see all guild members in the Users settings table (was only visible to platform admins)
 
 ## [0.25.4] - 2026-02-07
 
