@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Per-channel notification preferences: independent Email and Mobile App (push) toggles for each notification category
+- Email notifications for mentions, comments, and replies (previously only had push and in-app)
+- Mobile App column on notification preferences page (shown when FCM is enabled)
+
+### Changed
+
+- In-app bell notifications now always fire regardless of user preferences
+- Notification preferences page redesigned as a table with Email and Mobile App columns
+
+### Fixed
+
+- Mentions preference (`notify_mentions`) was missing from user update schemas, preventing it from being changed via API
+
 ## [0.25.5] - 2026-02-07
 
 ### Added
