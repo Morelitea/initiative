@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-02-08
+
 ### Added
 
 - Per-channel notification preferences: independent Email and Mobile App (push) toggles for each notification category
