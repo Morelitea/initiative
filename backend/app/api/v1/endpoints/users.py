@@ -10,6 +10,7 @@ from sqlmodel import select
 from app.api.deps import (
     RLSSessionDep,
     SessionDep,
+    UserSessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
@@ -96,14 +97,14 @@ def _normalize_week_starts_on(value: int | str | None) -> int | None:
 
 
 @router.get("/me", response_model=UserRead)
-async def read_users_me(session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+async def read_users_me(session: UserSessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
     await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
 
 
 @router.get("/me/stats", response_model=UserStatsResponse)
 async def get_user_stats(
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_id: Optional[int] = Query(default=None, description="Optional guild ID to filter stats"),
     days: int = Query(default=90, ge=1, le=365, description="Number of days to analyze"),
@@ -186,7 +187,7 @@ async def create_user(
 @router.patch("/me", response_model=UserRead)
 async def update_users_me(
     user_in: UserSelfUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
     update_data = user_in.dict(exclude_unset=True)
