@@ -187,6 +187,10 @@ def upgrade() -> None:
         $$
     """)
 
+    # Harden: revoke default public execute, grant only to app_user
+    op.execute("REVOKE EXECUTE ON FUNCTION is_initiative_member(int, int) FROM PUBLIC")
+    op.execute("GRANT EXECUTE ON FUNCTION is_initiative_member(int, int) TO app_user")
+
     # 2. Add RESTRICTIVE policies on tables with existing guild RLS
     for table in RESTRICTIVE_TABLES_DIRECT:
         _create_restrictive_policies(table)
