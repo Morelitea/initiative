@@ -14,10 +14,10 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from app.models.initiative import InitiativeMember, InitiativeRole
 from tests.factories import (
     create_guild,
     create_guild_membership,
+    create_initiative_member,
     create_user,
     get_guild_headers,
 )
@@ -44,25 +44,15 @@ async def test_list_initiatives_as_admin_shows_all(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that guild admin can see all initiatives."""
-    from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+    from tests.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
 
-    # Create multiple initiatives
-    initiative1 = Initiative(name="Initiative 1", guild_id=guild.id)
-    initiative2 = Initiative(name="Initiative 2", guild_id=guild.id)
-    session.add(initiative1)
-    session.add(initiative2)
-    await session.commit()
-    await session.refresh(initiative1)
-    await session.refresh(initiative2)
-
-    # Add admin as manager
-    session.add(InitiativeMember(initiative_id=initiative1.id, user_id=admin.id, role=InitiativeRole.project_manager))
-    session.add(InitiativeMember(initiative_id=initiative2.id, user_id=admin.id, role=InitiativeRole.project_manager))
-    await session.commit()
+    # Create multiple initiatives (factory creates builtin roles + PM membership)
+    await create_initiative(session, guild, admin, name="Initiative 1")
+    await create_initiative(session, guild, admin, name="Initiative 2")
 
     headers = get_guild_headers(guild, admin)
     response = await client.get("/api/v1/initiatives/", headers=headers)
@@ -99,12 +89,7 @@ async def test_list_initiatives_as_member_shows_only_membership(
     )
 
     # Add member to only initiative1
-    session.add(InitiativeMember(
-        initiative_id=initiative1.id,
-        user_id=member.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    await create_initiative_member(session, initiative1, member, role_name="member")
 
     headers = get_guild_headers(guild, member)
     response = await client.get("/api/v1/initiatives/", headers=headers)
@@ -281,12 +266,7 @@ async def test_update_initiative_as_regular_member_forbidden(
     initiative = await create_initiative(
         session, guild, admin, name="Test Initiative"
     )
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    await create_initiative_member(session, initiative, member, role_name="member")
 
     headers = get_guild_headers(guild, member)
     payload = {"name": "Hacked Name"}
@@ -407,17 +387,8 @@ async def test_get_initiative_members(client: AsyncClient, session: AsyncSession
     initiative = await create_initiative(
         session, guild, admin, name="Test Initiative"
     )
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member1.id,
-        role=InitiativeRole.member,
-    ))
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member2.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    await create_initiative_member(session, initiative, member1, role_name="member")
+    await create_initiative_member(session, initiative, member2, role_name="member")
 
     headers = get_guild_headers(guild, admin)
     response = await client.get(
@@ -483,12 +454,7 @@ async def test_add_initiative_member_as_regular_member_forbidden(
     initiative = await create_initiative(
         session, guild, admin, name="Test Initiative"
     )
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    await create_initiative_member(session, initiative, member, role_name="member")
 
     headers = get_guild_headers(guild, member)
     payload = {"user_id": new_member.id, "role": "member"}
@@ -541,15 +507,20 @@ async def test_update_initiative_member_role(
     initiative = await create_initiative(
         session, guild, admin, name="Test Initiative"
     )
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    await create_initiative_member(session, initiative, member, role_name="member")
+
+    # Look up the PM role ID for this initiative
+    from app.models.initiative import InitiativeRoleModel
+    from sqlmodel import select
+
+    pm_role_stmt = select(InitiativeRoleModel).where(
+        InitiativeRoleModel.initiative_id == initiative.id,
+        InitiativeRoleModel.name == "project_manager",
+    )
+    pm_role = (await session.exec(pm_role_stmt)).one()
 
     headers = get_guild_headers(guild, admin)
-    payload = {"role": "project_manager"}
+    payload = {"role_id": pm_role.id}
 
     response = await client.patch(
         f"/api/v1/initiatives/{initiative.id}/members/{member.id}",
@@ -577,11 +548,7 @@ async def test_remove_initiative_member(client: AsyncClient, session: AsyncSessi
     initiative = await create_initiative(
         session, guild, admin, name="Test Initiative"
     )
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member.id,
-        role=InitiativeRole.member,
-    ))
+    await create_initiative_member(session, initiative, member, role_name="member")
 
     headers = get_guild_headers(guild, admin)
     response = await client.delete(
@@ -633,8 +600,18 @@ async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSes
         session, guild, manager, name="Test Initiative"
     )
 
+    # Look up the member role ID for this initiative
+    from app.models.initiative import InitiativeRoleModel
+    from sqlmodel import select
+
+    member_role_stmt = select(InitiativeRoleModel).where(
+        InitiativeRoleModel.initiative_id == initiative.id,
+        InitiativeRoleModel.name == "member",
+    )
+    member_role = (await session.exec(member_role_stmt)).one()
+
     headers = get_guild_headers(guild, manager)
-    payload = {"role": "member"}
+    payload = {"role_id": member_role.id}
 
     response = await client.patch(
         f"/api/v1/initiatives/{initiative.id}/members/{manager.id}",

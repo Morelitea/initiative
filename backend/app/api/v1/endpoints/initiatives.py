@@ -52,6 +52,7 @@ async def _get_initiative_or_404(
     statement = (
         select(Initiative)
         .where(Initiative.id == initiative_id)
+        .execution_options(populate_existing=True)
         .options(
             selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.user),
@@ -212,11 +213,12 @@ async def create_initiative(
             initiative_id=initiative.id,
             user_id=current_user.id,
             role_id=pm_role.id,
+            guild_id=guild_id,
         )
     )
     await session.commit()
     await reapply_rls_context(session)
-    await session.refresh(initiative, attribute_names=["memberships"])
+    initiative = await _get_initiative_or_404(initiative.id, session, guild_id)
     return serialize_initiative(initiative)
 
 
@@ -245,8 +247,7 @@ async def update_initiative(
     session.add(initiative)
     await session.commit()
     await reapply_rls_context(session)
-    await session.refresh(initiative)
-    await session.refresh(initiative, attribute_names=["memberships"])
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     return serialize_initiative(initiative)
 
 
@@ -577,6 +578,7 @@ async def add_initiative_member(
             initiative_id=initiative_id,
             user_id=payload.user_id,
             role_id=role_id,
+            guild_id=initiative.guild_id,
         )
         session.add(membership)
         created = True

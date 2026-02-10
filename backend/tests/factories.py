@@ -13,8 +13,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import create_access_token, get_password_hash
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
-from app.models.project import Project
+from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.user import User, UserRole
+from app.services.initiatives import create_builtin_roles
 
 
 async def create_user(
@@ -259,17 +260,23 @@ async def create_initiative(
     session.add(initiative)
 
     if commit:
-        await session.commit()
-        await session.refresh(initiative)
+        await session.flush()
 
-        # Add creator as project manager
+        # Create built-in roles (PM + Member)
+        pm_role, _member_role = await create_builtin_roles(
+            session, initiative_id=initiative.id
+        )
+
+        # Add creator as project manager with proper role_id
         membership = InitiativeMember(
             initiative_id=initiative.id,
             user_id=creator.id,
-            role=InitiativeRole.project_manager,
+            role_id=pm_role.id,
+            guild_id=initiative.guild_id,
         )
         session.add(membership)
         await session.commit()
+        await session.refresh(initiative)
 
     return initiative
 
@@ -302,6 +309,7 @@ async def create_project(
         "description": "A test project",
         "initiative_id": initiative.id,
         "owner_id": owner.id,
+        "guild_id": initiative.guild_id,
     }
 
     project_data = {**defaults, **overrides}
@@ -312,4 +320,59 @@ async def create_project(
         await session.commit()
         await session.refresh(project)
 
+        # Create owner permission so the project is visible via DAC
+        owner_permission = ProjectPermission(
+            project_id=project.id,
+            user_id=owner.id,
+            level=ProjectPermissionLevel.owner,
+            guild_id=project.guild_id,
+        )
+        session.add(owner_permission)
+        await session.commit()
+
     return project
+
+
+async def create_initiative_member(
+    session: AsyncSession,
+    initiative: Initiative,
+    user: User,
+    role_name: str = "member",
+    commit: bool = True,
+) -> InitiativeMember:
+    """
+    Create an initiative member with proper role_id.
+
+    Args:
+        session: Database session
+        initiative: Initiative to add user to
+        user: User to add
+        role_name: Role name ("project_manager" or "member")
+        commit: Whether to commit the transaction
+
+    Returns:
+        Created InitiativeMember instance
+    """
+    from app.models.initiative import InitiativeRoleModel
+    from sqlmodel import select
+
+    # Find the matching role for this initiative
+    stmt = select(InitiativeRoleModel).where(
+        InitiativeRoleModel.initiative_id == initiative.id,
+        InitiativeRoleModel.name == role_name,
+    )
+    result = await session.exec(stmt)
+    role = result.one_or_none()
+
+    membership = InitiativeMember(
+        initiative_id=initiative.id,
+        user_id=user.id,
+        role_id=role.id if role else None,
+        guild_id=initiative.guild_id,
+    )
+    session.add(membership)
+
+    if commit:
+        await session.commit()
+
+    return membership

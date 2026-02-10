@@ -102,15 +102,21 @@ async def test_list_projects_member_sees_initiative_projects(
     initiative = await _create_initiative_with_member(session, guild, admin)
 
     # Add member to initiative
-    from app.models.initiative import InitiativeMember
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=member.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    from tests.factories import create_initiative_member
+    await create_initiative_member(session, initiative, member, role_name="member")
 
     project = await _create_project(session, initiative, admin)
+
+    # Give member read access to the project (pure DAC requires explicit permission)
+    from app.models.project import ProjectPermission, ProjectPermissionLevel
+    member_permission = ProjectPermission(
+        project_id=project.id,
+        user_id=member.id,
+        level=ProjectPermissionLevel.read,
+        guild_id=project.guild_id,
+    )
+    session.add(member_permission)
+    await session.commit()
 
     headers = get_guild_headers(guild, member)
     response = await client.get("/api/v1/projects/", headers=headers)
@@ -311,6 +317,17 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
     initiative = await _create_initiative_with_member(session, guild, owner)
     project = await _create_project(session, initiative, owner)
 
+    # Give admin write access to the project (pure DAC requires explicit permission)
+    from app.models.project import ProjectPermission, ProjectPermissionLevel
+    admin_permission = ProjectPermission(
+        project_id=project.id,
+        user_id=admin.id,
+        level=ProjectPermissionLevel.owner,
+        guild_id=project.guild_id,
+    )
+    session.add(admin_permission)
+    await session.commit()
+
     headers = get_guild_headers(guild, admin)
     payload = {"name": "Admin Updated"}
 
@@ -374,6 +391,17 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
 
     initiative = await _create_initiative_with_member(session, guild, owner)
     project = await _create_project(session, initiative, owner)
+
+    # Give admin owner access to the project (pure DAC requires explicit permission)
+    from app.models.project import ProjectPermission, ProjectPermissionLevel
+    admin_permission = ProjectPermission(
+        project_id=project.id,
+        user_id=admin.id,
+        level=ProjectPermissionLevel.owner,
+        guild_id=project.guild_id,
+    )
+    session.add(admin_permission)
+    await session.commit()
 
     headers = get_guild_headers(guild, admin)
     response = await client.delete(f"/api/v1/projects/{project.id}", headers=headers)
@@ -570,13 +598,8 @@ async def test_add_project_member(client: AsyncClient, session: AsyncSession):
     initiative = await _create_initiative_with_member(session, guild, owner)
 
     # Add new_member to initiative
-    from app.models.initiative import InitiativeMember
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=new_member.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    from tests.factories import create_initiative_member
+    await create_initiative_member(session, initiative, new_member, role_name="member")
 
     project = await _create_project(session, initiative, owner)
 

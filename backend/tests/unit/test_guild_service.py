@@ -256,7 +256,7 @@ async def test_create_guild_invite(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=creator.id,
+        created_by_user_id=creator.id,
         invitee_email="invitee@example.com",
         max_uses=1,
         expires_at=None,
@@ -268,7 +268,7 @@ async def test_create_guild_invite(session: AsyncSession):
     assert invite.invitee_email == "invitee@example.com"
     assert invite.max_uses == 1
     assert invite.uses == 0
-    assert len(invite.code) == 32  # 16 bytes as hex
+    assert len(invite.code) == 22  # 16 bytes as base64url
 
 
 @pytest.mark.unit
@@ -281,12 +281,12 @@ async def test_invite_code_is_unique(session: AsyncSession):
     invite1 = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=user.id,
+        created_by_user_id=user.id,
     )
     invite2 = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=user.id,
+        created_by_user_id=user.id,
     )
 
     assert invite1.code != invite2.code
@@ -302,7 +302,7 @@ async def test_invite_is_active_valid(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=user.id,
+        created_by_user_id=user.id,
         max_uses=5,
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
     )
@@ -320,7 +320,7 @@ async def test_invite_is_active_expired(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=user.id,
+        created_by_user_id=user.id,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),  # Expired
     )
 
@@ -337,7 +337,7 @@ async def test_invite_is_active_max_uses_exceeded(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=user.id,
+        created_by_user_id=user.id,
         max_uses=1,
     )
 
@@ -361,7 +361,7 @@ async def test_redeem_invite_for_user(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=creator.id,
+        created_by_user_id=creator.id,
         max_uses=5,
     )
 
@@ -401,7 +401,7 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=creator.id,
+        created_by_user_id=creator.id,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
 
@@ -423,7 +423,7 @@ async def test_delete_guild_invite(session: AsyncSession):
     invite = await guild_service.create_guild_invite(
         session,
         guild_id=guild.id,
-        creator_user_id=creator.id,
+        created_by_user_id=creator.id,
     )
 
     await guild_service.delete_guild_invite(
@@ -431,6 +431,7 @@ async def test_delete_guild_invite(session: AsyncSession):
         guild_id=guild.id,
         invite_id=invite.id,
     )
+    await session.flush()
 
     # Verify invite is deleted
     stmt = select(GuildInvite).where(GuildInvite.id == invite.id)

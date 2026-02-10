@@ -21,7 +21,8 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.db.session import get_session
+from app.core.rate_limit import limiter
+from app.db.session import get_admin_session, get_session
 from app.main import app
 
 # Use a separate test database (replace only the database name at the end)
@@ -97,6 +98,10 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield session
 
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_admin_session] = override_get_session
+
+    # Disable rate limiting in tests
+    limiter.enabled = False
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

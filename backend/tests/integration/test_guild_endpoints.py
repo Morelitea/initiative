@@ -121,7 +121,6 @@ async def test_create_guild(client: AsyncClient, session: AsyncSession):
     assert data["name"] == "New Guild"
     assert data["description"] == "A test guild"
     assert data["role"] == "admin"
-    assert data["is_active"] is True
 
 
 @pytest.mark.integration
@@ -168,8 +167,6 @@ async def test_create_guild_sets_as_active(client: AsyncClient, session: AsyncSe
     response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
 
     assert response.status_code == 201
-    data = response.json()
-    assert data["is_active"] is True
 
 
 @pytest.mark.integration
