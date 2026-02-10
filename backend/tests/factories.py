@@ -363,11 +363,16 @@ async def create_initiative_member(
     )
     result = await session.exec(stmt)
     role = result.one_or_none()
+    if role is None:
+        raise ValueError(
+            f"Role '{role_name}' not found for initiative {initiative.id}. "
+            "Ensure builtin roles exist (use create_initiative factory)."
+        )
 
     membership = InitiativeMember(
         initiative_id=initiative.id,
         user_id=user.id,
-        role_id=role.id if role else None,
+        role_id=role.id,
         guild_id=initiative.guild_id,
     )
     session.add(membership)
