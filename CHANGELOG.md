@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-02-10
+
 ### Added
 
 - Initiative-scoped Row-Level Security: users must be an initiative member to see its data (initiatives, projects, documents, roles). Guild admins and superadmins bypass this layer.
