@@ -124,6 +124,7 @@ async def ensure_default_initiative(session: AsyncSession, admin_user: User, *, 
             session,
             initiative_id=default_initiative.id,
             user_id=admin_user.id,
+            guild_id=guild_id,
         )
         await session.refresh(default_initiative, attribute_names=["memberships"])
         return default_initiative
@@ -192,6 +193,7 @@ async def _ensure_membership_as_pm(
     *,
     initiative_id: int,
     user_id: int,
+    guild_id: int,
 ) -> None:
     """Ensure user is a member with PM role."""
     pm_role = await get_pm_role(session, initiative_id=initiative_id)
@@ -216,6 +218,7 @@ async def _ensure_membership_as_pm(
             initiative_id=initiative_id,
             user_id=user_id,
             role_id=pm_role.id,
+            guild_id=guild_id,
         )
     )
     await session.flush()
