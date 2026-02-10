@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - My Stats page returning all zeros after RLS enforcement (endpoint now uses UserSessionDep for proper RLS context)
 - User profile and self-update endpoints returning empty initiative roles under RLS enforcement
+- Missing `guild_id` on initiative member records when creating initiatives or adding members, causing members to be invisible under RLS
+- Stale initiative data returned after create/update due to SQLAlchemy identity map caching
+- 64 pre-existing test failures caused by test infrastructure not keeping up with RLS, DAC, and role system changes
 
 ## [0.26.0] - 2026-02-08
 

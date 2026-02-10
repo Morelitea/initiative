@@ -17,7 +17,6 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from app.models.initiative import InitiativeRole
 from tests.factories import (
     create_guild,
     create_guild_membership,
@@ -304,13 +303,8 @@ async def test_assign_user_to_task(client: AsyncClient, session: AsyncSession):
     initiative = await _create_initiative(session, guild, user)
 
     # Add assignee to initiative
-    from app.models.initiative import InitiativeMember
-    session.add(InitiativeMember(
-        initiative_id=initiative.id,
-        user_id=assignee.id,
-        role=InitiativeRole.member,
-    ))
-    await session.commit()
+    from tests.factories import create_initiative_member
+    await create_initiative_member(session, initiative, assignee, role_name="member")
 
     project = await _create_project(session, initiative, user)
     task = await _create_task(session, project)
@@ -560,7 +554,7 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
     await session.commit()
 
     headers = get_guild_headers(guild, user)
-    response = await client.get("/api/v1/tasks/?assignee_id=me", headers=headers)
+    response = await client.get("/api/v1/tasks/?assignee_ids=me", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -601,7 +595,7 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
 
     headers = get_guild_headers(guild, user)
     response = await client.get(
-        f"/api/v1/tasks/?project_id={project.id}&task_status_id={todo_status.id}",
+        f"/api/v1/tasks/?project_id={project.id}&task_status_ids={todo_status.id}",
         headers=headers,
     )
 
