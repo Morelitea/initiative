@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- My Stats page returning all zeros after RLS enforcement (endpoint now uses UserSessionDep for proper RLS context)
+- User profile and self-update endpoints returning empty initiative roles under RLS enforcement
+
 ## [0.26.0] - 2026-02-08
 
 ### Added

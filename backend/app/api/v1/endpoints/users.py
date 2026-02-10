@@ -97,7 +97,7 @@ def _normalize_week_starts_on(value: int | str | None) -> int | None:
 
 
 @router.get("/me", response_model=UserRead)
-async def read_users_me(session: SessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+async def read_users_me(session: UserSessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
     await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
 
@@ -187,7 +187,7 @@ async def create_user(
 @router.patch("/me", response_model=UserRead)
 async def update_users_me(
     user_in: UserSelfUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
     update_data = user_in.dict(exclude_unset=True)
