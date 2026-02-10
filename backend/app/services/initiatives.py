@@ -150,6 +150,7 @@ async def ensure_default_initiative(session: AsyncSession, admin_user: User, *, 
             initiative_id=default_initiative.id,
             user_id=admin_user.id,
             role_id=pm_role.id,
+            guild_id=guild_id,
         )
     )
     await session.flush()
