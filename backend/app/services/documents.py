@@ -12,7 +12,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
-from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, ProjectDocument
+from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRole, InitiativeRoleModel
 from app.models.tag import DocumentTag
 from app.models.project import Project
@@ -82,6 +82,7 @@ async def get_document(
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
+            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
         )
     )
@@ -416,12 +417,20 @@ async def get_backlinks(
 
     Only returns documents the user has permission to access.
     """
-    # Subquery: documents where user has explicit permission
-    has_permission_subq = (
+    # Subquery: documents where user has explicit or role-based permission
+    user_perm_subq = (
         select(DocumentPermission.document_id)
         .where(DocumentPermission.user_id == user_id)
-        .scalar_subquery()
     )
+    role_perm_subq = (
+        select(DocumentRolePermission.document_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == user_id),
+        )
+    )
+    has_permission_subq = user_perm_subq.union(role_perm_subq).scalar_subquery()
 
     stmt = (
         select(Document)

@@ -14,7 +14,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.db.session import reapply_rls_context
-from app.models.project import Project, ProjectPermission
+from app.models.project import Project, ProjectPermission, ProjectPermissionLevel, ProjectRolePermission
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
 from app.models.tag import Tag, TaskTag
@@ -358,6 +358,29 @@ async def _advance_recurrence_if_needed(
     return True
 
 
+def _role_permission_level(project: Project, user_id: int) -> ProjectPermissionLevel | None:
+    """Get the highest role-based permission level for a user on a project."""
+    role_permissions = getattr(project, "role_permissions", None)
+    if not role_permissions:
+        return None
+    initiative = getattr(project, "initiative", None)
+    if not initiative:
+        return None
+    memberships = getattr(initiative, "memberships", None)
+    if not memberships:
+        return None
+    user_role_ids = {m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None}
+    if not user_role_ids:
+        return None
+    level_order = {ProjectPermissionLevel.read: 0, ProjectPermissionLevel.write: 1, ProjectPermissionLevel.owner: 2}
+    best: ProjectPermissionLevel | None = None
+    for rp in role_permissions:
+        if rp.initiative_role_id in user_role_ids:
+            if best is None or level_order.get(rp.level, 0) > level_order.get(best, 0):
+                best = rp.level
+    return best
+
+
 async def _get_project_with_access(
     session: SessionDep,
     project_id: int,
@@ -366,11 +389,11 @@ async def _get_project_with_access(
     guild_id: int,
     access: str = "read",
 ) -> Project:
-    """Get project with pure DAC permission check.
+    """Get project with DAC permission check.
 
     Tasks inherit access from their project's permission levels:
-    - read: any permission level (owner, write, read)
-    - write: owner or write permission level
+    - read: any permission level (owner, write, read) — user or role-based
+    - write: owner or write permission level — user or role-based
     """
     project_stmt = (
         select(Project)
@@ -381,6 +404,7 @@ async def _get_project_with_access(
         )
         .options(
             selectinload(Project.permissions),
+            selectinload(Project.role_permissions),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.user),
@@ -393,7 +417,7 @@ async def _get_project_with_access(
     if project.is_archived and access == "write":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
 
-    # Pure DAC: check explicit project permission
+    # Check explicit project permission
     permission = _permission_from_project(project, user.id)
     if not permission:
         stmt = select(ProjectPermission).where(
@@ -405,15 +429,24 @@ async def _get_project_with_access(
         if permission:
             project.permissions.append(permission)
 
-    if not permission:
+    user_level = permission.level if permission else None
+    role_level = _role_permission_level(project, user.id)
+
+    # Effective level = MAX(user, role)
+    level_order = {ProjectPermissionLevel.read: 0, ProjectPermissionLevel.write: 1, ProjectPermissionLevel.owner: 2}
+    effective = user_level
+    if role_level is not None:
+        if effective is None or level_order.get(role_level, 0) > level_order.get(effective, 0):
+            effective = role_level
+
+    if effective is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No permission for this project")
 
     if access == "read":
-        # Any permission level grants read access
         return project
 
     # Write access requires owner or write permission level
-    if permission.level not in ("owner", "write"):
+    if effective not in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for this project")
 
     return project
@@ -441,12 +474,12 @@ async def _allowed_project_ids(
     user: User,
     guild_id: int,
 ) -> Optional[set[int]]:
-    """Get project IDs where user has explicit permission (pure DAC).
+    """Get project IDs where user has explicit or role-based permission.
 
     Returns set of project IDs where user has any permission level.
     """
-    # Pure DAC: only return projects with explicit permission
-    permission_ids_result = await session.exec(
+    # User-specific permissions
+    user_perm_subq = (
         select(ProjectPermission.project_id)
         .join(Project)
         .join(Project.initiative)
@@ -457,7 +490,25 @@ async def _allowed_project_ids(
             Project.is_template == False,  # noqa: E712
         )
     )
-    return {row for row in permission_ids_result.all() if row is not None}
+    # Role-based permissions
+    role_perm_subq = (
+        select(ProjectRolePermission.project_id)
+        .join(Project, Project.id == ProjectRolePermission.project_id)
+        .join(Project.initiative)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == user.id),
+        )
+        .where(
+            Initiative.guild_id == guild_id,
+            Project.is_archived == False,  # noqa: E712
+            Project.is_template == False,  # noqa: E712
+        )
+    )
+    combined = user_perm_subq.union(role_perm_subq)
+    permission_ids_result = await session.execute(combined)
+    return {row[0] for row in permission_ids_result.all() if row[0] is not None}
 
 
 async def _list_global_tasks(

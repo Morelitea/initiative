@@ -71,6 +71,22 @@ export interface DocumentPermission {
   created_at: string;
 }
 
+export interface ProjectRolePermission {
+  initiative_role_id: number;
+  role_name: string;
+  role_display_name: string;
+  level: "read" | "write";
+  created_at: string;
+}
+
+export interface DocumentRolePermission {
+  initiative_role_id: number;
+  role_name: string;
+  role_display_name: string;
+  level: "read" | "write";
+  created_at: string;
+}
+
 export interface Initiative {
   id: number;
   name: string;
@@ -163,6 +179,8 @@ export interface DocumentSummary {
   projects: DocumentProjectLink[];
   comment_count?: number;
   permissions?: DocumentPermission[];
+  role_permissions?: DocumentRolePermission[];
+  my_permission_level?: "owner" | "write" | "read" | null;
   tags?: TagSummary[];
   // File document fields
   document_type?: DocumentType;
@@ -249,6 +267,8 @@ export interface Project {
   owner?: UserPublic;
   initiative?: Initiative | null;
   permissions: ProjectPermission[];
+  role_permissions?: ProjectRolePermission[];
+  my_permission_level?: "owner" | "write" | "read" | null;
   sort_order?: number | null;
   is_favorited?: boolean;
   last_viewed_at?: string | null;

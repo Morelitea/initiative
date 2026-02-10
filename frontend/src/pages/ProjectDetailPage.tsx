@@ -157,9 +157,9 @@ export const ProjectDetailPage = () => {
     (member) => member.user.id === user?.id
   );
   const isInitiativePm = initiativeMembership?.role === "project_manager";
-  const userPermission = project?.permissions?.find((p) => p.user_id === user?.id);
+  const myLevel = project?.my_permission_level;
   // Pure DAC: write access requires owner or write permission level
-  const hasWritePermission = userPermission?.level === "owner" || userPermission?.level === "write";
+  const hasWritePermission = myLevel === "owner" || myLevel === "write";
 
   // Pure DAC: settings/write access based on permission level
   const canManageSettings = hasWritePermission;
@@ -168,7 +168,7 @@ export const ProjectDetailPage = () => {
   const canCreateDocuments = user?.role === "admin" || isInitiativePm;
   const canAttachDocuments = canWriteProject;
   // Pure DAC: any permission grants view access
-  const canViewTaskDetails = Boolean(project && userPermission);
+  const canViewTaskDetails = Boolean(project && myLevel);
   const projectIsArchived = project.is_archived ?? false;
   const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 

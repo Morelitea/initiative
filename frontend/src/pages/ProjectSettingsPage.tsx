@@ -36,9 +36,16 @@ import { Input } from "@/components/ui/input";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
-import { Project, Initiative, ProjectPermissionLevel, TagSummary } from "@/types/api";
+import {
+  Project,
+  Initiative,
+  ProjectPermissionLevel,
+  ProjectRolePermission,
+  TagSummary,
+} from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
@@ -81,6 +88,10 @@ export const ProjectSettingsPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
   const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
+  const [roleAccessMessage, setRoleAccessMessage] = useState<string | null>(null);
+  const [roleAccessError, setRoleAccessError] = useState<string | null>(null);
+  const [selectedNewRoleId, setSelectedNewRoleId] = useState<string>("");
+  const [selectedNewRoleLevel, setSelectedNewRoleLevel] = useState<"read" | "write">("read");
 
   const setProjectTagsMutation = useSetProjectTags();
 
@@ -111,6 +122,8 @@ export const ProjectSettingsPage = () => {
       setProjectTags(projectQuery.data.tags ?? []);
       setAccessMessage(null);
       setAccessError(null);
+      setRoleAccessMessage(null);
+      setRoleAccessError(null);
       setInitiativeMessage(null);
       setIdentityMessage(null);
       setDescriptionMessage(null);
@@ -381,6 +394,133 @@ export const ProjectSettingsPage = () => {
   });
 
   const project = projectQuery.data;
+
+  const initiativeRolesQuery = useInitiativeRoles(project?.initiative_id ?? null);
+
+  const addRolePermission = useMutation({
+    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
+      await apiClient.post(`/projects/${parsedProjectId}/role-permissions`, {
+        initiative_role_id: roleId,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setRoleAccessMessage("Role access granted");
+      setRoleAccessError(null);
+      setSelectedNewRoleId("");
+      setSelectedNewRoleLevel("read");
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => {
+      setRoleAccessMessage(null);
+      setRoleAccessError("Unable to grant role access");
+    },
+  });
+
+  const updateRolePermission = useMutation({
+    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
+      await apiClient.patch(`/projects/${parsedProjectId}/role-permissions/${roleId}`, {
+        level,
+      });
+    },
+    onSuccess: () => {
+      setRoleAccessMessage("Role access updated");
+      setRoleAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => {
+      setRoleAccessMessage(null);
+      setRoleAccessError("Unable to update role access");
+    },
+  });
+
+  const removeRolePermission = useMutation({
+    mutationFn: async (roleId: number) => {
+      await apiClient.delete(`/projects/${parsedProjectId}/role-permissions/${roleId}`);
+    },
+    onSuccess: () => {
+      setRoleAccessMessage("Role access removed");
+      setRoleAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => {
+      setRoleAccessMessage(null);
+      setRoleAccessError("Unable to remove role access");
+    },
+  });
+
+  // Initiative roles not yet assigned to this project
+  const availableRoles = useMemo(
+    () =>
+      (initiativeRolesQuery.data ?? []).filter(
+        (role) => !(project?.role_permissions ?? []).some((rp) => rp.initiative_role_id === role.id)
+      ),
+    [initiativeRolesQuery.data, project?.role_permissions]
+  );
+
+  // Column definitions for role permissions table
+  const rolePermissionColumns: ColumnDef<ProjectRolePermission>[] = useMemo(
+    () => [
+      {
+        accessorKey: "role_display_name",
+        header: "Role Name",
+        cell: ({ row }) => <span className="font-medium">{row.original.role_display_name}</span>,
+      },
+      {
+        accessorKey: "level",
+        header: "Access Level",
+        cell: ({ row }) => (
+          <Select
+            value={row.original.level}
+            onValueChange={(value) => {
+              setRoleAccessMessage(null);
+              setRoleAccessError(null);
+              updateRolePermission.mutate({
+                roleId: row.original.initiative_role_id,
+                level: value as "read" | "write",
+              });
+            }}
+            disabled={updateRolePermission.isPending}
+          >
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="read">Can view</SelectItem>
+              <SelectItem value="write">Can edit</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => {
+                setRoleAccessMessage(null);
+                setRoleAccessError(null);
+                removeRolePermission.mutate(row.original.initiative_role_id);
+              }}
+              disabled={removeRolePermission.isPending}
+            >
+              Remove
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [updateRolePermission, removeRolePermission]
+  );
+
   const initiativeMembers = useMemo(
     () => project?.initiative?.members ?? [],
     [project?.initiative?.members]
@@ -520,9 +660,9 @@ export const ProjectSettingsPage = () => {
   }
 
   const isOwner = project.owner_id === user?.id;
-  const userPermission = project.permissions.find((p) => p.user_id === user?.id);
+  const myLevel = project.my_permission_level;
   // Pure DAC: write access requires owner or write permission level
-  const hasWriteAccess = userPermission?.level === "owner" || userPermission?.level === "write";
+  const hasWriteAccess = myLevel === "owner" || myLevel === "write";
   // Pure DAC: write permission grants access to manage settings
   const canManageTaskStatuses = hasWriteAccess;
   const canManageAccess = hasWriteAccess;
@@ -753,6 +893,91 @@ export const ProjectSettingsPage = () => {
                 </div>
               </form>
             )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canManageAccess ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Role access</CardTitle>
+            <CardDescription>
+              Grant access to all members with a specific initiative role.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(project.role_permissions ?? []).length > 0 ? (
+              <DataTable
+                columns={rolePermissionColumns}
+                data={project.role_permissions ?? []}
+                getRowId={(row) => String(row.initiative_role_id)}
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No roles have been granted access to this project yet.
+              </p>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <Label>Add role</Label>
+              {initiativeRolesQuery.isLoading ? (
+                <p className="text-muted-foreground text-sm">Loading roles...</p>
+              ) : availableRoles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  All initiative roles already have access to this project.
+                </p>
+              ) : (
+                <form
+                  className="flex flex-wrap items-end gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!selectedNewRoleId) {
+                      setRoleAccessError("Select a role");
+                      return;
+                    }
+                    setRoleAccessError(null);
+                    addRolePermission.mutate({
+                      roleId: Number(selectedNewRoleId),
+                      level: selectedNewRoleLevel,
+                    });
+                  }}
+                >
+                  <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
+                    <SelectTrigger className="min-w-[200px]">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role.id} value={String(role.id)}>
+                          {role.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={selectedNewRoleLevel}
+                    onValueChange={(value) => setSelectedNewRoleLevel(value as "read" | "write")}
+                  >
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="read">Can view</SelectItem>
+                      <SelectItem value="write">Can edit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="submit" disabled={addRolePermission.isPending}>
+                    {addRolePermission.isPending ? "Adding..." : "Add"}
+                  </Button>
+                </form>
+              )}
+              {roleAccessMessage ? (
+                <p className="text-primary text-sm">{roleAccessMessage}</p>
+              ) : null}
+              {roleAccessError ? (
+                <p className="text-destructive text-sm">{roleAccessError}</p>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       ) : null}

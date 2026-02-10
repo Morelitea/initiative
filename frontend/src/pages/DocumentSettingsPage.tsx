@@ -39,6 +39,7 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuildPath } from "@/lib/guildUrl";
+import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type { DocumentRead, DocumentPermissionLevel, Initiative, TagSummary } from "@/types/api";
 import { TagPicker } from "@/components/tags";
@@ -79,6 +80,8 @@ export const DocumentSettingsPage = () => {
   const [selectedNewLevel, setSelectedNewLevel] = useState<DocumentPermissionLevel>("read");
   const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
   const [documentTags, setDocumentTags] = useState<TagSummary[]>([]);
+  const [selectedNewRoleId, setSelectedNewRoleId] = useState<string>("");
+  const [selectedNewRoleLevel, setSelectedNewRoleLevel] = useState<"read" | "write">("read");
 
   const setDocumentTagsMutation = useSetDocumentTags();
 
@@ -92,6 +95,8 @@ export const DocumentSettingsPage = () => {
   });
 
   const document = documentQuery.data;
+
+  const rolesQuery = useInitiativeRoles(document?.initiative_id ?? null);
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: ["initiatives"],
@@ -107,8 +112,8 @@ export const DocumentSettingsPage = () => {
     if (!document || !user) {
       return false;
     }
-    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-    return permission?.level === "owner" || permission?.level === "write";
+    const myLevel = document.my_permission_level;
+    return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
 
   // Pure DAC: only owners can delete/duplicate documents
@@ -116,8 +121,7 @@ export const DocumentSettingsPage = () => {
     if (!document || !user) {
       return false;
     }
-    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-    return permission?.level === "owner";
+    return document.my_permission_level === "owner";
   }, [document, user]);
 
   // Pure DAC: check if user has write access
@@ -125,8 +129,8 @@ export const DocumentSettingsPage = () => {
     if (!document || !user) {
       return false;
     }
-    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-    return permission?.level === "owner" || permission?.level === "write";
+    const myLevel = document.my_permission_level;
+    return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
 
   const manageableInitiatives = useMemo(() => {
@@ -417,6 +421,62 @@ export const DocumentSettingsPage = () => {
     },
   });
 
+  // Role permission mutations
+  const addRolePermission = useMutation({
+    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
+      await apiClient.post(`/documents/${parsedId}/role-permissions`, {
+        initiative_role_id: roleId,
+        level,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Role access granted");
+      setSelectedNewRoleId("");
+      setSelectedNewRoleLevel("read");
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      toast.error("Unable to grant role access");
+    },
+  });
+
+  const updateRolePermission = useMutation({
+    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
+      await apiClient.patch(`/documents/${parsedId}/role-permissions/${roleId}`, {
+        level,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Role access updated");
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      toast.error("Unable to update role access");
+    },
+  });
+
+  const removeRolePermission = useMutation({
+    mutationFn: async (roleId: number) => {
+      await apiClient.delete(`/documents/${parsedId}/role-permissions/${roleId}`);
+    },
+    onSuccess: () => {
+      toast.success("Role access removed");
+      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+    },
+    onError: () => {
+      toast.error("Unable to remove role access");
+    },
+  });
+
+  // Roles not yet assigned to the document
+  const availableRoles = useMemo(() => {
+    const roles = rolesQuery.data ?? [];
+    const assignedRoleIds = new Set(
+      (document?.role_permissions ?? []).map((rp) => rp.initiative_role_id)
+    );
+    return roles.filter((role) => !assignedRoleIds.has(role.id));
+  }, [rolesQuery.data, document?.role_permissions]);
+
   const handleTemplateToggle = (value: boolean) => {
     if (!document) {
       return;
@@ -617,6 +677,127 @@ export const DocumentSettingsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {canManageDocument ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Role access</CardTitle>
+            <CardDescription>
+              Grant access to all members with a specific initiative role.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(document.role_permissions ?? []).length > 0 ? (
+              <div className="rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="px-4 py-2 text-left font-medium">Role Name</th>
+                      <th className="px-4 py-2 text-left font-medium">Access Level</th>
+                      <th className="px-4 py-2 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(document.role_permissions ?? []).map((rp) => (
+                      <tr key={rp.initiative_role_id} className="border-b last:border-b-0">
+                        <td className="px-4 py-2 font-medium">{rp.role_display_name}</td>
+                        <td className="px-4 py-2">
+                          <Select
+                            value={rp.level}
+                            onValueChange={(value) => {
+                              updateRolePermission.mutate({
+                                roleId: rp.initiative_role_id,
+                                level: value as "read" | "write",
+                              });
+                            }}
+                            disabled={updateRolePermission.isPending}
+                          >
+                            <SelectTrigger className="w-[130px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="read">Can view</SelectItem>
+                              <SelectItem value="write">Can edit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={() => removeRolePermission.mutate(rp.initiative_role_id)}
+                            disabled={removeRolePermission.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No roles have been granted access to this document yet.
+              </p>
+            )}
+
+            {/* Add role form */}
+            <div className="space-y-2 pt-2">
+              <Label>Add role</Label>
+              {availableRoles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  All initiative roles have been assigned.
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-end gap-3">
+                  <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
+                    <SelectTrigger className="min-w-[200px]">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role.id} value={String(role.id)}>
+                          {role.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={selectedNewRoleLevel}
+                    onValueChange={(value) => setSelectedNewRoleLevel(value as "read" | "write")}
+                  >
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="read">Can view</SelectItem>
+                      <SelectItem value="write">Can edit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedNewRoleId) {
+                        return;
+                      }
+                      addRolePermission.mutate({
+                        roleId: Number(selectedNewRoleId),
+                        level: selectedNewRoleLevel,
+                      });
+                    }}
+                    disabled={!selectedNewRoleId || addRolePermission.isPending}
+                  >
+                    {addRolePermission.isPending ? "Adding..." : "Add"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canManageDocument ? (
         <Card>

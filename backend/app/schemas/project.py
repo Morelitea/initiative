@@ -37,6 +37,26 @@ class ProjectDuplicateRequest(BaseModel):
     name: Optional[str] = None
 
 
+class ProjectRolePermissionCreate(BaseModel):
+    initiative_role_id: int
+    level: ProjectPermissionLevel = ProjectPermissionLevel.read
+
+
+class ProjectRolePermissionUpdate(BaseModel):
+    level: ProjectPermissionLevel
+
+
+class ProjectRolePermissionRead(BaseModel):
+    initiative_role_id: int
+    role_name: str = ""
+    role_display_name: str = ""
+    level: ProjectPermissionLevel
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class ProjectPermissionBase(BaseModel):
     user_id: int
     level: ProjectPermissionLevel = ProjectPermissionLevel.write
@@ -84,12 +104,14 @@ class ProjectRead(ProjectBase):
     owner: Optional[UserPublic] = None
     initiative: Optional[InitiativeRead] = None
     permissions: List[ProjectPermissionRead] = Field(default_factory=list)
+    role_permissions: List[ProjectRolePermissionRead] = Field(default_factory=list)
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
     documents: List[ProjectDocumentSummary] = Field(default_factory=list)
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
     tags: List[TagSummary] = Field(default_factory=list)
+    my_permission_level: Optional[str] = None
 
     class Config:
         from_attributes = True

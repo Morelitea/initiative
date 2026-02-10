@@ -90,7 +90,7 @@ export const TaskEditPage = () => {
   const { taskId } = useParams({ strict: false }) as { taskId: string };
   const parsedTaskId = Number(taskId);
   const router = useRouter();
-  const { user } = useAuth();
+  useAuth();
   const { activeGuild } = useGuilds();
   const gp = useGuildPath();
   const { data: roleLabels } = useRoleLabels();
@@ -370,8 +370,8 @@ export const TaskEditPage = () => {
 
   const task = taskQuery.data;
   // Pure DAC: permissions inherited from project
-  const userPermission = project?.permissions?.find((p) => p.user_id === user?.id);
-  const hasWritePermission = userPermission?.level === "owner" || userPermission?.level === "write";
+  const myLevel = project?.my_permission_level;
+  const hasWritePermission = myLevel === "owner" || myLevel === "write";
   const canWriteProject = hasWritePermission;
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;

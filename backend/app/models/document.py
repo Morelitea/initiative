@@ -2,12 +2,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, LargeBinary, String, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.initiative import Initiative
+    from app.models.initiative import Initiative, InitiativeRoleModel
     from app.models.project import Project
     from app.models.tag import DocumentTag
 
@@ -98,6 +98,10 @@ class Document(SQLModel, table=True):
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    role_permissions: List["DocumentRolePermission"] = Relationship(
+        back_populates="document",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class ProjectDocument(SQLModel, table=True):
@@ -145,6 +149,38 @@ class DocumentPermission(SQLModel, table=True):
     )
 
     document: Optional[Document] = Relationship(back_populates="permissions")
+
+
+class DocumentRolePermission(SQLModel, table=True):
+    __tablename__ = "document_role_permissions"
+
+    document_id: int = Field(foreign_key="documents.id", primary_key=True)
+    initiative_role_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("initiative_roles.id", ondelete="CASCADE"),
+            primary_key=True,
+        )
+    )
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    level: DocumentPermissionLevel = Field(
+        default=DocumentPermissionLevel.read,
+        sa_column=Column(
+            SQLEnum(
+                DocumentPermissionLevel,
+                name="document_permission_level",
+                create_type=False,
+            ),
+            nullable=False,
+        ),
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    document: Optional[Document] = Relationship(back_populates="role_permissions")
+    role: Optional["InitiativeRoleModel"] = Relationship()
 
 
 class DocumentLink(SQLModel, table=True):
