@@ -10,6 +10,7 @@ from sqlmodel import select
 from app.api.deps import (
     RLSSessionDep,
     SessionDep,
+    UserSessionDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
@@ -103,7 +104,7 @@ async def read_users_me(session: SessionDep, current_user: Annotated[User, Depen
 
 @router.get("/me/stats", response_model=UserStatsResponse)
 async def get_user_stats(
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_id: Optional[int] = Query(default=None, description="Optional guild ID to filter stats"),
     days: int = Query(default=90, ge=1, le=365, description="Number of days to analyze"),
