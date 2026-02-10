@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Initiative-scoped Row-Level Security: users must be an initiative member to see its data (initiatives, projects, documents, roles). Guild admins and superadmins bypass this layer.
+
 ### Fixed
 
 - My Stats page returning all zeros after RLS enforcement (endpoint now uses UserSessionDep for proper RLS context)
