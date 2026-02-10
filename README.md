@@ -351,7 +351,7 @@ See `backend/.env.example` for a complete list of configuration options.
 
 ## Documentation & Resources
 
-- **Development Guidelines**: [AGENTS.md](AGENTS.md) - Repository workflow, issue tracking with bd (beads), coding standards
+- **Development Guidelines**: [AGENTS.md](AGENTS.md) - Repository workflow, coding standards
 - **Docker Images**: [morelitea/initiative on Docker Hub](https://hub.docker.com/r/morelitea/initiative)
 - **API Documentation**: Available at `/api/v1/docs` when running (interactive Swagger UI)
 - **Version Management**: Uses semantic versioning with `VERSION` file as single source of truth
@@ -362,19 +362,6 @@ See `backend/.env.example` for a complete list of configuration options.
 
 By contributing to this project, you agree to the terms of the
 [Contributor License Agreement](./CLA.md).
-
-This project uses **bd (beads)** for issue tracking:
-
-```bash
-# Check for available issues
-bd ready --json
-
-# Claim and start work
-bd update <issue-id> --status in_progress
-
-# Close when complete
-bd close <issue-id> --reason "Completed"
-```
 
 Development workflow:
 
