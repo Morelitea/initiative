@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Role-based access control for projects and documents: grant read or write access to an entire initiative role instead of adding users individually
+- Role Access section in project and document settings pages for managing role-based permissions
+- `my_permission_level` field in project and document API responses indicating the current user's effective access level
+
 ## [0.27.0] - 2026-02-10
 
 ### Added
