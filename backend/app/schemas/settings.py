@@ -70,3 +70,45 @@ class EmailSettingsUpdate(BaseModel):
 
 class EmailTestRequest(BaseModel):
     recipient: Optional[EmailStr] = None
+
+
+# --- OIDC Claim Mapping schemas ---
+
+class OIDCClaimMappingCreate(BaseModel):
+    claim_value: str = Field(min_length=1, max_length=500)
+    target_type: str  # "guild" or "initiative"
+    guild_id: int
+    guild_role: str = "member"
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+class OIDCClaimMappingUpdate(BaseModel):
+    claim_value: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    target_type: Optional[str] = None
+    guild_id: Optional[int] = None
+    guild_role: Optional[str] = None
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+
+
+class OIDCClaimMappingRead(BaseModel):
+    id: int
+    claim_value: str
+    target_type: str
+    guild_id: int
+    guild_role: str
+    initiative_id: Optional[int] = None
+    initiative_role_id: Optional[int] = None
+    guild_name: Optional[str] = None
+    initiative_name: Optional[str] = None
+    initiative_role_name: Optional[str] = None
+
+
+class OIDCClaimPathUpdate(BaseModel):
+    claim_path: Optional[str] = Field(default=None, max_length=500)
+
+
+class OIDCMappingsResponse(BaseModel):
+    claim_path: Optional[str] = None
+    mappings: List[OIDCClaimMappingRead] = Field(default_factory=list)

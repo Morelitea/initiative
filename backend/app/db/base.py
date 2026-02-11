@@ -12,6 +12,7 @@ from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.comment import Comment
 from app.models.document import Document, DocumentRolePermission
 from app.models.notification import Notification
+from app.models.oidc_claim_mapping import OIDCClaimMapping
 
 __all__ = [
     "User",
@@ -35,4 +36,5 @@ __all__ = [
     "DocumentRolePermission",
     "ProjectRolePermission",
     "Notification",
+    "OIDCClaimMapping",
 ]
