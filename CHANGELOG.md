@@ -12,16 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Server-side pagination for tasks: `GET /tasks/` now accepts `page`, `page_size`, `sort_by`, and `sort_dir` query params, returning paginated results with total count (`page_size=0` returns all for drag-and-drop views)
-- Server-side sorting for tasks with support for title, due date, start date, priority, created/updated timestamps, and manual sort order
-- Pagination and server-side sorting controls on My Tasks page and tag tasks table, with page synced to URL and hover prefetching
+  - Server-side sorting for tasks with support for title, due date, start date, priority, created/updated timestamps, and manual sort order
+  - Pagination and server-side sorting controls on My Tasks page and tag tasks table, with page synced to URL and hover prefetching
 - Server-side pagination and sorting for documents: `GET /documents/` now accepts `page`, `page_size`, `sort_by`, and `sort_dir` query params, returning paginated and sorted results with total count
-- `GET /documents/counts` lightweight endpoint returning per-tag document counts for the tag tree sidebar
-- Pagination controls (prev/next, page size selector, page in URL) for all three document views (list, grid, tags)
-- Data prefetching on hover over pagination buttons for instant page transitions
+  - `GET /documents/counts` lightweight endpoint returning per-tag document counts for the tag tree sidebar
+  - Pagination controls (prev/next, page size selector, page in URL) for all three document views (list, grid, tags)
+  - Data prefetching on hover over pagination buttons for instant page transitions
 - Role-based access control for projects and documents: grant read or write access to an entire initiative role instead of adding users individually
-- Role Access section in project and document settings pages for managing role-based permissions
-- Bulk role access management: grant or revoke role-based permissions across multiple selected documents at once
-- `my_permission_level` field in project and document API responses indicating the current user's effective access level
+  - Role Access section in project and document settings pages for managing role-based permissions
+  - Bulk role access management: grant or revoke role-based permissions across multiple selected documents at once
+  - `my_permission_level` field in project and document API responses indicating the current user's effective access level
 - Persistent storage abstraction (`storage.ts`) backed by Capacitor Preferences on mobile and localStorage on web, preventing data loss when mobile OS clears localStorage under memory pressure
 
 ### Changed
