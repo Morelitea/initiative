@@ -50,6 +50,26 @@ class DocumentCopyRequest(BaseModel):
     title: Optional[str] = None
 
 
+class DocumentRolePermissionCreate(BaseModel):
+    initiative_role_id: int
+    level: DocumentPermissionLevel = DocumentPermissionLevel.read
+
+
+class DocumentRolePermissionUpdate(BaseModel):
+    level: DocumentPermissionLevel
+
+
+class DocumentRolePermissionRead(BaseModel):
+    initiative_role_id: int
+    role_name: str = ""
+    role_display_name: str = ""
+    level: DocumentPermissionLevel
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class DocumentPermissionCreate(BaseModel):
     user_id: int
     level: DocumentPermissionLevel = DocumentPermissionLevel.write
@@ -107,6 +127,7 @@ class DocumentSummary(DocumentBase):
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
     permissions: List[DocumentPermissionRead] = Field(default_factory=list)
+    role_permissions: List[DocumentRolePermissionRead] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
     # File document fields
     document_type: DocumentTypeStr = "native"
@@ -114,6 +135,7 @@ class DocumentSummary(DocumentBase):
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
+    my_permission_level: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -158,6 +180,24 @@ def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]
     ]
 
 
+def _serialize_role_permissions(document: "Document") -> List[DocumentRolePermissionRead]:
+    """Serialize all document role permissions."""
+    role_permissions = getattr(document, "role_permissions", None) or []
+    result: List[DocumentRolePermissionRead] = []
+    for rp in role_permissions:
+        role = getattr(rp, "role", None)
+        result.append(
+            DocumentRolePermissionRead(
+                initiative_role_id=rp.initiative_role_id,
+                role_name=getattr(role, "name", "") if role else "",
+                role_display_name=getattr(role, "display_name", "") if role else "",
+                level=rp.level,
+                created_at=rp.created_at,
+            )
+        )
+    return result
+
+
 def _serialize_document_tags(document: "Document") -> List[TagSummary]:
     """Serialize document tags to TagSummary list."""
     tag_links = getattr(document, "tag_links", None) or []
@@ -169,7 +209,11 @@ def _serialize_document_tags(document: "Document") -> List[TagSummary]:
     return tags
 
 
-def serialize_document_summary(document: "Document") -> DocumentSummary:
+def serialize_document_summary(
+    document: "Document",
+    *,
+    my_permission_level: Optional[str] = None,
+) -> DocumentSummary:
     initiative = serialize_initiative(document.initiative) if document.initiative else None
     return DocumentSummary(
         id=document.id,
@@ -185,17 +229,23 @@ def serialize_document_summary(document: "Document") -> DocumentSummary:
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
         permissions=_serialize_permissions(document),
+        role_permissions=_serialize_role_permissions(document),
         tags=_serialize_document_tags(document),
         document_type=document.document_type.value if document.document_type else "native",
         file_url=document.file_url,
         file_content_type=document.file_content_type,
         file_size=document.file_size,
         original_filename=document.original_filename,
+        my_permission_level=my_permission_level,
     )
 
 
-def serialize_document(document: "Document") -> DocumentRead:
-    summary = serialize_document_summary(document)
+def serialize_document(
+    document: "Document",
+    *,
+    my_permission_level: Optional[str] = None,
+) -> DocumentRead:
+    summary = serialize_document_summary(document, my_permission_level=my_permission_level)
     return DocumentRead(
         **summary.model_dump(),
         content=document.content or {},

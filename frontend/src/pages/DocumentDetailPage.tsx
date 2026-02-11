@@ -159,9 +159,8 @@ export const DocumentDetailPage = () => {
     if (!document || !user) {
       return false;
     }
-    // Pure DAC: only check document permission level
-    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-    return permission?.level === "owner" || permission?.level === "write";
+    const myLevel = document.my_permission_level;
+    return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
   const isDirty =
     canEditDocument &&
@@ -174,8 +173,8 @@ export const DocumentDetailPage = () => {
       return false;
     }
     // Pure DAC: users with write or owner permission can moderate comments
-    const permission = (document.permissions ?? []).find((p) => p.user_id === user.id);
-    return permission?.level === "owner" || permission?.level === "write";
+    const myLevel = document.my_permission_level;
+    return myLevel === "owner" || myLevel === "write";
   }, [document, user]);
 
   const mentionableUsers = useMemo(() => {

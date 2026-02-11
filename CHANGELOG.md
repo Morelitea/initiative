@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Role-based access control for projects and documents: grant read or write access to an entire initiative role instead of adding users individually
+- Role Access section in project and document settings pages for managing role-based permissions
+- Bulk role access management: grant or revoke role-based permissions across multiple selected documents at once
+- `my_permission_level` field in project and document API responses indicating the current user's effective access level
+
+### Changed
+
+- Project settings page reorganized into tabbed layout (Details, Access, Task statuses, Advanced)
+- Document settings page reorganized into tabbed layout (Details, Access, Advanced)
+- Bulk edit access dialog restructured into Roles and Users tabs, each with grant/revoke action selector
+
 ## [0.27.0] - 2026-02-10
 
 ### Added

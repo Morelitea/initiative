@@ -14,7 +14,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.db.session import reapply_rls_context
-from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentType, ProjectDocument
+from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.tag import Tag, DocumentTag
 from app.models.user import User
@@ -31,6 +31,9 @@ from app.schemas.document import (
     DocumentPermissionRead,
     DocumentPermissionUpdate,
     DocumentRead,
+    DocumentRolePermissionCreate,
+    DocumentRolePermissionRead,
+    DocumentRolePermissionUpdate,
     DocumentSummary,
     DocumentUpdate,
     serialize_document,
@@ -137,21 +140,92 @@ async def _require_initiative_access(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
 
 
+def _role_permission_level_from_document(document: Document, user_id: int) -> DocumentPermissionLevel | None:
+    """Get the highest role-based permission level for a user on a document."""
+    role_permissions = getattr(document, "role_permissions", None)
+    if not role_permissions:
+        return None
+    initiative = getattr(document, "initiative", None)
+    if not initiative:
+        return None
+    memberships = getattr(initiative, "memberships", None)
+    if not memberships:
+        return None
+    user_role_ids = {m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None}
+    if not user_role_ids:
+        return None
+    level_order = {DocumentPermissionLevel.read: 0, DocumentPermissionLevel.write: 1, DocumentPermissionLevel.owner: 2}
+    best_level: DocumentPermissionLevel | None = None
+    for rp in role_permissions:
+        if rp.initiative_role_id in user_role_ids:
+            if best_level is None or level_order.get(rp.level, 0) > level_order.get(best_level, 0):
+                best_level = rp.level
+    return best_level
+
+
+def _effective_doc_permission_level(
+    user_level: DocumentPermissionLevel | None,
+    role_level: DocumentPermissionLevel | None,
+) -> DocumentPermissionLevel | None:
+    """Return the higher of two permission levels (MAX behavior)."""
+    if user_level is None:
+        return role_level
+    if role_level is None:
+        return user_level
+    level_order = {DocumentPermissionLevel.read: 0, DocumentPermissionLevel.write: 1, DocumentPermissionLevel.owner: 2}
+    if level_order.get(role_level, 0) > level_order.get(user_level, 0):
+        return role_level
+    return user_level
+
+
+def _compute_my_doc_permission_level(
+    document: Document,
+    user_id: int,
+    *,
+    is_guild_admin: bool = False,
+) -> str | None:
+    """Compute the effective permission level for a user on a document.
+
+    Uses eagerly-loaded relationships (permissions, role_permissions,
+    initiative.memberships) so no DB queries are needed.
+    Guild admins are treated as having owner-level access.
+    """
+    if is_guild_admin:
+        return DocumentPermissionLevel.owner.value
+
+    # Check user-specific permission
+    user_level: DocumentPermissionLevel | None = None
+    permissions = getattr(document, "permissions", None) or []
+    for perm in permissions:
+        if perm.user_id == user_id:
+            user_level = perm.level
+            break
+
+    # Check role-based permission
+    role_level = _role_permission_level_from_document(document, user_id)
+
+    effective = _effective_doc_permission_level(user_level, role_level)
+    return effective.value if effective else None
+
+
 def _require_document_write_access(
     document: Document,
     user: User,
 ) -> None:
     """Check if user has write access to a document.
 
-    Pure DAC: Access is only granted through explicit DocumentPermission.
+    DAC: Access granted through explicit DocumentPermission or role-based permission.
     Write access requires either 'write' or 'owner' permission level.
     """
     permissions = getattr(document, "permissions", None) or []
-    if any(
-        permission.user_id == user.id
-        and permission.level in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner)
-        for permission in permissions
-    ):
+    user_level: DocumentPermissionLevel | None = None
+    for permission in permissions:
+        if permission.user_id == user.id:
+            user_level = permission.level
+            break
+    role_level = _role_permission_level_from_document(document, user.id)
+    effective = _effective_doc_permission_level(user_level, role_level)
+    if effective and effective in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Document write access required")
 
@@ -176,26 +250,32 @@ def _require_document_access(
 ) -> None:
     """Check if user has required access to a document.
 
-    Pure DAC: Access is only granted through explicit DocumentPermission.
+    DAC: Access granted through explicit DocumentPermission or role-based permission.
+    Effective level = MAX(user-specific, role-based).
     - owner permission = full access (can manage permissions, delete, etc.)
     - write permission = can edit document content
     - read permission = can view document
     """
     # Check explicit permission
     permission = next((p for p in _get_loaded_permissions(document) if p.user_id == user.id), None)
+    user_level = permission.level if permission else None
+
+    # Check role-based permission
+    role_level = _role_permission_level_from_document(document, user.id)
+    effective = _effective_doc_permission_level(user_level, role_level)
 
     if require_owner:
-        if not permission or permission.level != DocumentPermissionLevel.owner:
+        if effective != DocumentPermissionLevel.owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Document owner permission required",
             )
         return
 
-    if not permission:
+    if effective is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this document")
 
-    if access == "write" and permission.level == DocumentPermissionLevel.read:
+    if access == "write" and effective == DocumentPermissionLevel.read:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
 
 
@@ -215,14 +295,23 @@ async def list_documents(
 ) -> List[DocumentSummary]:
     """List documents visible to the current user.
 
-    Pure DAC: Only documents with explicit DocumentPermission are visible.
+    DAC: Documents with explicit DocumentPermission or role-based permission.
     """
     # Subquery: documents where user has explicit permission
-    has_permission_subq = (
+    user_perm_subq = (
         select(DocumentPermission.document_id)
         .where(DocumentPermission.user_id == current_user.id)
-        .scalar_subquery()
     )
+    # Subquery: documents where user's initiative role has permission
+    role_perm_subq = (
+        select(DocumentRolePermission.document_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == current_user.id),
+        )
+    )
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     stmt = (
         select(Document)
@@ -238,6 +327,7 @@ async def list_documents(
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
+            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
         )
         .order_by(Document.updated_at.desc(), Document.id.desc())
@@ -269,7 +359,16 @@ async def list_documents(
     documents = result.unique().all()
 
     await documents_service.annotate_comment_counts(session, documents)
-    return [serialize_document_summary(document) for document in documents]
+    is_admin = guild_context.role == GuildRole.admin
+    return [
+        serialize_document_summary(
+            document,
+            my_permission_level=_compute_my_doc_permission_level(
+                document, current_user.id, is_guild_admin=is_admin,
+            ),
+        )
+        for document in documents
+    ]
 
 
 @router.get("/autocomplete", response_model=List[DocumentAutocomplete])
@@ -289,11 +388,19 @@ async def autocomplete_documents(
     await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
 
     # Subquery: documents where user has explicit permission
-    has_permission_subq = (
+    user_perm_subq = (
         select(DocumentPermission.document_id)
         .where(DocumentPermission.user_id == current_user.id)
-        .scalar_subquery()
     )
+    role_perm_subq = (
+        select(DocumentRolePermission.document_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == current_user.id),
+        )
+    )
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     normalized = q.strip().lower()
     stmt = (
@@ -410,7 +517,13 @@ async def create_document(
     await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
-    return serialize_document(hydrated)
+    return serialize_document(
+        hydrated,
+        my_permission_level=_compute_my_doc_permission_level(
+            hydrated, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
 
 
 @router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -485,7 +598,13 @@ async def upload_document_file(
     await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
-    return serialize_document(hydrated)
+    return serialize_document(
+        hydrated,
+        my_permission_level=_compute_my_doc_permission_level(
+            hydrated, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
 
 
 @router.get("/{document_id}", response_model=DocumentRead)
@@ -497,7 +616,13 @@ async def read_document(
 ) -> DocumentRead:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
     _require_document_access(document, current_user, access="read")
-    return serialize_document(document)
+    return serialize_document(
+        document,
+        my_permission_level=_compute_my_doc_permission_level(
+            document, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
 
 
 @router.get("/{document_id}/backlinks", response_model=List[DocumentBacklink])
@@ -594,7 +719,13 @@ async def update_document(
         await reapply_rls_context(session)
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
-    return serialize_document(hydrated)
+    return serialize_document(
+        hydrated,
+        my_permission_level=_compute_my_doc_permission_level(
+            hydrated, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
 
 
 @router.post("/{document_id}/duplicate", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -621,7 +752,13 @@ async def duplicate_document(
         guild_id=guild_context.guild_id,
     )
     hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
-    return serialize_document(hydrated)
+    return serialize_document(
+        hydrated,
+        my_permission_level=_compute_my_doc_permission_level(
+            hydrated, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
 
 
 @router.post("/{document_id}/copy", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -661,7 +798,13 @@ async def copy_document(
         guild_id=guild_context.guild_id,
     )
     hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
-    return serialize_document(hydrated)
+    return serialize_document(
+        hydrated,
+        my_permission_level=_compute_my_doc_permission_level(
+            hydrated, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
 
 
 @router.post("/{document_id}/members", response_model=DocumentPermissionRead, status_code=status.HTTP_201_CREATED)
@@ -995,6 +1138,7 @@ async def set_document_tags(
         .options(
             selectinload(Document.initiative),
             selectinload(Document.permissions),
+            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
         )
     )
@@ -1003,4 +1147,143 @@ async def set_document_tags(
     doc.updated_at = datetime.now(timezone.utc)
     await session.commit()
 
-    return serialize_document(doc)
+    return serialize_document(
+        doc,
+        my_permission_level=_compute_my_doc_permission_level(
+            doc, current_user.id,
+            is_guild_admin=guild_context.role == GuildRole.admin,
+        ),
+    )
+
+
+# ── Role-based permission CRUD ───────────────────────────────────
+
+
+@router.post("/{document_id}/role-permissions", response_model=DocumentRolePermissionRead, status_code=status.HTTP_201_CREATED)
+async def add_document_role_permission(
+    document_id: int,
+    role_perm_in: DocumentRolePermissionCreate,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentRolePermissionRead:
+    """Add a role-based permission to a document."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    _require_document_access(document, current_user, access="write")
+
+    if role_perm_in.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+
+    # Validate the role belongs to the same initiative as the document
+    stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_perm_in.initiative_role_id)
+    result = await session.exec(stmt)
+    role = result.one_or_none()
+    if not role or role.initiative_id != document.initiative_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role must belong to the document's initiative")
+
+    # Check if already exists
+    existing_stmt = select(DocumentRolePermission).where(
+        DocumentRolePermission.document_id == document_id,
+        DocumentRolePermission.initiative_role_id == role_perm_in.initiative_role_id,
+    )
+    existing_result = await session.exec(existing_stmt)
+    existing = existing_result.one_or_none()
+    if existing:
+        existing.level = role_perm_in.level
+        session.add(existing)
+        await session.commit()
+        await reapply_rls_context(session)
+        await session.refresh(existing)
+        return DocumentRolePermissionRead(
+            initiative_role_id=existing.initiative_role_id,
+            role_name=role.name,
+            role_display_name=role.display_name,
+            level=existing.level,
+            created_at=existing.created_at,
+        )
+
+    role_perm = DocumentRolePermission(
+        document_id=document_id,
+        initiative_role_id=role_perm_in.initiative_role_id,
+        level=role_perm_in.level,
+        guild_id=guild_context.guild_id,
+    )
+    session.add(role_perm)
+    await session.commit()
+    await reapply_rls_context(session)
+    await session.refresh(role_perm)
+    return DocumentRolePermissionRead(
+        initiative_role_id=role_perm.initiative_role_id,
+        role_name=role.name,
+        role_display_name=role.display_name,
+        level=role_perm.level,
+        created_at=role_perm.created_at,
+    )
+
+
+@router.patch("/{document_id}/role-permissions/{role_id}", response_model=DocumentRolePermissionRead)
+async def update_document_role_permission(
+    document_id: int,
+    role_id: int,
+    update_in: DocumentRolePermissionUpdate,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentRolePermissionRead:
+    """Update a role-based permission level on a document."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    _require_document_access(document, current_user, access="write")
+
+    if update_in.level == DocumentPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+
+    stmt = select(DocumentRolePermission).where(
+        DocumentRolePermission.document_id == document_id,
+        DocumentRolePermission.initiative_role_id == role_id,
+    )
+    result = await session.exec(stmt)
+    role_perm = result.one_or_none()
+    if not role_perm:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role permission not found")
+
+    role_perm.level = update_in.level
+    session.add(role_perm)
+    await session.commit()
+    await reapply_rls_context(session)
+    await session.refresh(role_perm)
+
+    # Get role info
+    role_stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_id)
+    role_result = await session.exec(role_stmt)
+    role = role_result.one_or_none()
+    return DocumentRolePermissionRead(
+        initiative_role_id=role_perm.initiative_role_id,
+        role_name=role.name if role else "",
+        role_display_name=role.display_name if role else "",
+        level=role_perm.level,
+        created_at=role_perm.created_at,
+    )
+
+
+@router.delete("/{document_id}/role-permissions/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_document_role_permission(
+    document_id: int,
+    role_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Remove a role-based permission from a document."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    _require_document_access(document, current_user, access="write")
+
+    stmt = select(DocumentRolePermission).where(
+        DocumentRolePermission.document_id == document_id,
+        DocumentRolePermission.initiative_role_id == role_id,
+    )
+    result = await session.exec(stmt)
+    role_perm = result.one_or_none()
+    if not role_perm:
+        return
+    await session.delete(role_perm)
+    await session.commit()

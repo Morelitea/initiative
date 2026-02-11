@@ -24,6 +24,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -36,9 +37,16 @@ import { Input } from "@/components/ui/input";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
-import { Project, Initiative, ProjectPermissionLevel, TagSummary } from "@/types/api";
+import {
+  Project,
+  Initiative,
+  ProjectPermissionLevel,
+  ProjectRolePermission,
+  TagSummary,
+} from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
@@ -81,6 +89,10 @@ export const ProjectSettingsPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<PermissionRow[]>([]);
   const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
+  const [roleAccessMessage, setRoleAccessMessage] = useState<string | null>(null);
+  const [roleAccessError, setRoleAccessError] = useState<string | null>(null);
+  const [selectedNewRoleId, setSelectedNewRoleId] = useState<string>("");
+  const [selectedNewRoleLevel, setSelectedNewRoleLevel] = useState<"read" | "write">("read");
 
   const setProjectTagsMutation = useSetProjectTags();
 
@@ -111,6 +123,8 @@ export const ProjectSettingsPage = () => {
       setProjectTags(projectQuery.data.tags ?? []);
       setAccessMessage(null);
       setAccessError(null);
+      setRoleAccessMessage(null);
+      setRoleAccessError(null);
       setInitiativeMessage(null);
       setIdentityMessage(null);
       setDescriptionMessage(null);
@@ -381,6 +395,133 @@ export const ProjectSettingsPage = () => {
   });
 
   const project = projectQuery.data;
+
+  const initiativeRolesQuery = useInitiativeRoles(project?.initiative_id ?? null);
+
+  const addRolePermission = useMutation({
+    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
+      await apiClient.post(`/projects/${parsedProjectId}/role-permissions`, {
+        initiative_role_id: roleId,
+        level,
+      });
+    },
+    onSuccess: () => {
+      setRoleAccessMessage("Role access granted");
+      setRoleAccessError(null);
+      setSelectedNewRoleId("");
+      setSelectedNewRoleLevel("read");
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => {
+      setRoleAccessMessage(null);
+      setRoleAccessError("Unable to grant role access");
+    },
+  });
+
+  const updateRolePermission = useMutation({
+    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
+      await apiClient.patch(`/projects/${parsedProjectId}/role-permissions/${roleId}`, {
+        level,
+      });
+    },
+    onSuccess: () => {
+      setRoleAccessMessage("Role access updated");
+      setRoleAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => {
+      setRoleAccessMessage(null);
+      setRoleAccessError("Unable to update role access");
+    },
+  });
+
+  const removeRolePermission = useMutation({
+    mutationFn: async (roleId: number) => {
+      await apiClient.delete(`/projects/${parsedProjectId}/role-permissions/${roleId}`);
+    },
+    onSuccess: () => {
+      setRoleAccessMessage("Role access removed");
+      setRoleAccessError(null);
+      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: () => {
+      setRoleAccessMessage(null);
+      setRoleAccessError("Unable to remove role access");
+    },
+  });
+
+  // Initiative roles not yet assigned to this project
+  const availableRoles = useMemo(
+    () =>
+      (initiativeRolesQuery.data ?? []).filter(
+        (role) => !(project?.role_permissions ?? []).some((rp) => rp.initiative_role_id === role.id)
+      ),
+    [initiativeRolesQuery.data, project?.role_permissions]
+  );
+
+  // Column definitions for role permissions table
+  const rolePermissionColumns: ColumnDef<ProjectRolePermission>[] = useMemo(
+    () => [
+      {
+        accessorKey: "role_display_name",
+        header: "Role Name",
+        cell: ({ row }) => <span className="font-medium">{row.original.role_display_name}</span>,
+      },
+      {
+        accessorKey: "level",
+        header: "Access Level",
+        cell: ({ row }) => (
+          <Select
+            value={row.original.level}
+            onValueChange={(value) => {
+              setRoleAccessMessage(null);
+              setRoleAccessError(null);
+              updateRolePermission.mutate({
+                roleId: row.original.initiative_role_id,
+                level: value as "read" | "write",
+              });
+            }}
+            disabled={updateRolePermission.isPending}
+          >
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="read">Can view</SelectItem>
+              <SelectItem value="write">Can edit</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => {
+                setRoleAccessMessage(null);
+                setRoleAccessError(null);
+                removeRolePermission.mutate(row.original.initiative_role_id);
+              }}
+              disabled={removeRolePermission.isPending}
+            >
+              Remove
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [updateRolePermission, removeRolePermission]
+  );
+
   const initiativeMembers = useMemo(
     () => project?.initiative?.members ?? [],
     [project?.initiative?.members]
@@ -520,9 +661,9 @@ export const ProjectSettingsPage = () => {
   }
 
   const isOwner = project.owner_id === user?.id;
-  const userPermission = project.permissions.find((p) => p.user_id === user?.id);
+  const myLevel = project.my_permission_level;
   // Pure DAC: write access requires owner or write permission level
-  const hasWriteAccess = userPermission?.level === "owner" || userPermission?.level === "write";
+  const hasWriteAccess = myLevel === "owner" || myLevel === "write";
   // Pure DAC: write permission grants access to manage settings
   const canManageTaskStatuses = hasWriteAccess;
   const canManageAccess = hasWriteAccess;
@@ -579,442 +720,560 @@ export const ProjectSettingsPage = () => {
         </p>
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Project details</CardTitle>
-          <CardDescription>
-            Update the icon, name, and description shown across the workspace.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-8">
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-base font-medium">Identity</h3>
-              <p className="text-muted-foreground text-sm">
-                Give the project a recognizable name and emoji.
-              </p>
-            </div>
-            {canWriteProject ? (
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setIdentityMessage(null);
-                  updateIdentity.mutate();
-                }}
-              >
-                <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                  <div className="w-full space-y-2 md:max-w-xs">
-                    <Label htmlFor="project-icon">Icon</Label>
-                    <EmojiPicker
-                      id="project-icon"
-                      value={iconText || undefined}
-                      onChange={(emoji) => setIconText(emoji ?? "")}
+      <Tabs defaultValue="details" className="space-y-4">
+        <TabsList className="w-full max-w-xl justify-start">
+          <TabsTrigger value="details">Details</TabsTrigger>
+          {canManageAccess ? <TabsTrigger value="access">Access</TabsTrigger> : null}
+          <TabsTrigger value="task-statuses">Task statuses</TabsTrigger>
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+        </TabsList>
+
+        {/* ── Details tab ── */}
+        <TabsContent value="details" className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Project details</CardTitle>
+              <CardDescription>
+                Update the icon, name, and description shown across the workspace.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium">Identity</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Give the project a recognizable name and emoji.
+                  </p>
+                </div>
+                {canWriteProject ? (
+                  <form
+                    className="space-y-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setIdentityMessage(null);
+                      updateIdentity.mutate();
+                    }}
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                      <div className="w-full space-y-2 md:max-w-xs">
+                        <Label htmlFor="project-icon">Icon</Label>
+                        <EmojiPicker
+                          id="project-icon"
+                          value={iconText || undefined}
+                          onChange={(emoji) => setIconText(emoji ?? "")}
+                        />
+                        <p className="text-muted-foreground text-sm">
+                          Pick an emoji to make this project easy to spot.
+                        </p>
+                      </div>
+                      <div className="w-full flex-1 space-y-2">
+                        <Label htmlFor="project-name">Name</Label>
+                        <Input
+                          id="project-name"
+                          value={nameText}
+                          onChange={(event) => setNameText(event.target.value)}
+                          placeholder="Product roadmap"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button type="submit" disabled={updateIdentity.isPending}>
+                        {updateIdentity.isPending ? "Saving..." : "Save project details"}
+                      </Button>
+                      {identityMessage ? (
+                        <p className="text-primary text-sm">{identityMessage}</p>
+                      ) : null}
+                      {updateIdentity.isError ? (
+                        <p className="text-destructive text-sm">Unable to update project.</p>
+                      ) : null}
+                    </div>
+                  </form>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    You need write access to change the project name or icon.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-border h-px" />
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium">Description</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Share context to help collaborators understand the work.
+                  </p>
+                </div>
+                {canWriteProject ? (
+                  <form
+                    className="space-y-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      updateDescription.mutate();
+                    }}
+                  >
+                    <Textarea
+                      rows={4}
+                      value={descriptionText}
+                      onChange={(event) => setDescriptionText(event.target.value)}
+                      placeholder="What are we trying to accomplish?"
                     />
-                    <p className="text-muted-foreground text-sm">
-                      Pick an emoji to make this project easy to spot.
-                    </p>
-                  </div>
-                  <div className="w-full flex-1 space-y-2">
-                    <Label htmlFor="project-name">Name</Label>
-                    <Input
-                      id="project-name"
-                      value={nameText}
-                      onChange={(event) => setNameText(event.target.value)}
-                      placeholder="Product roadmap"
-                      required
-                    />
-                  </div>
+                    <div className="flex flex-col gap-2">
+                      <Button type="submit" disabled={updateDescription.isPending}>
+                        {updateDescription.isPending ? "Saving..." : "Save description"}
+                      </Button>
+                      {descriptionMessage ? (
+                        <p className="text-primary text-sm">{descriptionMessage}</p>
+                      ) : null}
+                    </div>
+                  </form>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    You need write access to edit the description.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-border h-px" />
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium">Tags</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Add tags to organize and filter projects.
+                  </p>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Button type="submit" disabled={updateIdentity.isPending}>
-                    {updateIdentity.isPending ? "Saving..." : "Save project details"}
-                  </Button>
-                  {identityMessage ? (
-                    <p className="text-primary text-sm">{identityMessage}</p>
-                  ) : null}
-                  {updateIdentity.isError ? (
-                    <p className="text-destructive text-sm">Unable to update project.</p>
-                  ) : null}
-                </div>
-              </form>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                You need write access to change the project name or icon.
-              </p>
-            )}
-          </div>
-
-          <div className="bg-border h-px" />
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-base font-medium">Description</h3>
-              <p className="text-muted-foreground text-sm">
-                Share context to help collaborators understand the work.
-              </p>
-            </div>
-            {canWriteProject ? (
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  updateDescription.mutate();
-                }}
-              >
-                <Textarea
-                  rows={4}
-                  value={descriptionText}
-                  onChange={(event) => setDescriptionText(event.target.value)}
-                  placeholder="What are we trying to accomplish?"
-                />
-                <div className="flex flex-col gap-2">
-                  <Button type="submit" disabled={updateDescription.isPending}>
-                    {updateDescription.isPending ? "Saving..." : "Save description"}
-                  </Button>
-                  {descriptionMessage ? (
-                    <p className="text-primary text-sm">{descriptionMessage}</p>
-                  ) : null}
-                </div>
-              </form>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                You need write access to edit the description.
-              </p>
-            )}
-          </div>
-
-          <div className="bg-border h-px" />
-
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-base font-medium">Tags</h3>
-              <p className="text-muted-foreground text-sm">
-                Add tags to organize and filter projects.
-              </p>
-            </div>
-            {canWriteProject ? (
-              <TagPicker
-                selectedTags={projectTags}
-                onChange={(newTags) => {
-                  setProjectTags(newTags);
-                  setProjectTagsMutation.mutate({
-                    projectId: parsedProjectId,
-                    tagIds: newTags.map((t) => t.id),
-                  });
-                }}
-              />
-            ) : (
-              <p className="text-muted-foreground text-sm">You need write access to manage tags.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {user?.role === "admin" ? (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Initiative ownership</CardTitle>
-            <CardDescription>Select which initiative owns this project.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {initiativesQuery.isError ? (
-              <p className="text-destructive text-sm">Unable to load initiatives.</p>
-            ) : (
-              <form
-                className="flex flex-wrap items-end gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  updateInitiativeOwnership.mutate();
-                }}
-              >
-                <div className="min-w-[220px] flex-1">
-                  <Label htmlFor="project-initiative">Owning initiative</Label>
-                  <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
-                    <SelectTrigger id="project-initiative" className="mt-2">
-                      <SelectValue placeholder="Select initiative" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {initiativesQuery.data?.map((initiative) => (
-                        <SelectItem key={initiative.id} value={String(initiative.id)}>
-                          {initiative.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
-                    {updateInitiativeOwnership.isPending ? "Saving..." : "Save initiative"}
-                  </Button>
-                  {initiativeMessage ? (
-                    <p className="text-primary text-sm">{initiativeMessage}</p>
-                  ) : null}
-                </div>
-              </form>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canManageAccess ? (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Project access</CardTitle>
-            <CardDescription>Control who can view and edit this project.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Bulk action bar */}
-            {selectedMembers.length > 0 && (
-              <div className="bg-muted flex items-center gap-3 rounded-md p-3">
-                <span className="text-sm font-medium">{selectedMembers.length} selected</span>
-                <Select
-                  onValueChange={(level) => {
-                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
-                    if (userIds.length > 0) {
-                      bulkUpdateLevel.mutate({
-                        userIds,
-                        level: level as ProjectPermissionLevel,
+                {canWriteProject ? (
+                  <TagPicker
+                    selectedTags={projectTags}
+                    onChange={(newTags) => {
+                      setProjectTags(newTags);
+                      setProjectTagsMutation.mutate({
+                        projectId: parsedProjectId,
+                        tagIds: newTags.map((t) => t.id),
                       });
-                    }
+                    }}
+                  />
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    You need write access to manage tags.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {user?.role === "admin" ? (
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Initiative ownership</CardTitle>
+                <CardDescription>Select which initiative owns this project.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {initiativesQuery.isError ? (
+                  <p className="text-destructive text-sm">Unable to load initiatives.</p>
+                ) : (
+                  <form
+                    className="flex flex-wrap items-end gap-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      updateInitiativeOwnership.mutate();
+                    }}
+                  >
+                    <div className="min-w-[220px] flex-1">
+                      <Label htmlFor="project-initiative">Owning initiative</Label>
+                      <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
+                        <SelectTrigger id="project-initiative" className="mt-2">
+                          <SelectValue placeholder="Select initiative" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {initiativesQuery.data?.map((initiative) => (
+                            <SelectItem key={initiative.id} value={String(initiative.id)}>
+                              {initiative.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
+                        {updateInitiativeOwnership.isPending ? "Saving..." : "Save initiative"}
+                      </Button>
+                      {initiativeMessage ? (
+                        <p className="text-primary text-sm">{initiativeMessage}</p>
+                      ) : null}
+                    </div>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+        </TabsContent>
+
+        {/* ── Access tab ── */}
+        {canManageAccess ? (
+          <TabsContent value="access" className="space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Role access</CardTitle>
+                <CardDescription>
+                  Grant access to all members with a specific initiative role.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(project.role_permissions ?? []).length > 0 ? (
+                  <DataTable
+                    columns={rolePermissionColumns}
+                    data={project.role_permissions ?? []}
+                    getRowId={(row) => String(row.initiative_role_id)}
+                  />
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    No roles have been granted access to this project yet.
+                  </p>
+                )}
+
+                <div className="space-y-2 pt-2">
+                  <Label>Add role</Label>
+                  {initiativeRolesQuery.isLoading ? (
+                    <p className="text-muted-foreground text-sm">Loading roles...</p>
+                  ) : availableRoles.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      All initiative roles already have access to this project.
+                    </p>
+                  ) : (
+                    <form
+                      className="flex flex-wrap items-end gap-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        if (!selectedNewRoleId) {
+                          setRoleAccessError("Select a role");
+                          return;
+                        }
+                        setRoleAccessError(null);
+                        addRolePermission.mutate({
+                          roleId: Number(selectedNewRoleId),
+                          level: selectedNewRoleLevel,
+                        });
+                      }}
+                    >
+                      <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
+                        <SelectTrigger className="min-w-[200px]">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableRoles.map((role) => (
+                            <SelectItem key={role.id} value={String(role.id)}>
+                              {role.display_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={selectedNewRoleLevel}
+                        onValueChange={(value) =>
+                          setSelectedNewRoleLevel(value as "read" | "write")
+                        }
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="read">Can view</SelectItem>
+                          <SelectItem value="write">Can edit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button type="submit" disabled={addRolePermission.isPending}>
+                        {addRolePermission.isPending ? "Adding..." : "Add"}
+                      </Button>
+                    </form>
+                  )}
+                  {roleAccessMessage ? (
+                    <p className="text-primary text-sm">{roleAccessMessage}</p>
+                  ) : null}
+                  {roleAccessError ? (
+                    <p className="text-destructive text-sm">{roleAccessError}</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Individual access</CardTitle>
+                <CardDescription>Control who can view and edit this project.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Bulk action bar */}
+                {selectedMembers.length > 0 && (
+                  <div className="bg-muted flex items-center gap-3 rounded-md p-3">
+                    <span className="text-sm font-medium">{selectedMembers.length} selected</span>
+                    <Select
+                      onValueChange={(level) => {
+                        const userIds = selectedMembers
+                          .filter((m) => !m.isOwner)
+                          .map((m) => m.userId);
+                        if (userIds.length > 0) {
+                          bulkUpdateLevel.mutate({
+                            userIds,
+                            level: level as ProjectPermissionLevel,
+                          });
+                        }
+                      }}
+                      disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                    >
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Change access..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                        <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        const userIds = selectedMembers
+                          .filter((m) => !m.isOwner)
+                          .map((m) => m.userId);
+                        if (userIds.length > 0) {
+                          bulkRemoveMembers.mutate(userIds);
+                        }
+                      }}
+                      disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                    >
+                      {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Access table */}
+                <DataTable
+                  columns={permissionColumns}
+                  data={permissionRows}
+                  enablePagination
+                  enableFilterInput
+                  filterInputColumnKey="displayName"
+                  filterInputPlaceholder="Filter by name"
+                  enableRowSelection
+                  onRowSelectionChange={setSelectedMembers}
+                  onExitSelection={() => setSelectedMembers([])}
+                  getRowId={(row) => String(row.userId)}
+                />
+
+                {/* Add member form */}
+                <div className="space-y-2 pt-2">
+                  <Label>Grant access</Label>
+                  {availableMembers.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      All initiative members already have access to this project.
+                    </p>
+                  ) : (
+                    <form
+                      className="flex flex-wrap items-end gap-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        if (!selectedNewUserId) {
+                          setAccessError("Select a member");
+                          return;
+                        }
+                        setAccessError(null);
+                        addMember.mutate({
+                          userId: Number(selectedNewUserId),
+                          level: selectedNewLevel,
+                        });
+                      }}
+                    >
+                      <SearchableCombobox
+                        items={availableMembers.map((member) => ({
+                          value: String(member.user.id),
+                          label: member.user.full_name?.trim() || member.user.email,
+                        }))}
+                        value={selectedNewUserId}
+                        onValueChange={setSelectedNewUserId}
+                        placeholder="Select member"
+                        emptyMessage="No members found"
+                        className="min-w-[200px]"
+                      />
+                      <Select
+                        value={selectedNewLevel}
+                        onValueChange={(value) =>
+                          setSelectedNewLevel(value as ProjectPermissionLevel)
+                        }
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                          <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="submit"
+                        disabled={addMember.isPending || addAllMembers.isPending}
+                      >
+                        {addMember.isPending ? "Adding..." : "Add"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => addAllMembers.mutate(selectedNewLevel)}
+                        disabled={addMember.isPending || addAllMembers.isPending}
+                      >
+                        {addAllMembers.isPending
+                          ? "Adding all..."
+                          : `Add all (${availableMembers.length})`}
+                      </Button>
+                    </form>
+                  )}
+                  {accessMessage ? <p className="text-primary text-sm">{accessMessage}</p> : null}
+                  {accessError ? <p className="text-destructive text-sm">{accessError}</p> : null}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ) : null}
+
+        {/* ── Task statuses tab ── */}
+        <TabsContent value="task-statuses">
+          <ProjectTaskStatusesManager
+            projectId={project.id}
+            canManage={Boolean(canManageTaskStatuses)}
+          />
+        </TabsContent>
+
+        {/* ── Advanced tab ── */}
+        <TabsContent value="advanced" className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Template status</CardTitle>
+              <CardDescription>
+                Convert this project into a reusable template or revert it back to a standard
+                project.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-muted-foreground text-sm">
+                {project.is_template
+                  ? "This project is currently a template and appears on the Templates page."
+                  : "This project behaves like a standard project."}
+              </p>
+              {templateMessage ? <p className="text-primary text-sm">{templateMessage}</p> : null}
+            </CardContent>
+            <CardFooter className="flex flex-wrap gap-3">
+              {canWriteProject ? (
+                <Button
+                  type="button"
+                  variant={project.is_template ? "outline" : "default"}
+                  onClick={() => {
+                    setTemplateMessage(null);
+                    toggleTemplateStatus.mutate(!project.is_template);
                   }}
-                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                  disabled={toggleTemplateStatus.isPending}
                 >
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Change access..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                    <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  {project.is_template ? "Convert to standard project" : "Mark as template"}
+                </Button>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  You need write access to change template status.
+                </p>
+              )}
+              {project.is_template ? (
+                <Button asChild variant="link" className="px-0">
+                  <Link to={gp("/projects")}>View all templates</Link>
+                </Button>
+              ) : null}
+            </CardFooter>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Duplicate project</CardTitle>
+              <CardDescription>
+                Clone this project, including its initiative and tasks, to jumpstart new work.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {duplicateMessage ? <p className="text-primary text-sm">{duplicateMessage}</p> : null}
+            </CardContent>
+            <CardFooter>
+              {canWriteProject ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const defaultName = `${project.name} copy`;
+                    const newName = window.prompt("Name for duplicated project", defaultName);
+                    if (newName === null) {
+                      return;
+                    }
+                    setDuplicateMessage(null);
+                    duplicateProject.mutate(newName);
+                  }}
+                  disabled={duplicateProject.isPending}
+                >
+                  {duplicateProject.isPending ? "Duplicating..." : "Duplicate project"}
+                </Button>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  You need write access to duplicate this project.
+                </p>
+              )}
+            </CardFooter>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Archive status</CardTitle>
+              <CardDescription>
+                {project.is_archived ? "This project is archived." : "This project is active."}
+              </CardDescription>
+            </CardHeader>
+            <CardFooter>
+              {canWriteProject ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    project.is_archived ? unarchiveProject.mutate() : archiveProject.mutate()
+                  }
+                  disabled={archiveProject.isPending || unarchiveProject.isPending}
+                >
+                  {project.is_archived ? "Unarchive project" : "Archive project"}
+                </Button>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  You need write access to change archive status.
+                </p>
+              )}
+            </CardFooter>
+          </Card>
+
+          {isOwner ? (
+            <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-destructive">Danger zone</CardTitle>
+                <CardDescription className="text-destructive">
+                  Deleting a project removes all of its tasks permanently.
+                </CardDescription>
+              </CardHeader>
+              <CardFooter>
                 <Button
                   type="button"
                   variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
-                    if (userIds.length > 0) {
-                      bulkRemoveMembers.mutate(userIds);
-                    }
-                  }}
-                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={deleteProject.isPending}
                 >
-                  {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                  Delete project
                 </Button>
-              </div>
-            )}
-
-            {/* Access table */}
-            <DataTable
-              columns={permissionColumns}
-              data={permissionRows}
-              enablePagination
-              enableFilterInput
-              filterInputColumnKey="displayName"
-              filterInputPlaceholder="Filter by name"
-              enableRowSelection
-              onRowSelectionChange={setSelectedMembers}
-              onExitSelection={() => setSelectedMembers([])}
-              getRowId={(row) => String(row.userId)}
-            />
-
-            {/* Add member form */}
-            <div className="space-y-2 pt-2">
-              <Label>Grant access</Label>
-              {availableMembers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  All initiative members already have access to this project.
-                </p>
-              ) : (
-                <form
-                  className="flex flex-wrap items-end gap-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (!selectedNewUserId) {
-                      setAccessError("Select a member");
-                      return;
-                    }
-                    setAccessError(null);
-                    addMember.mutate({
-                      userId: Number(selectedNewUserId),
-                      level: selectedNewLevel,
-                    });
-                  }}
-                >
-                  <SearchableCombobox
-                    items={availableMembers.map((member) => ({
-                      value: String(member.user.id),
-                      label: member.user.full_name?.trim() || member.user.email,
-                    }))}
-                    value={selectedNewUserId}
-                    onValueChange={setSelectedNewUserId}
-                    placeholder="Select member"
-                    emptyMessage="No members found"
-                    className="min-w-[200px]"
-                  />
-                  <Select
-                    value={selectedNewLevel}
-                    onValueChange={(value) => setSelectedNewLevel(value as ProjectPermissionLevel)}
-                  >
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                      <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button type="submit" disabled={addMember.isPending || addAllMembers.isPending}>
-                    {addMember.isPending ? "Adding..." : "Add"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => addAllMembers.mutate(selectedNewLevel)}
-                    disabled={addMember.isPending || addAllMembers.isPending}
-                  >
-                    {addAllMembers.isPending
-                      ? "Adding all..."
-                      : `Add all (${availableMembers.length})`}
-                  </Button>
-                </form>
-              )}
-              {accessMessage ? <p className="text-primary text-sm">{accessMessage}</p> : null}
-              {accessError ? <p className="text-destructive text-sm">{accessError}</p> : null}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <ProjectTaskStatusesManager
-        projectId={project.id}
-        canManage={Boolean(canManageTaskStatuses)}
-      />
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Template status</CardTitle>
-          <CardDescription>
-            Convert this project into a reusable template or revert it back to a standard project.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-muted-foreground text-sm">
-            {project.is_template
-              ? "This project is currently a template and appears on the Templates page."
-              : "This project behaves like a standard project."}
-          </p>
-          {templateMessage ? <p className="text-primary text-sm">{templateMessage}</p> : null}
-        </CardContent>
-        <CardFooter className="flex flex-wrap gap-3">
-          {canWriteProject ? (
-            <Button
-              type="button"
-              variant={project.is_template ? "outline" : "default"}
-              onClick={() => {
-                setTemplateMessage(null);
-                toggleTemplateStatus.mutate(!project.is_template);
-              }}
-              disabled={toggleTemplateStatus.isPending}
-            >
-              {project.is_template ? "Convert to standard project" : "Mark as template"}
-            </Button>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              You need write access to change template status.
-            </p>
-          )}
-          {project.is_template ? (
-            <Button asChild variant="link" className="px-0">
-              <Link to={gp("/projects")}>View all templates</Link>
-            </Button>
+              </CardFooter>
+            </Card>
           ) : null}
-        </CardFooter>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Duplicate project</CardTitle>
-          <CardDescription>
-            Clone this project, including its initiative and tasks, to jumpstart new work.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {duplicateMessage ? <p className="text-primary text-sm">{duplicateMessage}</p> : null}
-        </CardContent>
-        <CardFooter>
-          {canWriteProject ? (
-            <Button
-              type="button"
-              onClick={() => {
-                const defaultName = `${project.name} copy`;
-                const newName = window.prompt("Name for duplicated project", defaultName);
-                if (newName === null) {
-                  return;
-                }
-                setDuplicateMessage(null);
-                duplicateProject.mutate(newName);
-              }}
-              disabled={duplicateProject.isPending}
-            >
-              {duplicateProject.isPending ? "Duplicating..." : "Duplicate project"}
-            </Button>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              You need write access to duplicate this project.
-            </p>
-          )}
-        </CardFooter>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Archive status</CardTitle>
-          <CardDescription>
-            {project.is_archived ? "This project is archived." : "This project is active."}
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          {canWriteProject ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                project.is_archived ? unarchiveProject.mutate() : archiveProject.mutate()
-              }
-              disabled={archiveProject.isPending || unarchiveProject.isPending}
-            >
-              {project.is_archived ? "Unarchive project" : "Archive project"}
-            </Button>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              You need write access to change archive status.
-            </p>
-          )}
-        </CardFooter>
-      </Card>
-
-      {isOwner ? (
-        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-destructive">Danger zone</CardTitle>
-            <CardDescription className="text-destructive">
-              Deleting a project removes all of its tasks permanently.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={deleteProject.isPending}
-            >
-              Delete project
-            </Button>
-          </CardFooter>
-        </Card>
-      ) : null}
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         open={showDeleteConfirm}

@@ -16,7 +16,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.db.session import reapply_rls_context
-from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
+from app.models.project import Project, ProjectPermission, ProjectPermissionLevel, ProjectRolePermission
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory, Subtask
@@ -40,6 +40,9 @@ from app.schemas.project import (
     ProjectPermissionRead,
     ProjectPermissionUpdate,
     ProjectRead,
+    ProjectRolePermissionCreate,
+    ProjectRolePermissionRead,
+    ProjectRolePermissionUpdate,
     ProjectTaskSummary,
     ProjectReorderRequest,
     ProjectUpdate,
@@ -59,6 +62,24 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
 MAX_RECENT_PROJECTS = 20
+
+
+def _project_role_permissions(project: Project) -> List[ProjectRolePermissionRead]:
+    """Serialize project role permissions."""
+    role_permissions = getattr(project, "role_permissions", None) or []
+    result: List[ProjectRolePermissionRead] = []
+    for rp in role_permissions:
+        role = getattr(rp, "role", None)
+        result.append(
+            ProjectRolePermissionRead(
+                initiative_role_id=rp.initiative_role_id,
+                role_name=getattr(role, "name", "") if role else "",
+                role_display_name=getattr(role, "display_name", "") if role else "",
+                level=rp.level,
+                created_at=rp.created_at,
+            )
+        )
+    return result
 
 
 def _project_tags(project: Project) -> List[TagSummary]:
@@ -111,7 +132,11 @@ async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -
         setattr(project, "_task_summary", summary)
 
 
-def _project_payload(project: Project) -> dict:
+def _project_payload(
+    project: Project,
+    *,
+    my_permission_level: str | None = None,
+) -> dict:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
         payload.initiative = serialize_initiative(project.initiative)
@@ -122,6 +147,8 @@ def _project_payload(project: Project) -> dict:
         update={
             "documents": _project_documents(project),
             "task_summary": summary,
+            "role_permissions": _project_role_permissions(project),
+            "my_permission_level": my_permission_level,
         }
     )
     return payload.model_dump(mode="json")
@@ -130,6 +157,7 @@ def _project_payload(project: Project) -> dict:
 async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: int | None = None) -> Project:
     statement = select(Project).where(Project.id == project_id).options(
         selectinload(Project.permissions).selectinload(ProjectPermission.user),
+        selectinload(Project.role_permissions).selectinload(ProjectRolePermission.role),
         selectinload(Project.owner),
         selectinload(Project.initiative).selectinload(Initiative.memberships).options(
             selectinload(InitiativeMember.user),
@@ -170,6 +198,74 @@ def _permission_from_project(project: Project, user_id: int) -> ProjectPermissio
         if permission.user_id == user_id:
             return permission
     return None
+
+
+def _role_permission_level_from_project(project: Project, user_id: int) -> ProjectPermissionLevel | None:
+    """Get the highest role-based permission level for a user on a project."""
+    role_permissions = getattr(project, "role_permissions", None)
+    if not role_permissions:
+        return None
+    initiative = getattr(project, "initiative", None)
+    if not initiative:
+        return None
+    memberships = getattr(initiative, "memberships", None)
+    if not memberships:
+        return None
+    # Find user's role_id(s) in this initiative
+    user_role_ids = {m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None}
+    if not user_role_ids:
+        return None
+    # Find matching role permissions and return the highest level
+    level_order = {ProjectPermissionLevel.read: 0, ProjectPermissionLevel.write: 1, ProjectPermissionLevel.owner: 2}
+    best_level: ProjectPermissionLevel | None = None
+    for rp in role_permissions:
+        if rp.initiative_role_id in user_role_ids:
+            if best_level is None or level_order.get(rp.level, 0) > level_order.get(best_level, 0):
+                best_level = rp.level
+    return best_level
+
+
+def _effective_permission_level(
+    user_level: ProjectPermissionLevel | None,
+    role_level: ProjectPermissionLevel | None,
+) -> ProjectPermissionLevel | None:
+    """Return the higher of two permission levels (MAX behavior)."""
+    if user_level is None:
+        return role_level
+    if role_level is None:
+        return user_level
+    level_order = {ProjectPermissionLevel.read: 0, ProjectPermissionLevel.write: 1, ProjectPermissionLevel.owner: 2}
+    if level_order.get(role_level, 0) > level_order.get(user_level, 0):
+        return role_level
+    return user_level
+
+
+def _compute_my_permission_level(
+    project: Project,
+    user_id: int,
+    *,
+    is_guild_admin: bool = False,
+) -> str | None:
+    """Compute the effective permission level for a user on a project.
+
+    Uses eagerly-loaded relationships (permissions, role_permissions,
+    initiative.memberships) so no DB queries are needed.
+    Guild admins are treated as having owner-level access.
+    """
+    if is_guild_admin:
+        return ProjectPermissionLevel.owner.value
+
+    # Check user-specific permission
+    user_level: ProjectPermissionLevel | None = None
+    perm = _permission_from_project(project, user_id)
+    if perm:
+        user_level = perm.level
+
+    # Check role-based permission
+    role_level = _role_permission_level_from_project(project, user_id)
+
+    effective = _effective_permission_level(user_level, role_level)
+    return effective.value if effective else None
 
 
 def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
@@ -369,14 +465,23 @@ async def _visible_projects(
 ) -> List[Project]:
     """Get projects visible to the user.
 
-    Pure DAC: Only projects with explicit ProjectPermission are visible.
+    DAC: Projects with explicit ProjectPermission OR role-based permission.
     """
     # Subquery: projects where user has explicit permission
-    has_permission_subq = (
+    user_perm_subq = (
         select(ProjectPermission.project_id)
         .where(ProjectPermission.user_id == current_user.id)
-        .scalar_subquery()
     )
+    # Subquery: projects where user's initiative role has permission
+    role_perm_subq = (
+        select(ProjectRolePermission.project_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == current_user.id),
+        )
+    )
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     base_statement = (
         select(Project)
@@ -387,6 +492,7 @@ async def _visible_projects(
         )
         .options(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
+            selectinload(Project.role_permissions).selectinload(ProjectRolePermission.role),
             selectinload(Project.owner),
             selectinload(Project.initiative).selectinload(Initiative.memberships).options(
                 selectinload(InitiativeMember.user),
@@ -406,6 +512,8 @@ async def _project_reads_with_order(
     session: SessionDep,
     current_user: User,
     projects: List[Project],
+    *,
+    is_guild_admin: bool = False,
 ) -> List[ProjectRead]:
     if not projects:
         return []
@@ -435,12 +543,16 @@ async def _project_reads_with_order(
 
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
+        my_level = _compute_my_permission_level(
+            project, current_user.id, is_guild_admin=is_guild_admin,
+        )
         payloads.append(
             _build_project_payload(
                 project,
                 sort_order=order_map.get(project.id),
                 favorite_ids=favorite_ids,
                 view_map=view_map,
+                my_permission_level=my_level,
             )
         )
     return payloads
@@ -497,6 +609,7 @@ async def _projects_by_ids(
         )
         .options(
             selectinload(Project.permissions).selectinload(ProjectPermission.user),
+            selectinload(Project.role_permissions).selectinload(ProjectRolePermission.role),
             selectinload(Project.owner),
             selectinload(Project.initiative).selectinload(Initiative.memberships).options(
                 selectinload(InitiativeMember.user),
@@ -517,6 +630,7 @@ def _build_project_payload(
     sort_order: Optional[float],
     favorite_ids: set[int],
     view_map: dict[int, datetime],
+    my_permission_level: str | None = None,
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
@@ -533,6 +647,8 @@ def _build_project_payload(
             "documents": _project_documents(project),
             "task_summary": summary,
             "tags": _project_tags(project),
+            "role_permissions": _project_role_permissions(project),
+            "my_permission_level": my_permission_level,
         }
     )
 
@@ -629,10 +745,17 @@ async def _project_read_for_user(
     session: SessionDep,
     current_user: User,
     project: Project,
+    *,
+    is_guild_admin: bool = False,
 ) -> ProjectRead:
-    payloads = await _project_reads_with_order(session, current_user, [project])
+    payloads = await _project_reads_with_order(
+        session, current_user, [project], is_guild_admin=is_guild_admin,
+    )
     if payloads:
         return payloads[0]
+    my_level = _compute_my_permission_level(
+        project, current_user.id, is_guild_admin=is_guild_admin,
+    )
     project_ids = [project.id] if project.id is not None else []
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
     await _attach_task_summaries(session, [project])
@@ -641,6 +764,7 @@ async def _project_read_for_user(
         sort_order=None,
         favorite_ids=favorite_ids,
         view_map=view_map,
+        my_permission_level=my_level,
     )
 
 
@@ -654,28 +778,35 @@ async def _require_project_membership(
 ):
     """Check if user has required access to a project.
 
-    Pure DAC: Access is only granted through explicit ProjectPermission.
+    DAC: Access granted through explicit ProjectPermission or role-based permission.
+    Effective level = MAX(user-specific, role-based).
     - owner permission = full access (can manage permissions, delete, etc.)
     - write permission = can edit project content
     - read permission = can view project
     """
     # Check explicit permission
     permission = await _get_project_permission(project, current_user.id, session)
+    user_level = permission.level if permission else None
+
+    # Check role-based permission
+    role_level = _role_permission_level_from_project(project, current_user.id)
+
+    effective = _effective_permission_level(user_level, role_level)
 
     if require_manager:
         # Only project owners can perform manager-level operations
-        if not permission or permission.level != ProjectPermissionLevel.owner:
+        if effective != ProjectPermissionLevel.owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Project owner permission required",
             )
         return
 
-    if not permission:
+    if effective is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this project")
 
     # Check access level for non-manager operations
-    if access == "write" and permission.level == ProjectPermissionLevel.read:
+    if access == "write" and effective == ProjectPermissionLevel.read:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
 
 
@@ -685,15 +816,14 @@ def _has_project_write_access(
 ) -> bool:
     """Check if user has write access to a project (synchronous version for filtering).
 
-    Pure DAC: Write access requires explicit write or owner permission.
+    DAC: Write access requires explicit write/owner permission or role-based write permission.
     """
     permission = _permission_from_project(project, current_user.id)
+    user_level = permission.level if permission else None
+    role_level = _role_permission_level_from_project(project, current_user.id)
+    effective = _effective_permission_level(user_level, role_level)
 
-    # Check explicit permission - must be owner or write level
-    if permission and permission.level in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write):
-        return True
-
-    return False
+    return effective is not None and effective in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write)
 
 
 @router.get("/", response_model=List[ProjectRead])
@@ -711,7 +841,10 @@ async def list_projects(
         archived=archived,
         template=template,
     )
-    return await _project_reads_with_order(session, current_user, projects)
+    return await _project_reads_with_order(
+        session, current_user, projects,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
 
 
 @router.get("/writable", response_model=List[ProjectRead])
@@ -732,7 +865,10 @@ async def list_writable_projects(
         for project in projects
         if _has_project_write_access(project, current_user)
     ]
-    return await _project_reads_with_order(session, current_user, writable_projects)
+    return await _project_reads_with_order(
+        session, current_user, writable_projects,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
 
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -863,8 +999,16 @@ async def create_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
-    await broadcast_event("project", "created", _project_payload(project))
-    return await _project_read_for_user(session, current_user, project)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "created", _project_payload(
+        project,
+        my_permission_level=_compute_my_permission_level(
+            project, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, project, is_guild_admin=is_admin,
+    )
 
 
 @router.post("/{project_id}/archive", response_model=ProjectRead)
@@ -889,8 +1033,16 @@ async def archive_project(
         await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    await broadcast_event("project", "updated", _project_payload(updated))
-    return await _project_read_for_user(session, current_user, updated)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "updated", _project_payload(
+        updated,
+        my_permission_level=_compute_my_permission_level(
+            updated, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, updated, is_guild_admin=is_admin,
+    )
 
 
 @router.post("/{project_id}/duplicate", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -1002,8 +1154,16 @@ async def duplicate_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [new_project])
-    await broadcast_event("project", "created", _project_payload(new_project))
-    return await _project_read_for_user(session, current_user, new_project)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "created", _project_payload(
+        new_project,
+        my_permission_level=_compute_my_permission_level(
+            new_project, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, new_project, is_guild_admin=is_admin,
+    )
 
 
 @router.post("/{project_id}/unarchive", response_model=ProjectRead)
@@ -1028,8 +1188,16 @@ async def unarchive_project(
         await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    await broadcast_event("project", "updated", _project_payload(updated))
-    return await _project_read_for_user(session, current_user, updated)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "updated", _project_payload(
+        updated,
+        my_permission_level=_compute_my_permission_level(
+            updated, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, updated, is_guild_admin=is_admin,
+    )
 
 
 @router.get("/recent", response_model=List[ProjectRead])
@@ -1051,6 +1219,7 @@ async def recent_projects(
     project_ids = [record.project_id for record in records]
     project_map = await _projects_by_ids(session, project_ids, guild_id=guild_context.guild_id)
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
+    is_admin = guild_context.role == GuildRole.admin
 
     payloads: List[ProjectRead] = []
     for record in records:
@@ -1072,6 +1241,9 @@ async def recent_projects(
                 sort_order=None,
                 favorite_ids=favorite_ids,
                 view_map=view_map,
+                my_permission_level=_compute_my_permission_level(
+                    project, current_user.id, is_guild_admin=is_admin,
+                ),
             )
         )
     return payloads
@@ -1095,6 +1267,7 @@ async def favorite_projects(
     project_ids = [favorite.project_id for favorite in favorites]
     project_map = await _projects_by_ids(session, project_ids, guild_id=guild_context.guild_id)
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
+    is_admin = guild_context.role == GuildRole.admin
 
     payloads: List[ProjectRead] = []
     for favorite in favorites:
@@ -1116,6 +1289,9 @@ async def favorite_projects(
                 sort_order=None,
                 favorite_ids=favorite_ids,
                 view_map=view_map,
+                my_permission_level=_compute_my_permission_level(
+                    project, current_user.id, is_guild_admin=is_admin,
+                ),
             )
         )
     return payloads
@@ -1253,7 +1429,10 @@ async def read_project(
         session,
         access="read",
             )
-    return await _project_read_for_user(session, current_user, project)
+    return await _project_read_for_user(
+        session, current_user, project,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
@@ -1333,8 +1512,16 @@ async def update_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
-    await broadcast_event("project", "updated", _project_payload(project))
-    return await _project_read_for_user(session, current_user, project)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "updated", _project_payload(
+        project,
+        my_permission_level=_compute_my_permission_level(
+            project, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, project, is_guild_admin=is_admin,
+    )
 
 
 @router.post("/{project_id}/documents/{document_id}", response_model=ProjectRead)
@@ -1370,8 +1557,16 @@ async def attach_project_document(
     )
     updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated_project])
-    await broadcast_event("project", "updated", _project_payload(updated_project))
-    return await _project_read_for_user(session, current_user, updated_project)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "updated", _project_payload(
+        updated_project,
+        my_permission_level=_compute_my_permission_level(
+            updated_project, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, updated_project, is_guild_admin=is_admin,
+    )
 
 
 @router.delete("/{project_id}/documents/{document_id}", response_model=ProjectRead)
@@ -1406,8 +1601,16 @@ async def detach_project_document(
     )
     updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated_project])
-    await broadcast_event("project", "updated", _project_payload(updated_project))
-    return await _project_read_for_user(session, current_user, updated_project)
+    is_admin = guild_context.role == GuildRole.admin
+    await broadcast_event("project", "updated", _project_payload(
+        updated_project,
+        my_permission_level=_compute_my_permission_level(
+            updated_project, current_user.id, is_guild_admin=is_admin,
+        ),
+    ))
+    return await _project_read_for_user(
+        session, current_user, updated_project, is_guild_admin=is_admin,
+    )
 
 
 @router.post("/{project_id}/members", response_model=ProjectPermissionRead, status_code=status.HTTP_201_CREATED)
@@ -1705,7 +1908,10 @@ async def reorder_projects(
 
     await session.commit()
     await reapply_rls_context(session)
-    return await _project_reads_with_order(session, current_user, visible_projects)
+    return await _project_reads_with_order(
+        session, current_user, visible_projects,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1785,4 +1991,143 @@ async def set_project_tags(
     # Refetch with all relationships
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    return await _project_read_for_user(session, current_user, updated)
+    return await _project_read_for_user(
+        session, current_user, updated,
+        is_guild_admin=guild_context.role == GuildRole.admin,
+    )
+
+
+# ── Role-based permission CRUD ───────────────────────────────────
+
+
+@router.post("/{project_id}/role-permissions", response_model=ProjectRolePermissionRead, status_code=status.HTTP_201_CREATED)
+async def add_project_role_permission(
+    project_id: int,
+    role_perm_in: ProjectRolePermissionCreate,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectRolePermissionRead:
+    """Add a role-based permission to a project."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(project, current_user, session, access="write")
+    _ensure_not_archived(project)
+
+    if role_perm_in.level == ProjectPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+
+    # Validate the role belongs to the same initiative as the project
+    stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_perm_in.initiative_role_id)
+    result = await session.exec(stmt)
+    role = result.one_or_none()
+    if not role or role.initiative_id != project.initiative_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role must belong to the project's initiative")
+
+    # Check if already exists
+    existing_stmt = select(ProjectRolePermission).where(
+        ProjectRolePermission.project_id == project_id,
+        ProjectRolePermission.initiative_role_id == role_perm_in.initiative_role_id,
+    )
+    existing_result = await session.exec(existing_stmt)
+    existing = existing_result.one_or_none()
+    if existing:
+        existing.level = role_perm_in.level
+        session.add(existing)
+        await session.commit()
+        await reapply_rls_context(session)
+        await session.refresh(existing)
+        return ProjectRolePermissionRead(
+            initiative_role_id=existing.initiative_role_id,
+            role_name=role.name,
+            role_display_name=role.display_name,
+            level=existing.level,
+            created_at=existing.created_at,
+        )
+
+    role_perm = ProjectRolePermission(
+        project_id=project_id,
+        initiative_role_id=role_perm_in.initiative_role_id,
+        level=role_perm_in.level,
+        guild_id=guild_context.guild_id,
+    )
+    session.add(role_perm)
+    await session.commit()
+    await reapply_rls_context(session)
+    await session.refresh(role_perm)
+    return ProjectRolePermissionRead(
+        initiative_role_id=role_perm.initiative_role_id,
+        role_name=role.name,
+        role_display_name=role.display_name,
+        level=role_perm.level,
+        created_at=role_perm.created_at,
+    )
+
+
+@router.patch("/{project_id}/role-permissions/{role_id}", response_model=ProjectRolePermissionRead)
+async def update_project_role_permission(
+    project_id: int,
+    role_id: int,
+    update_in: ProjectRolePermissionUpdate,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectRolePermissionRead:
+    """Update a role-based permission level on a project."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(project, current_user, session, access="write")
+    _ensure_not_archived(project)
+
+    if update_in.level == ProjectPermissionLevel.owner:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+
+    stmt = select(ProjectRolePermission).where(
+        ProjectRolePermission.project_id == project_id,
+        ProjectRolePermission.initiative_role_id == role_id,
+    )
+    result = await session.exec(stmt)
+    role_perm = result.one_or_none()
+    if not role_perm:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role permission not found")
+
+    role_perm.level = update_in.level
+    session.add(role_perm)
+    await session.commit()
+    await reapply_rls_context(session)
+    await session.refresh(role_perm)
+
+    # Get role info
+    role_stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_id)
+    role_result = await session.exec(role_stmt)
+    role = role_result.one_or_none()
+    return ProjectRolePermissionRead(
+        initiative_role_id=role_perm.initiative_role_id,
+        role_name=role.name if role else "",
+        role_display_name=role.display_name if role else "",
+        level=role_perm.level,
+        created_at=role_perm.created_at,
+    )
+
+
+@router.delete("/{project_id}/role-permissions/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_role_permission(
+    project_id: int,
+    role_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Remove a role-based permission from a project."""
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(project, current_user, session, access="write")
+    _ensure_not_archived(project)
+
+    stmt = select(ProjectRolePermission).where(
+        ProjectRolePermission.project_id == project_id,
+        ProjectRolePermission.initiative_role_id == role_id,
+    )
+    result = await session.exec(stmt)
+    role_perm = result.one_or_none()
+    if not role_perm:
+        return
+    await session.delete(role_perm)
+    await session.commit()

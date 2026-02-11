@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -36,6 +36,7 @@ import type {
   DocumentSummary,
   Initiative,
   InitiativeMember,
+  InitiativeRoleRead,
 } from "@/types/api";
 
 interface BulkEditAccessDialogProps {
@@ -51,6 +52,14 @@ interface SelectableUser {
   email: string;
 }
 
+interface SelectableRole {
+  id: number;
+  name: string;
+  displayName: string;
+  initiativeId: number;
+  initiativeName: string;
+}
+
 export function BulkEditAccessDialog({
   open,
   onOpenChange,
@@ -59,12 +68,22 @@ export function BulkEditAccessDialog({
 }: BulkEditAccessDialogProps) {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
-  const [mode, setMode] = useState<"grant" | "revoke">("grant");
+  const [tab, setTab] = useState<"roles" | "users">("roles");
+  const [isPending, setIsPending] = useState(false);
+
+  // Individual user state
+  const [userMode, setUserMode] = useState<"grant" | "revoke">("grant");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<DocumentPermissionLevel>("read");
-  const [isPending, setIsPending] = useState(false);
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [userSearch, setUserSearch] = useState("");
+
+  // Role state
+  const [roleMode, setRoleMode] = useState<"grant" | "revoke">("grant");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<Set<number>>(new Set());
+  const [roleLevel, setRoleLevel] = useState<"read" | "write">("read");
+  const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const [roleSearch, setRoleSearch] = useState("");
 
   // Gather unique initiative IDs from selected documents
   const initiativeIds = useMemo(() => {
@@ -84,6 +103,70 @@ export function BulkEditAccessDialog({
     },
     enabled: open,
   });
+
+  // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
+  const roleQueries = useQueries({
+    queries: initiativeIds.map((id) => ({
+      queryKey: ["initiative-roles", id],
+      queryFn: async () => {
+        const response = await apiClient.get<InitiativeRoleRead[]>(`/initiatives/${id}/roles`);
+        return response.data;
+      },
+      enabled: open,
+    })),
+  });
+
+  // Build selectable roles from all relevant initiatives
+  const availableRoles = useMemo(() => {
+    const roles: SelectableRole[] = [];
+    for (let i = 0; i < roleQueries.length; i++) {
+      const query = roleQueries[i];
+      const initiativeId = initiativeIds[i];
+      if (!query.data) continue;
+      const initiative = initiatives.find((init) => init.id === initiativeId);
+      for (const role of query.data) {
+        roles.push({
+          id: role.id,
+          name: role.name,
+          displayName: role.display_name,
+          initiativeId,
+          initiativeName: initiative?.name ?? `Initiative ${initiativeId}`,
+        });
+      }
+    }
+    return roles.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [roleQueries, initiativeIds, initiatives]);
+
+  // Roles that are currently assigned on at least one selected document (for revoke)
+  const revocableRoles = useMemo(() => {
+    const roleMap = new Map<number, SelectableRole>();
+    for (const doc of documents) {
+      for (const rp of doc.role_permissions ?? []) {
+        if (!roleMap.has(rp.initiative_role_id)) {
+          roleMap.set(rp.initiative_role_id, {
+            id: rp.initiative_role_id,
+            name: rp.role_name,
+            displayName: rp.role_display_name,
+            initiativeId: doc.initiative_id,
+            initiativeName: doc.initiative?.name ?? `Initiative ${doc.initiative_id}`,
+          });
+        }
+      }
+    }
+    return Array.from(roleMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [documents]);
+
+  const displayRoles = roleMode === "grant" ? availableRoles : revocableRoles;
+
+  const filteredRoles = useMemo(() => {
+    if (!roleSearch.trim()) return displayRoles;
+    const searchLower = roleSearch.toLowerCase();
+    return displayRoles.filter(
+      (r) =>
+        r.displayName.toLowerCase().includes(searchLower) ||
+        r.initiativeName.toLowerCase().includes(searchLower)
+    );
+  }, [displayRoles, roleSearch]);
 
   // Build list of users from initiatives the selected documents belong to
   const availableUsers = useMemo(() => {
@@ -129,7 +212,7 @@ export function BulkEditAccessDialog({
     return Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [documents, currentUser]);
 
-  const displayUsers = mode === "grant" ? availableUsers : revocableUsers;
+  const displayUsers = userMode === "grant" ? availableUsers : revocableUsers;
 
   const filteredUsers = useMemo(() => {
     if (!userSearch.trim()) return displayUsers;
@@ -152,12 +235,30 @@ export function BulkEditAccessDialog({
     });
   }, []);
 
+  const toggleRole = useCallback((roleId: number) => {
+    setSelectedRoleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roleId)) {
+        next.delete(roleId);
+      } else {
+        next.add(roleId);
+      }
+      return next;
+    });
+  }, []);
+
   const resetState = useCallback(() => {
+    setTab("roles");
+    setUserMode("grant");
     setSelectedUserIds(new Set());
     setLevel("read");
-    setMode("grant");
     setUserSearch("");
     setUserPickerOpen(false);
+    setRoleMode("grant");
+    setSelectedRoleIds(new Set());
+    setRoleLevel("read");
+    setRoleSearch("");
+    setRolePickerOpen(false);
   }, []);
 
   const handleOpenChange = useCallback(
@@ -177,7 +278,7 @@ export function BulkEditAccessDialog({
     try {
       const userIds = [...selectedUserIds];
 
-      if (mode === "grant") {
+      if (userMode === "grant") {
         await Promise.all(
           documents.map((doc) =>
             apiClient.post(`/documents/${doc.id}/members/bulk`, {
@@ -210,87 +311,281 @@ export function BulkEditAccessDialog({
     } finally {
       setIsPending(false);
     }
-  }, [selectedUserIds, mode, documents, level, queryClient, resetState, onOpenChange, onSuccess]);
+  }, [
+    selectedUserIds,
+    userMode,
+    documents,
+    level,
+    queryClient,
+    resetState,
+    onOpenChange,
+    onSuccess,
+  ]);
 
-  const selectedCount = selectedUserIds.size;
-  const canApply = selectedCount > 0;
+  const handleApplyRoles = useCallback(async () => {
+    if (selectedRoleIds.size === 0) return;
+
+    setIsPending(true);
+    try {
+      const roleIds = [...selectedRoleIds];
+
+      const affectedDocIds = new Set<number>();
+
+      if (roleMode === "grant") {
+        // For each document, grant each selected role (only if the role belongs to that doc's initiative)
+        const promises: Promise<unknown>[] = [];
+        for (const doc of documents) {
+          const docRoles = availableRoles.filter(
+            (r) => r.initiativeId === doc.initiative_id && roleIds.includes(r.id)
+          );
+          for (const role of docRoles) {
+            // Skip if already assigned
+            const alreadyAssigned = (doc.role_permissions ?? []).some(
+              (rp) => rp.initiative_role_id === role.id
+            );
+            if (!alreadyAssigned) {
+              affectedDocIds.add(doc.id);
+              promises.push(
+                apiClient.post(`/documents/${doc.id}/role-permissions`, {
+                  initiative_role_id: role.id,
+                  level: roleLevel,
+                })
+              );
+            }
+          }
+        }
+        await Promise.all(promises);
+        const affected = affectedDocIds.size;
+        const total = documents.length;
+        if (affected === 0) {
+          toast.info("Selected roles are already assigned on all selected documents.");
+        } else if (affected === total) {
+          toast.success(`Role access granted on ${affected} document${affected === 1 ? "" : "s"}.`);
+        } else {
+          toast.success(
+            `Role access granted on ${affected} of ${total} documents (${total - affected} already assigned or in a different initiative).`
+          );
+        }
+      } else {
+        // For each document, revoke each selected role
+        const promises: Promise<unknown>[] = [];
+        for (const doc of documents) {
+          for (const roleId of roleIds) {
+            const isAssigned = (doc.role_permissions ?? []).some(
+              (rp) => rp.initiative_role_id === roleId
+            );
+            if (isAssigned) {
+              affectedDocIds.add(doc.id);
+              promises.push(apiClient.delete(`/documents/${doc.id}/role-permissions/${roleId}`));
+            }
+          }
+        }
+        await Promise.all(promises);
+        const affected = affectedDocIds.size;
+        const total = documents.length;
+        if (affected === 0) {
+          toast.info("Selected roles were not assigned on any selected documents.");
+        } else if (affected === total) {
+          toast.success(`Role access revoked on ${affected} document${affected === 1 ? "" : "s"}.`);
+        } else {
+          toast.success(
+            `Role access revoked on ${affected} of ${total} documents (${total - affected} were not assigned).`
+          );
+        }
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      resetState();
+      onOpenChange(false);
+      onSuccess();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to update role access right now.";
+      toast.error(message);
+    } finally {
+      setIsPending(false);
+    }
+  }, [
+    selectedRoleIds,
+    roleMode,
+    roleLevel,
+    documents,
+    availableRoles,
+    queryClient,
+    resetState,
+    onOpenChange,
+    onSuccess,
+  ]);
+
+  const selectedUserCount = selectedUserIds.size;
+  const selectedRoleCount = selectedRoleIds.size;
+  const canApplyUsers = selectedUserCount > 0;
+  const canApplyRoles = selectedRoleCount > 0;
+
+  const activeMode = tab === "roles" ? roleMode : userMode;
+  const docCount = documents.length;
+  const docLabel = `${docCount} document${docCount === 1 ? "" : "s"}`;
+  const dialogDescription = `${activeMode === "grant" ? "Grant" : "Revoke"} ${tab === "roles" ? "role " : ""}access ${activeMode === "grant" ? "on" : "from"} ${docLabel}.`;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Edit Access</DialogTitle>
-          <DialogDescription>
-            {mode === "grant" ? "Grant" : "Revoke"} access {mode === "grant" ? "on" : "from"}{" "}
-            {documents.length} selected document{documents.length === 1 ? "" : "s"}.
-          </DialogDescription>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <Tabs
-          value={mode}
+          value={tab}
           onValueChange={(v) => {
-            setMode(v as "grant" | "revoke");
+            setTab(v as "roles" | "users");
             setSelectedUserIds(new Set());
             setUserSearch("");
             setUserPickerOpen(false);
+            setSelectedRoleIds(new Set());
+            setRoleSearch("");
+            setRolePickerOpen(false);
           }}
         >
           <TabsList className="w-full">
-            <TabsTrigger value="grant" className="flex-1">
-              Grant Access
+            <TabsTrigger value="roles" className="flex-1">
+              Roles
             </TabsTrigger>
-            <TabsTrigger value="revoke" className="flex-1">
-              Revoke Access
+            <TabsTrigger value="users" className="flex-1">
+              Users
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="grant" className="mt-4 space-y-3">
+          <TabsContent value="roles" className="mt-4 space-y-3">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Users</label>
-              <UserMultiPicker
-                users={filteredUsers}
-                selectedIds={selectedUserIds}
-                onToggle={toggleUser}
-                open={userPickerOpen}
-                onOpenChange={setUserPickerOpen}
-                search={userSearch}
-                onSearchChange={setUserSearch}
-                placeholder="Select users..."
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Permission level</label>
-              <Select value={level} onValueChange={(v) => setLevel(v as DocumentPermissionLevel)}>
+              <label className="text-sm font-medium">Action</label>
+              <Select
+                value={roleMode}
+                onValueChange={(v) => {
+                  setRoleMode(v as "grant" | "revoke");
+                  setSelectedRoleIds(new Set());
+                  setRoleSearch("");
+                  setRolePickerOpen(false);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="read">Can view</SelectItem>
-                  <SelectItem value="write">Can edit</SelectItem>
+                  <SelectItem value="grant">Grant access</SelectItem>
+                  <SelectItem value="revoke">Revoke access</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {roleMode === "revoke" && revocableRoles.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No roles have been granted access on the selected documents.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Roles</label>
+                  <ItemMultiPicker
+                    items={filteredRoles.map((r) => ({
+                      id: r.id,
+                      label: r.displayName,
+                      sublabel: initiativeIds.length > 1 ? r.initiativeName : undefined,
+                    }))}
+                    selectedIds={selectedRoleIds}
+                    onToggle={toggleRole}
+                    open={rolePickerOpen}
+                    onOpenChange={setRolePickerOpen}
+                    search={roleSearch}
+                    onSearchChange={setRoleSearch}
+                    placeholder={
+                      roleMode === "grant" ? "Select roles..." : "Select roles to revoke..."
+                    }
+                    itemLabel="role"
+                  />
+                </div>
+                {roleMode === "grant" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Permission level</label>
+                    <Select
+                      value={roleLevel}
+                      onValueChange={(v) => setRoleLevel(v as "read" | "write")}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">Can view</SelectItem>
+                        <SelectItem value="write">Can edit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
+            )}
           </TabsContent>
 
-          <TabsContent value="revoke" className="mt-4 space-y-3">
-            {revocableUsers.length === 0 ? (
+          <TabsContent value="users" className="mt-4 space-y-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Action</label>
+              <Select
+                value={userMode}
+                onValueChange={(v) => {
+                  setUserMode(v as "grant" | "revoke");
+                  setSelectedUserIds(new Set());
+                  setUserSearch("");
+                  setUserPickerOpen(false);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="grant">Grant access</SelectItem>
+                  <SelectItem value="revoke">Revoke access</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {userMode === "revoke" && revocableUsers.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 No non-owner permissions on the selected documents.
               </p>
             ) : (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Users to revoke</label>
-                <UserMultiPicker
-                  users={filteredUsers}
-                  selectedIds={selectedUserIds}
-                  onToggle={toggleUser}
-                  open={userPickerOpen}
-                  onOpenChange={setUserPickerOpen}
-                  search={userSearch}
-                  onSearchChange={setUserSearch}
-                  placeholder="Select users to revoke..."
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Users</label>
+                  <UserMultiPicker
+                    users={filteredUsers}
+                    selectedIds={selectedUserIds}
+                    onToggle={toggleUser}
+                    open={userPickerOpen}
+                    onOpenChange={setUserPickerOpen}
+                    search={userSearch}
+                    onSearchChange={setUserSearch}
+                    placeholder={
+                      userMode === "grant" ? "Select users..." : "Select users to revoke..."
+                    }
+                  />
+                </div>
+                {userMode === "grant" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Permission level</label>
+                    <Select
+                      value={level}
+                      onValueChange={(v) => setLevel(v as DocumentPermissionLevel)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">Can view</SelectItem>
+                        <SelectItem value="write">Can edit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>
@@ -299,22 +594,41 @@ export function BulkEditAccessDialog({
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
-          <Button
-            onClick={() => void handleApply()}
-            disabled={isPending || !canApply}
-            variant={mode === "revoke" ? "destructive" : "default"}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Applying…
-              </>
-            ) : mode === "grant" ? (
-              `Grant to ${selectedCount} user${selectedCount === 1 ? "" : "s"}`
-            ) : (
-              `Revoke from ${selectedCount} user${selectedCount === 1 ? "" : "s"}`
-            )}
-          </Button>
+          {tab === "roles" ? (
+            <Button
+              onClick={() => void handleApplyRoles()}
+              disabled={isPending || !canApplyRoles}
+              variant={roleMode === "revoke" ? "destructive" : "default"}
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Applying…
+                </>
+              ) : roleMode === "grant" ? (
+                `Grant ${selectedRoleCount} role${selectedRoleCount === 1 ? "" : "s"}`
+              ) : (
+                `Revoke ${selectedRoleCount} role${selectedRoleCount === 1 ? "" : "s"}`
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void handleApply()}
+              disabled={isPending || !canApplyUsers}
+              variant={userMode === "revoke" ? "destructive" : "default"}
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Applying…
+                </>
+              ) : userMode === "grant" ? (
+                `Grant to ${selectedUserCount} user${selectedUserCount === 1 ? "" : "s"}`
+              ) : (
+                `Revoke from ${selectedUserCount} user${selectedUserCount === 1 ? "" : "s"}`
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -401,6 +715,103 @@ function UserMultiPicker({
                         {user.name !== user.email && (
                           <span className="text-muted-foreground truncate text-xs">
                             {user.email}
+                          </span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })
+              )}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Reusable multi-select item picker (for roles)
+function ItemMultiPicker({
+  items,
+  selectedIds,
+  onToggle,
+  open,
+  onOpenChange,
+  search,
+  onSearchChange,
+  placeholder,
+  itemLabel,
+}: {
+  items: { id: number; label: string; sublabel?: string }[];
+  selectedIds: Set<number>;
+  onToggle: (id: number) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  placeholder: string;
+  itemLabel: string;
+}) {
+  const selectedCount = selectedIds.size;
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "border-input ring-offset-background focus:ring-ring flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm shadow-sm focus:ring-1 focus:outline-none",
+            selectedCount === 0 && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">
+            {selectedCount === 0
+              ? placeholder
+              : `${selectedCount} ${itemLabel}${selectedCount === 1 ? "" : "s"} selected`}
+          </span>
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={`Search ${itemLabel}s...`}
+            value={search}
+            onValueChange={onSearchChange}
+          />
+          <CommandList>
+            <CommandGroup>
+              {items.length === 0 ? (
+                <div className="text-muted-foreground py-6 text-center text-sm">
+                  No {itemLabel}s found.
+                </div>
+              ) : (
+                items.map((item) => {
+                  const isSelected = selectedIds.has(item.id);
+                  return (
+                    <CommandItem
+                      key={item.id}
+                      value={`${itemLabel}-${item.id}`}
+                      onSelect={() => onToggle(item.id)}
+                      className="cursor-pointer"
+                    >
+                      <div
+                        className={cn(
+                          "border-primary mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "opacity-50 [&_svg]:invisible"
+                        )}
+                      >
+                        <Check className="h-3 w-3" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="truncate text-sm">{item.label}</span>
+                        {item.sublabel && (
+                          <span className="text-muted-foreground truncate text-xs">
+                            {item.sublabel}
                           </span>
                         )}
                       </div>

@@ -11,10 +11,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
-from app.models.document import Document, DocumentPermission
+from app.models.document import Document, DocumentPermission, DocumentRolePermission
 from app.models.guild import GuildRole
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.project import Project, ProjectPermission
+from app.models.project import Project, ProjectPermission, ProjectRolePermission
 from app.models.task import Task
 from app.models.user import User
 from app.services import documents as documents_service
@@ -95,13 +95,26 @@ async def _has_project_permission(
     project_id: int,
     user_id: int,
 ) -> bool:
+    # Check user-specific permission
     stmt = select(ProjectPermission).where(
         ProjectPermission.project_id == project_id,
         ProjectPermission.user_id == user_id,
     )
     result = await session.exec(stmt)
-    permission = result.one_or_none()
-    return permission is not None
+    if result.one_or_none() is not None:
+        return True
+    # Check role-based permission
+    role_stmt = (
+        select(ProjectRolePermission)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == user_id),
+        )
+        .where(ProjectRolePermission.project_id == project_id)
+    )
+    role_result = await session.exec(role_stmt)
+    return role_result.first() is not None
 
 
 async def _ensure_task_access(
@@ -126,10 +139,12 @@ async def _ensure_document_access(
     document: Document,
     user: User,
 ) -> None:
-    """Ensure user can access document for commenting (pure DAC).
+    """Ensure user can access document for commenting.
 
-    Any permission level (owner, write, read) grants comment access.
+    Any permission level (owner, write, read) grants comment access,
+    including role-based permissions.
     """
+    # Check user-specific permission
     permissions = getattr(document, "permissions", None)
     if permissions is None:
         stmt = select(DocumentPermission).where(DocumentPermission.document_id == document.id)
@@ -138,6 +153,19 @@ async def _ensure_document_access(
     for permission in permissions or []:
         if permission.user_id == user.id:
             return
+    # Check role-based permission
+    role_stmt = (
+        select(DocumentRolePermission)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == user.id),
+        )
+        .where(DocumentRolePermission.document_id == document.id)
+    )
+    role_result = await session.exec(role_stmt)
+    if role_result.first() is not None:
+        return
     raise CommentPermissionError("Not authorized to comment on this document")
 
 

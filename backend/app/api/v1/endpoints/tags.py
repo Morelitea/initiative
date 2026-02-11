@@ -10,8 +10,9 @@ from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_ac
 from app.db.session import reapply_rls_context
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.task import Task
-from app.models.project import Project, ProjectPermission
-from app.models.document import Document, DocumentPermission
+from app.models.project import Project, ProjectPermission, ProjectRolePermission
+from app.models.document import Document, DocumentPermission, DocumentRolePermission
+from app.models.initiative import InitiativeMember
 from app.models.user import User
 from app.schemas.tag import (
     TagCreate,
@@ -166,15 +167,27 @@ async def get_tag_entities(
     """
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
+    # Build project access subquery (user + role)
+    user_project_perm = select(ProjectPermission.project_id).where(
+        ProjectPermission.user_id == current_user.id
+    )
+    role_project_perm = (
+        select(ProjectRolePermission.project_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == current_user.id),
+        )
+    )
+    project_access_subq = user_project_perm.union(role_project_perm)
+
     # Get tasks with this tag that user can access
     tasks_stmt = (
         select(Task)
         .join(TaskTag, TaskTag.task_id == Task.id)
-        .join(Task.project)
-        .join(ProjectPermission, ProjectPermission.project_id == Project.id)
         .where(
             TaskTag.tag_id == tag.id,
-            ProjectPermission.user_id == current_user.id,
+            Task.project_id.in_(project_access_subq),
         )
         .options(selectinload(Task.project))
     )
@@ -194,10 +207,9 @@ async def get_tag_entities(
     projects_stmt = (
         select(Project)
         .join(ProjectTag, ProjectTag.project_id == Project.id)
-        .join(ProjectPermission, ProjectPermission.project_id == Project.id)
         .where(
             ProjectTag.tag_id == tag.id,
-            ProjectPermission.user_id == current_user.id,
+            Project.id.in_(project_access_subq),
         )
         .options(selectinload(Project.initiative))
     )
@@ -213,14 +225,27 @@ async def get_tag_entities(
         for project in projects
     ]
 
+    # Build document access subquery (user + role)
+    user_doc_perm = select(DocumentPermission.document_id).where(
+        DocumentPermission.user_id == current_user.id
+    )
+    role_doc_perm = (
+        select(DocumentRolePermission.document_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == current_user.id),
+        )
+    )
+    doc_access_subq = user_doc_perm.union(role_doc_perm)
+
     # Get documents with this tag that user can access
     documents_stmt = (
         select(Document)
         .join(DocumentTag, DocumentTag.document_id == Document.id)
-        .join(DocumentPermission, DocumentPermission.document_id == Document.id)
         .where(
             DocumentTag.tag_id == tag.id,
-            DocumentPermission.user_id == current_user.id,
+            Document.id.in_(doc_access_subq),
         )
         .options(selectinload(Document.initiative))
     )
