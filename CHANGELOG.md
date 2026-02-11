@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server-side pagination for tasks: `GET /tasks/` now accepts `page`, `page_size`, `sort_by`, and `sort_dir` query params, returning paginated results with total count (`page_size=0` returns all for drag-and-drop views)
 - Server-side sorting for tasks with support for title, due date, start date, priority, created/updated timestamps, and manual sort order
 - Pagination and server-side sorting controls on My Tasks page and tag tasks table, with page synced to URL and hover prefetching
-- Server-side pagination for documents: `GET /documents/` now accepts `page` and `page_size` query params, returning paginated results with total count
+- Server-side pagination and sorting for documents: `GET /documents/` now accepts `page`, `page_size`, `sort_by`, and `sort_dir` query params, returning paginated and sorted results with total count
 - `GET /documents/counts` lightweight endpoint returning per-tag document counts for the tag tree sidebar
 - Pagination controls (prev/next, page size selector, page in URL) for all three document views (list, grid, tags)
 - Data prefetching on hover over pagination buttons for instant page transitions
