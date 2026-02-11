@@ -6,6 +6,7 @@ import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import { getItem, setItem } from "@/lib/storage";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -59,11 +60,8 @@ const FILTER_DEFAULTS = {
 };
 
 const readStoredFilters = () => {
-  if (typeof window === "undefined") {
-    return FILTER_DEFAULTS;
-  }
   try {
-    const raw = window.localStorage.getItem(MY_TASKS_FILTERS_KEY);
+    const raw = getItem(MY_TASKS_FILTERS_KEY);
     if (!raw) {
       return FILTER_DEFAULTS;
     }
@@ -229,15 +227,12 @@ export const MyTasksPage = () => {
   }, [tasks]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
     const payload = {
       statusFilters,
       priorityFilters,
       guildFilters,
     };
-    window.localStorage.setItem(MY_TASKS_FILTERS_KEY, JSON.stringify(payload));
+    setItem(MY_TASKS_FILTERS_KEY, JSON.stringify(payload));
   }, [statusFilters, priorityFilters, guildFilters]);
 
   const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {

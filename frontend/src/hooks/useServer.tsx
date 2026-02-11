@@ -73,27 +73,17 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
 
   // Load stored server URL on mount
   useEffect(() => {
-    const loadServerUrl = async () => {
-      if (!isNativePlatform) {
-        // On web, we don't need a stored server URL
-        setLoading(false);
-        return;
-      }
+    if (!isNativePlatform) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const stored = await getStoredServerUrl();
-        if (stored) {
-          setServerUrlState(stored);
-          setApiBaseUrl(stored);
-        }
-      } catch (err) {
-        console.error("Failed to load server URL", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadServerUrl();
+    const stored = getStoredServerUrl();
+    if (stored) {
+      setServerUrlState(stored);
+      setApiBaseUrl(stored);
+    }
+    setLoading(false);
   }, [isNativePlatform]);
 
   const testServerConnection = useCallback(
@@ -132,26 +122,14 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
 
   const setServerUrl = useCallback(async (url: string): Promise<void> => {
     const normalizedUrl = normalizeServerUrl(url);
-
-    // Store the URL
-    await setStoredServerUrl(normalizedUrl);
-
-    // Update API client
+    setStoredServerUrl(normalizedUrl);
     setApiBaseUrl(normalizedUrl);
-
-    // Update state
     setServerUrlState(normalizedUrl);
   }, []);
 
   const clearServerUrl = useCallback(async (): Promise<void> => {
-    // Clear all stored data (server URL + token)
-    await clearAllStorage();
-
-    // Reset state
+    clearAllStorage();
     setServerUrlState(null);
-
-    // Note: The app should redirect to the connect page after this
-    // which is handled by routing logic
   }, []);
 
   const getServerHostname = useCallback((): string | null => {

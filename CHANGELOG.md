@@ -13,12 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Role Access section in project and document settings pages for managing role-based permissions
 - Bulk role access management: grant or revoke role-based permissions across multiple selected documents at once
 - `my_permission_level` field in project and document API responses indicating the current user's effective access level
+- Persistent storage abstraction (`storage.ts`) backed by Capacitor Preferences on mobile and localStorage on web, preventing data loss when mobile OS clears localStorage under memory pressure
 
 ### Changed
 
 - Project settings page reorganized into tabbed layout (Details, Access, Task statuses, Advanced)
 - Document settings page reorganized into tabbed layout (Details, Access, Advanced)
 - Bulk edit access dialog restructured into Roles and Users tabs, each with grant/revoke action selector
+- All frontend localStorage usage migrated to the new storage abstraction (~15 files)
 
 ## [0.27.0] - 2026-02-10
 

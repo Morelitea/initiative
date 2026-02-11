@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 
 import { apiClient } from "@/api/client";
+import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -146,18 +147,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-    return localStorage.getItem(PROJECT_SEARCH_KEY) ?? "";
+    return getItem(PROJECT_SEARCH_KEY) ?? "";
   });
   const [sortMode, setSortMode] = useState<
     "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
   >(() => {
-    if (typeof window === "undefined") {
-      return "custom";
-    }
-    const stored = localStorage.getItem(PROJECT_SORT_KEY);
+    const stored = getItem(PROJECT_SORT_KEY);
     if (
       stored === "custom" ||
       stored === "updated" ||
@@ -242,18 +237,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   });
 
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
-    if (typeof window === "undefined") {
-      return "grid";
-    }
-    const stored = localStorage.getItem(PROJECT_VIEW_KEY);
+    const stored = getItem(PROJECT_VIEW_KEY);
     return stored === "list" || stored === "grid" ? stored : "grid";
   });
   const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [tagFilters, setTagFilters] = useState<number[]>(() => {
     if (fixedTagIds) return fixedTagIds;
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(PROJECT_TAG_FILTERS_KEY);
+    const stored = getItem(PROJECT_TAG_FILTERS_KEY);
     if (!stored) return [];
     try {
       const parsed = JSON.parse(stored);
@@ -452,20 +443,20 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   });
 
   useEffect(() => {
-    localStorage.setItem(PROJECT_SEARCH_KEY, searchQuery);
+    setItem(PROJECT_SEARCH_KEY, searchQuery);
   }, [searchQuery]);
 
   useEffect(() => {
-    localStorage.setItem(PROJECT_SORT_KEY, sortMode);
+    setItem(PROJECT_SORT_KEY, sortMode);
   }, [sortMode]);
 
   useEffect(() => {
-    localStorage.setItem(PROJECT_VIEW_KEY, viewMode);
+    setItem(PROJECT_VIEW_KEY, viewMode);
   }, [viewMode]);
 
   useEffect(() => {
     if (fixedTagIds) return;
-    localStorage.setItem(PROJECT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
+    setItem(PROJECT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
   }, [tagFilters, fixedTagIds]);
   useEffect(() => {
     if (isTemplateProject) {

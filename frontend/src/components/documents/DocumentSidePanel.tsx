@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 
+import { getItem, setItem } from "@/lib/storage";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -24,15 +25,14 @@ export const DocumentSidePanel = ({
   showSummaryTab = true,
 }: DocumentSidePanelProps) => {
   const [activeTab, setActiveTab] = useState<PanelTab>(() => {
-    if (typeof window === "undefined") return "comments";
-    const saved = localStorage.getItem(TAB_STORAGE_KEY);
+    const saved = getItem(TAB_STORAGE_KEY);
     if (saved === "summary" && showSummaryTab) return "summary";
     return "comments";
   });
 
   // Persist tab selection
   useEffect(() => {
-    localStorage.setItem(TAB_STORAGE_KEY, activeTab);
+    setItem(TAB_STORAGE_KEY, activeTab);
   }, [activeTab]);
 
   // If summary tab is hidden but was selected, switch to comments
@@ -89,16 +89,14 @@ export const DocumentSidePanel = ({
   );
 };
 
-// Hook for managing panel state with localStorage persistence
+// Hook for managing panel state with storage persistence
 export const useDocumentSidePanel = () => {
   const [isOpen, setIsOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved === "true";
+    return getItem(STORAGE_KEY) === "true";
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(isOpen));
+    setItem(STORAGE_KEY, String(isOpen));
   }, [isOpen]);
 
   return {

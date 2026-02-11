@@ -24,6 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import { getItem, setItem } from "@/lib/storage";
 import { queryClient } from "@/lib/queryClient";
 import { useTags } from "@/hooks/useTags";
 import type {
@@ -247,7 +248,7 @@ export const ProjectTasksSection = ({
     setShowArchived(false);
 
     try {
-      const raw = localStorage.getItem(filterStorageKey);
+      const raw = getItem(filterStorageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StoredFilters>;
         if (
@@ -293,7 +294,7 @@ export const ProjectTasksSection = ({
       tagFilters,
       showArchived,
     };
-    localStorage.setItem(filterStorageKey, JSON.stringify(payload));
+    setItem(filterStorageKey, JSON.stringify(payload));
   }, [
     filterStorageKey,
     filtersLoadedForProject,
@@ -307,11 +308,11 @@ export const ProjectTasksSection = ({
   ]);
 
   useEffect(() => {
-    if (!collapsedStorageKey || typeof window === "undefined") {
+    if (!collapsedStorageKey) {
       return;
     }
     try {
-      const raw = localStorage.getItem(collapsedStorageKey);
+      const raw = getItem(collapsedStorageKey);
       if (raw) {
         const parsed: number[] = JSON.parse(raw);
         setCollapsedStatuses(new Set(parsed));
@@ -323,10 +324,10 @@ export const ProjectTasksSection = ({
 
   const persistCollapsedStatuses = useCallback(
     (next: Set<number>) => {
-      if (!collapsedStorageKey || typeof window === "undefined") {
+      if (!collapsedStorageKey) {
         return;
       }
-      localStorage.setItem(collapsedStorageKey, JSON.stringify(Array.from(next)));
+      setItem(collapsedStorageKey, JSON.stringify(Array.from(next)));
     },
     [collapsedStorageKey]
   );

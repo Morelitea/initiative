@@ -20,6 +20,7 @@ import {
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
 import { apiClient } from "@/api/client";
+import { getItem, setItem } from "@/lib/storage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -528,10 +529,10 @@ const InitiativeSection = ({
     const permission = project.permissions?.find((p) => p.user_id === userId);
     return permission?.level === "owner" || permission?.level === "write";
   };
-  // Load initial state from localStorage, default to true if not found
+  // Load initial state from storage, default to true if not found
   const [isOpen, setIsOpen] = useState(() => {
     try {
-      const stored = localStorage.getItem("initiative-collapsed-states");
+      const stored = getItem("initiative-collapsed-states");
       if (stored) {
         const states = JSON.parse(stored) as Record<number, boolean>;
         return states[initiative.id] ?? true;
@@ -542,13 +543,13 @@ const InitiativeSection = ({
     return true;
   });
 
-  // Save state to localStorage whenever it changes
+  // Save state to storage whenever it changes
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("initiative-collapsed-states");
+      const stored = getItem("initiative-collapsed-states");
       const states = stored ? (JSON.parse(stored) as Record<number, boolean>) : {};
       states[initiative.id] = isOpen;
-      localStorage.setItem("initiative-collapsed-states", JSON.stringify(states));
+      setItem("initiative-collapsed-states", JSON.stringify(states));
     } catch {
       // Ignore storage errors
     }
@@ -860,7 +861,7 @@ const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeCompone
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   const [isOpen, setIsOpen] = useState(() => {
     try {
-      const stored = localStorage.getItem("tag-group-collapsed-states");
+      const stored = getItem("tag-group-collapsed-states");
       if (stored) {
         const states = JSON.parse(stored) as Record<string, boolean>;
         return states[node.fullPath] ?? false;
@@ -873,10 +874,10 @@ const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeCompone
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("tag-group-collapsed-states");
+      const stored = getItem("tag-group-collapsed-states");
       const states = stored ? (JSON.parse(stored) as Record<string, boolean>) : {};
       states[node.fullPath] = isOpen;
-      localStorage.setItem("tag-group-collapsed-states", JSON.stringify(states));
+      setItem("tag-group-collapsed-states", JSON.stringify(states));
     } catch {
       // Ignore storage errors
     }

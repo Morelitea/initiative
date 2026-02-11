@@ -3,7 +3,7 @@ import type { AxiosError } from "axios";
 import { Capacitor } from "@capacitor/core";
 
 import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "@/api/client";
-import { getStoredToken, setStoredToken, clearStoredToken } from "@/lib/serverStorage";
+import { getItem, setItem, removeItem } from "@/lib/storage";
 import { User } from "../types/api";
 
 interface LoginPayload {
@@ -44,33 +44,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Load token on mount
+  // Load token on mount (storage is pre-hydrated by initStorage)
   useEffect(() => {
-    const loadToken = async () => {
-      try {
-        if (isNative) {
-          // On mobile, use Preferences storage
-          const storedToken = await getStoredToken();
-          if (storedToken) {
-            setTokenState(storedToken);
-            setIsDeviceToken(true); // Mobile always uses device tokens
-            setAuthToken(storedToken, true);
-          }
-        } else {
-          // On web, use localStorage
-          const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
-          const isDevice = localStorage.getItem(DEVICE_TOKEN_KEY) === "true";
-          if (storedToken) {
-            setTokenState(storedToken);
-            setIsDeviceToken(isDevice);
-            setAuthToken(storedToken, isDevice);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load token", err);
+    try {
+      const storedToken = getItem(TOKEN_STORAGE_KEY);
+      const isDevice = isNative || getItem(DEVICE_TOKEN_KEY) === "true";
+      if (storedToken) {
+        setTokenState(storedToken);
+        setIsDeviceToken(isDevice);
+        setAuthToken(storedToken, isDevice);
       }
-    };
-    void loadToken();
+    } catch (err) {
+      console.error("Failed to load token", err);
+    }
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -98,12 +84,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Clear invalid token
         setTokenState(null);
         setIsDeviceToken(false);
-        if (isNative) {
-          await clearStoredToken();
-        } else {
-          localStorage.removeItem(TOKEN_STORAGE_KEY);
-          localStorage.removeItem(DEVICE_TOKEN_KEY);
-        }
+        removeItem(TOKEN_STORAGE_KEY);
+        removeItem(DEVICE_TOKEN_KEY);
         setUser(null);
         setAuthToken(null);
       } finally {
@@ -124,14 +106,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           device_name: name,
         });
         const newToken = response.data.device_token;
-        // Set auth token BEFORE React state to avoid race with bootstrap effect
         setAuthToken(newToken, true);
-        await setStoredToken(newToken);
+        setItem(TOKEN_STORAGE_KEY, newToken);
+        setItem(DEVICE_TOKEN_KEY, "true");
         setTokenState(newToken);
         setIsDeviceToken(true);
         await refreshUser();
       } else {
-        // On web, use regular JWT login
         const params = new URLSearchParams();
         params.append("username", email);
         params.append("password", password);
@@ -144,10 +125,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
         });
         const newToken = response.data.access_token;
-        // Set auth token BEFORE React state to avoid race with bootstrap effect
         setAuthToken(newToken, false);
-        localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-        localStorage.removeItem(DEVICE_TOKEN_KEY);
+        setItem(TOKEN_STORAGE_KEY, newToken);
+        removeItem(DEVICE_TOKEN_KEY);
         setTokenState(newToken);
         setIsDeviceToken(false);
         await refreshUser();
@@ -173,14 +153,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const completeOidcLogin = async (accessToken: string, isDevice = false) => {
-    // Set auth token BEFORE React state to avoid race with bootstrap effect
     setAuthToken(accessToken, isDevice);
+    setItem(TOKEN_STORAGE_KEY, accessToken);
     if (isDevice) {
-      await setStoredToken(accessToken); // Capacitor Preferences (persistent)
-      localStorage.setItem(DEVICE_TOKEN_KEY, "true");
+      setItem(DEVICE_TOKEN_KEY, "true");
     } else {
-      localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
-      localStorage.removeItem(DEVICE_TOKEN_KEY);
+      removeItem(DEVICE_TOKEN_KEY);
     }
     setTokenState(accessToken);
     setIsDeviceToken(isDevice);
@@ -193,12 +171,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsDeviceToken(false);
     setUser(null);
     setAuthToken(null);
-    if (isNative) {
-      await clearStoredToken();
-    } else {
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-      localStorage.removeItem(DEVICE_TOKEN_KEY);
-    }
+    removeItem(TOKEN_STORAGE_KEY);
+    removeItem(DEVICE_TOKEN_KEY);
   }, []);
 
   useEffect(() => {

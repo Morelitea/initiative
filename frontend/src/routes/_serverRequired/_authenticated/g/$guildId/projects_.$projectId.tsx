@@ -1,5 +1,6 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 import { apiClient } from "@/api/client";
+import { getItem } from "@/lib/storage";
 
 type StoredFilters = {
   viewMode: string;
@@ -19,9 +20,8 @@ function getStoredFilters(projectId: number): {
     statusFilters: [] as number[],
     showArchived: false,
   };
-  if (typeof window === "undefined") return defaults;
   try {
-    const raw = localStorage.getItem(`project:${projectId}:view-filters`);
+    const raw = getItem(`project:${projectId}:view-filters`);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw) as Partial<StoredFilters>;
     return {
@@ -42,7 +42,7 @@ export const Route = createFileRoute(
     const guildId = Number(params.guildId);
     const { queryClient } = context;
 
-    // Read saved filters from localStorage
+    // Read saved filters from storage
     const { assigneeFilters, statusFilters, showArchived } = getStoredFilters(projectId);
 
     // Build task query params
