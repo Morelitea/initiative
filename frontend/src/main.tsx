@@ -11,6 +11,7 @@ import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { queryClient } from "@/lib/queryClient";
+import { initStorage } from "@/lib/storage";
 import { router } from "@/router";
 import { registerServiceWorker } from "@/serviceWorkerRegistration";
 
@@ -39,22 +40,28 @@ const InnerApp = () => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <ServerProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <GuildProvider>
-              <InnerApp />
-            </GuildProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ServerProvider>
-    </ThemeProvider>
-  </React.StrictMode>
-);
+async function bootstrap() {
+  await initStorage();
 
-if (import.meta.env.PROD) {
-  registerServiceWorker();
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <ThemeProvider>
+        <ServerProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <GuildProvider>
+                <InnerApp />
+              </GuildProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </ServerProvider>
+      </ThemeProvider>
+    </React.StrictMode>
+  );
+
+  if (import.meta.env.PROD) {
+    registerServiceWorker();
+  }
 }
+
+void bootstrap();

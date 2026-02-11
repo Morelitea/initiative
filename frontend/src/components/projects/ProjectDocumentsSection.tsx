@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getItem, setItem } from "@/lib/storage";
 import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -49,11 +50,7 @@ export const ProjectDocumentsSection = ({
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
   const storageKey = `project:${projectId}:documentsCollapsed`;
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    const stored = localStorage.getItem(storageKey);
-    return stored === "true";
+    return getItem(storageKey) === "true";
   });
 
   const initiativeDocsQuery = useQuery<DocumentSummary[]>({
@@ -140,9 +137,7 @@ export const ProjectDocumentsSection = ({
       open={!isCollapsed}
       onOpenChange={(open) => {
         setIsCollapsed(!open);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(storageKey, (!open).toString());
-        }
+        setItem(storageKey, (!open).toString());
       }}
       className="bg-card space-y-4 rounded-2xl border p-5 shadow-sm"
     >
@@ -158,9 +153,7 @@ export const ProjectDocumentsSection = ({
               onClick={() => {
                 setIsCollapsed((prev) => {
                   const next = !prev;
-                  if (typeof window !== "undefined") {
-                    localStorage.setItem(storageKey, next.toString());
-                  }
+                  setItem(storageKey, next.toString());
                   return next;
                 });
               }}

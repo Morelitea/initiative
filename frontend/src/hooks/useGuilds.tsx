@@ -12,6 +12,7 @@ import type { AxiosError } from "axios";
 import { toast } from "sonner";
 
 import { apiClient, setCurrentGuildId } from "@/api/client";
+import { getItem, setItem, removeItem } from "@/lib/storage";
 import type { Guild } from "@/types/api";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -35,10 +36,7 @@ const GuildContext = createContext<GuildContextValue | undefined>(undefined);
 const GUILD_STORAGE_KEY = "initiative-active-guild";
 
 const readStoredGuildId = (): number | null => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const stored = window.localStorage.getItem(GUILD_STORAGE_KEY);
+  const stored = getItem(GUILD_STORAGE_KEY);
   if (!stored) {
     return null;
   }
@@ -47,13 +45,10 @@ const readStoredGuildId = (): number | null => {
 };
 
 const persistGuildId = (guildId: number | null) => {
-  if (typeof window === "undefined") {
-    return;
-  }
   if (guildId === null) {
-    window.localStorage.removeItem(GUILD_STORAGE_KEY);
+    removeItem(GUILD_STORAGE_KEY);
   } else {
-    window.localStorage.setItem(GUILD_STORAGE_KEY, String(guildId));
+    setItem(GUILD_STORAGE_KEY, String(guildId));
   }
 };
 
@@ -96,7 +91,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         return prev;
       }
 
-      // Fall back to localStorage (client session preference)
+      // Fall back to stored guild (client session preference)
       const stored = readStoredGuildId();
       if (stored && sortedGuilds.some((guild) => guild.id === stored)) {
         return stored;

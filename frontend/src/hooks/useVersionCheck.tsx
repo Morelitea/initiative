@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/api/client";
 import { compareVersions } from "@/hooks/useDockerHubVersion";
+import { getItem, setItem } from "@/lib/storage";
 
 const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const CURRENT_VERSION = __APP_VERSION__;
@@ -30,7 +31,7 @@ export const useVersionCheck = () => {
         }
 
         // Check if user already dismissed this specific version
-        const dismissedVersion = localStorage.getItem(DISMISSED_VERSION_KEY);
+        const dismissedVersion = getItem(DISMISSED_VERSION_KEY);
         if (dismissedVersion === serverVersion) {
           return;
         }
@@ -59,7 +60,7 @@ export const useVersionCheck = () => {
   const closeDialog = () => {
     // Persist the dismissed version so it doesn't reappear on refresh
     if (updateAvailable.version) {
-      localStorage.setItem(DISMISSED_VERSION_KEY, updateAvailable.version);
+      setItem(DISMISSED_VERSION_KEY, updateAvailable.version);
     }
     setUpdateAvailable({ show: false, version: "" });
   };

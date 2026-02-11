@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { syncFaviconWithTheme } from "@/lib/favicon";
+import { getItem, setItem } from "@/lib/storage";
 
 type Theme = "light" | "dark" | "system";
 type ResolvedTheme = Exclude<Theme, "system">;
@@ -22,10 +23,7 @@ const THEME_STORAGE_KEY = "initiative-theme";
 const THEME_CYCLE: Theme[] = ["system", "light", "dark"];
 
 const getPreferredTheme = (): Theme => {
-  if (typeof window === "undefined") {
-    return "system";
-  }
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  const stored = getItem(THEME_STORAGE_KEY);
   if (stored === "light" || stored === "dark" || stored === "system") {
     return stored;
   }
@@ -72,10 +70,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   }, [resolvedTheme]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   useEffect(() => {

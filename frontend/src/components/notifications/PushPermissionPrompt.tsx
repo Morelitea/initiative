@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
+import { getItem, setItem } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,7 +28,7 @@ export const PushPermissionPrompt = () => {
       return;
     }
 
-    const wasDismissed = localStorage.getItem(DISMISS_STORAGE_KEY);
+    const wasDismissed = getItem(DISMISS_STORAGE_KEY);
     if (wasDismissed) {
       return;
     }
@@ -41,7 +42,7 @@ export const PushPermissionPrompt = () => {
   }, [isSupported, user, permissionStatus]);
 
   const handleDismiss = () => {
-    localStorage.setItem(DISMISS_STORAGE_KEY, "true");
+    setItem(DISMISS_STORAGE_KEY, "true");
     setShow(false);
   };
 

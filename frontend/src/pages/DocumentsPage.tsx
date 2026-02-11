@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -251,17 +252,13 @@ export const DocumentsView = ({
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
   const [viewMode, setViewMode] = useState<"grid" | "list" | "tags">(() => {
     if (fixedTagIds) return "list";
-    if (typeof window === "undefined") {
-      return "tags";
-    }
-    const stored = localStorage.getItem(DOCUMENT_VIEW_KEY);
+    const stored = getItem(DOCUMENT_VIEW_KEY);
     return stored === "list" || stored === "grid" || stored === "tags" ? stored : "tags";
   });
   const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<number[]>(() => {
     if (fixedTagIds) return fixedTagIds;
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(DOCUMENT_TAG_FILTERS_KEY);
+    const stored = getItem(DOCUMENT_TAG_FILTERS_KEY);
     if (!stored) return [];
     try {
       const parsed = JSON.parse(stored);
@@ -480,12 +477,12 @@ export const DocumentsView = ({
 
   useEffect(() => {
     if (fixedTagIds) return;
-    localStorage.setItem(DOCUMENT_VIEW_KEY, viewMode);
+    setItem(DOCUMENT_VIEW_KEY, viewMode);
   }, [viewMode, fixedTagIds]);
 
   useEffect(() => {
     if (fixedTagIds) return;
-    localStorage.setItem(DOCUMENT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
+    setItem(DOCUMENT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
   }, [tagFilters, fixedTagIds]);
 
   useEffect(() => {
