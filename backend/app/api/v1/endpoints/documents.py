@@ -375,10 +375,14 @@ async def get_document_counts(
     total_stmt = select(func.count()).select_from(visible_docs_subq)
     total_count = (await session.exec(total_stmt)).one()
 
-    # Per-tag counts
+    # Per-tag counts (join Tag to enforce guild scoping)
     tag_count_stmt = (
         select(DocumentTag.tag_id, func.count(DocumentTag.document_id))
-        .where(DocumentTag.document_id.in_(select(visible_docs_subq.c.id)))
+        .join(Tag, Tag.id == DocumentTag.tag_id)
+        .where(
+            DocumentTag.document_id.in_(select(visible_docs_subq.c.id)),
+            Tag.guild_id == guild_context.guild_id,
+        )
         .group_by(DocumentTag.tag_id)
     )
     tag_rows = (await session.exec(tag_count_stmt)).all()
