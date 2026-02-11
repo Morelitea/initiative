@@ -89,6 +89,11 @@ interface DataTableProps<TData, TValue> {
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   getRowId?: (row: TData) => string;
   onExitSelection?: () => void;
+  manualPagination?: boolean;
+  pageCount?: number;
+  rowCount?: number;
+  onPaginationChange?: (pagination: PaginationState) => void;
+  onPrefetchPage?: (pageIndex: number) => void;
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -119,6 +124,11 @@ export function DataTable<TData, TValue>({
   onRowSelectionChange,
   getRowId,
   onExitSelection,
+  manualPagination = false,
+  pageCount: externalPageCount,
+  rowCount: externalRowCount,
+  onPaginationChange: externalOnPaginationChange,
+  onPrefetchPage,
 }: DataTableProps<TData, TValue>) {
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
@@ -200,6 +210,18 @@ export function DataTable<TData, TValue>({
     return [selectionColumn, ...columns];
   }, [enableRowSelection, selectionModeActive, columns]);
 
+  const handlePaginationChange = useMemo(() => {
+    if (!enablePagination) return undefined;
+    if (manualPagination && externalOnPaginationChange) {
+      return (updater: PaginationState | ((old: PaginationState) => PaginationState)) => {
+        const newState = typeof updater === "function" ? updater(pagination) : updater;
+        setPagination(newState);
+        externalOnPaginationChange(newState);
+      };
+    }
+    return setPagination;
+  }, [enablePagination, manualPagination, externalOnPaginationChange, pagination]);
+
   const table = useReactTable({
     data,
     columns: columnsWithSelection,
@@ -208,15 +230,21 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGroupingChange: groupingEnabled ? setGrouping : undefined,
-    onPaginationChange: enablePagination ? setPagination : undefined,
+    onPaginationChange: handlePaginationChange,
     onRowSelectionChange: enableRowSelection ? setRowSelection : undefined,
     enableRowSelection: enableRowSelection,
     getRowId: getRowId,
-    getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
+    getPaginationRowModel:
+      enablePagination && !manualPagination ? getPaginationRowModel() : undefined,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: groupingEnabled ? getGroupedRowModel() : undefined,
     getExpandedRowModel: groupingEnabled ? getExpandedRowModel() : undefined,
+    manualPagination: manualPagination,
+    ...(manualPagination && externalPageCount !== undefined
+      ? { pageCount: externalPageCount }
+      : {}),
+    ...(manualPagination && externalRowCount !== undefined ? { rowCount: externalRowCount } : {}),
     initialState: computedInitialState,
     state: {
       sorting,
@@ -688,11 +716,21 @@ export function DataTable<TData, TValue>({
               </Select>
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto">
+              {manualPagination && externalPageCount !== undefined && (
+                <span className="text-muted-foreground text-sm">
+                  Page {table.getState().pagination.pageIndex + 1} of{" "}
+                  {Math.max(externalPageCount, 1)}
+                </span>
+              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
+                onMouseEnter={() => {
+                  const prevIndex = table.getState().pagination.pageIndex - 1;
+                  if (prevIndex >= 0 && onPrefetchPage) onPrefetchPage(prevIndex);
+                }}
               >
                 Previous
               </Button>
@@ -701,6 +739,10 @@ export function DataTable<TData, TValue>({
                 size="sm"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
+                onMouseEnter={() => {
+                  const nextIndex = table.getState().pagination.pageIndex + 1;
+                  if (table.getCanNextPage() && onPrefetchPage) onPrefetchPage(nextIndex);
+                }}
               >
                 Next
               </Button>

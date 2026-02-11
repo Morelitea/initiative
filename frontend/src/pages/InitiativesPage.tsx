@@ -82,8 +82,10 @@ export const InitiativesPage = () => {
   const documentsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", "initiative-counts", { guildId: activeGuildId }],
     queryFn: async () => {
-      const response = await apiClient.get<DocumentSummary[]>("/documents/");
-      return response.data;
+      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
+        params: { page_size: "0" },
+      });
+      return response.data.items;
     },
     enabled: Boolean(activeGuild),
     staleTime: 30_000,

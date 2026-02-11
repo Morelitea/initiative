@@ -141,6 +141,20 @@ class DocumentSummary(DocumentBase):
         from_attributes = True
 
 
+class DocumentListResponse(BaseModel):
+    items: List[DocumentSummary]
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
+
+
+class DocumentCountsResponse(BaseModel):
+    total_count: int
+    untagged_count: int
+    tag_counts: Dict[int, int]
+
+
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
 

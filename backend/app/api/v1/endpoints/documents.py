@@ -22,9 +22,11 @@ from app.models.guild import GuildRole
 from app.schemas.document import (
     DocumentAutocomplete,
     DocumentBacklink,
+    DocumentCountsResponse,
     DocumentCreate,
     DocumentCopyRequest,
     DocumentDuplicateRequest,
+    DocumentListResponse,
     DocumentPermissionBulkCreate,
     DocumentPermissionBulkDelete,
     DocumentPermissionCreate,
@@ -34,7 +36,6 @@ from app.schemas.document import (
     DocumentRolePermissionCreate,
     DocumentRolePermissionRead,
     DocumentRolePermissionUpdate,
-    DocumentSummary,
     DocumentUpdate,
     serialize_document,
     serialize_document_summary,
@@ -284,7 +285,130 @@ def _get_document_permission(document: Document, user_id: int) -> DocumentPermis
     return next((p for p in _get_loaded_permissions(document) if p.user_id == user_id), None)
 
 
-@router.get("/", response_model=List[DocumentSummary])
+def _build_visible_docs_filters(
+    guild_id: int,
+    user_id: int,
+    *,
+    initiative_id: Optional[int] = None,
+    search: Optional[str] = None,
+    tag_ids: Optional[List[int]] = None,
+):
+    """Build common WHERE conditions for visible-document queries.
+
+    Returns (conditions list, has_permission_subq) that can be applied to
+    any query selecting from Document joined to Initiative.
+    """
+    user_perm_subq = (
+        select(DocumentPermission.document_id)
+        .where(DocumentPermission.user_id == user_id)
+    )
+    role_perm_subq = (
+        select(DocumentRolePermission.document_id)
+        .join(
+            InitiativeMember,
+            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+            & (InitiativeMember.user_id == user_id),
+        )
+    )
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
+
+    conditions = [
+        Initiative.guild_id == guild_id,
+        Document.id.in_(has_permission_subq),
+    ]
+
+    if initiative_id is not None:
+        conditions.append(Document.initiative_id == initiative_id)
+
+    if search:
+        normalized = search.strip().lower()
+        if normalized:
+            conditions.append(func.lower(Document.title).contains(normalized))
+
+    if tag_ids:
+        tag_subquery = (
+            select(DocumentTag.document_id)
+            .join(Tag, Tag.id == DocumentTag.tag_id)
+            .where(
+                DocumentTag.tag_id.in_(tuple(tag_ids)),
+                Tag.guild_id == guild_id,
+            )
+            .distinct()
+        )
+        conditions.append(Document.id.in_(tag_subquery))
+
+    return conditions
+
+
+@router.get("/counts", response_model=DocumentCountsResponse)
+async def get_document_counts(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+) -> DocumentCountsResponse:
+    """Get per-tag document counts for visible documents.
+
+    Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
+    because counts should reflect all tags.
+    """
+    if initiative_id is not None:
+        await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
+
+    conditions = _build_visible_docs_filters(
+        guild_context.guild_id,
+        current_user.id,
+        initiative_id=initiative_id,
+        search=search,
+    )
+
+    # Subquery: IDs of visible documents
+    visible_docs_subq = (
+        select(Document.id)
+        .join(Document.initiative)
+        .where(*conditions)
+        .subquery()
+    )
+
+    # Total count
+    total_stmt = select(func.count()).select_from(visible_docs_subq)
+    total_count = (await session.exec(total_stmt)).one()
+
+    # Per-tag counts (join Tag to enforce guild scoping)
+    tag_count_stmt = (
+        select(DocumentTag.tag_id, func.count(DocumentTag.document_id))
+        .join(Tag, Tag.id == DocumentTag.tag_id)
+        .where(
+            DocumentTag.document_id.in_(select(visible_docs_subq.c.id)),
+            Tag.guild_id == guild_context.guild_id,
+        )
+        .group_by(DocumentTag.tag_id)
+    )
+    tag_rows = (await session.exec(tag_count_stmt)).all()
+    tag_counts = {tag_id: count for tag_id, count in tag_rows}
+
+    # Untagged count
+    untagged_stmt = (
+        select(func.count())
+        .select_from(visible_docs_subq)
+        .where(
+            ~select(DocumentTag.document_id)
+            .where(DocumentTag.document_id == visible_docs_subq.c.id)
+            .correlate(visible_docs_subq)
+            .exists()
+        )
+    )
+    untagged_count = (await session.exec(untagged_stmt)).one()
+
+    return DocumentCountsResponse(
+        total_count=total_count,
+        untagged_count=untagged_count,
+        tag_counts=tag_counts,
+    )
+
+
+@router.get("/", response_model=DocumentListResponse)
 async def list_documents(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -292,34 +416,41 @@ async def list_documents(
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
-) -> List[DocumentSummary]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+) -> DocumentListResponse:
     """List documents visible to the current user.
 
     DAC: Documents with explicit DocumentPermission or role-based permission.
-    """
-    # Subquery: documents where user has explicit permission
-    user_perm_subq = (
-        select(DocumentPermission.document_id)
-        .where(DocumentPermission.user_id == current_user.id)
-    )
-    # Subquery: documents where user's initiative role has permission
-    role_perm_subq = (
-        select(DocumentRolePermission.document_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == current_user.id),
-        )
-    )
-    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
+    Pagination: page_size=0 returns all documents (no pagination).
+    """
+    if initiative_id is not None:
+        await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
+
+    conditions = _build_visible_docs_filters(
+        guild_context.guild_id,
+        current_user.id,
+        initiative_id=initiative_id,
+        search=search,
+        tag_ids=tag_ids,
+    )
+
+    # Count query
+    count_subq = (
+        select(Document.id)
+        .join(Document.initiative)
+        .where(*conditions)
+        .subquery()
+    )
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+
+    # Data query with eager loading
     stmt = (
         select(Document)
         .join(Document.initiative)
-        .where(
-            Initiative.guild_id == guild_context.guild_id,
-            Document.id.in_(has_permission_subq),
-        )
+        .where(*conditions)
         .options(
             selectinload(Document.initiative).selectinload(Initiative.memberships).options(
                 selectinload(InitiativeMember.user),
@@ -332,35 +463,16 @@ async def list_documents(
         )
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
-    if initiative_id is not None:
-        await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
-        stmt = stmt.where(Document.initiative_id == initiative_id)
 
-    if search:
-        normalized = search.strip().lower()
-        if normalized:
-            stmt = stmt.where(func.lower(Document.title).contains(normalized))
-
-    if tag_ids:
-        # Use subquery to avoid duplicate rows from JOIN
-        # Join through Tag to enforce guild scoping
-        tag_subquery = (
-            select(DocumentTag.document_id)
-            .join(Tag, Tag.id == DocumentTag.tag_id)
-            .where(
-                DocumentTag.tag_id.in_(tuple(tag_ids)),
-                Tag.guild_id == guild_context.guild_id,
-            )
-            .distinct()
-        )
-        stmt = stmt.where(Document.id.in_(tag_subquery))
+    if page_size > 0:
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await session.exec(stmt)
     documents = result.unique().all()
 
     await documents_service.annotate_comment_counts(session, documents)
     is_admin = guild_context.role == GuildRole.admin
-    return [
+    items = [
         serialize_document_summary(
             document,
             my_permission_level=_compute_my_doc_permission_level(
@@ -369,6 +481,16 @@ async def list_documents(
         )
         for document in documents
     ]
+
+    has_next = (page * page_size < total_count) if page_size > 0 else False
+
+    return DocumentListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=has_next,
+    )
 
 
 @router.get("/autocomplete", response_model=List[DocumentAutocomplete])

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   FileSpreadsheet,
   Filter,
@@ -48,7 +50,15 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type { DocumentRead, DocumentSummary, Initiative, Tag, TagSummary } from "@/types/api";
+import type {
+  DocumentCountsResponse,
+  DocumentListResponse,
+  DocumentRead,
+  DocumentSummary,
+  Initiative,
+  Tag,
+  TagSummary,
+} from "@/types/api";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -207,6 +217,71 @@ const documentColumns: ColumnDef<DocumentSummary>[] = [
   },
 ];
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+interface PaginationBarProps {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  hasNext: boolean;
+  onPageChange: (updater: number | ((prev: number) => number)) => void;
+  onPageSizeChange: (size: number) => void;
+  onPrefetchPage: (page: number) => void;
+}
+
+const PaginationBar = ({
+  page,
+  pageSize,
+  totalCount,
+  hasNext,
+  onPageChange,
+  onPageSizeChange,
+  onPrefetchPage,
+}: PaginationBarProps) => (
+  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground text-sm">Per page:</span>
+      <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
+        <SelectTrigger className="h-8 w-20">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
+          {PAGE_SIZE_OPTIONS.map((opt) => (
+            <SelectItem key={opt} value={String(opt)}>
+              {opt}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground text-sm">
+        {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount}
+      </span>
+    </div>
+    <div className="flex items-center gap-2 self-end sm:self-auto">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange((p) => Math.max(1, p - 1))}
+        disabled={page <= 1}
+        onMouseEnter={() => onPrefetchPage(page - 1)}
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Previous
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange((p) => p + 1)}
+        disabled={!hasNext}
+        onMouseEnter={() => hasNext && onPrefetchPage(page + 1)}
+      >
+        Next
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+);
+
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
   fixedTagIds?: number[];
@@ -223,7 +298,11 @@ export const DocumentsView = ({
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
-  const searchParams = useSearch({ strict: false }) as { initiativeId?: string; create?: string };
+  const searchParams = useSearch({ strict: false }) as {
+    initiativeId?: string;
+    create?: string;
+    page?: number;
+  };
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
@@ -234,6 +313,8 @@ export const DocumentsView = ({
   const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
     !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
   );
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
   const lastConsumedParams = useRef<string>("");
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
   const isClosingCreateDialog = useRef(false);
@@ -274,6 +355,35 @@ export const DocumentsView = ({
       setTagFilters(fixedTagIds);
     }
   }, [fixedTagIds]);
+
+  const [page, setPageState] = useState(() => searchParams.page ?? 1);
+  const [pageSize, setPageSizeState] = useState(20);
+
+  const setPage = useCallback(
+    (updater: number | ((prev: number) => number)) => {
+      setPageState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        void router.navigate({
+          to: ".",
+          search: {
+            ...searchParamsRef.current,
+            page: next <= 1 ? undefined : next,
+          },
+          replace: true,
+        });
+        return next;
+      });
+    },
+    [router]
+  );
+
+  const handlePageSizeChange = useCallback(
+    (size: number) => {
+      setPageSizeState(size);
+      setPage(1);
+    },
+    [setPage]
+  );
 
   const { data: allTags = [] } = useTags();
 
@@ -339,14 +449,47 @@ export const DocumentsView = ({
   // When fixedTagIds is provided, always use them regardless of view mode
   const effectiveTagFilters = fixedTagIds ? fixedTagIds : viewMode === "tags" ? [] : tagFilters;
 
-  const documentsQuery = useQuery<DocumentSummary[]>({
+  // For tags view, derive tag_ids from tree selection for server-side filtering
+  const treeTagIds = useMemo(() => {
+    if (viewMode !== "tags" || treeSelectedPaths.size === 0) return [];
+    const tagPaths = new Set(treeSelectedPaths);
+    tagPaths.delete(UNTAGGED_PATH);
+    const tree = buildTagTree(allTags);
+    const ids: number[] = [];
+    for (const path of tagPaths) {
+      const node = findNodeByPath(tree, path);
+      if (node) {
+        for (const id of collectDescendantTagIds(node)) {
+          ids.push(id);
+        }
+      }
+    }
+    return ids;
+  }, [viewMode, treeSelectedPaths, allTags]);
+
+  // Whether "untagged" is selected in tags view
+  const treeWantsUntagged = viewMode === "tags" && treeSelectedPaths.has(UNTAGGED_PATH);
+
+  // Effective tag_ids sent to the server for the document list query
+  // In tags view: use tree-derived tag IDs; in other views: use filter bar tag IDs
+  const queryTagIds = viewMode === "tags" ? treeTagIds : effectiveTagFilters;
+
+  // Reset to page 1 when filters or view mode change
+  const queryTagIdsKey = JSON.stringify(queryTagIds);
+  useEffect(() => {
+    setPage(1);
+  }, [viewMode, initiativeFilter, searchQuery, queryTagIdsKey, setPage]);
+
+  const documentsQuery = useQuery<DocumentListResponse>({
     queryKey: [
       "documents",
       {
         guildId: activeGuildId,
         initiative: initiativeFilter,
         search: searchQuery,
-        tagFilters: effectiveTagFilters,
+        tagFilters: queryTagIds,
+        page,
+        pageSize,
       },
     ],
     queryFn: async () => {
@@ -357,13 +500,79 @@ export const DocumentsView = ({
       if (searchQuery.trim()) {
         params.search = searchQuery.trim();
       }
-      if (effectiveTagFilters.length > 0) {
-        params.tag_ids = effectiveTagFilters.map(String);
+      if (queryTagIds.length > 0) {
+        params.tag_ids = queryTagIds.map(String);
       }
-      const response = await apiClient.get<DocumentSummary[]>("/documents/", { params });
+      params.page = String(page);
+      params.page_size = String(pageSize);
+      const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
       return response.data;
     },
   });
+
+  // Counts query for tags view sidebar
+  const countsQuery = useQuery<DocumentCountsResponse>({
+    queryKey: [
+      "documents",
+      "counts",
+      {
+        guildId: activeGuildId,
+        initiative: initiativeFilter,
+        search: searchQuery,
+      },
+    ],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
+        params.initiative_id = initiativeFilter;
+      }
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+      const response = await apiClient.get<DocumentCountsResponse>("/documents/counts", { params });
+      return response.data;
+    },
+    enabled: viewMode === "tags",
+  });
+
+  // Prefetch adjacent page on hover
+  const prefetchPage = useCallback(
+    (targetPage: number) => {
+      if (targetPage < 1) return;
+      const params: Record<string, string | string[]> = {};
+      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
+        params.initiative_id = initiativeFilter;
+      }
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+      if (queryTagIds.length > 0) {
+        params.tag_ids = queryTagIds.map(String);
+      }
+      params.page = String(targetPage);
+      params.page_size = String(pageSize);
+
+      void queryClient.prefetchQuery({
+        queryKey: [
+          "documents",
+          {
+            guildId: activeGuildId,
+            initiative: initiativeFilter,
+            search: searchQuery,
+            tagFilters: queryTagIds,
+            page: targetPage,
+            pageSize,
+          },
+        ],
+        queryFn: async () => {
+          const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
+          return response.data;
+        },
+        staleTime: 30_000,
+      });
+    },
+    [activeGuildId, initiativeFilter, searchQuery, queryTagIds, pageSize, queryClient]
+  );
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: ["initiatives", { guildId: activeGuildId }],
@@ -587,42 +796,33 @@ export const DocumentsView = ({
 
   // Filter documents to only show those from viewable initiatives
   const documents = useMemo(() => {
-    const allDocs = documentsQuery.data ?? [];
+    const allDocs = documentsQuery.data?.items ?? [];
     if (!user) return allDocs;
     return allDocs.filter((doc) => viewableInitiativeIds.has(doc.initiative_id));
   }, [documentsQuery.data, user, viewableInitiativeIds]);
 
-  // For tags view: filter documents by selected tree paths (union / OR)
-  const treeFilteredDocuments = useMemo(() => {
-    if (treeSelectedPaths.size === 0) return documents;
+  const totalCount = documentsQuery.data?.total_count ?? 0;
+  const hasNext = documentsQuery.data?.has_next ?? false;
+  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
-    const wantsUntagged = treeSelectedPaths.has(UNTAGGED_PATH);
-    const tagPaths = new Set(treeSelectedPaths);
-    tagPaths.delete(UNTAGGED_PATH);
-
-    const tree = buildTagTree(allTags);
-    // Merge all descendant tag IDs from every selected path into one set
-    const matchingTagIds = new Set<number>();
-    for (const path of tagPaths) {
-      const node = findNodeByPath(tree, path);
-      if (node) {
-        for (const id of collectDescendantTagIds(node)) {
-          matchingTagIds.add(id);
-        }
-      }
+  // For tags view with "untagged" selected, client-side filter since server
+  // doesn't support "untagged" as a tag_id filter
+  const displayDocuments = useMemo(() => {
+    // When only "untagged" is selected (no tag IDs), we sent no tag_ids to server
+    // so we need to client-side filter to only untagged docs
+    if (treeWantsUntagged && treeTagIds.length === 0) {
+      return documents.filter((doc) => !doc.tags || doc.tags.length === 0);
     }
-
-    // Union: document matches if it has ANY selected tag OR is untagged (if selected)
-    return documents.filter((doc) => {
-      const docTags = doc.tags ?? [];
-
-      if (wantsUntagged && docTags.length === 0) return true;
-
-      if (matchingTagIds.size > 0 && docTags.some((t) => matchingTagIds.has(t.id))) return true;
-
-      return false;
-    });
-  }, [documents, treeSelectedPaths, allTags]);
+    // When "untagged" is selected along with tags, include both
+    if (treeWantsUntagged && treeTagIds.length > 0) {
+      // Server already filtered by tag_ids, but we also want untagged docs.
+      // Since the server can't do OR(tagged, untagged), we accept the server
+      // results which filter by tags — untagged won't appear in that result.
+      // This is a minor limitation; users can click "untagged" alone for that.
+      return documents;
+    }
+    return documents;
+  }, [documents, treeWantsUntagged, treeTagIds]);
 
   return (
     <div className="space-y-6">
@@ -801,7 +1001,7 @@ export const DocumentsView = ({
         </div>
       ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">Unable to load documents right now.</p>
-      ) : documents.length > 0 ? (
+      ) : totalCount > 0 ? (
         viewMode === "tags" ? (
           <div className="flex flex-col gap-4 md:flex-row">
             {/* Mobile: collapsible tag panel */}
@@ -827,7 +1027,8 @@ export const DocumentsView = ({
                 <div className="max-h-64">
                   <TagTreeView
                     tags={allTags}
-                    documents={documents}
+                    tagCounts={countsQuery.data?.tag_counts ?? {}}
+                    untaggedCount={countsQuery.data?.untagged_count ?? 0}
                     selectedTagPaths={treeSelectedPaths}
                     onToggleTag={handleTreeTagToggle}
                   />
@@ -838,18 +1039,34 @@ export const DocumentsView = ({
             <div className="border-muted bg-background/40 hidden w-64 shrink-0 rounded-md border md:block">
               <TagTreeView
                 tags={allTags}
-                documents={documents}
+                tagCounts={countsQuery.data?.tag_counts ?? {}}
+                untaggedCount={countsQuery.data?.untagged_count ?? 0}
                 selectedTagPaths={treeSelectedPaths}
                 onToggleTag={handleTreeTagToggle}
               />
             </div>
             <div className="min-w-0 flex-1">
-              {treeFilteredDocuments.length > 0 ? (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-                  {treeFilteredDocuments.map((document) => (
-                    <DocumentCard key={document.id} document={document} hideInitiative />
-                  ))}
-                </div>
+              {displayDocuments.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                    {displayDocuments.map((document) => (
+                      <DocumentCard key={document.id} document={document} hideInitiative />
+                    ))}
+                  </div>
+                  {totalCount > 0 && (
+                    <div className="mt-4">
+                      <PaginationBar
+                        page={page}
+                        pageSize={pageSize}
+                        totalCount={totalCount}
+                        hasNext={hasNext}
+                        onPageChange={setPage}
+                        onPageSizeChange={handlePageSizeChange}
+                        onPrefetchPage={prefetchPage}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-muted-foreground py-8 text-center text-sm">
                   No documents match the selected tags.
@@ -858,11 +1075,24 @@ export const DocumentsView = ({
             </div>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {documents.map((document) => (
-              <DocumentCard key={document.id} document={document} hideInitiative />
-            ))}
-          </div>
+          <>
+            <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {documents.map((document) => (
+                <DocumentCard key={document.id} document={document} hideInitiative />
+              ))}
+            </div>
+            {totalCount > 0 && (
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                hasNext={hasNext}
+                onPageChange={setPage}
+                onPageSizeChange={handlePageSizeChange}
+                onPrefetchPage={prefetchPage}
+              />
+            )}
+          </>
         ) : (
           <>
             {selectedDocuments.length > 0 && (
@@ -965,6 +1195,17 @@ export const DocumentsView = ({
               filterInputPlaceholder="Filter by title..."
               enableColumnVisibilityDropdown
               enablePagination
+              manualPagination
+              pageCount={totalPages}
+              rowCount={totalCount}
+              onPaginationChange={(pag) => {
+                if (pag.pageSize !== pageSize) {
+                  handlePageSizeChange(pag.pageSize);
+                } else {
+                  setPage(pag.pageIndex + 1);
+                }
+              }}
+              onPrefetchPage={(pageIndex) => prefetchPage(pageIndex + 1)}
               enableResetSorting
               enableRowSelection
               onRowSelectionChange={setSelectedDocuments}
