@@ -7,7 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import InitiativeMember
+from app.models.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
 
 logger = logging.getLogger(__name__)
@@ -108,15 +108,36 @@ async def sync_oidc_assignments(
         elif _GUILD_ROLE_PRIORITY.get(role, 0) > _GUILD_ROLE_PRIORITY.get(guild_roles[gid], 0):
             guild_roles[gid] = role
 
-    # Resolve initiative mappings: pick the role from the last match (or first with a role_id)
-    initiative_roles: dict[tuple[int, int], int | None] = {}
+    # Resolve initiative mappings: collect candidate role_ids per (initiative, guild),
+    # then pick the highest-privilege role (is_manager wins, then lowest position).
+    initiative_role_candidates: dict[tuple[int, int], list[int]] = {}
     for mapping in matched:
         if mapping.target_type == OIDCMappingTargetType.initiative and mapping.initiative_id is not None:
             key = (mapping.initiative_id, mapping.guild_id)
             if mapping.initiative_role_id is not None:
-                initiative_roles[key] = mapping.initiative_role_id
-            elif key not in initiative_roles:
-                initiative_roles[key] = mapping.initiative_role_id
+                initiative_role_candidates.setdefault(key, []).append(mapping.initiative_role_id)
+            else:
+                initiative_role_candidates.setdefault(key, [])
+
+    # Resolve each to a single role_id using DB metadata
+    initiative_roles: dict[tuple[int, int], int | None] = {}
+    for key, candidate_ids in initiative_role_candidates.items():
+        if not candidate_ids:
+            initiative_roles[key] = None
+            continue
+        unique_ids = list(set(candidate_ids))
+        if len(unique_ids) == 1:
+            initiative_roles[key] = unique_ids[0]
+            continue
+        # Multiple different roles: pick manager first, then lowest position
+        roles = (await session.exec(
+            select(InitiativeRoleModel).where(InitiativeRoleModel.id.in_(unique_ids))
+        )).all()
+        if not roles:
+            initiative_roles[key] = unique_ids[0]
+            continue
+        roles.sort(key=lambda r: (not r.is_manager, r.position))
+        initiative_roles[key] = roles[0].id
 
     # --- Guild memberships ---
     for guild_id, role_str in guild_roles.items():
