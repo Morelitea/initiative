@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,7 +16,13 @@ import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { queryClient } from "@/lib/queryClient";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
-import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
+import type {
+  ProjectTaskStatus,
+  Task,
+  TaskListResponse,
+  TaskPriority,
+  TaskStatusCategory,
+} from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -53,9 +59,23 @@ type TagTasksTableProps = {
   tagId: number;
 };
 
+const TAG_TASKS_PAGE_SIZE = 20;
+
+const SORT_FIELD_MAP: Record<string, string> = {
+  title: "title",
+  "due date": "due_date",
+  "start date": "start_date",
+  priority: "priority",
+};
+
 export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
+  const router = useRouter();
+  const localQueryClient = useQueryClient();
+  const searchParams = useSearch({ strict: false }) as { page?: number };
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
   const projectStatusCache = useRef<
     Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
   >(new Map());
@@ -64,10 +84,69 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
-  const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "tag", tagId, statusFilters, priorityFilters],
+  const [page, setPageState] = useState(() => searchParams.page ?? 1);
+  const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
+  const [sortBy, setSortBy] = useState<string | undefined>("due_date");
+  const [sortDir, setSortDir] = useState<string | undefined>("asc");
+
+  const setPage = useCallback(
+    (updater: number | ((prev: number) => number)) => {
+      setPageState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        void router.navigate({
+          to: ".",
+          search: {
+            ...searchParamsRef.current,
+            page: next <= 1 ? undefined : next,
+          },
+          replace: true,
+        });
+        return next;
+      });
+    },
+    [router]
+  );
+
+  const handleSortingChange = useCallback(
+    (sorting: SortingState) => {
+      if (sorting.length > 0) {
+        const col = sorting[0];
+        const field = SORT_FIELD_MAP[col.id];
+        if (field) {
+          setSortBy(field);
+          setSortDir(col.desc ? "desc" : "asc");
+        } else {
+          setSortBy(undefined);
+          setSortDir(undefined);
+        }
+      } else {
+        setSortBy(undefined);
+        setSortDir(undefined);
+      }
+      setPage(1);
+    },
+    [setPage]
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilters, priorityFilters, setPage]);
+
+  const tasksQuery = useQuery<TaskListResponse>({
+    queryKey: [
+      "tasks",
+      "tag",
+      tagId,
+      statusFilters,
+      priorityFilters,
+      page,
+      pageSize,
+      sortBy,
+      sortDir,
+    ],
     queryFn: async () => {
-      const params: Record<string, string | string[] | number[]> = {
+      const params: Record<string, string | string[] | number | number[]> = {
         tag_ids: [tagId],
       };
       if (statusFilters.length > 0) {
@@ -76,10 +155,50 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       if (priorityFilters.length > 0) {
         params.priorities = priorityFilters;
       }
-      const response = await apiClient.get<Task[]>("/tasks/", { params });
+      params.page = page;
+      params.page_size = pageSize;
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
+      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
       return response.data;
     },
+    placeholderData: keepPreviousData,
   });
+
+  const prefetchPage = useCallback(
+    (targetPage: number) => {
+      if (targetPage < 1) return;
+      const params: Record<string, string | string[] | number | number[]> = {
+        tag_ids: [tagId],
+      };
+      if (statusFilters.length > 0) params.status_category = statusFilters;
+      if (priorityFilters.length > 0) params.priorities = priorityFilters;
+      params.page = targetPage;
+      params.page_size = pageSize;
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
+
+      void localQueryClient.prefetchQuery({
+        queryKey: [
+          "tasks",
+          "tag",
+          tagId,
+          statusFilters,
+          priorityFilters,
+          targetPage,
+          pageSize,
+          sortBy,
+          sortDir,
+        ],
+        queryFn: async () => {
+          const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
+          return response.data;
+        },
+        staleTime: 30_000,
+      });
+    },
+    [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, localQueryClient]
+  );
 
   const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
     mutationFn: async ({
@@ -108,10 +227,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     },
   });
 
-  const tasks = useMemo(
-    () => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []),
-    [tasksQuery.data]
-  );
+  const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
 
   useEffect(() => {
     tasks.forEach((task) => {
@@ -398,6 +514,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const hasError = tasksQuery.isError;
 
+  const totalCount = tasksQuery.data?.total_count ?? 0;
+  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
+
   return (
     <div className="space-y-4">
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
@@ -475,6 +594,20 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
             filterInputColumnKey="title"
             filterInputPlaceholder="Filter tasks..."
             enablePagination
+            manualPagination
+            pageCount={totalPages}
+            rowCount={totalCount}
+            onPaginationChange={(pag) => {
+              if (pag.pageSize !== pageSize) {
+                setPageSize(pag.pageSize);
+                setPage(1);
+              } else {
+                setPage(pag.pageIndex + 1);
+              }
+            }}
+            onPrefetchPage={(pageIndex) => prefetchPage(pageIndex + 1)}
+            manualSorting
+            onSortingChange={handleSortingChange}
             enableResetSorting
             enableColumnVisibilityDropdown
           />

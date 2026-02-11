@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ import type {
   Project,
   ProjectTaskStatus,
   Task,
+  TaskListResponse,
   TaskPriority,
   TaskStatusCategory,
 } from "@/types/api";
@@ -90,9 +91,23 @@ const getDefaultFiltersVisibility = () => {
 
 const getGuildGroupLabel = (task: Task) => task.guild_name ?? guild_DEFAULT_LABEL;
 
+const PAGE_SIZE = 20;
+
+/** Map DataTable column IDs to backend sort field names */
+const SORT_FIELD_MAP: Record<string, string> = {
+  title: "title",
+  "due date": "due_date",
+  "start date": "start_date",
+  priority: "priority",
+};
+
 export const MyTasksPage = () => {
   const { guilds, activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearch({ strict: false }) as { page?: number };
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
   const projectStatusCache = useRef<
     Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
   >(new Map());
@@ -118,10 +133,69 @@ export const MyTasksPage = () => {
     () => readStoredFilters().guildFilters
   );
 
-  const tasksQuery = useQuery<Task[]>({
-    queryKey: ["tasks", "global", statusFilters, priorityFilters, guildFilters],
+  const [page, setPageState] = useState(() => searchParams.page ?? 1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sortBy, setSortBy] = useState<string | undefined>("due_date");
+  const [sortDir, setSortDir] = useState<string | undefined>("asc");
+
+  const setPage = useCallback(
+    (updater: number | ((prev: number) => number)) => {
+      setPageState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        void router.navigate({
+          to: ".",
+          search: {
+            ...searchParamsRef.current,
+            page: next <= 1 ? undefined : next,
+          },
+          replace: true,
+        });
+        return next;
+      });
+    },
+    [router]
+  );
+
+  const handleSortingChange = useCallback(
+    (sorting: SortingState) => {
+      if (sorting.length > 0) {
+        const col = sorting[0];
+        const field = SORT_FIELD_MAP[col.id];
+        if (field) {
+          setSortBy(field);
+          setSortDir(col.desc ? "desc" : "asc");
+        } else {
+          setSortBy(undefined);
+          setSortDir(undefined);
+        }
+      } else {
+        setSortBy(undefined);
+        setSortDir(undefined);
+      }
+      setPage(1);
+    },
+    [setPage]
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilters, priorityFilters, guildFilters, setPage]);
+
+  const tasksQuery = useQuery<TaskListResponse>({
+    queryKey: [
+      "tasks",
+      "global",
+      statusFilters,
+      priorityFilters,
+      guildFilters,
+      page,
+      pageSize,
+      sortBy,
+      sortDir,
+    ],
     queryFn: async () => {
-      const params: Record<string, string | string[] | number[]> = { scope: "global" };
+      const params: Record<string, string | string[] | number | number[]> = { scope: "global" };
 
       if (statusFilters.length > 0) {
         params.status_category = statusFilters;
@@ -133,10 +207,51 @@ export const MyTasksPage = () => {
         params.guild_ids = guildFilters;
       }
 
-      const response = await apiClient.get<Task[]>("/tasks/", { params });
+      params.page = page;
+      params.page_size = pageSize;
+
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
+
+      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
       return response.data;
     },
+    placeholderData: keepPreviousData,
   });
+
+  const prefetchPage = useCallback(
+    (targetPage: number) => {
+      if (targetPage < 1) return;
+      const params: Record<string, string | string[] | number | number[]> = { scope: "global" };
+      if (statusFilters.length > 0) params.status_category = statusFilters;
+      if (priorityFilters.length > 0) params.priorities = priorityFilters;
+      if (guildFilters.length > 0) params.guild_ids = guildFilters;
+      params.page = targetPage;
+      params.page_size = pageSize;
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
+
+      void localQueryClient.prefetchQuery({
+        queryKey: [
+          "tasks",
+          "global",
+          statusFilters,
+          priorityFilters,
+          guildFilters,
+          targetPage,
+          pageSize,
+          sortBy,
+          sortDir,
+        ],
+        queryFn: async () => {
+          const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
+          return response.data;
+        },
+        staleTime: 30_000,
+      });
+    },
+    [statusFilters, priorityFilters, guildFilters, pageSize, sortBy, sortDir, localQueryClient]
+  );
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: ["projects", { guildId: activeGuildId }],
@@ -206,10 +321,7 @@ export const MyTasksPage = () => {
     return result;
   }, [projectsQuery.data]);
 
-  const tasks = useMemo(
-    () => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []),
-    [tasksQuery.data]
-  );
+  const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
   useEffect(() => {
     tasks.forEach((task) => {
       const cached = projectStatusCache.current.get(task.project_id);
@@ -658,6 +770,9 @@ export const MyTasksPage = () => {
     templatesQuery.isError ||
     archivedProjectsQuery.isError;
 
+  const totalCount = tasksQuery.data?.total_count ?? 0;
+  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
+
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
@@ -778,6 +893,20 @@ export const MyTasksPage = () => {
               filterInputColumnKey="title"
               filterInputPlaceholder="Filter tasks..."
               enablePagination
+              manualPagination
+              pageCount={totalPages}
+              rowCount={totalCount}
+              onPaginationChange={(pag) => {
+                if (pag.pageSize !== pageSize) {
+                  setPageSize(pag.pageSize);
+                  setPage(1);
+                } else {
+                  setPage(pag.pageIndex + 1);
+                }
+              }}
+              onPrefetchPage={(pageIndex) => prefetchPage(pageIndex + 1)}
+              manualSorting
+              onSortingChange={handleSortingChange}
               enableResetSorting
               enableColumnVisibilityDropdown
             />

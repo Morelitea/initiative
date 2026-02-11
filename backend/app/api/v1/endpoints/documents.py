@@ -52,6 +52,22 @@ router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
+DOCUMENT_SORT_FIELDS = {
+    "title": Document.title,
+    "updated_at": Document.updated_at,
+    "created_at": Document.created_at,
+}
+
+
+def _apply_document_sort(statement, sort_by: Optional[str], sort_dir: Optional[str]):
+    col = DOCUMENT_SORT_FIELDS.get(sort_by) if sort_by else None
+    if col is not None:
+        order = col.desc() if sort_dir == "desc" else col.asc()
+        statement = statement.order_by(order.nulls_last(), Document.id.desc())
+    else:
+        statement = statement.order_by(Document.updated_at.desc(), Document.id.desc())
+    return statement
+
 
 async def _get_initiative_or_404(
     session: SessionDep,
@@ -418,6 +434,8 @@ async def list_documents(
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
+    sort_by: Optional[str] = Query(default=None),
+    sort_dir: Optional[str] = Query(default=None),
 ) -> DocumentListResponse:
     """List documents visible to the current user.
 
@@ -461,8 +479,8 @@ async def list_documents(
             selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
         )
-        .order_by(Document.updated_at.desc(), Document.id.desc())
     )
+    stmt = _apply_document_sort(stmt, sort_by, sort_dir)
 
     if page_size > 0:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
@@ -482,7 +500,12 @@ async def list_documents(
         for document in documents
     ]
 
-    has_next = (page * page_size < total_count) if page_size > 0 else False
+    if page_size > 0:
+        has_next = page * page_size < total_count
+    else:
+        # page_size=0 means "all rows, no pagination"
+        has_next = False
+        page = 1
 
     return DocumentListResponse(
         items=items,
@@ -490,6 +513,8 @@ async def list_documents(
         page=page,
         page_size=page_size,
         has_next=has_next,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -70,6 +70,12 @@ import { useTags } from "@/hooks/useTags";
 
 const INITIATIVE_FILTER_ALL = "all";
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
+
+/** Map DataTable column IDs to backend sort field names */
+const SORT_FIELD_MAP: Record<string, string> = {
+  title: "title",
+  "last updated": "updated_at",
+};
 const DOCUMENT_TAG_FILTERS_KEY = "documents:tag-filters";
 const getDefaultDocumentFiltersVisibility = () => {
   if (typeof window === "undefined") {
@@ -358,6 +364,8 @@ export const DocumentsView = ({
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSizeState] = useState(20);
+  const [sortBy, setSortBy] = useState<string | undefined>("updated_at");
+  const [sortDir, setSortDir] = useState<string | undefined>("desc");
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -380,6 +388,27 @@ export const DocumentsView = ({
   const handlePageSizeChange = useCallback(
     (size: number) => {
       setPageSizeState(size);
+      setPage(1);
+    },
+    [setPage]
+  );
+
+  const handleSortingChange = useCallback(
+    (sorting: SortingState) => {
+      if (sorting.length > 0) {
+        const col = sorting[0];
+        const field = SORT_FIELD_MAP[col.id];
+        if (field) {
+          setSortBy(field);
+          setSortDir(col.desc ? "desc" : "asc");
+        } else {
+          setSortBy(undefined);
+          setSortDir(undefined);
+        }
+      } else {
+        setSortBy(undefined);
+        setSortDir(undefined);
+      }
       setPage(1);
     },
     [setPage]
@@ -490,6 +519,8 @@ export const DocumentsView = ({
         tagFilters: queryTagIds,
         page,
         pageSize,
+        sortBy,
+        sortDir,
       },
     ],
     queryFn: async () => {
@@ -505,9 +536,12 @@ export const DocumentsView = ({
       }
       params.page = String(page);
       params.page_size = String(pageSize);
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
       const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
       return response.data;
     },
+    placeholderData: keepPreviousData,
   });
 
   // Counts query for tags view sidebar
@@ -551,6 +585,8 @@ export const DocumentsView = ({
       }
       params.page = String(targetPage);
       params.page_size = String(pageSize);
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
 
       void queryClient.prefetchQuery({
         queryKey: [
@@ -562,6 +598,8 @@ export const DocumentsView = ({
             tagFilters: queryTagIds,
             page: targetPage,
             pageSize,
+            sortBy,
+            sortDir,
           },
         ],
         queryFn: async () => {
@@ -571,7 +609,16 @@ export const DocumentsView = ({
         staleTime: 30_000,
       });
     },
-    [activeGuildId, initiativeFilter, searchQuery, queryTagIds, pageSize, queryClient]
+    [
+      activeGuildId,
+      initiativeFilter,
+      searchQuery,
+      queryTagIds,
+      pageSize,
+      sortBy,
+      sortDir,
+      queryClient,
+    ]
   );
 
   const initiativesQuery = useQuery<Initiative[]>({
@@ -1206,6 +1253,8 @@ export const DocumentsView = ({
                 }
               }}
               onPrefetchPage={(pageIndex) => prefetchPage(pageIndex + 1)}
+              manualSorting
+              onSortingChange={handleSortingChange}
               enableResetSorting
               enableRowSelection
               onRowSelectionChange={setSelectedDocuments}

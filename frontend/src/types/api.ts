@@ -196,6 +196,8 @@ export interface DocumentListResponse {
   page: number;
   page_size: number;
   has_next: boolean;
+  sort_by: string | null;
+  sort_dir: string | null;
 }
 
 export interface DocumentCountsResponse {
@@ -466,6 +468,16 @@ export interface Task {
   initiative_color?: string | null;
   subtask_progress?: TaskSubtaskProgress | null;
   tags?: TagSummary[];
+}
+
+export interface TaskListResponse {
+  items: Task[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  sort_by: string | null;
+  sort_dir: string | null;
 }
 
 export interface CommentAuthor {

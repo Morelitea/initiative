@@ -45,9 +45,10 @@ export const Route = createFileRoute(
     // Read saved filters from storage
     const { assigneeFilters, statusFilters, showArchived } = getStoredFilters(projectId);
 
-    // Build task query params
+    // Build task query params (page_size=0 fetches all for drag-and-drop)
     const taskParams: Record<string, number | string[] | number[] | boolean> = {
       project_id: projectId,
+      page_size: 0,
     };
     if (assigneeFilters.length > 0) taskParams.assignee_ids = assigneeFilters;
     if (statusFilters.length > 0) taskParams.task_status_ids = statusFilters;
