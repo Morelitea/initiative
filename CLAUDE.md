@@ -205,6 +205,49 @@ This project enforces PostgreSQL Row-Level Security at the database level. **Eve
 5. **`set_rls_context()` uses `set_config()`** (not `SET` commands) to guarantee execution on the same pooled connection as subsequent queries.
 6. **New RLS policies** for new tables must be added via Alembic migration. Include `FORCE ROW LEVEL SECURITY` and add a superadmin bypass (`OR current_setting('app.is_superadmin', true) = 'true'`).
 
+### Adding or updating tables (RLS policy checklist)
+
+Every guild-scoped table **must** have RLS policies. When creating a new table or changing an existing table's relationships, follow this checklist:
+
+1. **New guild-scoped table with `guild_id` column** — create an Alembic migration that:
+   - `ALTER TABLE <name> ENABLE ROW LEVEL SECURITY`
+   - `ALTER TABLE <name> FORCE ROW LEVEL SECURITY`
+   - Creates a `guild_isolation` policy (or command-specific `guild_select`, `guild_insert`, etc. if access rules differ per operation)
+   - Includes a superadmin bypass: `OR current_setting('app.is_superadmin', true) = 'true'`
+
+2. **New junction/association table without `guild_id`** (e.g., `task_tags`, `document_tags`) — use an `EXISTS` subquery through the related table that does have `guild_id`:
+   ```sql
+   CREATE POLICY guild_isolation ON junction_table
+   FOR ALL
+   USING (
+       EXISTS (
+           SELECT 1 FROM parent_table
+           WHERE parent_table.id = junction_table.parent_id
+           AND parent_table.guild_id = current_setting('app.current_guild_id', true)::int
+       )
+       OR current_setting('app.is_superadmin', true) = 'true'
+   )
+   WITH CHECK (...)  -- same predicate
+   ```
+
+3. **Initiative-scoped tables** — add a second `AS RESTRICTIVE` policy layer for initiative membership on top of the guild isolation policy. Reference `20260210_0046_initiative_scoped_rls.py` for the pattern.
+
+4. **Renaming or dropping a table** — drop existing policies first (`DROP POLICY IF EXISTS ... ON ...`), then disable RLS before the DDL change. Re-create policies on the new table name if renaming.
+
+5. **Adding `guild_id` to an existing table that lacked it** — backfill the column, then add RLS policies in the same migration.
+
+6. **Session variable constants** — use these in migration SQL:
+   ```python
+   CURRENT_GUILD_ID = "current_setting('app.current_guild_id', true)::int"
+   CURRENT_USER_ID  = "NULLIF(current_setting('app.current_user_id', true), '')::int"
+   CURRENT_GUILD_ROLE = "current_setting('app.current_guild_role', true)"
+   IS_SUPERADMIN = "current_setting('app.is_superadmin', true) = 'true'"
+   ```
+
+7. **Downgrade function** — always include `DROP POLICY IF EXISTS` and `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` so rollbacks are clean.
+
+8. **Verify after migration** — connect as `app_user` (not the superuser) and confirm that queries only return rows for the active guild. A missing policy silently returns zero rows; a wrong policy leaks cross-guild data.
+
 ### Rules for writing frontend code
 
 1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", guildId]` and a page uses `["initiatives", { guildId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
