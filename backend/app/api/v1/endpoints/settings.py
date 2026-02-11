@@ -392,13 +392,29 @@ async def update_oidc_mapping(
     if "initiative_role_id" in data:
         mapping.initiative_role_id = data["initiative_role_id"]
 
-    # Validate initiative consistency
+    # Full validation of the final state
     effective_target = mapping.target_type
     if isinstance(effective_target, str):
         effective_target = OIDCMappingTargetType(effective_target)
     if effective_target == OIDCMappingTargetType.initiative:
         if not mapping.initiative_id or not mapping.initiative_role_id:
             raise HTTPException(status_code=400, detail="initiative_id and initiative_role_id required for initiative mappings")
+        initiative = (await session.exec(
+            select(Initiative).where(Initiative.id == mapping.initiative_id)
+        )).one_or_none()
+        if not initiative:
+            raise HTTPException(status_code=400, detail="Initiative not found")
+        if initiative.guild_id != mapping.guild_id:
+            raise HTTPException(status_code=400, detail="Initiative does not belong to the specified guild")
+        role = (await session.exec(
+            select(InitiativeRoleModel).where(InitiativeRoleModel.id == mapping.initiative_role_id)
+        )).one_or_none()
+        if not role:
+            raise HTTPException(status_code=400, detail="Initiative role not found")
+    else:
+        # Guild-only mapping: clear initiative fields
+        mapping.initiative_id = None
+        mapping.initiative_role_id = None
 
     mapping.updated_at = datetime.now(timezone.utc)
     session.add(mapping)
