@@ -645,7 +645,12 @@ async def list_tasks(
         await _annotate_task_subtask_progress(session, tasks)
         _annotate_task_tags(tasks)
         items = [_task_to_list_read(task) for task in tasks]
-        has_next = (page * page_size < total_count) if page_size > 0 else False
+        if page_size > 0:
+            has_next = page * page_size < total_count
+        else:
+            # page_size=0 means "all rows, no pagination"
+            has_next = False
+            page = 1
         return TaskListResponse(
             items=items,
             total_count=total_count,
@@ -745,7 +750,12 @@ async def list_tasks(
     await _annotate_task_subtask_progress(session, tasks)
     _annotate_task_tags(tasks)
     items = [_task_to_list_read(task) for task in tasks]
-    has_next = (page * page_size < total_count) if page_size > 0 else False
+    if page_size > 0:
+        has_next = page * page_size < total_count
+    else:
+        # page_size=0 means "all rows, no pagination"
+        has_next = False
+        page = 1
     return TaskListResponse(
         items=items,
         total_count=total_count,

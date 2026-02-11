@@ -500,7 +500,12 @@ async def list_documents(
         for document in documents
     ]
 
-    has_next = (page * page_size < total_count) if page_size > 0 else False
+    if page_size > 0:
+        has_next = page * page_size < total_count
+    else:
+        # page_size=0 means "all rows, no pagination"
+        has_next = False
+        page = 1
 
     return DocumentListResponse(
         items=items,
