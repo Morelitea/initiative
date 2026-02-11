@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 
 const isNative = Capacitor.isNativePlatform();
+const hasLocalStorage = typeof localStorage !== "undefined";
 
 /**
  * In-memory cache used on native platforms. Hydrated once at startup from
@@ -34,14 +35,14 @@ export async function initStorage(): Promise<void> {
 
 export function getItem(key: string): string | null {
   if (!isNative) {
-    return localStorage.getItem(key);
+    return hasLocalStorage ? localStorage.getItem(key) : null;
   }
   return cache.get(key) ?? null;
 }
 
 export function setItem(key: string, value: string): void {
   if (!isNative) {
-    localStorage.setItem(key, value);
+    if (hasLocalStorage) localStorage.setItem(key, value);
     return;
   }
   cache.set(key, value);
@@ -50,7 +51,7 @@ export function setItem(key: string, value: string): void {
 
 export function removeItem(key: string): void {
   if (!isNative) {
-    localStorage.removeItem(key);
+    if (hasLocalStorage) localStorage.removeItem(key);
     return;
   }
   cache.delete(key);
