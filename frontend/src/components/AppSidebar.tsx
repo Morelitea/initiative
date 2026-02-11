@@ -122,8 +122,13 @@ export const AppSidebar = () => {
   const documentsQuery = useQuery<{ id: number; initiative_id: number }[]>({
     queryKey: ["documents", activeGuildId],
     queryFn: async () => {
-      const response = await apiClient.get<{ id: number; initiative_id: number }[]>("/documents/");
-      return response.data;
+      const response = await apiClient.get<{ items: { id: number; initiative_id: number }[] }>(
+        "/documents/",
+        {
+          params: { page_size: "0" },
+        }
+      );
+      return response.data.items;
     },
     enabled: Boolean(activeGuild),
     staleTime: 60_000,

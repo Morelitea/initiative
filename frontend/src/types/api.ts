@@ -190,6 +190,20 @@ export interface DocumentSummary {
   original_filename?: string | null;
 }
 
+export interface DocumentListResponse {
+  items: DocumentSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface DocumentCountsResponse {
+  total_count: number;
+  untagged_count: number;
+  tag_counts: Record<number, number>;
+}
+
 export interface DocumentRead extends DocumentSummary {
   content: SerializedEditorState;
   permissions: DocumentPermission[];

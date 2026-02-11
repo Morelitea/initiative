@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { buildTagTree, countDocumentsForNode, type TagTreeNode } from "@/lib/tagTree";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { DocumentSummary, TagSummary } from "@/types/api";
+import type { TagSummary } from "@/types/api";
 
 export const UNTAGGED_PATH = "__untagged__";
 
@@ -33,14 +33,16 @@ function saveExpandedState(state: Record<string, boolean>) {
 
 interface TagTreeViewProps {
   tags: TagSummary[];
-  documents: DocumentSummary[];
+  tagCounts: Record<number, number>;
+  untaggedCount: number;
   selectedTagPaths: Set<string>;
   onToggleTag: (fullPath: string, ctrlKey: boolean) => void;
 }
 
 export const TagTreeView = ({
   tags,
-  documents,
+  tagCounts,
+  untaggedCount,
   selectedTagPaths,
   onToggleTag,
 }: TagTreeViewProps) => {
@@ -48,13 +50,11 @@ export const TagTreeView = ({
 
   const docCountByTagId = useMemo(() => {
     const counts = new Map<number, number>();
-    for (const doc of documents) {
-      for (const tag of doc.tags ?? []) {
-        counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1);
-      }
+    for (const [tagId, count] of Object.entries(tagCounts)) {
+      counts.set(Number(tagId), count);
     }
     return counts;
-  }, [documents]);
+  }, [tagCounts]);
 
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>(loadExpandedState);
 
@@ -65,10 +65,6 @@ export const TagTreeView = ({
   const toggleExpanded = (fullPath: string) => {
     setExpandedState((prev) => ({ ...prev, [fullPath]: !prev[fullPath] }));
   };
-
-  const untaggedCount = useMemo(() => {
-    return documents.filter((doc) => !doc.tags || doc.tags.length === 0).length;
-  }, [documents]);
 
   if (tags.length === 0) {
     return (

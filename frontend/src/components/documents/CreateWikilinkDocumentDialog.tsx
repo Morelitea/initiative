@@ -57,8 +57,10 @@ export function CreateWikilinkDocumentDialog({
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", "templates"],
     queryFn: async () => {
-      const response = await apiClient.get<DocumentSummary[]>("/documents/");
-      return response.data;
+      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
+        params: { page_size: "0" },
+      });
+      return response.data.items;
     },
     enabled: open && canCreate,
   });

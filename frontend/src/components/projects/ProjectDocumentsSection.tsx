@@ -56,10 +56,10 @@ export const ProjectDocumentsSection = ({
   const initiativeDocsQuery = useQuery<DocumentSummary[]>({
     queryKey: ["documents", "initiative", initiativeId],
     queryFn: async () => {
-      const response = await apiClient.get<DocumentSummary[]>("/documents/", {
-        params: { initiative_id: initiativeId },
+      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
+        params: { initiative_id: initiativeId, page_size: "0" },
       });
-      return response.data;
+      return response.data.items;
     },
   });
 
