@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 
-const isNative = Capacitor.isNativePlatform();
+const isNative = () => Capacitor.isNativePlatform();
 const hasLocalStorage = typeof localStorage !== "undefined";
 
 /**
@@ -16,7 +16,7 @@ const cache = new Map<string, string>();
  * getItem() can remain synchronous.
  */
 export async function initStorage(): Promise<void> {
-  if (!isNative) {
+  if (!isNative()) {
     return;
   }
   const { keys } = await Preferences.keys();
@@ -34,14 +34,14 @@ export async function initStorage(): Promise<void> {
 }
 
 export function getItem(key: string): string | null {
-  if (!isNative) {
+  if (!isNative()) {
     return hasLocalStorage ? localStorage.getItem(key) : null;
   }
   return cache.get(key) ?? null;
 }
 
 export function setItem(key: string, value: string): void {
-  if (!isNative) {
+  if (!isNative()) {
     if (hasLocalStorage) localStorage.setItem(key, value);
     return;
   }
@@ -50,7 +50,7 @@ export function setItem(key: string, value: string): void {
 }
 
 export function removeItem(key: string): void {
-  if (!isNative) {
+  if (!isNative()) {
     if (hasLocalStorage) localStorage.removeItem(key);
     return;
   }
