@@ -40,7 +40,7 @@ def upgrade() -> None:
         "project_role_permissions",
         sa.Column("project_id", sa.Integer, sa.ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("initiative_role_id", sa.Integer, sa.ForeignKey("initiative_roles.id", ondelete="CASCADE"), primary_key=True),
-        sa.Column("guild_id", sa.Integer, sa.ForeignKey("guilds.id"), nullable=True),
+        sa.Column("guild_id", sa.Integer, sa.ForeignKey("guilds.id"), nullable=False),
         sa.Column(
             "level",
             postgresql.ENUM("owner", "write", "read", name="project_permission_level", create_type=False),
@@ -57,7 +57,7 @@ def upgrade() -> None:
         "document_role_permissions",
         sa.Column("document_id", sa.Integer, sa.ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("initiative_role_id", sa.Integer, sa.ForeignKey("initiative_roles.id", ondelete="CASCADE"), primary_key=True),
-        sa.Column("guild_id", sa.Integer, sa.ForeignKey("guilds.id"), nullable=True),
+        sa.Column("guild_id", sa.Integer, sa.ForeignKey("guilds.id"), nullable=False),
         sa.Column(
             "level",
             postgresql.ENUM("owner", "write", "read", name="document_permission_level", create_type=False),

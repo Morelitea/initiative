@@ -126,7 +126,7 @@ class ProjectRolePermission(SQLModel, table=True):
             primary_key=True,
         )
     )
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
     level: ProjectPermissionLevel = Field(
         default=ProjectPermissionLevel.read,
         sa_column=Column(

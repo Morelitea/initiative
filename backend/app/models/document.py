@@ -162,7 +162,7 @@ class DocumentRolePermission(SQLModel, table=True):
             primary_key=True,
         )
     )
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
     level: DocumentPermissionLevel = Field(
         default=DocumentPermissionLevel.read,
         sa_column=Column(
