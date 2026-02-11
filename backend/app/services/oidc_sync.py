@@ -86,7 +86,7 @@ async def sync_oidc_assignments(
     # Partition into matched and unmatched
     matched: list[OIDCClaimMapping] = []
     matched_guild_ids: set[int] = set()
-    matched_initiative_keys: set[tuple[int, int]] = set()  # (initiative_id, guild_id)
+    matched_initiative_ids: set[int] = set()
 
     for mapping in mappings:
         if mapping.claim_value.lower() in claim_values:
@@ -96,7 +96,7 @@ async def sync_oidc_assignments(
             elif mapping.target_type == OIDCMappingTargetType.initiative:
                 matched_guild_ids.add(mapping.guild_id)
                 if mapping.initiative_id is not None:
-                    matched_initiative_keys.add((mapping.initiative_id, mapping.guild_id))
+                    matched_initiative_ids.add(mapping.initiative_id)
 
     # Resolve guild role conflicts: highest role wins per guild
     guild_roles: dict[int, str] = {}
@@ -108,19 +108,21 @@ async def sync_oidc_assignments(
         elif _GUILD_ROLE_PRIORITY.get(role, 0) > _GUILD_ROLE_PRIORITY.get(guild_roles[gid], 0):
             guild_roles[gid] = role
 
-    # Resolve initiative mappings: collect candidate role_ids per (initiative, guild),
+    # Resolve initiative mappings: collect candidate role_ids per initiative,
     # then pick the highest-privilege role (is_manager wins, then lowest position).
-    initiative_role_candidates: dict[tuple[int, int], list[int]] = {}
+    # Also track which guild each initiative mapping belongs to.
+    initiative_guild: dict[int, int] = {}  # initiative_id -> guild_id
+    initiative_role_candidates: dict[int, list[int]] = {}  # initiative_id -> role_ids
     for mapping in matched:
         if mapping.target_type == OIDCMappingTargetType.initiative and mapping.initiative_id is not None:
-            key = (mapping.initiative_id, mapping.guild_id)
+            initiative_guild[mapping.initiative_id] = mapping.guild_id
             if mapping.initiative_role_id is not None:
-                initiative_role_candidates.setdefault(key, []).append(mapping.initiative_role_id)
+                initiative_role_candidates.setdefault(mapping.initiative_id, []).append(mapping.initiative_role_id)
             else:
-                initiative_role_candidates.setdefault(key, [])
+                initiative_role_candidates.setdefault(mapping.initiative_id, [])
 
     # Resolve each to a single role_id using DB metadata
-    initiative_roles: dict[tuple[int, int], int | None] = {}
+    initiative_roles: dict[int, int | None] = {}  # initiative_id -> role_id
     for key, candidate_ids in initiative_role_candidates.items():
         if not candidate_ids:
             initiative_roles[key] = None
@@ -156,7 +158,8 @@ async def sync_oidc_assignments(
             result.guilds_added.append(guild_id)
 
     # --- Initiative memberships ---
-    for (initiative_id, guild_id), role_id in initiative_roles.items():
+    for initiative_id, role_id in initiative_roles.items():
+        guild_id = initiative_guild[initiative_id]
         # Ensure guild membership exists first (handled above or create here)
         guild_membership = await _get_guild_membership(session, user_id=user_id, guild_id=guild_id)
         if not guild_membership:
@@ -192,8 +195,7 @@ async def sync_oidc_assignments(
         )
     )
     for im in stale_initiatives.all():
-        key = (im.initiative_id, im.guild_id)
-        if key not in matched_initiative_keys:
+        if im.initiative_id not in matched_initiative_ids:
             await session.delete(im)
             result.initiatives_removed.append(im.initiative_id)
 
