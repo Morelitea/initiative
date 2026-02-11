@@ -37,11 +37,18 @@ import {
 } from "@/components/ui/select";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import type { DocumentRead, DocumentPermissionLevel, Initiative, TagSummary } from "@/types/api";
+import type {
+  DocumentRead,
+  DocumentPermissionLevel,
+  DocumentRolePermission,
+  Initiative,
+  TagSummary,
+} from "@/types/api";
 import { TagPicker } from "@/components/tags";
 import { useSetDocumentTags } from "@/hooks/useTags";
 
@@ -563,6 +570,60 @@ export const DocumentSettingsPage = () => {
     [updateMemberLevel, removeMember]
   );
 
+  // Column definitions for the role permissions table
+  const rolePermissionColumns: ColumnDef<DocumentRolePermission>[] = useMemo(
+    () => [
+      {
+        accessorKey: "role_display_name",
+        header: "Role Name",
+        cell: ({ row }) => <span className="font-medium">{row.original.role_display_name}</span>,
+      },
+      {
+        accessorKey: "level",
+        header: "Access Level",
+        cell: ({ row }) => (
+          <Select
+            value={row.original.level}
+            onValueChange={(value) => {
+              updateRolePermission.mutate({
+                roleId: row.original.initiative_role_id,
+                level: value as "read" | "write",
+              });
+            }}
+            disabled={updateRolePermission.isPending}
+          >
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="read">Can view</SelectItem>
+              <SelectItem value="write">Can edit</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => removeRolePermission.mutate(row.original.initiative_role_id)}
+              disabled={removeRolePermission.isPending}
+            >
+              Remove
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [updateRolePermission, removeRolePermission]
+  );
+
   // Initiative members who don't have permissions yet
   const availableMembers = useMemo(
     () =>
@@ -637,350 +698,336 @@ export const DocumentSettingsPage = () => {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <div>
-            <CardTitle>Template</CardTitle>
-            <CardDescription>
-              Template documents are intended to be duplicated instead of edited directly.
-            </CardDescription>
-          </div>
-          <Switch
-            id="document-template-toggle"
-            checked={isTemplate}
-            onCheckedChange={handleTemplateToggle}
-            disabled={!hasWriteAccess || updateTemplate.isPending}
-            aria-label="Toggle template status"
-          />
-        </CardHeader>
-      </Card>
+      <Tabs defaultValue="details" className="space-y-4">
+        <TabsList className="w-full max-w-xl justify-start">
+          <TabsTrigger value="details">Details</TabsTrigger>
+          {canManageDocument ? <TabsTrigger value="access">Access</TabsTrigger> : null}
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Tags</CardTitle>
-          <CardDescription>Add tags to organize and filter documents.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {hasWriteAccess ? (
-            <TagPicker
-              selectedTags={documentTags}
-              onChange={(newTags) => {
-                setDocumentTags(newTags);
-                setDocumentTagsMutation.mutate({
-                  documentId: parsedId,
-                  tagIds: newTags.map((t) => t.id),
-                });
-              }}
-            />
-          ) : (
-            <p className="text-muted-foreground text-sm">You need write access to manage tags.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {canManageDocument ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Role access</CardTitle>
-            <CardDescription>
-              Grant access to all members with a specific initiative role.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {(document.role_permissions ?? []).length > 0 ? (
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="px-4 py-2 text-left font-medium">Role Name</th>
-                      <th className="px-4 py-2 text-left font-medium">Access Level</th>
-                      <th className="px-4 py-2 text-right font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(document.role_permissions ?? []).map((rp) => (
-                      <tr key={rp.initiative_role_id} className="border-b last:border-b-0">
-                        <td className="px-4 py-2 font-medium">{rp.role_display_name}</td>
-                        <td className="px-4 py-2">
-                          <Select
-                            value={rp.level}
-                            onValueChange={(value) => {
-                              updateRolePermission.mutate({
-                                roleId: rp.initiative_role_id,
-                                level: value as "read" | "write",
-                              });
-                            }}
-                            disabled={updateRolePermission.isPending}
-                          >
-                            <SelectTrigger className="w-[130px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="read">Can view</SelectItem>
-                              <SelectItem value="write">Can edit</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => removeRolePermission.mutate(rp.initiative_role_id)}
-                            disabled={removeRolePermission.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* ── Details tab ── */}
+        <TabsContent value="details" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>Template</CardTitle>
+                <CardDescription>
+                  Template documents are intended to be duplicated instead of edited directly.
+                </CardDescription>
               </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                No roles have been granted access to this document yet.
-              </p>
-            )}
+              <Switch
+                id="document-template-toggle"
+                checked={isTemplate}
+                onCheckedChange={handleTemplateToggle}
+                disabled={!hasWriteAccess || updateTemplate.isPending}
+                aria-label="Toggle template status"
+              />
+            </CardHeader>
+          </Card>
 
-            {/* Add role form */}
-            <div className="space-y-2 pt-2">
-              <Label>Add role</Label>
-              {availableRoles.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  All initiative roles have been assigned.
-                </p>
-              ) : (
-                <div className="flex flex-wrap items-end gap-3">
-                  <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
-                    <SelectTrigger className="min-w-[200px]">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableRoles.map((role) => (
-                        <SelectItem key={role.id} value={String(role.id)}>
-                          {role.display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={selectedNewRoleLevel}
-                    onValueChange={(value) => setSelectedNewRoleLevel(value as "read" | "write")}
-                  >
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="read">Can view</SelectItem>
-                      <SelectItem value="write">Can edit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (!selectedNewRoleId) {
-                        return;
-                      }
-                      addRolePermission.mutate({
-                        roleId: Number(selectedNewRoleId),
-                        level: selectedNewRoleLevel,
-                      });
-                    }}
-                    disabled={!selectedNewRoleId || addRolePermission.isPending}
-                  >
-                    {addRolePermission.isPending ? "Adding..." : "Add"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canManageDocument ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Document access</CardTitle>
-            <CardDescription>Control who can view and edit this document.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Bulk action bar */}
-            {selectedMembers.length > 0 && (
-              <div className="bg-muted flex items-center gap-3 rounded-md p-3">
-                <span className="text-sm font-medium">{selectedMembers.length} selected</span>
-                <Select
-                  onValueChange={(level) => {
-                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
-                    if (userIds.length > 0) {
-                      bulkUpdateLevel.mutate({
-                        userIds,
-                        level: level as DocumentPermissionLevel,
-                      });
-                    }
+          <Card>
+            <CardHeader>
+              <CardTitle>Tags</CardTitle>
+              <CardDescription>Add tags to organize and filter documents.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {hasWriteAccess ? (
+                <TagPicker
+                  selectedTags={documentTags}
+                  onChange={(newTags) => {
+                    setDocumentTags(newTags);
+                    setDocumentTagsMutation.mutate({
+                      documentId: parsedId,
+                      tagIds: newTags.map((t) => t.id),
+                    });
                   }}
-                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
-                >
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Change access..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                    <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
-                  </SelectContent>
-                </Select>
+                />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  You need write access to manage tags.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Access tab ── */}
+        {canManageDocument ? (
+          <TabsContent value="access" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Role access</CardTitle>
+                <CardDescription>
+                  Grant access to all members with a specific initiative role.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(document.role_permissions ?? []).length > 0 ? (
+                  <DataTable
+                    columns={rolePermissionColumns}
+                    data={document.role_permissions ?? []}
+                    getRowId={(row) => String(row.initiative_role_id)}
+                  />
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    No roles have been granted access to this document yet.
+                  </p>
+                )}
+
+                {/* Add role form */}
+                <div className="space-y-2 pt-2">
+                  <Label>Add role</Label>
+                  {availableRoles.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      All initiative roles have been assigned.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-end gap-3">
+                      <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
+                        <SelectTrigger className="min-w-[200px]">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableRoles.map((role) => (
+                            <SelectItem key={role.id} value={String(role.id)}>
+                              {role.display_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={selectedNewRoleLevel}
+                        onValueChange={(value) =>
+                          setSelectedNewRoleLevel(value as "read" | "write")
+                        }
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="read">Can view</SelectItem>
+                          <SelectItem value="write">Can edit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedNewRoleId) {
+                            return;
+                          }
+                          addRolePermission.mutate({
+                            roleId: Number(selectedNewRoleId),
+                            level: selectedNewRoleLevel,
+                          });
+                        }}
+                        disabled={!selectedNewRoleId || addRolePermission.isPending}
+                      >
+                        {addRolePermission.isPending ? "Adding..." : "Add"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Individual access</CardTitle>
+                <CardDescription>Control who can view and edit this document.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Bulk action bar */}
+                {selectedMembers.length > 0 && (
+                  <div className="bg-muted flex items-center gap-3 rounded-md p-3">
+                    <span className="text-sm font-medium">{selectedMembers.length} selected</span>
+                    <Select
+                      onValueChange={(level) => {
+                        const userIds = selectedMembers
+                          .filter((m) => !m.isOwner)
+                          .map((m) => m.userId);
+                        if (userIds.length > 0) {
+                          bulkUpdateLevel.mutate({
+                            userIds,
+                            level: level as DocumentPermissionLevel,
+                          });
+                        }
+                      }}
+                      disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                    >
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Change access..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                        <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        const userIds = selectedMembers
+                          .filter((m) => !m.isOwner)
+                          .map((m) => m.userId);
+                        if (userIds.length > 0) {
+                          bulkRemoveMembers.mutate(userIds);
+                        }
+                      }}
+                      disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                    >
+                      {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Access table */}
+                <DataTable
+                  columns={permissionColumns}
+                  data={permissionRows}
+                  enablePagination
+                  enableFilterInput
+                  filterInputColumnKey="displayName"
+                  filterInputPlaceholder="Filter by name"
+                  enableRowSelection
+                  onRowSelectionChange={setSelectedMembers}
+                  onExitSelection={() => setSelectedMembers([])}
+                  getRowId={(row) => String(row.userId)}
+                />
+
+                {/* Add member form */}
+                <div className="space-y-2 pt-2">
+                  <Label>Grant access</Label>
+                  {availableMembers.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      All initiative members already have access to this document.
+                    </p>
+                  ) : (
+                    <form
+                      className="flex flex-wrap items-end gap-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        if (!selectedNewUserId) {
+                          setAccessError("Select a member");
+                          return;
+                        }
+                        setAccessError(null);
+                        addMember.mutate({
+                          userId: Number(selectedNewUserId),
+                          level: selectedNewLevel,
+                        });
+                      }}
+                    >
+                      <SearchableCombobox
+                        items={availableMembers.map((member) => ({
+                          value: String(member.user.id),
+                          label: member.user.full_name?.trim() || member.user.email,
+                        }))}
+                        value={selectedNewUserId}
+                        onValueChange={setSelectedNewUserId}
+                        placeholder="Select member"
+                        emptyMessage="No members found"
+                        className="min-w-[200px]"
+                      />
+                      <Select
+                        value={selectedNewLevel}
+                        onValueChange={(value) =>
+                          setSelectedNewLevel(value as DocumentPermissionLevel)
+                        }
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
+                          <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="submit"
+                        disabled={addMember.isPending || addAllMembers.isPending}
+                      >
+                        {addMember.isPending ? "Adding..." : "Add"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => addAllMembers.mutate(selectedNewLevel)}
+                        disabled={addMember.isPending || addAllMembers.isPending}
+                      >
+                        {addAllMembers.isPending
+                          ? "Adding all..."
+                          : `Add all (${availableMembers.length})`}
+                      </Button>
+                    </form>
+                  )}
+                  {accessMessage ? <p className="text-primary text-sm">{accessMessage}</p> : null}
+                  {accessError ? <p className="text-destructive text-sm">{accessError}</p> : null}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ) : null}
+
+        {/* ── Advanced tab ── */}
+        <TabsContent value="advanced" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Copies</CardTitle>
+              <CardDescription>
+                Duplicate this document within the same initiative or copy it into another
+                initiative.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDuplicateDialogOpen(true);
+                  setDuplicateTitle(`${document.title} (Copy)`);
+                }}
+                disabled={!canManageDocument}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Duplicate document
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCopyDialogOpen(true);
+                  setCopyTitle(document.title);
+                }}
+                disabled={!canManageDocument}
+              >
+                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                Copy to initiative
+              </Button>
+            </CardContent>
+          </Card>
+
+          {isOwner ? (
+            <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+              <CardHeader>
+                <CardTitle>Danger zone</CardTitle>
+                <CardDescription>Deleting a document cannot be undone.</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Button
                   type="button"
                   variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    const userIds = selectedMembers.filter((m) => !m.isOwner).map((m) => m.userId);
-                    if (userIds.length > 0) {
-                      bulkRemoveMembers.mutate(userIds);
-                    }
-                  }}
-                  disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={!isOwner}
                 >
-                  {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete document
                 </Button>
-              </div>
-            )}
-
-            {/* Access table */}
-            <DataTable
-              columns={permissionColumns}
-              data={permissionRows}
-              enablePagination
-              enableFilterInput
-              filterInputColumnKey="displayName"
-              filterInputPlaceholder="Filter by name"
-              enableRowSelection
-              onRowSelectionChange={setSelectedMembers}
-              onExitSelection={() => setSelectedMembers([])}
-              getRowId={(row) => String(row.userId)}
-            />
-
-            {/* Add member form */}
-            <div className="space-y-2 pt-2">
-              <Label>Grant access</Label>
-              {availableMembers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  All initiative members already have access to this document.
-                </p>
-              ) : (
-                <form
-                  className="flex flex-wrap items-end gap-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (!selectedNewUserId) {
-                      setAccessError("Select a member");
-                      return;
-                    }
-                    setAccessError(null);
-                    addMember.mutate({
-                      userId: Number(selectedNewUserId),
-                      level: selectedNewLevel,
-                    });
-                  }}
-                >
-                  <SearchableCombobox
-                    items={availableMembers.map((member) => ({
-                      value: String(member.user.id),
-                      label: member.user.full_name?.trim() || member.user.email,
-                    }))}
-                    value={selectedNewUserId}
-                    onValueChange={setSelectedNewUserId}
-                    placeholder="Select member"
-                    emptyMessage="No members found"
-                    className="min-w-[200px]"
-                  />
-                  <Select
-                    value={selectedNewLevel}
-                    onValueChange={(value) => setSelectedNewLevel(value as DocumentPermissionLevel)}
-                  >
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                      <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button type="submit" disabled={addMember.isPending || addAllMembers.isPending}>
-                    {addMember.isPending ? "Adding..." : "Add"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => addAllMembers.mutate(selectedNewLevel)}
-                    disabled={addMember.isPending || addAllMembers.isPending}
-                  >
-                    {addAllMembers.isPending
-                      ? "Adding all..."
-                      : `Add all (${availableMembers.length})`}
-                  </Button>
-                </form>
-              )}
-              {accessMessage ? <p className="text-primary text-sm">{accessMessage}</p> : null}
-              {accessError ? <p className="text-destructive text-sm">{accessError}</p> : null}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Copies</CardTitle>
-          <CardDescription>
-            Duplicate this document within the same initiative or copy it into another initiative.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setDuplicateDialogOpen(true);
-              setDuplicateTitle(`${document.title} (Copy)`);
-            }}
-            disabled={!canManageDocument}
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Duplicate document
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setCopyDialogOpen(true);
-              setCopyTitle(document.title);
-            }}
-            disabled={!canManageDocument}
-          >
-            <ArrowRightLeft className="mr-2 h-4 w-4" />
-            Copy to initiative
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
-        <CardHeader>
-          <CardTitle>Danger zone</CardTitle>
-          <CardDescription>Deleting a document cannot be undone.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-            disabled={!isOwner}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete document
-          </Button>
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          ) : null}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
         <DialogContent className="bg-card max-h-screen overflow-y-auto">
