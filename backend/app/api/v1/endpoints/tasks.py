@@ -652,6 +652,8 @@ async def list_tasks(
             page=page,
             page_size=page_size,
             has_next=has_next,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
         )
 
     # Non-global (guild-scoped) path
@@ -682,7 +684,7 @@ async def list_tasks(
     )
     if allowed_ids is not None:
         if not allowed_ids:
-            return TaskListResponse(items=[], total_count=0, page=page, page_size=page_size, has_next=False)
+            return TaskListResponse(items=[], total_count=0, page=page, page_size=page_size, has_next=False, sort_by=sort_by, sort_dir=sort_dir)
         conditions.append(Task.project_id.in_(tuple(allowed_ids)))
 
     def _build_non_global_query(stmt):
@@ -750,6 +752,8 @@ async def list_tasks(
         page=page,
         page_size=page_size,
         has_next=has_next,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
 

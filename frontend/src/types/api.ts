@@ -196,6 +196,8 @@ export interface DocumentListResponse {
   page: number;
   page_size: number;
   has_next: boolean;
+  sort_by: string | null;
+  sort_dir: string | null;
 }
 
 export interface DocumentCountsResponse {
@@ -474,6 +476,8 @@ export interface TaskListResponse {
   page: number;
   page_size: number;
   has_next: boolean;
+  sort_by: string | null;
+  sort_dir: string | null;
 }
 
 export interface CommentAuthor {

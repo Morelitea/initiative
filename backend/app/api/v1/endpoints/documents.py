@@ -508,6 +508,8 @@ async def list_documents(
         page=page,
         page_size=page_size,
         has_next=has_next,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
 
