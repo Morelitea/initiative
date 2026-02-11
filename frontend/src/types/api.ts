@@ -468,6 +468,14 @@ export interface Task {
   tags?: TagSummary[];
 }
 
+export interface TaskListResponse {
+  items: Task[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
 export interface CommentAuthor {
   id: number;
   email: string;

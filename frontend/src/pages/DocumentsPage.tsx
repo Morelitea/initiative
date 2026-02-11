@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -508,6 +508,7 @@ export const DocumentsView = ({
       const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
       return response.data;
     },
+    placeholderData: keepPreviousData,
   });
 
   // Counts query for tags view sidebar

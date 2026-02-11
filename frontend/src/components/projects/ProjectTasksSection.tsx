@@ -31,6 +31,7 @@ import type {
   TaskRecurrenceStrategy,
   ProjectTaskStatus,
   Task,
+  TaskListResponse,
   TaskPriority,
   TaskRecurrence,
   TaskReorderPayload,
@@ -146,12 +147,13 @@ export const ProjectTasksSection = ({
   const [archiveDialogStatusId, setArchiveDialogStatusId] = useState<number | undefined>(undefined);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
 
-  // Fetch tasks with server-side filtering
-  const tasksQuery = useQuery<Task[]>({
+  // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
+  const tasksQuery = useQuery<TaskListResponse>({
     queryKey: ["tasks", projectId, assigneeFilters, statusFilters, tagFilters, showArchived],
     queryFn: async () => {
       const params: Record<string, number | string[] | number[] | boolean> = {
         project_id: projectId,
+        page_size: 0,
       };
 
       // Add assignee filters (array)
@@ -174,13 +176,13 @@ export const ProjectTasksSection = ({
         params.include_archived = true;
       }
 
-      const response = await apiClient.get<Task[]>("/tasks/", { params });
+      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
       return response.data;
     },
     enabled: Number.isFinite(projectId) && filtersLoadedForProject === projectId,
   });
 
-  const projectTasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
+  const projectTasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
   const collapsedStorageKey = useMemo(
     () => (Number.isFinite(projectId) ? `project:${projectId}:kanban-collapsed` : null),
     [projectId]

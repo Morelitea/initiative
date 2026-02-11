@@ -200,6 +200,14 @@ class TaskListRead(TaskBase):
         from_attributes = True
 
 
+class TaskListResponse(BaseModel):
+    items: List[TaskListRead]
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
+
+
 class TaskReorderItem(BaseModel):
     id: int
     task_status_id: int

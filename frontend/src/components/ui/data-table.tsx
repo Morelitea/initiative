@@ -94,6 +94,8 @@ interface DataTableProps<TData, TValue> {
   rowCount?: number;
   onPaginationChange?: (pagination: PaginationState) => void;
   onPrefetchPage?: (pageIndex: number) => void;
+  manualSorting?: boolean;
+  onSortingChange?: (sorting: SortingState) => void;
 }
 
 export interface DataTableRowWrapperProps<TData> {
@@ -129,6 +131,8 @@ export function DataTable<TData, TValue>({
   rowCount: externalRowCount,
   onPaginationChange: externalOnPaginationChange,
   onPrefetchPage,
+  manualSorting = false,
+  onSortingChange: externalOnSortingChange,
 }: DataTableProps<TData, TValue>) {
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
@@ -222,11 +226,22 @@ export function DataTable<TData, TValue>({
     return setPagination;
   }, [enablePagination, manualPagination, externalOnPaginationChange, pagination]);
 
+  const handleSortingChange = useMemo(() => {
+    if (manualSorting && externalOnSortingChange) {
+      return (updater: SortingState | ((old: SortingState) => SortingState)) => {
+        const newState = typeof updater === "function" ? updater(sorting) : updater;
+        setSorting(newState);
+        externalOnSortingChange(newState);
+      };
+    }
+    return setSorting;
+  }, [manualSorting, externalOnSortingChange, sorting]);
+
   const table = useReactTable({
     data,
     columns: columnsWithSelection,
     getCoreRowModel: getCoreRowModel(),
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGroupingChange: groupingEnabled ? setGrouping : undefined,
@@ -236,7 +251,8 @@ export function DataTable<TData, TValue>({
     getRowId: getRowId,
     getPaginationRowModel:
       enablePagination && !manualPagination ? getPaginationRowModel() : undefined,
-    getSortedRowModel: getSortedRowModel(),
+    getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
+    manualSorting: manualSorting,
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: groupingEnabled ? getGroupedRowModel() : undefined,
     getExpandedRowModel: groupingEnabled ? getExpandedRowModel() : undefined,

@@ -23,7 +23,7 @@ from app.models.guild import GuildMembership
 from app.models.comment import Comment
 from pydantic import BaseModel, ValidationError
 
-from app.schemas.task import TaskCreate, TaskListRead, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
+from app.schemas.task import TaskCreate, TaskListRead, TaskListResponse, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
 from app.schemas.subtask import (
     SubtaskBatchCreate,
     SubtaskCreate,
@@ -41,6 +41,29 @@ from app.services import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
 
 router = APIRouter()
+
+# Allowed sort fields for the list endpoint
+TASK_SORT_FIELDS = {
+    "sort_order": Task.sort_order,
+    "title": Task.title,
+    "due_date": Task.due_date,
+    "start_date": Task.start_date,
+    "priority": Task.priority,
+    "created_at": Task.created_at,
+    "updated_at": Task.updated_at,
+}
+
+
+def _apply_task_sort(statement, sort_by: Optional[str], sort_dir: Optional[str]):
+    """Apply ORDER BY clause based on sort_by/sort_dir params, with fallback."""
+    col = TASK_SORT_FIELDS.get(sort_by) if sort_by else None
+    if col is not None:
+        order = col.desc() if sort_dir == "desc" else col.asc()
+        # NULLS LAST so null dates don't dominate
+        statement = statement.order_by(order.nulls_last(), Task.id.asc())
+    else:
+        statement = statement.order_by(Task.sort_order.asc(), Task.id.asc())
+    return statement
 subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -521,53 +544,69 @@ async def _list_global_tasks(
     initiative_ids: Optional[List[int]],
     guild_ids: Optional[List[int]],
     include_archived: bool = False,
-) -> list[Task]:
-    statement = (
-        select(Task)
-        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
-        .join(Task.project)
-        .join(Project.initiative)
-        .join(Initiative.guild)
-        .join(GuildMembership, GuildMembership.guild_id == Initiative.guild_id)
-        .where(
-            TaskAssignee.user_id == current_user.id,
-            GuildMembership.user_id == current_user.id,
-            Project.is_archived.is_(False),
-            Project.is_template.is_(False),
-        )
-        .options(
-            selectinload(Task.project)
-            .selectinload(Project.initiative)
-            .selectinload(Initiative.guild),
-            selectinload(Task.assignees),
-            selectinload(Task.task_status),
-            selectinload(Task.tag_links).selectinload(TaskTag.tag),
-        )
-        .order_by(Task.sort_order.asc(), Task.id.asc())
-    )
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None,
+) -> tuple[list[Task], int]:
+    # Base conditions shared by count and data queries
+    conditions = [
+        TaskAssignee.user_id == current_user.id,
+        GuildMembership.user_id == current_user.id,
+        Project.is_archived.is_(False),
+        Project.is_template.is_(False),
+    ]
     if not include_archived:
-        statement = statement.where(Task.is_archived.is_(False))
-
+        conditions.append(Task.is_archived.is_(False))
     if project_id is not None:
-        statement = statement.where(Task.project_id == project_id)
-
+        conditions.append(Task.project_id == project_id)
     if priorities:
-        statement = statement.where(Task.priority.in_(tuple(priorities)))
-
-    if status_category:
-        statement = statement.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(TaskStatus.category.in_(tuple(status_category)))
-
+        conditions.append(Task.priority.in_(tuple(priorities)))
     if initiative_ids:
-        statement = statement.where(Project.initiative_id.in_(tuple(initiative_ids)))
-
+        conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
     if guild_ids:
-        statement = statement.where(Initiative.guild_id.in_(tuple(guild_ids)))
+        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+
+    # Build base join chain
+    def _base_query(stmt):
+        stmt = (
+            stmt
+            .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+            .join(Task.project)
+            .join(Project.initiative)
+            .join(Initiative.guild)
+            .join(GuildMembership, GuildMembership.guild_id == Initiative.guild_id)
+        )
+        if status_category:
+            stmt = stmt.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(
+                TaskStatus.category.in_(tuple(status_category))
+            )
+        return stmt.where(*conditions)
+
+    # Count query
+    count_subq = _base_query(select(Task.id)).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+
+    # Data query
+    statement = _base_query(select(Task)).options(
+        selectinload(Task.project)
+        .selectinload(Project.initiative)
+        .selectinload(Initiative.guild),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+        selectinload(Task.tag_links).selectinload(TaskTag.tag),
+    )
+    statement = _apply_task_sort(statement, sort_by, sort_dir)
+
+    if page_size > 0:
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
 
     result = await session.exec(statement)
-    return result.all()
+    return result.all(), total_count
 
 
-@router.get("/", response_model=List[TaskListRead])
+@router.get("/", response_model=TaskListResponse)
 async def list_tasks(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -582,9 +621,13 @@ async def list_tasks(
     guild_ids: Optional[List[int]] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
-) -> List[TaskListRead]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=100),
+    sort_by: Optional[str] = Query(default=None, description="Sort field: sort_order, title, due_date, start_date, priority, created_at, updated_at"),
+    sort_dir: Optional[str] = Query(default=None, description="Sort direction: asc or desc"),
+) -> TaskListResponse:
     if scope == "global":
-        tasks = await _list_global_tasks(
+        tasks, total_count = await _list_global_tasks(
             session,
             current_user,
             project_id=project_id,
@@ -593,27 +636,44 @@ async def list_tasks(
             initiative_ids=initiative_ids,
             guild_ids=guild_ids,
             include_archived=include_archived,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
         )
         await _annotate_task_comment_counts(session, tasks)
         await _annotate_task_subtask_progress(session, tasks)
         _annotate_task_tags(tasks)
-        return [_task_to_list_read(task) for task in tasks]
-
-    statement = (
-        select(Task)
-        .join(Task.project)
-        .join(Project.initiative)
-        .where(Initiative.guild_id == guild_context.guild_id)
-        .options(
-            selectinload(Task.project)
-            .selectinload(Project.initiative)
-            .selectinload(Initiative.guild),
-            selectinload(Task.assignees),
-            selectinload(Task.task_status),
-            selectinload(Task.tag_links).selectinload(TaskTag.tag),
+        items = [_task_to_list_read(task) for task in tasks]
+        has_next = (page * page_size < total_count) if page_size > 0 else False
+        return TaskListResponse(
+            items=items,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_next=has_next,
         )
-        .order_by(Task.sort_order.asc(), Task.id.asc())
-    )
+
+    # Non-global (guild-scoped) path
+    conditions = [Initiative.guild_id == guild_context.guild_id]
+
+    if not include_archived:
+        conditions.append(Task.is_archived.is_(False))
+
+    if project_id is not None:
+        conditions.append(Task.project_id == project_id)
+
+    if task_status_ids:
+        conditions.append(Task.task_status_id.in_(tuple(task_status_ids)))
+
+    if priorities:
+        conditions.append(Task.priority.in_(tuple(priorities)))
+
+    if initiative_ids:
+        conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
+
+    if guild_ids:
+        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
 
     allowed_ids = await _allowed_project_ids(
         session,
@@ -622,65 +682,75 @@ async def list_tasks(
     )
     if allowed_ids is not None:
         if not allowed_ids:
-            return []
-        statement = statement.where(Task.project_id.in_(tuple(allowed_ids)))
+            return TaskListResponse(items=[], total_count=0, page=page, page_size=page_size, has_next=False)
+        conditions.append(Task.project_id.in_(tuple(allowed_ids)))
 
-    if not include_archived:
-        statement = statement.where(Task.is_archived.is_(False))
-
-    if project_id is not None:
-        statement = statement.where(Task.project_id == project_id)
-
-    if assignee_ids:
-        user_ids = []
-        for assignee_id in assignee_ids:
-            if assignee_id == "me":
-                user_ids.append(current_user.id)
-            else:
-                try:
-                    user_ids.append(int(assignee_id))
-                except ValueError:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid assignee_id: {assignee_id}")
-        if user_ids:
-            statement = statement.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
-                TaskAssignee.user_id.in_(tuple(user_ids))
+    def _build_non_global_query(stmt):
+        stmt = stmt.join(Task.project).join(Project.initiative)
+        if assignee_ids:
+            user_ids = []
+            for assignee_id in assignee_ids:
+                if assignee_id == "me":
+                    user_ids.append(current_user.id)
+                else:
+                    try:
+                        user_ids.append(int(assignee_id))
+                    except ValueError:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid assignee_id: {assignee_id}")
+            if user_ids:
+                stmt = stmt.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
+                    TaskAssignee.user_id.in_(tuple(user_ids))
+                )
+        if status_category:
+            stmt = stmt.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(
+                TaskStatus.category.in_(tuple(status_category))
             )
-
-    if task_status_ids:
-        statement = statement.where(Task.task_status_id.in_(tuple(task_status_ids)))
-
-    if priorities:
-        statement = statement.where(Task.priority.in_(tuple(priorities)))
-
-    if status_category:
-        statement = statement.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(TaskStatus.category.in_(tuple(status_category)))
-
-    if initiative_ids:
-        statement = statement.where(Project.initiative_id.in_(tuple(initiative_ids)))
-
-    if guild_ids:
-        statement = statement.where(Initiative.guild_id.in_(tuple(guild_ids)))
-
-    if tag_ids:
-        # Use subquery to avoid duplicate rows from JOIN
-        # Join through Tag to enforce guild scoping
-        tag_subquery = (
-            select(TaskTag.task_id)
-            .join(Tag, Tag.id == TaskTag.tag_id)
-            .where(
-                TaskTag.tag_id.in_(tuple(tag_ids)),
-                Tag.guild_id == guild_context.guild_id,
+        if tag_ids:
+            tag_subquery = (
+                select(TaskTag.task_id)
+                .join(Tag, Tag.id == TaskTag.tag_id)
+                .where(
+                    TaskTag.tag_id.in_(tuple(tag_ids)),
+                    Tag.guild_id == guild_context.guild_id,
+                )
+                .distinct()
             )
-            .distinct()
-        )
-        statement = statement.where(Task.id.in_(tag_subquery))
+            stmt = stmt.where(Task.id.in_(tag_subquery))
+        return stmt.where(*conditions)
+
+    # Count query
+    count_subq = _build_non_global_query(select(Task.id)).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+
+    # Data query
+    statement = _build_non_global_query(select(Task)).options(
+        selectinload(Task.project)
+        .selectinload(Project.initiative)
+        .selectinload(Initiative.guild),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+        selectinload(Task.tag_links).selectinload(TaskTag.tag),
+    )
+    statement = _apply_task_sort(statement, sort_by, sort_dir)
+
+    if page_size > 0:
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
 
     result = await session.exec(statement)
     tasks = result.all()
     await _annotate_task_comment_counts(session, tasks)
     await _annotate_task_subtask_progress(session, tasks)
     _annotate_task_tags(tasks)
-    return [_task_to_list_read(task) for task in tasks]
+    items = [_task_to_list_read(task) for task in tasks]
+    has_next = (page * page_size < total_count) if page_size > 0 else False
+    return TaskListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=has_next,
+    )
 
 
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
