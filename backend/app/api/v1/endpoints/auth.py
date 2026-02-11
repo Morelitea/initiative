@@ -485,13 +485,12 @@ async def oidc_callback(
                     pass  # id_token decode is best-effort
 
             claim_values = extract_claim_values(profile, id_token_claims, claim_path)
-            if claim_values:
-                async with AdminSessionLocal() as admin_session:
-                    sync_result = await sync_oidc_assignments(
-                        admin_session,
-                        user_id=user.id,
-                        claim_values=claim_values,
-                    )
+            async with AdminSessionLocal() as admin_session:
+                sync_result = await sync_oidc_assignments(
+                    admin_session,
+                    user_id=user.id,
+                    claim_values=claim_values,
+                )
                 logger.info(
                     "OIDC sync for %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
                     user.email,
