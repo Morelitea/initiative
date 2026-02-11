@@ -481,7 +481,7 @@ async def _visible_projects(
             & (InitiativeMember.user_id == current_user.id),
         )
     )
-    has_permission_subq = user_perm_subq.union(role_perm_subq).scalar_subquery()
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     base_statement = (
         select(Project)

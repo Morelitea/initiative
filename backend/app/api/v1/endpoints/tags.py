@@ -179,7 +179,7 @@ async def get_tag_entities(
             & (InitiativeMember.user_id == current_user.id),
         )
     )
-    project_access_subq = user_project_perm.union(role_project_perm).scalar_subquery()
+    project_access_subq = user_project_perm.union(role_project_perm)
 
     # Get tasks with this tag that user can access
     tasks_stmt = (
@@ -237,7 +237,7 @@ async def get_tag_entities(
             & (InitiativeMember.user_id == current_user.id),
         )
     )
-    doc_access_subq = user_doc_perm.union(role_doc_perm).scalar_subquery()
+    doc_access_subq = user_doc_perm.union(role_doc_perm)
 
     # Get documents with this tag that user can access
     documents_stmt = (

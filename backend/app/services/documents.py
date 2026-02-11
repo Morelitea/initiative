@@ -430,7 +430,7 @@ async def get_backlinks(
             & (InitiativeMember.user_id == user_id),
         )
     )
-    has_permission_subq = user_perm_subq.union(role_perm_subq).scalar_subquery()
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     stmt = (
         select(Document)

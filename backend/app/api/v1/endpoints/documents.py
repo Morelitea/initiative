@@ -311,7 +311,7 @@ async def list_documents(
             & (InitiativeMember.user_id == current_user.id),
         )
     )
-    has_permission_subq = user_perm_subq.union(role_perm_subq).scalar_subquery()
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     stmt = (
         select(Document)
@@ -400,7 +400,7 @@ async def autocomplete_documents(
             & (InitiativeMember.user_id == current_user.id),
         )
     )
-    has_permission_subq = user_perm_subq.union(role_perm_subq).scalar_subquery()
+    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     normalized = q.strip().lower()
     stmt = (
