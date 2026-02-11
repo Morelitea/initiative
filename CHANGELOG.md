@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /documents/counts` lightweight endpoint returning per-tag document counts for the tag tree sidebar
   - Pagination controls (prev/next, page size selector, page in URL) for all three document views (list, grid, tags)
   - Data prefetching on hover over pagination buttons for instant page transitions
-- Role-based access control for projects and documents: grant read or write access to an entire initiative role instead of adding users individually
+- Role-based access control for projects and documents: grant read or write access to an entire initiative role as well as adding users individually
   - Role Access section in project and document settings pages for managing role-based permissions
   - Bulk role access management: grant or revoke role-based permissions across multiple selected documents at once
   - `my_permission_level` field in project and document API responses indicating the current user's effective access level
