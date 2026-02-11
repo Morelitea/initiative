@@ -479,8 +479,7 @@ async def oidc_callback(
                     parts = raw_id_token.split(".")
                     if len(parts) >= 2:
                         payload_b64 = parts[1]
-                        # Add padding
-                        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+                        payload_b64 += "=" * (-len(payload_b64) % 4)
                         id_token_claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
                 except Exception:
                     pass  # id_token decode is best-effort
