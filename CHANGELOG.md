@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- OIDC claim-to-role mapping: automatically assign users to guilds and initiatives based on OIDC token claims (e.g., `groups`, `realm_access.roles`) on every login
+  - Configurable claim path and mapping rules in Platform Settings > Auth
+  - Supports guild and initiative target types with role selection
+  - OIDC-managed memberships tracked separately from manual assignments; manual memberships are never overwritten
+  - Stale OIDC-managed memberships automatically removed when claims change
+
 ## [0.28.0] - 2026-02-11
 
 ### Added

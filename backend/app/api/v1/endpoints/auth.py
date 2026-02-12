@@ -35,11 +35,13 @@ from app.schemas.auth import (
     VerificationSendResponse,
 )
 from app.schemas.user import UserCreate, UserRead
+from app.db.session import AdminSessionLocal
 from app.services import app_settings as app_settings_service
 from app.services import email as email_service
 from app.services import user_tokens
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
+from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 from app.models.user_token import UserTokenPurpose
 
 router = APIRouter()
@@ -463,6 +465,44 @@ async def oidc_callback(
             session.add(user)
             await session.commit()
             await session.refresh(user)
+
+    # OIDC claim-to-role sync
+    try:
+        claim_path = app_settings.oidc_role_claim_path if hasattr(app_settings, "oidc_role_claim_path") else None
+        if claim_path:
+            # Decode id_token claims (without signature verification — we trust the token endpoint)
+            id_token_claims = None
+            raw_id_token = token_data.get("id_token")
+            if raw_id_token:
+                try:
+                    import json as _json
+                    parts = raw_id_token.split(".")
+                    if len(parts) >= 2:
+                        payload_b64 = parts[1]
+                        payload_b64 += "=" * (-len(payload_b64) % 4)
+                        id_token_claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
+                except Exception:
+                    pass  # id_token decode is best-effort
+
+            claim_values = extract_claim_values(profile, id_token_claims, claim_path)
+            async with AdminSessionLocal() as admin_session:
+                sync_result = await sync_oidc_assignments(
+                    admin_session,
+                    user_id=user.id,
+                    claim_values=claim_values,
+                )
+                logger.info(
+                    "OIDC sync for %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
+                    user.email,
+                    len(sync_result.guilds_added),
+                    len(sync_result.guilds_updated),
+                    len(sync_result.guilds_removed),
+                    len(sync_result.initiatives_added),
+                    len(sync_result.initiatives_updated),
+                    len(sync_result.initiatives_removed),
+                )
+    except Exception:
+        logger.exception("OIDC claim sync failed for user %s", user.email)
 
     if is_mobile:
         device_token = await user_tokens.create_device_token(

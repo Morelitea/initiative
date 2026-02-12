@@ -28,6 +28,10 @@ class AppSetting(SQLModel, table=True):
         default_factory=lambda: ["openid", "profile", "email"],
         sa_column=Column(JSON, nullable=False, server_default="['openid','profile','email']"),
     )
+    oidc_role_claim_path: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(500), nullable=True),
+    )
 
     light_accent_color: str = Field(
         default="#2563eb",
