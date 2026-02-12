@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -132,6 +132,7 @@ export const InitiativeSettingsPage = () => {
   const [showNewRoleDialog, setShowNewRoleDialog] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDisplayName, setNewRoleDisplayName] = useState("");
+  const roleNameTouchedRef = useRef(false);
 
   // Delete role confirmation
   const [roleToDelete, setRoleToDelete] = useState<InitiativeRoleRead | null>(null);
@@ -316,6 +317,7 @@ export const InitiativeSettingsPage = () => {
           setShowNewRoleDialog(false);
           setNewRoleName("");
           setNewRoleDisplayName("");
+          roleNameTouchedRef.current = false;
         },
       }
     );
@@ -896,7 +898,13 @@ export const InitiativeSettingsPage = () => {
       </AlertDialog>
 
       {/* New Role Dialog */}
-      <Dialog open={showNewRoleDialog} onOpenChange={setShowNewRoleDialog}>
+      <Dialog
+        open={showNewRoleDialog}
+        onOpenChange={(open) => {
+          setShowNewRoleDialog(open);
+          if (!open) roleNameTouchedRef.current = false;
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create custom role</DialogTitle>
@@ -910,7 +918,19 @@ export const InitiativeSettingsPage = () => {
               <Input
                 id="new-role-display-name"
                 value={newRoleDisplayName}
-                onChange={(e) => setNewRoleDisplayName(e.target.value)}
+                onChange={(e) => {
+                  const display = e.target.value;
+                  setNewRoleDisplayName(display);
+                  if (!roleNameTouchedRef.current) {
+                    setNewRoleName(
+                      display
+                        .trim()
+                        .toLowerCase()
+                        .replace(/\s+/g, "_")
+                        .replace(/[^a-z0-9_]/g, "")
+                    );
+                  }
+                }}
                 placeholder="e.g., Viewer"
               />
             </div>
@@ -920,12 +940,16 @@ export const InitiativeSettingsPage = () => {
                 id="new-role-name"
                 value={newRoleName}
                 onChange={(e) => {
-                  // Auto-convert to snake_case
                   const snakeCase = e.target.value
                     .toLowerCase()
                     .replace(/\s+/g, "_")
                     .replace(/[^a-z0-9_]/g, "");
                   setNewRoleName(snakeCase);
+                  if (!snakeCase && !newRoleDisplayName) {
+                    roleNameTouchedRef.current = false;
+                  } else {
+                    roleNameTouchedRef.current = true;
+                  }
                 }}
                 placeholder="e.g., viewer"
               />
