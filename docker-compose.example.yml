@@ -45,7 +45,7 @@ services:
       # OIDC_CLIENT_ID: your-client-id
       # OIDC_CLIENT_SECRET: your-client-secret
       # OIDC_PROVIDER_NAME: Your Provider Name
-      # OIDC_SCOPES: openid,profile,email
+      # OIDC_SCOPES: openid,profile,email,offline_access
       # Optional: Enable push notifications (requires Firebase project)
       # See docs/FIREBASE_SETUP.md for setup instructions
       # FCM_ENABLED: false

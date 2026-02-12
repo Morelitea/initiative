@@ -78,10 +78,10 @@ class Settings(BaseSettings):
     @classmethod
     def parse_oidc_scopes(cls, value: str | list[str] | None) -> list[str]:
         if value is None:
-            return ["openid", "profile", "email"]
+            return ["openid", "profile", "email", "offline_access"]
         if isinstance(value, str):
             if not value.strip():
-                return ["openid", "profile", "email"]
+                return ["openid", "profile", "email", "offline_access"]
             items = value.replace(",", " ").split()
         else:
             items = value

@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports guild and initiative target types with role selection
   - OIDC-managed memberships tracked separately from manual assignments; manual memberships are never overwritten
   - Stale OIDC-managed memberships automatically removed when claims change
+- OIDC refresh token periodic re-sync: stores encrypted refresh tokens and periodically re-fetches userinfo claims in the background, keeping guild/initiative memberships in sync without requiring re-login
+  - 5-minute poll cycle with 15-minute per-user sync interval
+  - Automatic token rotation support; graceful handling of revoked tokens
+  - `offline_access` added to default OIDC scopes for refresh token issuance
+- Extracted background task runner into dedicated `background_tasks.py` module
 - PKCE (S256) support for OIDC authentication, required by many identity providers
 - No-guild empty state for users with no guild membership after login, with options to create a guild, redeem an invite, or log out
 - "Source" column in guild and initiative member tables showing whether membership is managed by OIDC or manual

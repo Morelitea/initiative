@@ -25,8 +25,8 @@ class AppSetting(SQLModel, table=True):
     oidc_client_secret: Optional[str] = None
     oidc_provider_name: Optional[str] = None
     oidc_scopes: list[str] = Field(
-        default_factory=lambda: ["openid", "profile", "email"],
-        sa_column=Column(JSON, nullable=False, server_default="['openid','profile','email']"),
+        default_factory=lambda: ["openid", "profile", "email", "offline_access"],
+        sa_column=Column(JSON, nullable=False, server_default='["openid","profile","email","offline_access"]'),
     )
     oidc_role_claim_path: Optional[str] = Field(
         default=None,

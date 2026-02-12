@@ -37,7 +37,7 @@ export const SettingsAuthPage = () => {
     issuer: "",
     client_id: "",
     provider_name: "",
-    scopes: "openid profile email",
+    scopes: "openid profile email offline_access",
   });
 
   const oidcQuery = useQuery<OidcSettings>({
@@ -191,7 +191,7 @@ export const SettingsAuthPage = () => {
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, scopes: event.target.value }))
                 }
-                placeholder="openid profile email"
+                placeholder="openid profile email offline_access"
               />
             </div>
             <Button type="submit" disabled={updateOidcSettings.isPending}>

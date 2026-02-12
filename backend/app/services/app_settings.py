@@ -30,7 +30,7 @@ def _normalize_scopes(scopes: Iterable[str]) -> list[str]:
         if cleaned and cleaned not in seen:
             seen.add(cleaned)
             normalized.append(cleaned)
-    return normalized or ["openid", "profile", "email"]
+    return normalized or ["openid", "profile", "email", "offline_access"]
 
 
 def _normalize_role_labels(
@@ -109,7 +109,7 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         oidc_client_id=_normalize_optional_string(app_config.OIDC_CLIENT_ID),
         oidc_client_secret=_normalize_optional_string(app_config.OIDC_CLIENT_SECRET),
         oidc_provider_name=_normalize_optional_string(app_config.OIDC_PROVIDER_NAME),
-        oidc_scopes=_normalize_scopes(app_config.OIDC_SCOPES or ["openid", "profile", "email"]),
+        oidc_scopes=_normalize_scopes(app_config.OIDC_SCOPES or ["openid", "profile", "email", "offline_access"]),
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
         role_labels=DEFAULT_ROLE_LABELS.copy(),
