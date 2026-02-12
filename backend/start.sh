@@ -8,4 +8,4 @@ if [ "${BEHIND_PROXY:-false}" = "true" ]; then
     ARGS="$ARGS --proxy-headers --forwarded-allow-ips=$FORWARDED_IPS"
 fi
 
-exec uvicorn $ARGS
+exec uvicorn "$ARGS"
