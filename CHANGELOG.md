@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - OIDC-managed memberships tracked separately from manual assignments; manual memberships are never overwritten
   - Stale OIDC-managed memberships automatically removed when claims change
 
+### Fixed
+
+- `BEHIND_PROXY=true` now passes `--proxy-headers` and `--forwarded-allow-ips` to Uvicorn so real client IPs appear in logs and `request.client.host` (#92)
+
 ## [0.28.0] - 2026-02-11
 
 ### Added
