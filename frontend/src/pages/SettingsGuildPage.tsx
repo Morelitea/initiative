@@ -4,6 +4,16 @@ import type { AxiosError } from "axios";
 import { useGuilds } from "@/hooks/useGuilds";
 import type { Guild } from "@/types/api";
 import { apiClient } from "@/api/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +30,8 @@ export const SettingsGuildPage = () => {
   const [iconBase64, setIconBase64] = useState<string | null>(null);
   const [iconError, setIconError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   useEffect(() => {
     if (!activeGuild) {
@@ -90,18 +102,14 @@ export const SettingsGuildPage = () => {
     }
   };
 
-  const handleDeleteGuild = async () => {
+  const confirmDeleteGuild = async () => {
     if (!activeGuild) {
-      return;
-    }
-    const confirmation = window.prompt(
-      "Type DELETE to confirm removing this guild. This removes all initiatives, projects, and tasks."
-    );
-    if (!confirmation || confirmation.trim().toUpperCase() !== "DELETE") {
       return;
     }
     setDeleting(true);
     setSaveError(null);
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText("");
     try {
       await apiClient.delete(`/guilds/${activeGuild.id}`);
       await refreshGuilds();
@@ -113,6 +121,8 @@ export const SettingsGuildPage = () => {
       setDeleting(false);
     }
   };
+
+  const canConfirmDelete = deleteConfirmText === activeGuild?.name;
 
   if (!activeGuild) {
     return (
@@ -198,11 +208,58 @@ export const SettingsGuildPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Button variant="destructive" onClick={handleDeleteGuild} disabled={deleting}>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setDeleteConfirmText("");
+              setShowDeleteConfirm(true);
+            }}
+            disabled={deleting}
+          >
             {deleting ? "Deleting…" : "Delete guild"}
           </Button>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          setShowDeleteConfirm(open);
+          if (!open) setDeleteConfirmText("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete guild?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deleting <strong>{activeGuild?.name}</strong> will permanently remove all initiatives,
+              projects, tasks, and documents within it. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="delete-guild-confirm-input">
+              Type <strong>{activeGuild?.name}</strong> to confirm:
+            </Label>
+            <Input
+              id="delete-guild-confirm-input"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={activeGuild?.name}
+              autoComplete="off"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmDeleteGuild()}
+              disabled={!canConfirmDelete || deleting}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

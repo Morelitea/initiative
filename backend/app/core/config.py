@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import EmailStr, Field, field_validator
+from pydantic import EmailStr, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
     OIDC_ENABLED: bool = False
-    OIDC_DISCOVERY_URL: str | None = None
+    OIDC_ISSUER: str | None = None
     OIDC_CLIENT_ID: str | None = None
     OIDC_CLIENT_SECRET: str | None = None
     OIDC_REDIRECT_URI: str | None = None
@@ -91,6 +91,13 @@ class Settings(BaseSettings):
             if cleaned and cleaned not in normalized:
                 normalized.append(cleaned)
         return normalized or ["openid", "profile", "email"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _oidc_issuer_compat(cls, values: dict) -> dict:
+        if not values.get("OIDC_ISSUER") and values.get("OIDC_DISCOVERY_URL"):
+            values["OIDC_ISSUER"] = values["OIDC_DISCOVERY_URL"]
+        return values
 
 
 @lru_cache

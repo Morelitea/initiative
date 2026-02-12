@@ -1,6 +1,7 @@
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import {
   createFileRoute,
+  Link,
   Navigate,
   Outlet,
   redirect,
@@ -8,8 +9,10 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Menu } from "lucide-react";
+import { Loader2, LogOut, Menu, Plus, Ticket } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
@@ -62,9 +65,15 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
 
 function AppLayout() {
   // ALL hooks must be called before any conditional returns
-  const { token, loading } = useAuth();
+  const { token, loading, logout } = useAuth();
   const { isNativePlatform } = useServer();
-  const { activeGuildId } = useGuilds();
+  const {
+    activeGuildId,
+    guilds,
+    loading: guildsLoading,
+    canCreateGuilds,
+    createGuild,
+  } = useGuilds();
   const location = useLocation();
   const search = useSearch({ strict: false }) as { authenticated?: string };
   const queryClient = useQueryClient();
@@ -105,8 +114,8 @@ function AppLayout() {
   });
 
   // Now we can have conditional returns
-  // Show loading state while auth is being determined
-  if (loading) {
+  // Show loading state while auth or guild membership is being determined
+  if (loading || guildsLoading) {
     return <FullScreenLoader />;
   }
 
@@ -114,6 +123,13 @@ function AppLayout() {
   if (!token && !justAuthenticated) {
     const redirectTo = isNativePlatform ? "/login" : "/welcome";
     return <Navigate to={redirectTo} replace />;
+  }
+
+  // Show no-guild empty state if user has no guild memberships
+  if (guilds.length === 0 && token) {
+    return (
+      <NoGuildState canCreateGuilds={canCreateGuilds} createGuild={createGuild} logout={logout} />
+    );
   }
 
   const handleClearRecent = (projectId: number) => {
@@ -173,6 +189,83 @@ function AppLayout() {
         newVersion={updateAvailable.version}
         onClose={closeDialog}
       />
+    </div>
+  );
+}
+
+function NoGuildState({
+  canCreateGuilds,
+  createGuild,
+  logout,
+}: {
+  canCreateGuilds: boolean;
+  createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
+  logout: () => void;
+}) {
+  const [guildName, setGuildName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    const trimmed = guildName.trim();
+    if (!trimmed) return;
+    setCreating(true);
+    try {
+      await createGuild({ name: trimmed });
+    } catch {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <div className="mx-auto w-full max-w-md space-y-6 text-center">
+        <h1 className="text-2xl font-bold">No guild membership</h1>
+        <p className="text-muted-foreground">
+          You are not a member of any guild yet. Ask a guild admin for an invite link, or create a
+          new guild to get started.
+        </p>
+
+        {canCreateGuilds && (
+          <div className="flex gap-2">
+            <Input
+              placeholder="Guild name"
+              value={guildName}
+              onChange={(e) => setGuildName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleCreate();
+              }}
+            />
+            <Button onClick={() => void handleCreate()} disabled={creating || !guildName.trim()}>
+              <Plus className="h-4 w-4" />
+              Create
+            </Button>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Input
+            placeholder="Invite code"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+          />
+          <Button variant="outline" asChild disabled={!inviteCode.trim()}>
+            <Link
+              to="/invite/$code"
+              params={{ code: inviteCode.trim() }}
+              disabled={!inviteCode.trim()}
+            >
+              <Ticket className="h-4 w-4" />
+              Redeem
+            </Link>
+          </Button>
+        </div>
+
+        <Button variant="ghost" onClick={logout}>
+          <LogOut className="h-4 w-4" />
+          Log out
+        </Button>
+      </div>
     </div>
   );
 }

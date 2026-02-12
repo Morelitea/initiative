@@ -531,8 +531,8 @@ const InitiativeSection = ({
   // Pure DAC: check if user has write access to a specific project
   const canManageProject = (project: Project): boolean => {
     if (!userId) return false;
-    const permission = project.permissions?.find((p) => p.user_id === userId);
-    return permission?.level === "owner" || permission?.level === "write";
+    const level = project.my_permission_level;
+    return level === "owner" || level === "write";
   };
   // Load initial state from storage, default to true if not found
   const [isOpen, setIsOpen] = useState(() => {

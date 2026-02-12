@@ -129,6 +129,11 @@ async def get_guild_membership(
         user=current_user,
         guild_id=requested_guild_id,
     )
+    if guild_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No guild membership. Join or create a guild to continue.",
+        )
     membership = await guilds_service.get_membership(
         session,
         guild_id=guild_id,

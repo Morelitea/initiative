@@ -80,8 +80,8 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         if app_config.OIDC_ENABLED and not settings_row.oidc_enabled:
             settings_row.oidc_enabled = True
             updated = True
-        if not settings_row.oidc_discovery_url and app_config.OIDC_DISCOVERY_URL:
-            settings_row.oidc_discovery_url = _normalize_optional_string(app_config.OIDC_DISCOVERY_URL)
+        if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
+            settings_row.oidc_issuer = _normalize_optional_string(app_config.OIDC_ISSUER)
             updated = True
         if not settings_row.oidc_client_id and app_config.OIDC_CLIENT_ID:
             settings_row.oidc_client_id = _normalize_optional_string(app_config.OIDC_CLIENT_ID)
@@ -105,7 +105,7 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     app_settings = AppSetting(
         id=GLOBAL_SETTINGS_ID,
         oidc_enabled=bool(app_config.OIDC_ENABLED),
-        oidc_discovery_url=_normalize_optional_string(app_config.OIDC_DISCOVERY_URL),
+        oidc_issuer=_normalize_optional_string(app_config.OIDC_ISSUER),
         oidc_client_id=_normalize_optional_string(app_config.OIDC_CLIENT_ID),
         oidc_client_secret=_normalize_optional_string(app_config.OIDC_CLIENT_SECRET),
         oidc_provider_name=_normalize_optional_string(app_config.OIDC_PROVIDER_NAME),
@@ -143,7 +143,7 @@ async def update_oidc_settings(
     session: AsyncSession,
     *,
     enabled: bool,
-    discovery_url: str | None,
+    issuer: str | None,
     client_id: str | None,
     client_secret: str | None,
     provider_name: str | None,
@@ -151,7 +151,7 @@ async def update_oidc_settings(
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
     settings_row.oidc_enabled = enabled
-    settings_row.oidc_discovery_url = _normalize_optional_string(discovery_url)
+    settings_row.oidc_issuer = _normalize_optional_string(issuer)
     settings_row.oidc_client_id = _normalize_optional_string(client_id)
     if client_secret is not None:
         settings_row.oidc_client_secret = _normalize_optional_string(client_secret)

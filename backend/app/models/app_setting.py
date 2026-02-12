@@ -20,7 +20,7 @@ class AppSetting(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
 
     oidc_enabled: bool = Field(default=False, nullable=False)
-    oidc_discovery_url: Optional[str] = None
+    oidc_issuer: Optional[str] = None
     oidc_client_id: Optional[str] = None
     oidc_client_secret: Optional[str] = None
     oidc_provider_name: Optional[str] = None

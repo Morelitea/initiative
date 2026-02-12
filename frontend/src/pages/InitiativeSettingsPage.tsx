@@ -529,6 +529,19 @@ export const InitiativeSettingsPage = () => {
         },
       },
       {
+        accessorKey: "oidc_managed",
+        header: "Source",
+        cell: ({ row }) => {
+          return row.original.oidc_managed ? (
+            <span className="bg-muted text-muted-foreground inline-flex items-center rounded-md px-2 py-1 text-sm font-medium">
+              OIDC
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-sm">Manual</span>
+          );
+        },
+      },
+      {
         id: "actions",
         header: "",
         cell: ({ row }) => {

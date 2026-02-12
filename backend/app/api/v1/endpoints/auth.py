@@ -254,41 +254,42 @@ def _generate_state(mobile: bool = False, device_name: str = "") -> str:
     timestamp = str(int(time.time()))
     mobile_flag = "1" if mobile else "0"
     encoded_device_name = base64.urlsafe_b64encode(device_name.encode()).decode()
-    payload = f"{timestamp}.{mobile_flag}.{encoded_device_name}"
+    code_verifier = secrets.token_urlsafe(32)
+    payload = f"{timestamp}.{mobile_flag}.{encoded_device_name}.{code_verifier}"
     signature = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{signature}"
 
 
-def _validate_state(value: str | None) -> tuple[bool, bool, str]:
-    """Validate OIDC state parameter and extract mobile flag and device name.
+def _validate_state(value: str | None) -> tuple[bool, bool, str, str]:
+    """Validate OIDC state parameter and extract mobile flag, device name, and code verifier.
 
     Returns:
-        Tuple of (is_valid, is_mobile, device_name)
+        Tuple of (is_valid, is_mobile, device_name, code_verifier)
     """
     if not value:
-        return (False, False, "")
+        return (False, False, "", "")
     try:
         parts = value.split(".")
-        if len(parts) != 4:
-            return (False, False, "")
-        ts_str, mobile_flag, encoded_device_name, signature = parts
+        if len(parts) != 5:
+            return (False, False, "", "")
+        ts_str, mobile_flag, encoded_device_name, code_verifier, signature = parts
     except ValueError:
-        return (False, False, "")
-    payload = f"{ts_str}.{mobile_flag}.{encoded_device_name}"
+        return (False, False, "", "")
+    payload = f"{ts_str}.{mobile_flag}.{encoded_device_name}.{code_verifier}"
     expected = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        return (False, False, "")
+        return (False, False, "", "")
     try:
         ts = int(ts_str)
     except ValueError:
-        return (False, False, "")
+        return (False, False, "", "")
     if int(time.time()) - ts > STATE_TTL_SECONDS:
-        return (False, False, "")
+        return (False, False, "", "")
     try:
         device_name = base64.urlsafe_b64decode(encoded_device_name.encode()).decode()
     except Exception:
         device_name = ""
-    return (True, mobile_flag == "1", device_name)
+    return (True, mobile_flag == "1", device_name, code_verifier)
 
 
 def _backend_redirect_uri() -> str:
@@ -301,7 +302,13 @@ def _frontend_redirect_uri() -> str:
     return f"{base}/oidc/callback"
 
 
-async def _fetch_oidc_metadata(discovery_url: str) -> dict[str, Any]:
+async def _fetch_oidc_metadata(issuer_url: str) -> dict[str, Any]:
+    # Normalize: strip trailing well-known path if present, then re-append
+    normalized = issuer_url.rstrip("/")
+    well_known_suffix = "/.well-known/openid-configuration"
+    if normalized.endswith(well_known_suffix):
+        normalized = normalized[: -len(well_known_suffix)]
+    discovery_url = f"{normalized}{well_known_suffix}"
     if discovery_url in _oidc_metadata_cache:
         return _oidc_metadata_cache[discovery_url]
     async with httpx.AsyncClient(timeout=10) as client:
@@ -316,13 +323,13 @@ async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, 
     app_settings = await app_settings_service.get_app_settings(session)
     if not (
         app_settings.oidc_enabled
-        and app_settings.oidc_discovery_url
+        and app_settings.oidc_issuer
         and app_settings.oidc_client_id
         and app_settings.oidc_client_secret
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OIDC is not enabled")
 
-    metadata = await _fetch_oidc_metadata(app_settings.oidc_discovery_url)
+    metadata = await _fetch_oidc_metadata(app_settings.oidc_issuer)
     required = ["authorization_endpoint", "token_endpoint"]
     for key in required:
         if key not in metadata:
@@ -335,7 +342,7 @@ async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
     app_settings = await app_settings_service.get_app_settings(session)
     enabled = bool(
         app_settings.oidc_enabled
-        and app_settings.oidc_discovery_url
+        and app_settings.oidc_issuer
         and app_settings.oidc_client_id
         and app_settings.oidc_client_secret
     )
@@ -357,12 +364,22 @@ async def oidc_login(
 ) -> RedirectResponse:
     app_settings, metadata = await _get_oidc_runtime_config(session)
     state = _generate_state(mobile=mobile, device_name=device_name if mobile else "")
+    # Extract code_verifier from state to compute PKCE challenge
+    state_parts = state.split(".")
+    code_verifier = state_parts[3]
+    code_challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
+        .rstrip(b"=")
+        .decode()
+    )
     params = {
         "client_id": app_settings.oidc_client_id,
         "response_type": "code",
         "scope": " ".join(app_settings.oidc_scopes or ["openid"]),
         "redirect_uri": _backend_redirect_uri(),
         "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     }
     authorize_url = f"{metadata['authorization_endpoint']}?{urlencode(params)}"
     return RedirectResponse(authorize_url)
@@ -373,7 +390,7 @@ def _mobile_redirect_uri() -> str:
 
 
 @router.get("/oidc/callback")
-@limiter.limit("5/15minutes")
+@limiter.limit("20/minute")
 async def oidc_callback(
     request: Request,
     session: SessionDep,
@@ -382,7 +399,7 @@ async def oidc_callback(
 ):
     if not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing authorization code")
-    is_valid, is_mobile, device_name = _validate_state(state)
+    is_valid, is_mobile, device_name, code_verifier = _validate_state(state)
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state parameter")
 
@@ -393,6 +410,7 @@ async def oidc_callback(
         "redirect_uri": _backend_redirect_uri(),
         "client_id": app_settings.oidc_client_id,
         "client_secret": app_settings.oidc_client_secret,
+        "code_verifier": code_verifier,
     }
     async with httpx.AsyncClient(timeout=10) as client:
         token_resp = await client.post(metadata["token_endpoint"], data=token_payload)
