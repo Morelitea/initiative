@@ -329,6 +329,7 @@ For detailed development guidelines, coding standards, and workflow, see [AGENTS
 | `DISABLE_GUILD_CREATION`     | Restrict guild creation to super admin only                    | `false`  | `true` or `false`                                             |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow public registration without invite link                  | `true`   | `true` or `false`                                             |
 | `BEHIND_PROXY`               | Trust X-Forwarded-For headers (behind nginx/load balancer)     | `false`  | `true` or `false`                                             |
+| `FORWARDED_ALLOW_IPS`        | Restrict trusted proxy IPs (when `BEHIND_PROXY=true`)          | `*`      | `127.0.0.1,172.16.0.0/12`                                    |
 | `FIRST_SUPERUSER_EMAIL`      | Bootstrap admin email                                          | -        | `admin@example.com`                                           |
 | `FIRST_SUPERUSER_PASSWORD`   | Bootstrap admin password                                       | -        | `secure-password`                                             |
 | `SMTP_HOST`                  | SMTP server hostname                                           | -        | `smtp.gmail.com`                                              |
