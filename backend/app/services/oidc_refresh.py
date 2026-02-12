@@ -79,10 +79,12 @@ async def _refresh_and_sync_user(
                 logger.warning("No access_token in refresh response for user %s", user.email)
                 return False
 
-            # Handle token rotation
+            # Handle token rotation - commit immediately to prevent loss
             new_refresh = token_data.get("refresh_token")
             if new_refresh:
                 user.oidc_refresh_token_encrypted = encrypt_token(new_refresh)
+                session.add(user)
+                await session.commit()
 
             # Fetch userinfo
             userinfo_resp = await client.get(
