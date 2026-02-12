@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.version import __version__
 from app.db.session import AdminSessionLocal, run_migrations
 from app.services import app_settings as app_settings_service
-from app.services import notifications as notifications_service
+from app.services import background_tasks as background_tasks_service
 
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
@@ -132,7 +132,7 @@ async def on_startup() -> None:
     await run_migrations()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
-    app.state.notification_tasks = notifications_service.start_background_tasks()
+    app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
 
 @app.on_event("shutdown")

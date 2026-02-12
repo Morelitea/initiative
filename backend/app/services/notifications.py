@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
@@ -870,26 +869,3 @@ async def process_overdue_notifications() -> None:
             await session.commit()
 
 
-async def _loop_worker(task_coro, interval: int, name: str) -> None:
-    logger.info("%s worker started (interval=%ss)", name, interval)
-    try:
-        while True:
-            try:
-                await task_coro()
-            except Exception:  # pragma: no cover
-                logger.exception("%s worker encountered an error", name)
-            await asyncio.sleep(interval)
-    except asyncio.CancelledError:  # pragma: no cover
-        logger.info("%s worker cancelled", name)
-        raise
-
-
-def start_background_tasks() -> list[asyncio.Task]:
-    return [
-        asyncio.create_task(
-            _loop_worker(process_task_assignment_digests, DIGEST_POLL_SECONDS, "task-digest")
-        ),
-        asyncio.create_task(
-            _loop_worker(process_overdue_notifications, OVERDUE_POLL_SECONDS, "overdue-digest")
-        ),
-    ]

@@ -21,6 +21,7 @@ from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
+from app.core.encryption import encrypt_token
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
 from app.models.guild import GuildRole
@@ -449,6 +450,12 @@ async def oidc_callback(
     statement = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(statement)
     user = result.one_or_none()
+    # Extract OIDC refresh token + sub for background sync
+    oidc_sub = profile.get("sub")
+    refresh_token = token_data.get("refresh_token")
+    encrypted_refresh = encrypt_token(refresh_token) if refresh_token else None
+    now_utc = datetime.now(timezone.utc)
+
     if not user:
         random_password = secrets.token_urlsafe(32)
         user = User(
@@ -460,6 +467,9 @@ async def oidc_callback(
             avatar_url=avatar_url,
             avatar_base64=None,
             email_verified=True,
+            oidc_sub=oidc_sub,
+            oidc_refresh_token_encrypted=encrypted_refresh,
+            oidc_last_synced_at=now_utc,
         )
         session.add(user)
         await session.commit()
@@ -479,6 +489,15 @@ async def oidc_callback(
             user.avatar_url = avatar_url
             user.avatar_base64 = None
             updated = True
+        # Always update OIDC sync fields on login
+        if oidc_sub:
+            user.oidc_sub = oidc_sub
+            updated = True
+        if encrypted_refresh is not None:
+            user.oidc_refresh_token_encrypted = encrypted_refresh
+            updated = True
+        user.oidc_last_synced_at = now_utc
+        updated = True
         if updated:
             session.add(user)
             await session.commit()
