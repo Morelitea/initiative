@@ -58,7 +58,7 @@ async def resolve_user_guild_id(
     *,
     user,
     guild_id: int | None = None,
-) -> int:
+) -> int | None:
     if guild_id is not None:
         return guild_id
     if user and getattr(user, "id", None):
@@ -68,8 +68,7 @@ async def resolve_user_guild_id(
         membership_guild_id = result.first()
         if membership_guild_id:
             return membership_guild_id
-    guild = await get_primary_guild(session)
-    return guild.id
+    return None
 
 
 async def ensure_membership(

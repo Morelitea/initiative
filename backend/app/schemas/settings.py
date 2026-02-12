@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 class OIDCSettingsResponse(BaseModel):
     enabled: bool
-    discovery_url: Optional[str] = None
+    issuer: Optional[str] = None
     client_id: Optional[str] = None
     redirect_uri: Optional[str] = None
     post_login_redirect: Optional[str] = None
@@ -15,7 +15,7 @@ class OIDCSettingsResponse(BaseModel):
 
 class OIDCSettingsUpdate(BaseModel):
     enabled: bool
-    discovery_url: Optional[str] = None
+    issuer: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
     redirect_uri: Optional[str] = None

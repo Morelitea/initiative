@@ -24,7 +24,7 @@ from app.models.comment import Comment
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.user import User
 from app.models.guild import GuildRole
-from app.models.document import ProjectDocument
+from app.models.document import Document, ProjectDocument
 from app.models.tag import Tag, ProjectTag, TaskTag
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
@@ -93,14 +93,48 @@ def _project_tags(project: Project) -> List[TagSummary]:
     return tags
 
 
-def _project_documents(project: Project) -> List[ProjectDocumentSummary]:
+def _project_documents(
+    project: Project,
+    *,
+    user_id: int | None = None,
+) -> List[ProjectDocumentSummary]:
+    """Serialize project document links, optionally filtering by permission.
+
+    Pass ``user_id`` for non-admin callers so only documents the user can
+    access are included.  Pass ``user_id=None`` (guild admins) to skip
+    filtering entirely.
+    """
     documents: List[ProjectDocumentSummary] = []
     for link in getattr(project, "document_links", []) or []:
+        doc = getattr(link, "document", None)
+        if user_id is not None and doc is not None:
+            if not _user_can_access_document(doc, user_id, project):
+                continue
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
     documents.sort(key=lambda item: (item.title.lower(), item.document_id))
     return documents
+
+
+def _user_can_access_document(doc, user_id: int, project: Project) -> bool:
+    """Check if a user has access to a document via explicit or role-based permission."""
+    # Check explicit document permissions
+    doc_permissions = getattr(doc, "permissions", None) or []
+    for perm in doc_permissions:
+        if perm.user_id == user_id:
+            return True
+    # Check role-based document permissions
+    doc_role_permissions = getattr(doc, "role_permissions", None) or []
+    if doc_role_permissions:
+        initiative = getattr(project, "initiative", None)
+        if initiative:
+            memberships = getattr(initiative, "memberships", None) or []
+            user_role_ids = {m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None}
+            for rp in doc_role_permissions:
+                if rp.initiative_role_id in user_role_ids:
+                    return True
+    return False
 
 
 async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -> None:
@@ -136,6 +170,7 @@ def _project_payload(
     project: Project,
     *,
     my_permission_level: str | None = None,
+    user_id: int | None = None,
 ) -> dict:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
@@ -145,7 +180,7 @@ def _project_payload(
         summary = ProjectTaskSummary()
     payload = payload.model_copy(
         update={
-            "documents": _project_documents(project),
+            "documents": _project_documents(project, user_id=user_id),
             "task_summary": summary,
             "role_permissions": _project_role_permissions(project),
             "my_permission_level": my_permission_level,
@@ -163,7 +198,10 @@ async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: in
             selectinload(InitiativeMember.user),
             selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
         ),
-        selectinload(Project.document_links).selectinload(ProjectDocument.document),
+        selectinload(Project.document_links).selectinload(ProjectDocument.document).options(
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions),
+        ),
         selectinload(Project.tag_links).selectinload(ProjectTag.tag),
     )
     if guild_id is not None:
@@ -498,7 +536,10 @@ async def _visible_projects(
                 selectinload(InitiativeMember.user),
                 selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
             ),
-            selectinload(Project.document_links).selectinload(ProjectDocument.document),
+            selectinload(Project.document_links).selectinload(ProjectDocument.document).options(
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions),
+        ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
@@ -541,6 +582,9 @@ async def _project_reads_with_order(
 
     sorted_projects = sorted(projects, key=sort_key)
 
+    # Guild admins see all documents; non-admins get filtered by permission
+    doc_user_id = None if is_guild_admin else current_user.id
+
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
         my_level = _compute_my_permission_level(
@@ -553,6 +597,7 @@ async def _project_reads_with_order(
                 favorite_ids=favorite_ids,
                 view_map=view_map,
                 my_permission_level=my_level,
+                user_id=doc_user_id,
             )
         )
     return payloads
@@ -615,7 +660,10 @@ async def _projects_by_ids(
                 selectinload(InitiativeMember.user),
                 selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
             ),
-            selectinload(Project.document_links).selectinload(ProjectDocument.document),
+            selectinload(Project.document_links).selectinload(ProjectDocument.document).options(
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions),
+        ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
     )
@@ -631,6 +679,7 @@ def _build_project_payload(
     favorite_ids: set[int],
     view_map: dict[int, datetime],
     my_permission_level: str | None = None,
+    user_id: int | None = None,
 ) -> ProjectRead:
     payload = ProjectRead.model_validate(project)
     if project.initiative:
@@ -644,7 +693,7 @@ def _build_project_payload(
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),
-            "documents": _project_documents(project),
+            "documents": _project_documents(project, user_id=user_id),
             "task_summary": summary,
             "tags": _project_tags(project),
             "role_permissions": _project_role_permissions(project),
@@ -759,12 +808,14 @@ async def _project_read_for_user(
     project_ids = [project.id] if project.id is not None else []
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
     await _attach_task_summaries(session, [project])
+    doc_user_id = None if is_guild_admin else current_user.id
     return _build_project_payload(
         project,
         sort_order=None,
         favorite_ids=favorite_ids,
         view_map=view_map,
         my_permission_level=my_level,
+        user_id=doc_user_id,
     )
 
 
@@ -1005,6 +1056,7 @@ async def create_project(
         my_permission_level=_compute_my_permission_level(
             project, current_user.id, is_guild_admin=is_admin,
         ),
+        user_id=None if is_admin else current_user.id,
     ))
     return await _project_read_for_user(
         session, current_user, project, is_guild_admin=is_admin,
@@ -1039,6 +1091,7 @@ async def archive_project(
         my_permission_level=_compute_my_permission_level(
             updated, current_user.id, is_guild_admin=is_admin,
         ),
+        user_id=None if is_admin else current_user.id,
     ))
     return await _project_read_for_user(
         session, current_user, updated, is_guild_admin=is_admin,
@@ -1194,6 +1247,7 @@ async def unarchive_project(
         my_permission_level=_compute_my_permission_level(
             updated, current_user.id, is_guild_admin=is_admin,
         ),
+        user_id=None if is_admin else current_user.id,
     ))
     return await _project_read_for_user(
         session, current_user, updated, is_guild_admin=is_admin,
@@ -1244,6 +1298,7 @@ async def recent_projects(
                 my_permission_level=_compute_my_permission_level(
                     project, current_user.id, is_guild_admin=is_admin,
                 ),
+                user_id=None if is_admin else current_user.id,
             )
         )
     return payloads
@@ -1292,6 +1347,7 @@ async def favorite_projects(
                 my_permission_level=_compute_my_permission_level(
                     project, current_user.id, is_guild_admin=is_admin,
                 ),
+                user_id=None if is_admin else current_user.id,
             )
         )
     return payloads
@@ -1518,6 +1574,7 @@ async def update_project(
         my_permission_level=_compute_my_permission_level(
             project, current_user.id, is_guild_admin=is_admin,
         ),
+        user_id=None if is_admin else current_user.id,
     ))
     return await _project_read_for_user(
         session, current_user, project, is_guild_admin=is_admin,
@@ -1563,6 +1620,7 @@ async def attach_project_document(
         my_permission_level=_compute_my_permission_level(
             updated_project, current_user.id, is_guild_admin=is_admin,
         ),
+        user_id=None if is_admin else current_user.id,
     ))
     return await _project_read_for_user(
         session, current_user, updated_project, is_guild_admin=is_admin,
@@ -1607,6 +1665,7 @@ async def detach_project_document(
         my_permission_level=_compute_my_permission_level(
             updated_project, current_user.id, is_guild_admin=is_admin,
         ),
+        user_id=None if is_admin else current_user.id,
     ))
     return await _project_read_for_user(
         session, current_user, updated_project, is_guild_admin=is_admin,

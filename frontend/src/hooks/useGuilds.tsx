@@ -71,6 +71,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const reorderDebounceRef = useRef<number | null>(null);
   const pendingOrderRef = useRef<number[] | null>(null);
+  const hasFetchedRef = useRef(false);
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
@@ -112,11 +113,12 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Only show loading indicator on initial load, not background refreshes
-    if (guilds.length === 0) setLoading(true);
+    if (!hasFetchedRef.current) setLoading(true);
 
     setError(null);
     try {
       const response = await apiClient.get<Guild[]>("/guilds/");
+      hasFetchedRef.current = true;
       applyGuildState(response.data);
     } catch (err) {
       console.error("Failed to load guilds", err);
@@ -126,7 +128,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [token, user, applyGuildState, guilds.length]);
+  }, [token, user, applyGuildState]);
 
   const flushPendingOrder = useCallback(async () => {
     if (!pendingOrderRef.current) {
@@ -181,6 +183,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       setActiveGuildId(null);
       setError(null);
       setLoading(false);
+      hasFetchedRef.current = false;
       return;
     }
     void refreshGuilds();

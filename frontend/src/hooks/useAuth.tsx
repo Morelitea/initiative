@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 
 import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "@/api/client";
 import { getItem, setItem, removeItem } from "@/lib/storage";
+import { queryClient } from "@/lib/queryClient";
 import { User } from "../types/api";
 
 interface LoginPayload {
@@ -173,6 +174,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setAuthToken(null);
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
+    queryClient.clear();
   }, []);
 
   useEffect(() => {

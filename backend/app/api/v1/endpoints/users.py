@@ -126,7 +126,7 @@ async def list_users(
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
     stmt = (
-        select(User, GuildMembership.role)
+        select(User, GuildMembership.role, GuildMembership.oidc_managed)
         .join(GuildMembership, GuildMembership.user_id == User.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
         .order_by(User.created_at.asc())
@@ -136,11 +136,12 @@ async def list_users(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
-    # Build response with guild_role
+    # Build response with guild_role and oidc_managed
     response = []
-    for user, guild_role in rows:
+    for user, guild_role, oidc_managed in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
+        member.oidc_managed = oidc_managed
         # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)

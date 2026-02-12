@@ -75,7 +75,7 @@ async def get_oidc_settings(
     settings_obj = await app_settings_service.get_app_settings(session)
     return OIDCSettingsResponse(
         enabled=settings_obj.oidc_enabled,
-        discovery_url=settings_obj.oidc_discovery_url,
+        issuer=settings_obj.oidc_issuer,
         client_id=settings_obj.oidc_client_id,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),
@@ -94,7 +94,7 @@ async def update_oidc_settings(
     updated = await app_settings_service.update_oidc_settings(
         session,
         enabled=payload.enabled,
-        discovery_url=payload.discovery_url,
+        issuer=payload.issuer,
         client_id=payload.client_id,
         client_secret=payload.client_secret,
         provider_name=payload.provider_name,
@@ -102,7 +102,7 @@ async def update_oidc_settings(
     )
     return OIDCSettingsResponse(
         enabled=updated.oidc_enabled,
-        discovery_url=updated.oidc_discovery_url,
+        issuer=updated.oidc_issuer,
         client_id=updated.oidc_client_id,
         redirect_uri=_backend_redirect_uri(),
         post_login_redirect=_frontend_redirect_uri(),

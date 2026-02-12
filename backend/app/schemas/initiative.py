@@ -107,6 +107,7 @@ class InitiativeMemberRead(BaseModel):
     joined_at: datetime
     # Legacy field for backward compatibility
     role: InitiativeRole = InitiativeRole.member
+    oidc_managed: bool = False
     # Permission flags for UI filtering
     can_view_docs: bool = True
     can_view_projects: bool = True
@@ -196,6 +197,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 is_manager=is_manager,
                 joined_at=membership.joined_at,
                 role=legacy_role,
+                oidc_managed=membership.oidc_managed,
                 can_view_docs=can_view_docs,
                 can_view_projects=can_view_projects,
                 can_create_docs=can_create_docs,

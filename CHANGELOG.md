@@ -15,10 +15,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports guild and initiative target types with role selection
   - OIDC-managed memberships tracked separately from manual assignments; manual memberships are never overwritten
   - Stale OIDC-managed memberships automatically removed when claims change
+- PKCE (S256) support for OIDC authentication, required by many identity providers
+- No-guild empty state for users with no guild membership after login, with options to create a guild, redeem an invite, or log out
+- "Source" column in guild and initiative member tables showing whether membership is managed by OIDC or manual
+- Role-based write users now appear in task assignee dropdowns (previously only explicit user permissions were considered)
+
+### Changed
+
+- Renamed `OIDC_DISCOVERY_URL` env variable to `OIDC_ISSUER` (old name still works as fallback); issuer URL no longer requires `/.well-known/openid-configuration` suffix
+- Guild deletion now uses a name-confirmation dialog instead of browser prompt
+- Logout now clears the React Query cache to prevent stale data when switching accounts
 
 ### Fixed
 
 - `BEHIND_PROXY=true` now passes `--proxy-headers` and `--forwarded-allow-ips` to Uvicorn so real client IPs appear in logs and `request.client.host` (#92)
+- Users with no guild membership no longer get 500 errors; backend returns 403 with descriptive message
+- Documents on project dashboard are now filtered by user's document-level permissions (guild admins see all)
+- Project settings button in sidebar now correctly appears for users with role-based write access
+- Removing a user from a guild or initiative now clears their task assignments
+- OIDC sync membership removal now cleans up task assignments
+- Fixed loading state flicker on no-guild screen caused by `useGuilds` dependency cycle
 
 ## [0.28.0] - 2026-02-11
 

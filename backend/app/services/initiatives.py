@@ -426,16 +426,67 @@ async def ensure_user_not_sole_pm(
         raise ValueError(f"User is the sole project manager for: {names}")
 
 
+async def clear_user_task_assignments_for_initiative(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    user_id: int,
+) -> None:
+    """Remove task assignments for a user across all projects in an initiative."""
+    from app.models.task import Task, TaskAssignee
+    from app.models.project import Project
+
+    project_ids_result = await session.exec(
+        select(Project.id).where(Project.initiative_id == initiative_id)
+    )
+    project_ids = list(project_ids_result.all())
+    if not project_ids:
+        return
+
+    task_ids_result = await session.exec(
+        select(Task.id).where(Task.project_id.in_(tuple(project_ids)))
+    )
+    task_ids = list(task_ids_result.all())
+    if not task_ids:
+        return
+
+    await session.exec(
+        delete(TaskAssignee)
+        .where(TaskAssignee.user_id == user_id)
+        .where(TaskAssignee.task_id.in_(tuple(task_ids)))
+    )
+
+
 async def remove_user_from_guild_initiatives(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
 ) -> None:
-    initiative_ids_subquery = select(Initiative.id).where(Initiative.guild_id == guild_id)
+    """Remove a user from all initiatives in a guild, clearing task assignments."""
+    # Find initiatives in this guild where the user is a member
+    initiative_ids_result = await session.exec(
+        select(InitiativeMember.initiative_id).where(
+            InitiativeMember.user_id == user_id,
+            InitiativeMember.initiative_id.in_(
+                select(Initiative.id).where(Initiative.guild_id == guild_id)
+            ),
+        )
+    )
+    initiative_ids = list(initiative_ids_result.all())
+
+    # Clear task assignments for each initiative
+    for init_id in initiative_ids:
+        await clear_user_task_assignments_for_initiative(
+            session, initiative_id=init_id, user_id=user_id,
+        )
+
+    # Remove initiative memberships
     stmt = delete(InitiativeMember).where(
         InitiativeMember.user_id == user_id,
-        InitiativeMember.initiative_id.in_(initiative_ids_subquery),
+        InitiativeMember.initiative_id.in_(
+            select(Initiative.id).where(Initiative.guild_id == guild_id)
+        ),
     )
     await session.exec(stmt)
 

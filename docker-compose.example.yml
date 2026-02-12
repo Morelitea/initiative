@@ -41,7 +41,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:8173}
       # Optional: Enable OIDC authentication
       # OIDC_ENABLED: true
-      # OIDC_DISCOVERY_URL: https://your-oidc-provider/.well-known/openid-configuration
+      # OIDC_ISSUER: https://your-oidc-provider
       # OIDC_CLIENT_ID: your-client-id
       # OIDC_CLIENT_SECRET: your-client-secret
       # OIDC_PROVIDER_NAME: Your Provider Name

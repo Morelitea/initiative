@@ -346,6 +346,7 @@ export const TaskEditPage = () => {
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
   const project = projectQuery.data;
   // Pure DAC: only users with write access (owner or write level) can be assigned tasks
+  // Includes both explicit user permissions and role-based permissions
   const userOptions = useMemo(() => {
     if (!project) {
       return users.map((user) => ({
@@ -354,11 +355,27 @@ export const TaskEditPage = () => {
       }));
     }
     const allowed = new Set<number>();
+    // Explicit user permissions
     project.permissions?.forEach((permission) => {
       if (permission.level === "owner" || permission.level === "write") {
         allowed.add(permission.user_id);
       }
     });
+
+    // Role-based permissions: find roles with write access,
+    // then include initiative members with those roles
+    const writeRoleIds = new Set(
+      project.role_permissions
+        ?.filter((rp) => rp.level === "write")
+        .map((rp) => rp.initiative_role_id) ?? []
+    );
+    if (writeRoleIds.size > 0) {
+      project.initiative?.members?.forEach((member) => {
+        if (member.role_id && writeRoleIds.has(member.role_id)) {
+          allowed.add(member.user.id);
+        }
+      });
+    }
 
     return users
       .filter((user) => allowed.has(user.id))

@@ -187,7 +187,12 @@ async def sync_oidc_assignments(
             result.initiatives_added.append(initiative_id)
 
     # --- Removal of stale oidc_managed memberships ---
-    # Remove initiative memberships first, then guild memberships
+    # Remove initiative memberships first (with task cleanup), then guild memberships
+    from app.services.initiatives import (
+        clear_user_task_assignments_for_initiative,
+        remove_user_from_guild_initiatives,
+    )
+
     stale_initiatives = await session.exec(
         select(InitiativeMember).where(
             InitiativeMember.user_id == user_id,
@@ -196,6 +201,9 @@ async def sync_oidc_assignments(
     )
     for im in stale_initiatives.all():
         if im.initiative_id not in matched_initiative_ids:
+            await clear_user_task_assignments_for_initiative(
+                session, initiative_id=im.initiative_id, user_id=user_id,
+            )
             await session.delete(im)
             result.initiatives_removed.append(im.initiative_id)
 
@@ -207,6 +215,9 @@ async def sync_oidc_assignments(
     )
     for gm in stale_guilds.all():
         if gm.guild_id not in matched_guild_ids:
+            await remove_user_from_guild_initiatives(
+                session, guild_id=gm.guild_id, user_id=user_id,
+            )
             await session.delete(gm)
             result.guilds_removed.append(gm.guild_id)
 

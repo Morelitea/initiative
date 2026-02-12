@@ -19,7 +19,7 @@ import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSe
 
 interface OidcSettings {
   enabled: boolean;
-  discovery_url?: string | null;
+  issuer?: string | null;
   client_id?: string | null;
   redirect_uri?: string | null;
   post_login_redirect?: string | null;
@@ -34,7 +34,7 @@ export const SettingsAuthPage = () => {
   const [clientSecret, setClientSecret] = useState("");
   const [formState, setFormState] = useState({
     enabled: false,
-    discovery_url: "",
+    issuer: "",
     client_id: "",
     provider_name: "",
     scopes: "openid profile email",
@@ -65,7 +65,7 @@ export const SettingsAuthPage = () => {
       const settings = oidcQuery.data;
       setFormState({
         enabled: settings.enabled,
-        discovery_url: settings.discovery_url ?? "",
+        issuer: settings.issuer ?? "",
         client_id: settings.client_id ?? "",
         provider_name: settings.provider_name ?? "",
         scopes: settings.scopes.join(" "),
@@ -100,7 +100,7 @@ export const SettingsAuthPage = () => {
     event.preventDefault();
     updateOidcSettings.mutate({
       enabled: formState.enabled,
-      discovery_url: formState.discovery_url || null,
+      issuer: formState.issuer || null,
       client_id: formState.client_id || null,
       provider_name: formState.provider_name || null,
       scopes: formState.scopes.split(/[\s,]+/).filter(Boolean),
@@ -138,14 +138,15 @@ export const SettingsAuthPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="discovery-url">Discovery URL</Label>
+              <Label htmlFor="issuer">Issuer</Label>
               <Input
-                id="discovery-url"
+                id="issuer"
                 type="url"
-                value={formState.discovery_url}
+                value={formState.issuer}
                 onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, discovery_url: event.target.value }))
+                  setFormState((prev) => ({ ...prev, issuer: event.target.value }))
                 }
+                placeholder="https://accounts.example.com"
               />
             </div>
             <div className="space-y-2">

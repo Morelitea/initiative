@@ -16,6 +16,7 @@ export interface UserPublic {
 export interface UserGuildMember extends UserPublic {
   role: UserRole;
   guild_role?: GuildRole;
+  oidc_managed?: boolean;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
@@ -105,6 +106,7 @@ export interface InitiativeMember {
   role_name?: string | null;
   role_display_name?: string | null;
   is_manager?: boolean;
+  oidc_managed?: boolean;
   joined_at: string;
   can_view_docs?: boolean;
   can_view_projects?: boolean;
