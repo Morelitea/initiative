@@ -390,6 +390,16 @@ def _mobile_redirect_uri() -> str:
     return "initiative://oidc/callback"
 
 
+def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
+    """Redirect to app/frontend with error instead of returning JSON."""
+    params = {"error": error}
+    if is_mobile:
+        url = f"{_mobile_redirect_uri()}?{urlencode(params)}"
+    else:
+        url = f"{_frontend_redirect_uri()}?{urlencode(params)}"
+    return RedirectResponse(url)
+
+
 @router.get("/oidc/callback")
 @limiter.limit("20/minute")
 async def oidc_callback(
@@ -399,10 +409,10 @@ async def oidc_callback(
     state: str | None = Query(default=None),
 ):
     if not code:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing authorization code")
+        return _error_redirect(False, "missing_authorization_code")
     is_valid, is_mobile, device_name, code_verifier = _validate_state(state)
     if not is_valid:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state parameter")
+        return _error_redirect(False, "invalid_state")
 
     app_settings, metadata = await _get_oidc_runtime_config(session)
     token_payload = {
@@ -417,31 +427,44 @@ async def oidc_callback(
         token_resp = await client.post(metadata["token_endpoint"], data=token_payload)
         try:
             token_resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC token request failed") from exc
+        except httpx.HTTPStatusError:
+            logger.error(
+                "OIDC token request failed: status=%s body=%s",
+                token_resp.status_code,
+                token_resp.text,
+            )
+            return _error_redirect(is_mobile, "token_request_failed")
         token_data = token_resp.json()
         access_token = token_data.get("access_token")
         if not access_token:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC token missing access_token")
+            logger.error("OIDC token response missing access_token")
+            return _error_redirect(is_mobile, "token_missing_access_token")
 
         userinfo_endpoint = metadata.get("userinfo_endpoint")
         if not userinfo_endpoint:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC userinfo endpoint missing")
+            logger.error("OIDC metadata missing userinfo_endpoint")
+            return _error_redirect(is_mobile, "userinfo_endpoint_missing")
         userinfo_resp = await client.get(
             userinfo_endpoint,
             headers={"Authorization": f"Bearer {access_token}"},
         )
         try:
             userinfo_resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC userinfo request failed") from exc
+        except httpx.HTTPStatusError:
+            logger.error(
+                "OIDC userinfo request failed: status=%s body=%s",
+                userinfo_resp.status_code,
+                userinfo_resp.text,
+            )
+            return _error_redirect(is_mobile, "userinfo_request_failed")
         profile = userinfo_resp.json()
 
     email = profile.get("email")
     if not email:
         sub = profile.get("sub")
         if not sub:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OIDC profile missing subject")
+            logger.error("OIDC profile missing both email and sub")
+            return _error_redirect(is_mobile, "profile_missing_identity")
         email = f"{sub}@oidc.local"
     normalized_email = email.lower().strip()
     full_name = profile.get("name") or profile.get("preferred_username") or normalized_email
