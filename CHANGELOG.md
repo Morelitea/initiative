@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-02-13
+
 ### Added
 
-- Multi-sort support for task list API (`sort_by=date_group,due_date&sort_dir=asc,asc`)
-- New cinematic landing page with parallax starfield, scroll-driven animations, interactive screenshot lightbox, and dark/light theme support
 - OIDC claim-to-role mapping: automatically assign users to guilds and initiatives based on OIDC token claims (e.g., `groups`, `realm_access.roles`) on every login
   - Configurable claim path and mapping rules in Platform Settings > Auth
   - Supports guild and initiative target types with role selection
@@ -22,9 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `offline_access` added to default OIDC scopes for refresh token issuance
 - Extracted background task runner into dedicated `background_tasks.py` module
 - PKCE (S256) support for OIDC authentication, required by many identity providers
+- Multi-sort support for task list API (`sort_by=date_group,due_date&sort_dir=asc,asc`)
+- New cinematic landing page with parallax starfield, scroll-driven animations, interactive screenshot lightbox, and dark/light theme support
 - No-guild empty state for users with no guild membership after login, with options to create a guild, redeem an invite, or log out
 - "Source" column in guild and initiative member tables showing whether membership is managed by OIDC or manual
-- Role-based write users now appear in task assignee dropdowns (previously only explicit user permissions were considered)
 
 ### Changed
 
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Role-based write users now appear in task assignee dropdowns (previously only explicit user permissions were considered)
 - My Tasks page now sorts by date group (overdue, today, this week, this month, later) then by due date, matching the visual grouping order
 - `BEHIND_PROXY=true` now passes `--proxy-headers` and `--forwarded-allow-ips` to Uvicorn so real client IPs appear in logs and `request.client.host` (#92)
 - Users with no guild membership no longer get 500 errors; backend returns 403 with descriptive message
