@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
-from sqlalchemy import case, func
+from sqlalchemy import case, func, text
 from sqlmodel import select, delete
 
 from app.api.deps import (
@@ -42,8 +42,42 @@ from app.services import ai_generation as ai_generation_service
 
 router = APIRouter()
 
+
+def _date_group_expression():
+    """SQL CASE mirroring frontend getTaskDateStatus() logic.
+
+    Returns a numeric group:
+      0 = overdue (due_date in the past)
+      1 = today (start_date before today OR start/due is today)
+      2 = this week (start or due within 7 days)
+      3 = this month (start or due within 30 days)
+      4 = later (everything else)
+    """
+    now = func.now()
+    today = func.date_trunc("day", now)
+    week_later = now + text("interval '7 days'")
+    month_later = now + text("interval '30 days'")
+
+    return case(
+        # 0: overdue — due_date is in the past
+        (Task.due_date < now, 0),
+        # 1: today — start_date before today, or start/due is today
+        (Task.start_date < today, 1),
+        (func.date_trunc("day", Task.start_date) == today, 1),
+        (func.date_trunc("day", Task.due_date) == today, 1),
+        # 2: this week — start or due within 7 days
+        (Task.start_date <= week_later, 2),
+        (Task.due_date <= week_later, 2),
+        # 3: this month — start or due within 30 days
+        (Task.start_date <= month_later, 3),
+        (Task.due_date <= month_later, 3),
+        # 4: later — everything else
+        else_=4,
+    )
+
+
 # Allowed sort fields for the list endpoint
-TASK_SORT_FIELDS = {
+TASK_SORT_FIELDS: dict[str, object] = {
     "sort_order": Task.sort_order,
     "title": Task.title,
     "due_date": Task.due_date,
@@ -51,19 +85,38 @@ TASK_SORT_FIELDS = {
     "priority": Task.priority,
     "created_at": Task.created_at,
     "updated_at": Task.updated_at,
+    "date_group": _date_group_expression(),
 }
 
 
 def _apply_task_sort(statement, sort_by: Optional[str], sort_dir: Optional[str]):
-    """Apply ORDER BY clause based on sort_by/sort_dir params, with fallback."""
-    col = TASK_SORT_FIELDS.get(sort_by) if sort_by else None
-    if col is not None:
-        order = col.desc() if sort_dir == "desc" else col.asc()
-        # NULLS LAST so null dates don't dominate
-        statement = statement.order_by(order.nulls_last(), Task.id.asc())
-    else:
-        statement = statement.order_by(Task.sort_order.asc(), Task.id.asc())
-    return statement
+    """Apply ORDER BY clause based on sort_by/sort_dir params, with fallback.
+
+    Supports multi-sort via comma-separated values:
+      sort_by=date_group,due_date  sort_dir=asc,asc
+    """
+    if not sort_by:
+        return statement.order_by(Task.sort_order.asc(), Task.id.asc())
+
+    fields = [f.strip() for f in sort_by.split(",") if f.strip()]
+    dirs = [d.strip() for d in (sort_dir or "").split(",")]
+
+    has_valid = False
+    for i, field_name in enumerate(fields):
+        col = TASK_SORT_FIELDS.get(field_name)
+        if col is None:
+            continue
+        direction = dirs[i] if i < len(dirs) else "asc"
+        order = col.desc() if direction == "desc" else col.asc()
+        statement = statement.order_by(order.nulls_last())
+        has_valid = True
+
+    if not has_valid:
+        return statement.order_by(Task.sort_order.asc(), Task.id.asc())
+
+    # tiebreaker
+    return statement.order_by(Task.id.asc())
+
 subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -623,8 +676,8 @@ async def list_tasks(
     include_archived: bool = Query(default=False, description="Include archived tasks"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
-    sort_by: Optional[str] = Query(default=None, description="Sort field: sort_order, title, due_date, start_date, priority, created_at, updated_at"),
-    sort_dir: Optional[str] = Query(default=None, description="Sort direction: asc or desc"),
+    sort_by: Optional[str] = Query(default=None, description="Sort field(s), comma-separated: sort_order, title, due_date, start_date, priority, created_at, updated_at, date_group"),
+    sort_dir: Optional[str] = Query(default=None, description="Sort direction(s), comma-separated: asc or desc (one per sort field)"),
 ) -> TaskListResponse:
     if scope == "global":
         tasks, total_count = await _list_global_tasks(

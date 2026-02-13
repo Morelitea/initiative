@@ -98,6 +98,7 @@ const SORT_FIELD_MAP: Record<string, string> = {
   title: "title",
   "due date": "due_date",
   "start date": "start_date",
+  "date group": "date_group",
   priority: "priority",
 };
 
@@ -135,8 +136,8 @@ export const MyTasksPage = () => {
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string | undefined>("due_date");
-  const [sortDir, setSortDir] = useState<string | undefined>("asc");
+  const [sortBy, setSortBy] = useState<string | undefined>("date_group,due_date");
+  const [sortDir, setSortDir] = useState<string | undefined>("asc,asc");
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -159,11 +160,13 @@ export const MyTasksPage = () => {
   const handleSortingChange = useCallback(
     (sorting: SortingState) => {
       if (sorting.length > 0) {
-        const col = sorting[0];
-        const field = SORT_FIELD_MAP[col.id];
-        if (field) {
-          setSortBy(field);
-          setSortDir(col.desc ? "desc" : "asc");
+        const fields = sorting.map((s) => SORT_FIELD_MAP[s.id]).filter(Boolean);
+        const dirs = sorting
+          .filter((s) => SORT_FIELD_MAP[s.id])
+          .map((s) => (s.desc ? "desc" : "asc"));
+        if (fields.length > 0) {
+          setSortBy(fields.join(","));
+          setSortDir(dirs.join(","));
         } else {
           setSortBy(undefined);
           setSortDir(undefined);

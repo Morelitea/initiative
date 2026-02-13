@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multi-sort support for task list API (`sort_by=date_group,due_date&sort_dir=asc,asc`)
 - New cinematic landing page with parallax starfield, scroll-driven animations, interactive screenshot lightbox, and dark/light theme support
 - OIDC claim-to-role mapping: automatically assign users to guilds and initiatives based on OIDC token claims (e.g., `groups`, `realm_access.roles`) on every login
   - Configurable claim path and mapping rules in Platform Settings > Auth
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- My Tasks page now sorts by date group (overdue, today, this week, this month, later) then by due date, matching the visual grouping order
 - `BEHIND_PROXY=true` now passes `--proxy-headers` and `--forwarded-allow-ips` to Uvicorn so real client IPs appear in logs and `request.client.host` (#92)
 - Users with no guild membership no longer get 500 errors; backend returns 403 with descriptive message
 - Documents on project dashboard are now filtered by user's document-level permissions (guild admins see all)
