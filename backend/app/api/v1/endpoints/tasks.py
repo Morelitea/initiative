@@ -116,6 +116,7 @@ def _apply_task_sort(statement, sort_by: Optional[str], sort_dir: Optional[str])
 
     # tiebreaker
     return statement.order_by(Task.id.asc())
+
 subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
