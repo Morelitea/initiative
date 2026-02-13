@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-02-13
+
+### Fixed
+
+- Hotfix docker entry script
+
 ## [0.29.0] - 2026-02-13
 
 ### Added
