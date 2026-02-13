@@ -26,11 +26,18 @@ export function useDeepLinks() {
           url.host === "oidc"
         ) {
           const token = url.searchParams.get("token");
+          const error = url.searchParams.get("error");
           if (token) {
             const token_type = url.searchParams.get("token_type");
             router.navigate({
               to: "/oidc/callback",
               search: token_type ? { token, token_type } : { token },
+              replace: true,
+            });
+          } else if (error) {
+            router.navigate({
+              to: "/oidc/callback",
+              search: { error },
               replace: true,
             });
           }
