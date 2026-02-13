@@ -409,10 +409,10 @@ async def oidc_callback(
     state: str | None = Query(default=None),
 ):
     if not code:
-        return _error_redirect(False, "missing_authorization_code")
+        return _error_redirect(None, "missing_authorization_code")
     is_valid, is_mobile, device_name, code_verifier = _validate_state(state)
     if not is_valid:
-        return _error_redirect(False, "invalid_state")
+        return _error_redirect(None, "invalid_state")
 
     app_settings, metadata = await _get_oidc_runtime_config(session)
     token_payload = {
