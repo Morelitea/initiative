@@ -8,4 +8,5 @@ if [ "${BEHIND_PROXY:-false}" = "true" ]; then
     ARGS="$ARGS --proxy-headers --forwarded-allow-ips=$FORWARDED_IPS"
 fi
 
-exec uvicorn "$ARGS"
+# shellcheck disable=SC2086
+exec uvicorn $ARGS
