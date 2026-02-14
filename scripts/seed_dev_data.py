@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,14 +82,20 @@ def _load_state() -> dict | None:
 
 
 async def _find_superuser(session: AsyncSession) -> User:
-    """Find the superuser created by init_db (user@example.com)."""
+    """Find the superuser created by init_db.
+
+    Reads FIRST_SUPERUSER_EMAIL from the environment so manual invocations
+    work even when .env uses a different email than the VS Code wrapper scripts.
+    """
+    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "user@example.com")
     result = await session.exec(
-        select(User).where(User.email == "user@example.com")
+        select(User).where(User.email == email)
     )
     user = result.one_or_none()
     if user is None:
-        print("ERROR: Superuser user@example.com not found.")
+        print(f"ERROR: Superuser {email} not found.")
         print("  Make sure init_db has run (dev:migrate task).")
+        print("  Or set FIRST_SUPERUSER_EMAIL to match your .env config.")
         sys.exit(1)
     return user
 
@@ -654,7 +661,8 @@ async def seed() -> None:
 
     _save_state(ids)
     print("Done! TTRPG dev data seeded successfully.")
-    print("  Login: user@example.com / abc123")
+    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "user@example.com")
+    print(f"  Login: {email} / abc123")
 
 
 # ---------------------------------------------------------------------------
