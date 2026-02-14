@@ -361,14 +361,13 @@ See `backend/.env.example` for a complete list of configuration options.
 
 ## Contributing
 
-By contributing to this project, you agree to the terms of the
-[Contributor License Agreement](./CLA.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, code style, and how to submit pull requests.
 
-Development workflow:
+By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md).
 
-- Pre-commit hooks enforce linting (Ruff for Python, ESLint for TypeScript)
-- See [AGENTS.md](AGENTS.md) for detailed contribution guidelines
-- Commit messages should be concise and descriptive
+## Security
+
+See [SECURITY.md](SECURITY.md) for our security philosophy and how to report vulnerabilities.
 
 ---
 
