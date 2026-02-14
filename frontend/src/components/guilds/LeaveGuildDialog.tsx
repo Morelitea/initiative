@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +25,7 @@ interface LeaveGuildDialogProps {
 }
 
 export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialogProps) => {
+  const { t } = useTranslation("guilds");
   const { guilds, refreshGuilds, switchGuild, activeGuildId } = useGuilds();
   const [loading, setLoading] = useState(true);
   const [leaving, setLeaving] = useState(false);
@@ -48,14 +50,14 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
         setEligibility(response.data);
       } catch (err) {
         console.error("Failed to check leave eligibility", err);
-        setError("Failed to check eligibility. Please try again.");
+        setError(t("leave.failedToCheckEligibility"));
       } finally {
         setLoading(false);
       }
     };
 
     void checkEligibility();
-  }, [open, guild.id]);
+  }, [open, guild.id, t]);
 
   const handleLeave = async () => {
     setLeaving(true);
@@ -71,11 +73,11 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       }
 
       await refreshGuilds();
-      toast.success(`Left ${guild.name}`);
+      toast.success(t("leave.leftGuild", { name: guild.name }));
       onOpenChange(false);
     } catch (err) {
       console.error("Failed to leave guild", err);
-      toast.error("Failed to leave guild. Please try again.");
+      toast.error(t("leave.failedToLeave"));
     } finally {
       setLeaving(false);
     }
@@ -94,7 +96,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       return (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
+          <AlertTitle>{t("common:error")}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       );
@@ -108,19 +110,15 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       return (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Cannot leave guild</AlertTitle>
+          <AlertTitle>{t("leave.cannotLeaveTitle")}</AlertTitle>
           <AlertDescription>
             <ul className="mt-2 list-inside list-disc space-y-1">
-              {eligibility.is_last_admin && (
-                <li>
-                  You are the last admin of this guild. Promote another member to admin first.
-                </li>
-              )}
+              {eligibility.is_last_admin && <li>{t("leave.lastAdminWarning")}</li>}
               {eligibility.sole_pm_initiatives.length > 0 && (
                 <li>
-                  You are the sole project manager of:{" "}
-                  <span className="font-medium">{eligibility.sole_pm_initiatives.join(", ")}</span>.
-                  Promote another member to project manager first.
+                  {t("leave.solePmWarning", {
+                    initiatives: eligibility.sole_pm_initiatives.join(", "),
+                  })}
                 </li>
               )}
             </ul>
@@ -131,8 +129,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
 
     return (
       <AlertDialogDescription>
-        You will lose access to all initiatives and projects in{" "}
-        <span className="font-medium">{guild.name}</span>. This action cannot be undone.
+        {t("leave.description", { name: guild.name })}
       </AlertDialogDescription>
     );
   };
@@ -143,11 +140,11 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Leave {guild.name}?</AlertDialogTitle>
+          <AlertDialogTitle>{t("leave.title", { name: guild.name })}</AlertDialogTitle>
         </AlertDialogHeader>
         {renderContent()}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={leaving}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={leaving}>{t("common:cancel")}</AlertDialogCancel>
           {canLeave && (
             <AlertDialogAction
               onClick={handleLeave}
@@ -157,10 +154,10 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
               {leaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Leaving...
+                  {t("leave.leaving")}
                 </>
               ) : (
-                "Leave Guild"
+                t("leave.leaveButton")
               )}
             </AlertDialogAction>
           )}

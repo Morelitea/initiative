@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import {
   fetchNotifications,
@@ -97,31 +98,60 @@ const notificationLink = (notification: Notification): string | null => {
   }
 };
 
-const notificationText = (notification: Notification): string => {
+const notificationText = (
+  notification: Notification,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string => {
   const data = notification.data || {};
   switch (notification.type) {
     case "task_assignment":
-      return `${data.task_title ?? "A task"} was assigned to you in ${data.project_name ?? "a project"}${data.assigned_by_name ? ` by ${data.assigned_by_name}` : ""}.`;
+      return t("notifications.taskAssignment", {
+        taskTitle: data.task_title ?? "A task",
+        projectName: data.project_name ?? "a project",
+        assignedBy: data.assigned_by_name
+          ? t("notifications.taskAssignmentBy", { name: data.assigned_by_name })
+          : "",
+      });
     case "initiative_added":
-      return `You were added to the ${data.initiative_name ?? "initiative"}.`;
+      return t("notifications.initiativeAdded", {
+        initiativeName: data.initiative_name ?? "initiative",
+      });
     case "project_added":
-      return `${data.project_name ?? "A project"} was added to ${data.initiative_name ?? "an initiative"} you're part of.`;
+      return t("notifications.projectAdded", {
+        projectName: data.project_name ?? "A project",
+        initiativeName: data.initiative_name ?? "an initiative",
+      });
     case "user_pending_approval":
-      return `${data.email ?? "A user"} is awaiting approval.`;
+      return t("notifications.userPendingApproval", { email: data.email ?? "A user" });
     case "mention":
       // Check if it's a comment mention or document mention
       if (data.comment_id) {
-        return `${data.mentioned_by_name ?? "Someone"} mentioned you in a comment on ${data.context_title ?? "an item"}.`;
+        return t("notifications.mentionComment", {
+          mentionedBy: data.mentioned_by_name ?? "Someone",
+          contextTitle: data.context_title ?? "an item",
+        });
       }
-      return `${data.mentioned_by_name ?? "Someone"} mentioned you in ${data.document_title ?? "a document"}.`;
+      return t("notifications.mentionDocument", {
+        mentionedBy: data.mentioned_by_name ?? "Someone",
+        documentTitle: data.document_title ?? "a document",
+      });
     case "comment_on_task":
-      return `${data.commenter_name ?? "Someone"} commented on ${data.task_title ?? "your task"}.`;
+      return t("notifications.commentOnTask", {
+        commenterName: data.commenter_name ?? "Someone",
+        taskTitle: data.task_title ?? "your task",
+      });
     case "comment_on_document":
-      return `${data.commenter_name ?? "Someone"} commented on ${data.document_title ?? "your document"}.`;
+      return t("notifications.commentOnDocument", {
+        commenterName: data.commenter_name ?? "Someone",
+        documentTitle: data.document_title ?? "your document",
+      });
     case "comment_reply":
-      return `${data.replier_name ?? "Someone"} replied to your comment on ${data.context_title ?? "an item"}.`;
+      return t("notifications.commentReply", {
+        replierName: data.replier_name ?? "Someone",
+        contextTitle: data.context_title ?? "an item",
+      });
     default:
-      return "You have a new notification.";
+      return t("notifications.defaultNotification");
   }
 };
 
@@ -130,6 +160,7 @@ export const NotificationBell = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, token } = useAuth();
+  const { t } = useTranslation("guilds");
   const isEnabled = Boolean(user && token);
 
   const notificationsQuery = useQuery({
@@ -181,14 +212,14 @@ export const NotificationBell = () => {
       return (
         <div className="text-muted-foreground flex items-center justify-center py-8 text-sm">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Loading notifications…
+          {t("notifications.loadingNotifications")}
         </div>
       );
     }
     if (!hasNotifications) {
       return (
         <div className="text-muted-foreground py-8 text-center text-sm">
-          You&apos;re all caught up!
+          {t("notifications.allCaughtUp")}
         </div>
       );
     }
@@ -203,7 +234,7 @@ export const NotificationBell = () => {
                 onClick={() => void handleNotificationClick(notification)}
               >
                 <div className="flex-1">
-                  <p className="text-foreground text-sm">{notificationText(notification)}</p>
+                  <p className="text-foreground text-sm">{notificationText(notification, t)}</p>
                   <p className="text-muted-foreground mt-1 text-xs">
                     {new Date(notification.created_at).toLocaleString()}
                   </p>
@@ -222,7 +253,12 @@ export const NotificationBell = () => {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label={t("notifications.ariaLabel")}
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 ? (
             <Badge className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
@@ -233,7 +269,7 @@ export const NotificationBell = () => {
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <div className="flex items-center justify-between border-b pb-2">
-          <p className="text-sm font-semibold">Notifications</p>
+          <p className="text-sm font-semibold">{t("notifications.title")}</p>
           <Button
             variant="ghost"
             size="sm"
@@ -242,7 +278,7 @@ export const NotificationBell = () => {
             onClick={() => markAllMutation.mutate()}
           >
             <CheckCheck className="mr-1 h-3 w-3" />
-            Mark all read
+            {t("notifications.markAllRead")}
           </Button>
         </div>
         {renderContent()}

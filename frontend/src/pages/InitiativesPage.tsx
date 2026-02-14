@@ -3,8 +3,10 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -41,6 +43,7 @@ const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativesPage = () => {
   const { user } = useAuth();
+  const { t } = useTranslation("initiatives");
   const { activeGuild, activeGuildId } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
@@ -146,7 +149,7 @@ export const InitiativesPage = () => {
       return response.data;
     },
     onSuccess: (initiative) => {
-      toast.success(`Initiative “${initiative.name}” created.`);
+      toast.success(t("createDialog.created", { name: initiative.name }));
       setCreateDialogOpen(false);
       setNewName("");
       setNewDescription("");
@@ -154,9 +157,7 @@ export const InitiativesPage = () => {
       void queryClient.invalidateQueries({ queryKey: ["initiatives"] });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to create initiative right now.";
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:createDialog.createError"));
     },
   });
 
@@ -164,7 +165,7 @@ export const InitiativesPage = () => {
     event.preventDefault();
     const trimmedName = newName.trim();
     if (!trimmedName) {
-      toast.error("Initiative name is required.");
+      toast.error(t("createDialog.nameRequired"));
       return;
     }
     createInitiative.mutate({
@@ -191,15 +192,13 @@ export const InitiativesPage = () => {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">My Initiatives</h1>
-            <p className="text-muted-foreground text-sm">
-              Open an initiative to manage documents, projects, and membership.
-            </p>
+            <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
+            <p className="text-muted-foreground text-sm">{t("subtitle")}</p>
           </div>
           {canCreateInitiatives ? (
             <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4" />
-              New initiative
+              {t("newInitiative")}
             </Button>
           ) : null}
         </div>
@@ -207,10 +206,8 @@ export const InitiativesPage = () => {
         {!activeGuild ? (
           <Card>
             <CardHeader>
-              <CardTitle>Select a guild</CardTitle>
-              <CardDescription>
-                Switch into a guild to view its initiatives and memberships.
-              </CardDescription>
+              <CardTitle>{t("selectGuild")}</CardTitle>
+              <CardDescription>{t("selectGuildDescription")}</CardDescription>
             </CardHeader>
           </Card>
         ) : null}
@@ -218,12 +215,12 @@ export const InitiativesPage = () => {
         {initiativesQuery.isLoading ? (
           <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading initiatives…
+            {t("loading")}
           </div>
         ) : null}
 
         {initiativesQuery.isError ? (
-          <p className="text-destructive text-sm">Unable to load initiatives right now.</p>
+          <p className="text-destructive text-sm">{t("loadError")}</p>
         ) : null}
 
         {!initiativesQuery.isLoading && !initiativesQuery.isError && activeGuild ? (
@@ -242,22 +239,23 @@ export const InitiativesPage = () => {
                     {initiative.description ? (
                       <Markdown content={initiative.description} className="text-sm" />
                     ) : (
-                      <CardDescription className="text-sm">No description yet.</CardDescription>
+                      <CardDescription className="text-sm">{t("noDescription")}</CardDescription>
                     )}
                   </CardHeader>
                   <CardContent className="text-muted-foreground text-sm">
                     <div className="mt-3 space-y-1 text-xs font-medium">
                       <p>
-                        Members: <span className="font-semibold">{initiative.members.length}</span>
+                        {t("members")}{" "}
+                        <span className="font-semibold">{initiative.members.length}</span>
                       </p>
                       <p>
-                        Projects:{" "}
+                        {t("projectsLabel")}{" "}
                         <span className="font-semibold">
                           {projectsQuery.isLoading ? "…" : (projectCounts.get(initiative.id) ?? 0)}
                         </span>
                       </p>
                       <p>
-                        Documents:{" "}
+                        {t("documentsLabel")}{" "}
                         <span className="font-semibold">
                           {documentsQuery.isLoading
                             ? "…"
@@ -268,7 +266,7 @@ export const InitiativesPage = () => {
                   </CardContent>
                   <CardFooter>
                     <Button asChild variant="outline" size="sm">
-                      <Link to={gp(`/initiatives/${initiative.id}`)}>Open initiative</Link>
+                      <Link to={gp(`/initiatives/${initiative.id}`)}>{t("openInitiative")}</Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -277,15 +275,12 @@ export const InitiativesPage = () => {
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>No initiatives yet</CardTitle>
-                <CardDescription>
-                  You&apos;re not part of any initiatives in this guild. Check back after an admin
-                  invites you or create one if you have permissions.
-                </CardDescription>
+                <CardTitle>{t("noInitiatives")}</CardTitle>
+                <CardDescription>{t("noInitiativesDescription")}</CardDescription>
               </CardHeader>
               {canCreateInitiatives ? (
                 <CardFooter>
-                  <Button onClick={() => setCreateDialogOpen(true)}>Create initiative</Button>
+                  <Button onClick={() => setCreateDialogOpen(true)}>{t("createInitiative")}</Button>
                 </CardFooter>
               ) : null}
             </Card>
@@ -296,36 +291,36 @@ export const InitiativesPage = () => {
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogContent className="bg-card max-h-screen overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create initiative</DialogTitle>
-                <DialogDescription>
-                  Give it a name, optional description, and color to organize projects.
-                </DialogDescription>
+                <DialogTitle>{t("createDialog.title")}</DialogTitle>
+                <DialogDescription>{t("createDialog.description")}</DialogDescription>
               </DialogHeader>
               <form className="space-y-4" onSubmit={handleCreateInitiative}>
                 <div className="space-y-2">
-                  <Label htmlFor="new-initiative-name">Name</Label>
+                  <Label htmlFor="new-initiative-name">{t("createDialog.nameLabel")}</Label>
                   <Input
                     id="new-initiative-name"
                     value={newName}
                     onChange={(event) => setNewName(event.target.value)}
-                    placeholder="Customer onboarding"
+                    placeholder={t("createDialog.namePlaceholder")}
                     required
                     disabled={createInitiative.isPending}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="new-initiative-description">Description</Label>
+                  <Label htmlFor="new-initiative-description">
+                    {t("createDialog.descriptionLabel")}
+                  </Label>
                   <Textarea
                     id="new-initiative-description"
                     value={newDescription}
                     onChange={(event) => setNewDescription(event.target.value)}
-                    placeholder="Optional summary (Markdown supported)"
+                    placeholder={t("createDialog.descriptionPlaceholder")}
                     rows={3}
                     disabled={createInitiative.isPending}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="new-initiative-color">Color</Label>
+                  <Label htmlFor="new-initiative-color">{t("createDialog.colorLabel")}</Label>
                   <ColorPickerPopover
                     id="new-initiative-color"
                     value={newColor}
@@ -333,19 +328,17 @@ export const InitiativesPage = () => {
                     triggerLabel="Adjust"
                     disabled={createInitiative.isPending}
                   />
-                  <p className="text-muted-foreground text-xs">
-                    This accent appears on projects tied to the initiative.
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t("createDialog.colorHint")}</p>
                 </div>
                 <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <Button type="submit" disabled={createInitiative.isPending}>
                     {createInitiative.isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating…
+                        {t("createDialog.creating")}
                       </>
                     ) : (
-                      "Create initiative"
+                      t("createDialog.submit")
                     )}
                   </Button>
                 </DialogFooter>

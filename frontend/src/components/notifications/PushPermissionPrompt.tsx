@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 import { getItem, setItem } from "@/lib/storage";
@@ -12,6 +13,7 @@ const SHOW_DELAY_MS = 3000;
 export const PushPermissionPrompt = () => {
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
   const { user } = useAuth();
+  const { t } = useTranslation("guilds");
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -64,10 +66,10 @@ export const PushPermissionPrompt = () => {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-            Enable Push Notifications
+            {t("notifications.push.enableTitle")}
           </p>
           <p className="mt-0.5 text-sm text-blue-700 dark:text-blue-300">
-            Get notified about new tasks, mentions, and more
+            {t("notifications.push.enableDescription")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -78,14 +80,14 @@ export const PushPermissionPrompt = () => {
             className="text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100"
           >
             <X className="mr-1 h-4 w-4" />
-            Dismiss
+            {t("notifications.push.dismiss")}
           </Button>
           <Button
             size="sm"
             onClick={handleEnable}
             className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
           >
-            Enable
+            {t("notifications.push.enable")}
           </Button>
         </div>
       </div>
