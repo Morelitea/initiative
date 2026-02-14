@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import create_access_token, get_password_hash
 from app.models.guild import Guild, GuildMembership, GuildRole
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.user import User, UserRole
 from app.services.initiatives import create_builtin_roles

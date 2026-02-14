@@ -74,7 +74,7 @@ async def test_list_projects_as_admin_shows_all(
     await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
 
     initiative = await _create_initiative_with_member(session, guild, admin)
-    project1 = await _create_project(session, initiative, admin)
+    await _create_project(session, initiative, admin)
     project2 = await _create_project(session, initiative, admin)
     project2.name = "Project 2"
     session.add(project2)

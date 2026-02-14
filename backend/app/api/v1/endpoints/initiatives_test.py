@@ -70,7 +70,7 @@ async def test_list_initiatives_as_member_shows_only_membership(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that regular members only see initiatives they're part of."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
@@ -84,7 +84,7 @@ async def test_list_initiatives_as_member_shows_only_membership(
     initiative1 = await create_initiative(
         session, guild, admin, name="Member's Initiative"
     )
-    initiative2 = await create_initiative(
+    await create_initiative(
         session, guild, admin, name="Other Initiative"
     )
 
@@ -148,7 +148,7 @@ async def test_create_initiative_duplicate_name_fails(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that duplicate initiative names are rejected."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
@@ -194,7 +194,7 @@ async def test_update_initiative_as_manager(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that initiative manager can update initiative."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     manager = await create_user(session, email="manager@example.com")
     guild = await create_guild(session)
@@ -222,7 +222,7 @@ async def test_update_initiative_as_manager(
 @pytest.mark.integration
 async def test_update_initiative_as_admin(client: AsyncClient, session: AsyncSession):
     """Test that guild admin can update any initiative."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     manager = await create_user(session, email="manager@example.com")
@@ -253,7 +253,7 @@ async def test_update_initiative_as_regular_member_forbidden(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that regular members cannot update initiatives."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
@@ -283,7 +283,7 @@ async def test_update_initiative_duplicate_name_fails(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that renaming to existing name fails."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
@@ -309,7 +309,7 @@ async def test_update_initiative_duplicate_name_fails(
 @pytest.mark.integration
 async def test_delete_initiative_as_admin(client: AsyncClient, session: AsyncSession):
     """Test that guild admin can delete initiatives."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
@@ -330,7 +330,7 @@ async def test_delete_initiative_as_manager_forbidden(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that initiative manager cannot delete initiatives."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     manager = await create_user(session, email="manager@example.com")
     guild = await create_guild(session)
@@ -353,7 +353,7 @@ async def test_delete_default_initiative_forbidden(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that default initiative cannot be deleted."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
@@ -374,7 +374,7 @@ async def test_delete_default_initiative_forbidden(
 @pytest.mark.integration
 async def test_get_initiative_members(client: AsyncClient, session: AsyncSession):
     """Test getting all members of an initiative."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     member1 = await create_user(session, email="member1@example.com", full_name="Member One")
@@ -409,7 +409,7 @@ async def test_add_initiative_member_as_manager(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that manager can add members to initiative."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     manager = await create_user(session, email="manager@example.com")
     new_member = await create_user(session, email="newmember@example.com")
@@ -441,7 +441,7 @@ async def test_add_initiative_member_as_regular_member_forbidden(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that regular members cannot add members."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
@@ -469,7 +469,7 @@ async def test_add_initiative_member_as_regular_member_forbidden(
 @pytest.mark.integration
 async def test_add_user_not_in_guild_fails(client: AsyncClient, session: AsyncSession):
     """Test that adding a user not in the guild fails."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     outsider = await create_user(session, email="outsider@example.com")
@@ -496,7 +496,7 @@ async def test_update_initiative_member_role(
     client: AsyncClient, session: AsyncSession
 ):
     """Test updating an initiative member's role."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
@@ -537,7 +537,7 @@ async def test_update_initiative_member_role(
 @pytest.mark.integration
 async def test_remove_initiative_member(client: AsyncClient, session: AsyncSession):
     """Test removing an initiative member."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
@@ -564,7 +564,7 @@ async def test_remove_initiative_member(client: AsyncClient, session: AsyncSessi
 @pytest.mark.integration
 async def test_cannot_remove_last_manager(client: AsyncClient, session: AsyncSession):
     """Test that removing the last manager fails."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     manager = await create_user(session, email="manager@example.com")
     guild = await create_guild(session)
@@ -588,7 +588,7 @@ async def test_cannot_remove_last_manager(client: AsyncClient, session: AsyncSes
 @pytest.mark.integration
 async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSession):
     """Test that demoting the last manager fails."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     manager = await create_user(session, email="manager@example.com")
     guild = await create_guild(session)
@@ -626,7 +626,7 @@ async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSes
 @pytest.mark.integration
 async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSession):
     """Test that initiatives are isolated by guild."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import create_initiative
 
     user = await create_user(session, email="user@example.com")
     guild1 = await create_guild(session, name="Guild 1")
