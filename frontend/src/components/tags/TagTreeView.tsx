@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronRight, CircleOff } from "lucide-react";
 
 import { getItem, setItem } from "@/lib/storage";
@@ -46,6 +47,7 @@ export const TagTreeView = ({
   selectedTagPaths,
   onToggleTag,
 }: TagTreeViewProps) => {
+  const { t } = useTranslation("tags");
   const tagTree = useMemo(() => buildTagTree(tags), [tags]);
 
   const docCountByTagId = useMemo(() => {
@@ -80,7 +82,7 @@ export const TagTreeView = ({
             )}
           >
             <CircleOff className="text-muted-foreground h-3 w-3 shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-left">Not tagged</span>
+            <span className="min-w-0 flex-1 truncate text-left">{t("tree.notTagged")}</span>
             <span className="text-muted-foreground shrink-0 text-xs">{untaggedCount}</span>
           </button>
         </div>
@@ -114,7 +116,7 @@ export const TagTreeView = ({
           )}
         >
           <CircleOff className="text-muted-foreground h-3 w-3 shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-left">Not tagged</span>
+          <span className="min-w-0 flex-1 truncate text-left">{t("tree.notTagged")}</span>
           <span className="text-muted-foreground shrink-0 text-xs">{untaggedCount}</span>
         </button>
       </div>
@@ -141,6 +143,7 @@ const TagTreeFilterNode = ({
   onToggleExpand,
   onToggleTag,
 }: TagTreeFilterNodeProps) => {
+  const { t } = useTranslation("tags");
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedState[node.fullPath] ?? false;
   const isSelected = selectedTagPaths.has(node.fullPath);
@@ -193,7 +196,7 @@ const TagTreeFilterNode = ({
             e.stopPropagation();
             onToggleExpand(node.fullPath);
           }}
-          aria-label={isExpanded ? "Collapse" : "Expand"}
+          aria-label={isExpanded ? t("tree.collapse") : t("tree.expand")}
         >
           <ChevronRight
             className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")}

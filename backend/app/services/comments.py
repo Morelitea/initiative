@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import CommentMessages
 from app.models.comment import Comment
 from app.models.document import Document, DocumentPermission, DocumentRolePermission
 from app.models.guild import GuildRole
@@ -130,7 +131,7 @@ async def _ensure_task_access(
     """
     if await _has_project_permission(session, project_id=project.id, user_id=user.id):
         return
-    raise CommentPermissionError("Not authorized to comment on this task")
+    raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
 
 
 async def _ensure_document_access(
@@ -166,7 +167,7 @@ async def _ensure_document_access(
     role_result = await session.exec(role_stmt)
     if role_result.first() is not None:
         return
-    raise CommentPermissionError("Not authorized to comment on this document")
+    raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
 
 
 async def _get_comment(
@@ -194,19 +195,19 @@ async def create_comment(
     if parent_comment_id is not None:
         parent_comment = await _get_comment(session, comment_id=parent_comment_id)
         if not parent_comment:
-            raise CommentNotFoundError("Parent comment not found")
+            raise CommentNotFoundError(CommentMessages.PARENT_NOT_FOUND)
 
     if task_id is not None:
         context = await _get_task_context(session, task_id=task_id, guild_id=guild_id)
         if not context:
-            raise CommentNotFoundError("Task not found")
+            raise CommentNotFoundError(CommentMessages.TASK_NOT_FOUND)
         await _ensure_task_access(
             session,
             project=context.project,
             user=author,
         )
         if parent_comment and parent_comment.task_id != context.task.id:
-            raise CommentValidationError("Parent comment belongs to a different task")
+            raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
         comment = Comment(
             content=content,
             author_id=cast(int, author.id),
@@ -216,21 +217,21 @@ async def create_comment(
         object.__setattr__(comment, "project_id", context.project.id)
     else:
         if document_id is None:
-            raise CommentValidationError("Document id is required")
+            raise CommentValidationError(CommentMessages.DOCUMENT_ID_REQUIRED)
         document = await documents_service.get_document(
             session,
             document_id=document_id,
             guild_id=guild_id,
         )
         if not document:
-            raise CommentNotFoundError("Document not found")
+            raise CommentNotFoundError(CommentMessages.DOCUMENT_NOT_FOUND)
         await _ensure_document_access(
             session,
             document=document,
             user=author,
         )
         if parent_comment and parent_comment.document_id != document.id:
-            raise CommentValidationError("Parent comment belongs to a different document")
+            raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
         comment = Comment(
             content=content,
             author_id=cast(int, author.id),
@@ -433,13 +434,13 @@ async def list_comments(
     has_task = task_id is not None
     has_document = document_id is not None
     if has_task == has_document:
-        raise CommentValidationError("Provide exactly one of task_id or document_id")
+        raise CommentValidationError(CommentMessages.PROVIDE_ONE_ENTITY)
 
     context: _TaskContext | None = None
     if has_task:
         context = await _get_task_context(session, task_id=task_id, guild_id=guild_id)
         if not context:
-            raise CommentNotFoundError("Task not found")
+            raise CommentNotFoundError(CommentMessages.TASK_NOT_FOUND)
         await _ensure_task_access(
             session,
             project=context.project,
@@ -458,7 +459,7 @@ async def list_comments(
             guild_id=guild_id,
         )
         if not document:
-            raise CommentNotFoundError("Document not found")
+            raise CommentNotFoundError(CommentMessages.DOCUMENT_NOT_FOUND)
         await _ensure_document_access(
             session,
             document=document,
@@ -489,14 +490,14 @@ async def delete_comment(
 ) -> Comment:
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
-        raise CommentNotFoundError("Comment not found")
+        raise CommentNotFoundError(CommentMessages.NOT_FOUND)
 
     initiative_id: int | None = None
 
     if comment.task_id is not None:
         context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
         if not context:
-            raise CommentNotFoundError("Comment not found")
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
         object.__setattr__(comment, "project_id", context.project.id)
         initiative_id = context.initiative.id
         await _ensure_task_access(
@@ -511,7 +512,7 @@ async def delete_comment(
             guild_id=guild_id,
         )
         if not document:
-            raise CommentNotFoundError("Comment not found")
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
         initiative_id = document.initiative_id
         await _ensure_document_access(
             session,
@@ -519,7 +520,7 @@ async def delete_comment(
             user=user,
         )
     else:
-        raise CommentValidationError("Comment is not linked to a task or document")
+        raise CommentValidationError(CommentMessages.NOT_LINKED)
 
     is_author = comment.author_id == user.id
     is_guild_admin = guild_role == GuildRole.admin
@@ -532,7 +533,7 @@ async def delete_comment(
         )
 
     if not (is_author or is_guild_admin or is_initiative_manager):
-        raise CommentPermissionError("You can only delete your own comments")
+        raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
 
     await session.delete(comment)
     return comment
@@ -549,17 +550,17 @@ async def update_comment(
     """Update a comment's content. Only the original author can edit."""
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
-        raise CommentNotFoundError("Comment not found")
+        raise CommentNotFoundError(CommentMessages.NOT_FOUND)
 
     # Only the author can edit their own comment
     if comment.author_id != user.id:
-        raise CommentPermissionError("Only the comment author can edit")
+        raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_EDIT)
 
     # Verify access to the linked entity (same checks as delete_comment)
     if comment.task_id is not None:
         context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
         if not context:
-            raise CommentNotFoundError("Comment not found")
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
         await _ensure_task_access(session, project=context.project, user=user)
         object.__setattr__(comment, "project_id", context.project.id)
     elif comment.document_id is not None:
@@ -569,10 +570,10 @@ async def update_comment(
             guild_id=guild_id,
         )
         if not document:
-            raise CommentNotFoundError("Comment not found")
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
         await _ensure_document_access(session, document=document, user=user)
     else:
-        raise CommentValidationError("Comment is not linked to a task or document")
+        raise CommentValidationError(CommentMessages.NOT_LINKED)
 
     comment.content = content
     comment.updated_at = datetime.now(timezone.utc)
