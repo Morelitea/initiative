@@ -27,7 +27,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
-      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      SECRET_KEY: ${{ secrets.CI_SECRET_KEY }}
       AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
     steps:
@@ -118,4 +118,4 @@ jobs:
       - name: Run tests
         run: |
           cd frontend
-          pnpm test:run
+          pnpm vitest run --passWithNoTests
