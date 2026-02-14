@@ -15,6 +15,7 @@ export default defineConfig([
     ignores: [
       "vite.config.ts",
       "vite.config.js",
+      "vitest.config.*",
       "capacitor.config.*",
       "dist/**",
       "public/**",
@@ -33,7 +34,7 @@ export default defineConfig([
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
-        project: ["./tsconfig.json", "./tsconfig.node.json"],
+        project: ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.test.json"],
         tsconfigRootDir,
       },
     },

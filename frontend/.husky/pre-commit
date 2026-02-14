@@ -1,1 +1,1 @@
-cd frontend && npx lint-staged
+cd frontend && pnpm lint-staged
