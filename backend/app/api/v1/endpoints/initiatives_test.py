@@ -165,7 +165,7 @@ async def test_create_initiative_duplicate_name_fails(
     response = await client.post("/api/v1/initiatives/", headers=headers, json=payload)
 
     assert response.status_code == 409
-    assert "already exists" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "INITIATIVE_NAME_EXISTS"
 
 
 @pytest.mark.integration
@@ -368,7 +368,7 @@ async def test_delete_default_initiative_forbidden(
     response = await client.delete(f"/api/v1/initiatives/{initiative.id}", headers=headers)
 
     assert response.status_code == 400
-    assert "default" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "INITIATIVE_CANNOT_DELETE_DEFAULT"
 
 
 @pytest.mark.integration
@@ -488,7 +488,7 @@ async def test_add_user_not_in_guild_fails(client: AsyncClient, session: AsyncSe
     )
 
     assert response.status_code == 400
-    assert "guild" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "INITIATIVE_USER_NOT_IN_GUILD"
 
 
 @pytest.mark.integration
@@ -582,7 +582,7 @@ async def test_cannot_remove_last_manager(client: AsyncClient, session: AsyncSes
     )
 
     assert response.status_code == 400
-    assert "manager" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "INITIATIVE_MUST_HAVE_PM"
 
 
 @pytest.mark.integration
@@ -620,7 +620,7 @@ async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSes
     )
 
     assert response.status_code == 400
-    assert "manager" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "INITIATIVE_MUST_HAVE_PM"
 
 
 @pytest.mark.integration

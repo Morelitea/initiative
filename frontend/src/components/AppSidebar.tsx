@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import {
@@ -69,6 +70,7 @@ export const AppSidebar = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
   const location = useLocation();
+  const { t } = useTranslation("nav");
 
   // Auto-close sidebar on mobile after navigation
   useAutoCloseSidebar();
@@ -251,11 +253,11 @@ export const AppSidebar = () => {
             <SidebarHeader className="border-b">
               <div className="flex min-w-0 items-center justify-between gap-2 p-4">
                 <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
-                  {activeGuild?.name ?? "Select a Guild"}
+                  {activeGuild?.name ?? t("selectGuild")}
                 </h2>
                 {activeGuild && isGuildAdmin && (
                   <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-                    <Link to={gp("/settings")} aria-label="Guild settings">
+                    <Link to={gp("/settings")} aria-label={t("guildSettings")}>
                       <Settings className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -268,11 +270,11 @@ export const AppSidebar = () => {
               <TabsList className="h-9 w-full rounded-none">
                 <TabsTrigger value="initiatives" className="flex-1 text-xs">
                   <Users className="mr-2 h-3.5 w-3.5" />
-                  Initiatives
+                  {t("initiatives")}
                 </TabsTrigger>
                 <TabsTrigger value="tags" className="flex-1 text-xs">
                   <Tag className="mr-2 h-3.5 w-3.5" />
-                  Tags
+                  {t("tags")}
                 </TabsTrigger>
               </TabsList>
               {/* </div> */}
@@ -285,7 +287,7 @@ export const AppSidebar = () => {
                       <SidebarGroup>
                         <SidebarGroupLabel className="flex items-center gap-2 py-2">
                           <Star className="h-4 w-4" />
-                          Favorites
+                          {t("favorites")}
                         </SidebarGroupLabel>
                         <SidebarGroupContent>
                           <SidebarMenu>
@@ -317,7 +319,7 @@ export const AppSidebar = () => {
                   {/* Initiatives Section */}
                   <SidebarGroup>
                     <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                      <Users className="h-4 w-4" /> Initiatives
+                      <Users className="h-4 w-4" /> {t("initiatives")}
                     </SidebarGroupLabel>
                     <SidebarGroupContent>
                       {initiativesQuery.isLoading ? (
@@ -328,7 +330,7 @@ export const AppSidebar = () => {
                         </div>
                       ) : visibleInitiatives.length === 0 ? (
                         <div className="text-muted-foreground px-4 py-2 text-sm">
-                          No initiatives available
+                          {t("noInitiativesAvailable")}
                         </div>
                       ) : (
                         <div className="space-y-1">
@@ -360,7 +362,7 @@ export const AppSidebar = () => {
                             <SidebarMenuButton asChild size="sm">
                               <Link to={gp("/initiatives")} search={{ create: "true" }}>
                                 <Plus className="h-4 w-4" />
-                                <span>Add initiative</span>
+                                <span>{t("addInitiative")}</span>
                               </Link>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
@@ -375,7 +377,7 @@ export const AppSidebar = () => {
                 <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
                   <SidebarGroup>
                     <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                      <Tag className="h-4 w-4" /> Tags
+                      <Tag className="h-4 w-4" /> {t("tags")}
                     </SidebarGroupLabel>
                     <SidebarGroupContent>
                       <TagBrowser
@@ -413,39 +415,39 @@ export const AppSidebar = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("myAccount")}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link to="/">
-                      <SquareCheckBig className="h-4 w-4" /> My Tasks
+                      <SquareCheckBig className="h-4 w-4" /> {t("myTasks")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/user-stats">
-                      <ChartColumn className="h-4 w-4" /> My Stats
+                      <ChartColumn className="h-4 w-4" /> {t("myStats")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/profile">
-                      <UserCog className="h-4 w-4" /> User Settings
+                      <UserCog className="h-4 w-4" /> {t("userSettings")}
                     </Link>
                   </DropdownMenuItem>
                   {isGuildAdmin && activeGuildId && (
                     <DropdownMenuItem asChild>
                       <Link to={gp("/settings")}>
-                        <Settings className="h-4 w-4" /> Guild Settings
+                        <Settings className="h-4 w-4" /> {t("guildSettings")}
                       </Link>
                     </DropdownMenuItem>
                   )}
                   {isPlatformAdmin && (
                     <DropdownMenuItem asChild>
                       <Link to="/settings/admin">
-                        <Settings className="h-4 w-4" /> Platform Settings
+                        <Settings className="h-4 w-4" /> {t("platformSettings")}
                       </Link>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => logout()}>Sign out</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => logout()}>{t("signOut")}</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -468,7 +470,7 @@ export const AppSidebar = () => {
                     </span>
                     {hasUpdate && (
                       <Badge variant="default" className="h-4 px-1.5 text-[10px]">
-                        NEW
+                        {t("newBadge")}
                       </Badge>
                     )}
                   </button>
@@ -481,13 +483,13 @@ export const AppSidebar = () => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="View on GitHub"
+                      aria-label={t("viewOnGitHub")}
                     >
                       <SiGithub className="h-4 w-4" />
                     </a>
                   </TooltipTrigger>
                   <TooltipContent side="top">
-                    <p>View on GitHub</p>
+                    <p>{t("viewOnGitHub")}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -526,6 +528,7 @@ const InitiativeSection = ({
   canCreateProjects,
   activeGuildId,
 }: InitiativeSectionProps) => {
+  const { t } = useTranslation("nav");
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   // Pure DAC: check if user has write access to a specific project
@@ -569,7 +572,7 @@ const InitiativeSection = ({
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0"
-              aria-label={isOpen ? "Collapse initiative" : "Expand initiative"}
+              aria-label={isOpen ? t("collapseInitiative") : t("expandInitiative")}
             >
               <CircleChevronRight
                 className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
@@ -604,7 +607,7 @@ const InitiativeSection = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p>Initiative Settings</p>
+                <p>{t("initiativeSettings")}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -615,7 +618,7 @@ const InitiativeSection = ({
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0 lg:hidden"
-                  aria-label="Initiative actions"
+                  aria-label={t("initiativeActions")}
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
@@ -624,7 +627,7 @@ const InitiativeSection = ({
                 <DropdownMenuItem asChild>
                   <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
                     <Settings className="mr-2 h-4 w-4" />
-                    Initiative Settings
+                    {t("initiativeSettings")}
                   </Link>
                 </DropdownMenuItem>
                 {canCreateDocs && (
@@ -634,7 +637,7 @@ const InitiativeSection = ({
                       search={{ create: "true", initiativeId: String(initiative.id) }}
                     >
                       <Plus className="mr-2 h-4 w-4" />
-                      Create Document
+                      {t("createDocument")}
                     </Link>
                   </DropdownMenuItem>
                 )}
@@ -645,7 +648,7 @@ const InitiativeSection = ({
                       search={{ create: "true", initiativeId: String(initiative.id) }}
                     >
                       <Plus className="mr-2 h-4 w-4" />
-                      Create Project
+                      {t("createProject")}
                     </Link>
                   </DropdownMenuItem>
                 )}
@@ -670,7 +673,7 @@ const InitiativeSection = ({
                     className="flex items-center gap-2"
                   >
                     <ScrollText className="h-4 w-4" />
-                    <span>Documents</span>
+                    <span>{t("documents")}</span>
                     <span className="text-muted-foreground text-xs">{documentCount}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -692,7 +695,7 @@ const InitiativeSection = ({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <p>Create Document</p>
+                      <p>{t("createDocument")}</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -711,7 +714,7 @@ const InitiativeSection = ({
                     className="flex items-center gap-2"
                   >
                     <ListTodo className="h-4 w-4" />
-                    <span>Projects</span>
+                    <span>{t("projects")}</span>
                     <span className="text-muted-foreground text-xs">{projects.length}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -733,7 +736,7 @@ const InitiativeSection = ({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <p>Create Project</p>
+                      <p>{t("createProject")}</p>
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -779,7 +782,7 @@ const InitiativeSection = ({
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          <p>Project Settings</p>
+                          <p>{t("projectSettings")}</p>
                         </TooltipContent>
                       </Tooltip>
 
@@ -790,7 +793,7 @@ const InitiativeSection = ({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 shrink-0 lg:hidden"
-                            aria-label="Project actions"
+                            aria-label={t("projectActions")}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
@@ -799,7 +802,7 @@ const InitiativeSection = ({
                           <DropdownMenuItem asChild>
                             <Link to={gp(`/projects/${project.id}/settings`)}>
                               <Settings className="mr-2 h-4 w-4" />
-                              Project Settings
+                              {t("projectSettings")}
                             </Link>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -825,6 +828,7 @@ interface TagBrowserProps {
 }
 
 const TagBrowser = ({ tags, isLoading, activeGuildId }: TagBrowserProps) => {
+  const { t } = useTranslation("nav");
   const tagTree = useMemo(() => buildTagTree(tags), [tags]);
 
   if (isLoading) {
@@ -838,7 +842,7 @@ const TagBrowser = ({ tags, isLoading, activeGuildId }: TagBrowserProps) => {
   }
 
   if (tags.length === 0) {
-    return <div className="text-muted-foreground px-4 py-2 text-sm">No tags created yet</div>;
+    return <div className="text-muted-foreground px-4 py-2 text-sm">{t("noTagsCreated")}</div>;
   }
 
   return (
@@ -862,6 +866,7 @@ interface TagTreeNodeComponentProps {
 }
 
 const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeComponentProps) => {
+  const { t } = useTranslation("nav");
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   const [isOpen, setIsOpen] = useState(() => {
@@ -940,7 +945,7 @@ const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeCompone
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0"
-              aria-label={isOpen ? "Collapse" : "Expand"}
+              aria-label={isOpen ? t("collapse") : t("expand")}
             >
               <CircleChevronRight
                 className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}

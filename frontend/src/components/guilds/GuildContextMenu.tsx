@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Settings, Plus, Copy, LogOut, UserPlus, Users, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ interface GuildContextMenuProps {
 
 export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => {
   const router = useRouter();
+  const { t } = useTranslation("guilds");
   const { switchGuild, activeGuildId } = useGuilds();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
@@ -38,10 +40,10 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
       const response = await apiClient.post<GuildInviteRead>(`/guilds/${guild.id}/invites`, {});
       const inviteLink = `${window.location.origin}/invite/${response.data.code}`;
       await navigator.clipboard.writeText(inviteLink);
-      toast.success("Invite link copied to clipboard");
+      toast.success(t("inviteLinkCopied"));
     } catch (err) {
       console.error("Failed to create invite", err);
-      toast.error("Failed to create invite");
+      toast.error(t("failedToCreateInvite"));
     } finally {
       setCreatingInvite(false);
     }
@@ -79,7 +81,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
 
   const handleCopyGuildId = () => {
     navigator.clipboard.writeText(String(guild.id));
-    toast.success("Guild ID copied to clipboard");
+    toast.success(t("guildIdCopied"));
   };
 
   return (
@@ -91,33 +93,33 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleViewInitiatives}>
             <FolderOpen className="mr-2 h-4 w-4" />
-            View initiatives
+            {t("viewInitiatives")}
           </ContextMenuItem>
           {isAdmin && (
             <>
               <ContextMenuItem onClick={handleViewMembers}>
                 <Users className="mr-2 h-4 w-4" />
-                View members
+                {t("viewMembers")}
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem onClick={handleInviteMembers} disabled={creatingInvite}>
                 <UserPlus className="mr-2 h-4 w-4" />
-                {creatingInvite ? "Creating invite..." : "Invite members"}
+                {creatingInvite ? t("creatingInvite") : t("inviteMembers")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleCreateInitiative}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create initiative
+                {t("createInitiative")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleGuildSettings}>
                 <Settings className="mr-2 h-4 w-4" />
-                Guild settings
+                {t("nav:guildSettings")}
               </ContextMenuItem>
             </>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleCopyGuildId}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy guild ID
+            {t("copyGuildId")}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
@@ -125,7 +127,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
             className="text-destructive focus:text-destructive"
           >
             <LogOut className="mr-2 h-4 w-4" />
-            Leave guild
+            {t("leaveGuild")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
