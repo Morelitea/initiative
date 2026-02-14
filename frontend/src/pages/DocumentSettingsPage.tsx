@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import {
@@ -52,12 +53,6 @@ import type {
 import { TagPicker } from "@/components/tags";
 import { useSetDocumentTags } from "@/hooks/useTags";
 
-const PERMISSION_LABELS: Record<DocumentPermissionLevel, string> = {
-  owner: "Owner",
-  write: "Can edit",
-  read: "Can view",
-};
-
 interface PermissionRow {
   userId: number;
   displayName: string;
@@ -67,6 +62,7 @@ interface PermissionRow {
 }
 
 export const DocumentSettingsPage = () => {
+  const { t } = useTranslation("documents");
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const router = useRouter();
@@ -174,7 +170,9 @@ export const DocumentSettingsPage = () => {
     return permissions.map((permission) => {
       const member = initiativeMembers.find((entry) => entry.user?.id === permission.user_id);
       const displayName =
-        member?.user?.full_name?.trim() || member?.user?.email || `User ${permission.user_id}`;
+        member?.user?.full_name?.trim() ||
+        member?.user?.email ||
+        t("bulk.userFallback", { id: permission.user_id });
       const email = member?.user?.email || "";
       return {
         userId: permission.user_id,
@@ -184,19 +182,19 @@ export const DocumentSettingsPage = () => {
         isOwner: permission.level === "owner",
       };
     });
-  }, [document?.permissions, initiativeMembers]);
+  }, [document?.permissions, initiativeMembers, t]);
 
   useEffect(() => {
     if (!document) {
       return;
     }
     setIsTemplate(document.is_template);
-    setDuplicateTitle(`${document.title} (Copy)`);
+    setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.title }));
     setCopyTitle(document.title);
     setDocumentTags(document.tags ?? []);
     setAccessMessage(null);
     setAccessError(null);
-  }, [document]);
+  }, [document, t]);
 
   useEffect(() => {
     if (!copyDialogOpen) {
@@ -222,7 +220,7 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access granted");
+      setAccessMessage(t("settings.accessGranted"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
@@ -230,7 +228,7 @@ export const DocumentSettingsPage = () => {
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to grant access");
+      setAccessError(t("settings.grantAccessError"));
     },
   });
 
@@ -241,13 +239,13 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access updated");
+      setAccessMessage(t("settings.accessUpdated"));
       setAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to update access");
+      setAccessError(t("settings.updateAccessError"));
     },
   });
 
@@ -256,13 +254,13 @@ export const DocumentSettingsPage = () => {
       await apiClient.delete(`/documents/${parsedId}/members/${userId}`);
     },
     onSuccess: () => {
-      setAccessMessage("Access removed");
+      setAccessMessage(t("settings.accessRemoved"));
       setAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to remove access");
+      setAccessError(t("settings.removeAccessError"));
     },
   });
 
@@ -275,7 +273,7 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access granted to all members");
+      setAccessMessage(t("settings.accessGranted"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
@@ -283,7 +281,7 @@ export const DocumentSettingsPage = () => {
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to grant access to all members");
+      setAccessError(t("settings.grantAccessError"));
     },
   });
 
@@ -301,14 +299,14 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access updated for selected members");
+      setAccessMessage(t("settings.accessUpdated"));
       setAccessError(null);
       setSelectedMembers([]);
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to update access for selected members");
+      setAccessError(t("settings.updateAccessError"));
     },
   });
 
@@ -319,14 +317,14 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access removed for selected members");
+      setAccessMessage(t("settings.accessRemoved"));
       setAccessError(null);
       setSelectedMembers([]);
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to remove access for selected members");
+      setAccessError(t("settings.removeAccessError"));
     },
   });
 
@@ -345,7 +343,7 @@ export const DocumentSettingsPage = () => {
       return response.data;
     },
     onSuccess: (duplicated) => {
-      toast.success("Document duplicated");
+      toast.success(t("settings.documentDuplicated"));
       setDuplicateDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       router.navigate({
@@ -353,8 +351,7 @@ export const DocumentSettingsPage = () => {
       });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to duplicate document right now.";
+      const message = error instanceof Error ? error.message : t("settings.duplicateError");
       toast.error(message);
     },
   });
@@ -382,13 +379,18 @@ export const DocumentSettingsPage = () => {
       return response.data;
     },
     onSuccess: (copied) => {
-      toast.success("Document copied");
+      toast.success(
+        t("settings.documentCopied", {
+          initiative:
+            copyableInitiatives.find((i) => String(i.id) === copyInitiativeId)?.name ?? "",
+        })
+      );
       setCopyDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       router.navigate({ to: gp(`/documents/${copied.id}`) });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to copy document right now.";
+      const message = error instanceof Error ? error.message : t("settings.copyError");
       toast.error(message);
     },
   });
@@ -398,13 +400,13 @@ export const DocumentSettingsPage = () => {
       await apiClient.delete(`/documents/${parsedId}`);
     },
     onSuccess: () => {
-      toast.success("Document deleted");
+      toast.success(t("settings.documentDeleted"));
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       setDeleteDialogOpen(false);
       router.navigate({ to: gp("/documents") });
     },
     onError: () => {
-      toast.error("Unable to delete document right now.");
+      toast.error(t("settings.deleteError"));
     },
   });
 
@@ -424,7 +426,7 @@ export const DocumentSettingsPage = () => {
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
     onError: () => {
-      toast.error("Unable to update template status.");
+      toast.error(t("settings.templateError"));
     },
   });
 
@@ -437,13 +439,13 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      toast.success("Role access granted");
+      toast.success(t("settings.roleAccessGranted"));
       setSelectedNewRoleId("");
       setSelectedNewRoleLevel("read");
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
-      toast.error("Unable to grant role access");
+      toast.error(t("settings.grantRoleAccessError"));
     },
   });
 
@@ -454,11 +456,11 @@ export const DocumentSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      toast.success("Role access updated");
+      toast.success(t("settings.roleAccessUpdated"));
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
-      toast.error("Unable to update role access");
+      toast.error(t("settings.updateRoleAccessError"));
     },
   });
 
@@ -467,11 +469,11 @@ export const DocumentSettingsPage = () => {
       await apiClient.delete(`/documents/${parsedId}/role-permissions/${roleId}`);
     },
     onSuccess: () => {
-      toast.success("Role access removed");
+      toast.success(t("settings.roleAccessRemoved"));
       void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
     },
     onError: () => {
-      toast.error("Unable to remove role access");
+      toast.error(t("settings.removeRoleAccessError"));
     },
   });
 
@@ -500,20 +502,20 @@ export const DocumentSettingsPage = () => {
     () => [
       {
         accessorKey: "displayName",
-        header: "Name",
+        header: t("settings.columnName"),
         cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
       },
       {
         accessorKey: "email",
-        header: "Email",
+        header: t("settings.columnEmail"),
         cell: ({ row }) => <span className="text-muted-foreground">{row.original.email}</span>,
       },
       {
         accessorKey: "level",
-        header: "Access",
+        header: t("settings.columnAccess"),
         cell: ({ row }) => {
           if (row.original.isOwner) {
-            return <span className="text-muted-foreground">Owner</span>;
+            return <span className="text-muted-foreground">{t("settings.permissionOwner")}</span>;
           }
           return (
             <Select
@@ -532,8 +534,8 @@ export const DocumentSettingsPage = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                <SelectItem value="read">{t("settings.permissionRead")}</SelectItem>
+                <SelectItem value="write">{t("settings.permissionWrite")}</SelectItem>
               </SelectContent>
             </Select>
           );
@@ -541,7 +543,7 @@ export const DocumentSettingsPage = () => {
       },
       {
         id: "actions",
-        header: () => <div className="text-right">Actions</div>,
+        header: () => <div className="text-right">{t("settings.columnActions")}</div>,
         cell: ({ row }) => {
           if (row.original.isOwner) {
             return <div className="text-muted-foreground text-right text-xs">-</div>;
@@ -560,14 +562,14 @@ export const DocumentSettingsPage = () => {
                 }}
                 disabled={removeMember.isPending}
               >
-                Remove
+                {t("settings.remove")}
               </Button>
             </div>
           );
         },
       },
     ],
-    [updateMemberLevel, removeMember]
+    [t, updateMemberLevel, removeMember]
   );
 
   // Column definitions for the role permissions table
@@ -575,12 +577,12 @@ export const DocumentSettingsPage = () => {
     () => [
       {
         accessorKey: "role_display_name",
-        header: "Role Name",
+        header: t("settings.columnRoleName"),
         cell: ({ row }) => <span className="font-medium">{row.original.role_display_name}</span>,
       },
       {
         accessorKey: "level",
-        header: "Access Level",
+        header: t("settings.columnAccessLevel"),
         cell: ({ row }) => (
           <Select
             value={row.original.level}
@@ -596,15 +598,15 @@ export const DocumentSettingsPage = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="read">Can view</SelectItem>
-              <SelectItem value="write">Can edit</SelectItem>
+              <SelectItem value="read">{t("settings.canView")}</SelectItem>
+              <SelectItem value="write">{t("settings.canEdit")}</SelectItem>
             </SelectContent>
           </Select>
         ),
       },
       {
         id: "actions",
-        header: () => <div className="text-right">Actions</div>,
+        header: () => <div className="text-right">{t("settings.columnActions")}</div>,
         cell: ({ row }) => (
           <div className="text-right">
             <Button
@@ -615,13 +617,13 @@ export const DocumentSettingsPage = () => {
               onClick={() => removeRolePermission.mutate(row.original.initiative_role_id)}
               disabled={removeRolePermission.isPending}
             >
-              Remove
+              {t("settings.remove")}
             </Button>
           </div>
         ),
       },
     ],
-    [updateRolePermission, removeRolePermission]
+    [t, updateRolePermission, removeRolePermission]
   );
 
   // Initiative members who don't have permissions yet
@@ -636,20 +638,20 @@ export const DocumentSettingsPage = () => {
   );
 
   if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">Invalid document id.</p>;
+    return <p className="text-destructive">{t("settings.invalidId")}</p>;
   }
 
   if (documentQuery.isLoading) {
     return (
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading document…
+        {t("settings.loading")}
       </div>
     );
   }
 
   if (documentQuery.isError || !document) {
-    return <p className="text-destructive">Document not found.</p>;
+    return <p className="text-destructive">{t("settings.notFound")}</p>;
   }
 
   return (
@@ -675,20 +677,22 @@ export const DocumentSettingsPage = () => {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Settings</BreadcrumbPage>
+            <BreadcrumbPage>{t("settings.breadcrumb")}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Document settings</h1>
-          <p className="text-muted-foreground text-sm">
-            Manage access, template status, duplication, and deletion.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("settings.title")}</h1>
+          <p className="text-muted-foreground text-sm">{t("settings.subtitle")}</p>
         </div>
         <div className="text-muted-foreground flex flex-col items-end gap-2 text-right text-sm">
           <p className="font-medium">{document.title}</p>
-          <p>Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}</p>
+          <p>
+            {t("detail.updated", {
+              date: formatDistanceToNow(new Date(document.updated_at), { addSuffix: true }),
+            })}
+          </p>
           {document.initiative ? (
             <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs">
               <InitiativeColorDot color={document.initiative.color} />
@@ -700,35 +704,35 @@ export const DocumentSettingsPage = () => {
 
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList className="w-full max-w-xl justify-start">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          {canManageDocument ? <TabsTrigger value="access">Access</TabsTrigger> : null}
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="details">{t("settings.tabDetails")}</TabsTrigger>
+          {canManageDocument ? (
+            <TabsTrigger value="access">{t("settings.tabAccess")}</TabsTrigger>
+          ) : null}
+          <TabsTrigger value="advanced">{t("settings.tabAdvanced")}</TabsTrigger>
         </TabsList>
 
-        {/* ── Details tab ── */}
+        {/* -- Details tab -- */}
         <TabsContent value="details" className="space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
-                <CardTitle>Template</CardTitle>
-                <CardDescription>
-                  Template documents are intended to be duplicated instead of edited directly.
-                </CardDescription>
+                <CardTitle>{t("settings.templateTitle")}</CardTitle>
+                <CardDescription>{t("settings.templateDescription")}</CardDescription>
               </div>
               <Switch
                 id="document-template-toggle"
                 checked={isTemplate}
                 onCheckedChange={handleTemplateToggle}
                 disabled={!hasWriteAccess || updateTemplate.isPending}
-                aria-label="Toggle template status"
+                aria-label={t("settings.templateToggle")}
               />
             </CardHeader>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Tags</CardTitle>
-              <CardDescription>Add tags to organize and filter documents.</CardDescription>
+              <CardTitle>{t("settings.tagsTitle")}</CardTitle>
+              <CardDescription>{t("settings.tagsDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
               {hasWriteAccess ? (
@@ -738,28 +742,24 @@ export const DocumentSettingsPage = () => {
                     setDocumentTags(newTags);
                     setDocumentTagsMutation.mutate({
                       documentId: parsedId,
-                      tagIds: newTags.map((t) => t.id),
+                      tagIds: newTags.map((tg) => tg.id),
                     });
                   }}
                 />
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  You need write access to manage tags.
-                </p>
+                <p className="text-muted-foreground text-sm">{t("settings.tagsNoAccess")}</p>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* ── Access tab ── */}
+        {/* -- Access tab -- */}
         {canManageDocument ? (
           <TabsContent value="access" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Role access</CardTitle>
-                <CardDescription>
-                  Grant access to all members with a specific initiative role.
-                </CardDescription>
+                <CardTitle>{t("settings.roleAccessTitle")}</CardTitle>
+                <CardDescription>{t("settings.roleAccessDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {(document.role_permissions ?? []).length > 0 ? (
@@ -769,23 +769,21 @@ export const DocumentSettingsPage = () => {
                     getRowId={(row) => String(row.initiative_role_id)}
                   />
                 ) : (
-                  <p className="text-muted-foreground text-sm">
-                    No roles have been granted access to this document yet.
-                  </p>
+                  <p className="text-muted-foreground text-sm">{t("settings.noRoleAccess")}</p>
                 )}
 
                 {/* Add role form */}
                 <div className="space-y-2 pt-2">
-                  <Label>Add role</Label>
+                  <Label>{t("settings.addRole")}</Label>
                   {availableRoles.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      All initiative roles have been assigned.
+                      {t("settings.allRolesAssigned")}
                     </p>
                   ) : (
                     <div className="flex flex-wrap items-end gap-3">
                       <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
                         <SelectTrigger className="min-w-[200px]">
-                          <SelectValue placeholder="Select role" />
+                          <SelectValue placeholder={t("settings.selectRole")} />
                         </SelectTrigger>
                         <SelectContent>
                           {availableRoles.map((role) => (
@@ -805,8 +803,8 @@ export const DocumentSettingsPage = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="read">Can view</SelectItem>
-                          <SelectItem value="write">Can edit</SelectItem>
+                          <SelectItem value="read">{t("settings.canView")}</SelectItem>
+                          <SelectItem value="write">{t("settings.canEdit")}</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button
@@ -822,7 +820,7 @@ export const DocumentSettingsPage = () => {
                         }}
                         disabled={!selectedNewRoleId || addRolePermission.isPending}
                       >
-                        {addRolePermission.isPending ? "Adding..." : "Add"}
+                        {addRolePermission.isPending ? t("settings.adding") : t("settings.add")}
                       </Button>
                     </div>
                   )}
@@ -832,14 +830,16 @@ export const DocumentSettingsPage = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Individual access</CardTitle>
-                <CardDescription>Control who can view and edit this document.</CardDescription>
+                <CardTitle>{t("settings.individualAccessTitle")}</CardTitle>
+                <CardDescription>{t("settings.individualAccessDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Bulk action bar */}
                 {selectedMembers.length > 0 && (
                   <div className="bg-muted flex items-center gap-3 rounded-md p-3">
-                    <span className="text-sm font-medium">{selectedMembers.length} selected</span>
+                    <span className="text-sm font-medium">
+                      {t("settings.selectedCount", { count: selectedMembers.length })}
+                    </span>
                     <Select
                       onValueChange={(level) => {
                         const userIds = selectedMembers
@@ -855,11 +855,11 @@ export const DocumentSettingsPage = () => {
                       disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
                     >
                       <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Change access..." />
+                        <SelectValue placeholder={t("settings.changeAccess")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                        <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                        <SelectItem value="read">{t("settings.permissionRead")}</SelectItem>
+                        <SelectItem value="write">{t("settings.permissionWrite")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
@@ -876,7 +876,7 @@ export const DocumentSettingsPage = () => {
                       }}
                       disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
                     >
-                      {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                      {bulkRemoveMembers.isPending ? t("settings.removing") : t("settings.remove")}
                     </Button>
                   </div>
                 )}
@@ -888,7 +888,7 @@ export const DocumentSettingsPage = () => {
                   enablePagination
                   enableFilterInput
                   filterInputColumnKey="displayName"
-                  filterInputPlaceholder="Filter by name"
+                  filterInputPlaceholder={t("settings.filterByName")}
                   enableRowSelection
                   onRowSelectionChange={setSelectedMembers}
                   onExitSelection={() => setSelectedMembers([])}
@@ -897,10 +897,10 @@ export const DocumentSettingsPage = () => {
 
                 {/* Add member form */}
                 <div className="space-y-2 pt-2">
-                  <Label>Grant access</Label>
+                  <Label>{t("settings.grantAccess")}</Label>
                   {availableMembers.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      All initiative members already have access to this document.
+                      {t("settings.allMembersHaveAccess")}
                     </p>
                   ) : (
                     <form
@@ -908,7 +908,7 @@ export const DocumentSettingsPage = () => {
                       onSubmit={(event) => {
                         event.preventDefault();
                         if (!selectedNewUserId) {
-                          setAccessError("Select a member");
+                          setAccessError(t("settings.selectMember"));
                           return;
                         }
                         setAccessError(null);
@@ -925,8 +925,8 @@ export const DocumentSettingsPage = () => {
                         }))}
                         value={selectedNewUserId}
                         onValueChange={setSelectedNewUserId}
-                        placeholder="Select member"
-                        emptyMessage="No members found"
+                        placeholder={t("settings.selectMember")}
+                        emptyMessage={t("settings.noMembersFound")}
                         className="min-w-[200px]"
                       />
                       <Select
@@ -939,15 +939,15 @@ export const DocumentSettingsPage = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                          <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                          <SelectItem value="read">{t("settings.permissionRead")}</SelectItem>
+                          <SelectItem value="write">{t("settings.permissionWrite")}</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button
                         type="submit"
                         disabled={addMember.isPending || addAllMembers.isPending}
                       >
-                        {addMember.isPending ? "Adding..." : "Add"}
+                        {addMember.isPending ? t("settings.adding") : t("settings.add")}
                       </Button>
                       <Button
                         type="button"
@@ -956,8 +956,8 @@ export const DocumentSettingsPage = () => {
                         disabled={addMember.isPending || addAllMembers.isPending}
                       >
                         {addAllMembers.isPending
-                          ? "Adding all..."
-                          : `Add all (${availableMembers.length})`}
+                          ? t("settings.adding")
+                          : t("settings.addAllCount", { count: availableMembers.length })}
                       </Button>
                     </form>
                   )}
@@ -969,15 +969,12 @@ export const DocumentSettingsPage = () => {
           </TabsContent>
         ) : null}
 
-        {/* ── Advanced tab ── */}
+        {/* -- Advanced tab -- */}
         <TabsContent value="advanced" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Copies</CardTitle>
-              <CardDescription>
-                Duplicate this document within the same initiative or copy it into another
-                initiative.
-              </CardDescription>
+              <CardTitle>{t("settings.copiesTitle")}</CardTitle>
+              <CardDescription>{t("settings.copiesDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
               <Button
@@ -985,12 +982,14 @@ export const DocumentSettingsPage = () => {
                 variant="outline"
                 onClick={() => {
                   setDuplicateDialogOpen(true);
-                  setDuplicateTitle(`${document.title} (Copy)`);
+                  setDuplicateTitle(
+                    t("settings.duplicateTitlePlaceholder", { title: document.title })
+                  );
                 }}
                 disabled={!canManageDocument}
               >
                 <Copy className="mr-2 h-4 w-4" />
-                Duplicate document
+                {t("settings.duplicateDocument")}
               </Button>
               <Button
                 type="button"
@@ -1002,7 +1001,7 @@ export const DocumentSettingsPage = () => {
                 disabled={!canManageDocument}
               >
                 <ArrowRightLeft className="mr-2 h-4 w-4" />
-                Copy to initiative
+                {t("settings.copyToInitiative")}
               </Button>
             </CardContent>
           </Card>
@@ -1010,8 +1009,8 @@ export const DocumentSettingsPage = () => {
           {isOwner ? (
             <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
               <CardHeader>
-                <CardTitle>Danger zone</CardTitle>
-                <CardDescription>Deleting a document cannot be undone.</CardDescription>
+                <CardTitle>{t("settings.dangerTitle")}</CardTitle>
+                <CardDescription>{t("settings.dangerDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button
@@ -1021,7 +1020,7 @@ export const DocumentSettingsPage = () => {
                   disabled={!isOwner}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete document
+                  {t("settings.deleteDocument")}
                 </Button>
               </CardContent>
             </Card>
@@ -1032,23 +1031,21 @@ export const DocumentSettingsPage = () => {
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
         <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Duplicate document</DialogTitle>
-            <DialogDescription>
-              Create a copy inside {document.initiative?.name ?? "this initiative"}.
-            </DialogDescription>
+            <DialogTitle>{t("settings.duplicateDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("settings.duplicateDialogDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="duplicate-document-title">Title</Label>
+            <Label htmlFor="duplicate-document-title">{t("settings.duplicateTitleLabel")}</Label>
             <Input
               id="duplicate-document-title"
               value={duplicateTitle}
               onChange={(event) => setDuplicateTitle(event.target.value)}
-              placeholder={`${document.title} (Copy)`}
+              placeholder={t("settings.duplicateTitlePlaceholder", { title: document.title })}
             />
           </div>
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setDuplicateDialogOpen(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               type="button"
@@ -1058,10 +1055,10 @@ export const DocumentSettingsPage = () => {
               {duplicateDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Duplicating…
+                  {t("settings.duplicating")}
                 </>
               ) : (
-                "Duplicate"
+                t("bulk.duplicate")
               )}
             </Button>
           </DialogFooter>
@@ -1071,30 +1068,26 @@ export const DocumentSettingsPage = () => {
       <Dialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
         <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Copy to another initiative</DialogTitle>
-            <DialogDescription>
-              Select a target initiative and optional title for the copy.
-            </DialogDescription>
+            <DialogTitle>{t("settings.copyDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("settings.copyDialogDescription")}</DialogDescription>
           </DialogHeader>
           {initiativesQuery.isLoading ? (
             <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading initiatives…
+              {t("settings.loadingInitiatives")}
             </div>
           ) : copyableInitiatives.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              You need manager access in another initiative to copy this document.
-            </p>
+            <p className="text-muted-foreground text-sm">{t("settings.managerAccessRequired")}</p>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="copy-document-initiative">Target initiative</Label>
+                <Label htmlFor="copy-document-initiative">{t("settings.targetInitiative")}</Label>
                 <Select
                   value={copyInitiativeId || undefined}
                   onValueChange={(value) => setCopyInitiativeId(value)}
                 >
                   <SelectTrigger id="copy-document-initiative">
-                    <SelectValue placeholder="Select initiative" />
+                    <SelectValue placeholder={t("settings.selectInitiative")} />
                   </SelectTrigger>
                   <SelectContent>
                     {copyableInitiatives.map((initiative) => (
@@ -1106,7 +1099,7 @@ export const DocumentSettingsPage = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="copy-document-title">Title</Label>
+                <Label htmlFor="copy-document-title">{t("settings.duplicateTitleLabel")}</Label>
                 <Input
                   id="copy-document-title"
                   value={copyTitle}
@@ -1118,7 +1111,7 @@ export const DocumentSettingsPage = () => {
           )}
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setCopyDialogOpen(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               type="button"
@@ -1133,10 +1126,10 @@ export const DocumentSettingsPage = () => {
               {copyDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Copying…
+                  {t("settings.copying")}
                 </>
               ) : (
-                "Copy document"
+                t("settings.copyDocument")
               )}
             </Button>
           </DialogFooter>
@@ -1146,14 +1139,12 @@ export const DocumentSettingsPage = () => {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Delete this document?</DialogTitle>
-            <DialogDescription>
-              This removes the document for everyone and detaches it from any projects.
-            </DialogDescription>
+            <DialogTitle>{t("settings.deleteDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("settings.deleteDialogDescription")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               type="button"
@@ -1164,10 +1155,10 @@ export const DocumentSettingsPage = () => {
               {deleteDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting…
+                  {t("settings.deleting")}
                 </>
               ) : (
-                "Delete"
+                t("common:delete")
               )}
             </Button>
           </DialogFooter>

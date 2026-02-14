@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, FileText, Link2 } from "lucide-react";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 import { getDocumentBacklinks } from "@/api/documents";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -14,6 +15,7 @@ interface DocumentBacklinksProps {
 }
 
 export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
+  const { t } = useTranslation("documents");
   const [isOpen, setIsOpen] = useState(true);
   const gp = useGuildPath();
 
@@ -49,7 +51,7 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
           <div className="flex items-center gap-2">
             <Link2 className="text-muted-foreground h-4 w-4" />
             <span className="text-sm font-medium">
-              Linked from {backlinks.length} document{backlinks.length !== 1 ? "s" : ""}
+              {t("backlinks.title", { count: backlinks.length })}
             </span>
           </div>
           {isOpen ? (

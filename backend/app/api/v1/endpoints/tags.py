@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
+from app.core.messages import TagMessages
 from app.db.session import reapply_rls_context
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.task import Task
@@ -35,7 +36,7 @@ async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Ta
     result = await session.exec(stmt)
     tag = result.one_or_none()
     if tag is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TagMessages.NOT_FOUND)
     return tag
 
 
@@ -56,7 +57,7 @@ async def _check_duplicate_name(
     if result.one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A tag with this name already exists",
+            detail=TagMessages.NAME_ALREADY_EXISTS,
         )
 
 

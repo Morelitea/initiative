@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { getItem, setItem } from "@/lib/storage";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -24,6 +25,7 @@ export const DocumentSidePanel = ({
   commentsContent,
   showSummaryTab = true,
 }: DocumentSidePanelProps) => {
+  const { t } = useTranslation("documents");
   const [activeTab, setActiveTab] = useState<PanelTab>(() => {
     const saved = getItem(TAB_STORAGE_KEY);
     if (saved === "summary" && showSummaryTab) return "summary";
@@ -46,7 +48,7 @@ export const DocumentSidePanel = ({
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-md">
         <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle className="text-base">Document Panel</SheetTitle>
+          <SheetTitle className="text-base">{t("sidePanel.title")}</SheetTitle>
         </SheetHeader>
 
         <Tabs
@@ -57,10 +59,10 @@ export const DocumentSidePanel = ({
           {showSummaryTab && (
             <TabsList className="mx-4 mt-3">
               <TabsTrigger value="comments" className="flex-1">
-                Comments
+                {t("sidePanel.commentsTab")}
               </TabsTrigger>
               <TabsTrigger value="summary" className="flex-1">
-                Summary
+                {t("sidePanel.summaryTab")}
               </TabsTrigger>
             </TabsList>
           )}

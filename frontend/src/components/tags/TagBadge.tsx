@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 
@@ -45,6 +46,7 @@ function truncateSegment(segment: string, maxLength: number): string {
 }
 
 export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
+  const { t } = useTranslation("tags");
   const textColor = getContrastColor(tag.color);
   const isClickable = !!onClick || !!to;
 
@@ -74,7 +76,7 @@ export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }:
         onRemove();
       }}
       className="ml-0.5 rounded-sm hover:opacity-70 focus:outline-none"
-      aria-label={`Remove ${tag.name} tag`}
+      aria-label={t("badge.remove", { name: tag.name })}
     >
       <X className={cn(size === "sm" ? "h-3 w-3" : "h-4 w-4")} />
     </button>

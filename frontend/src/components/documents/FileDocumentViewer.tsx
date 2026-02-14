@@ -10,6 +10,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
@@ -34,6 +35,7 @@ export const FileDocumentViewer = ({
   originalFilename,
   fileSize,
 }: FileDocumentViewerProps) => {
+  const { t } = useTranslation("documents");
   const resolvedUrl = resolveUploadUrl(fileUrl);
   const fileTypeLabel = getFileTypeLabel(contentType, originalFilename);
   const extension = getFileExtension(originalFilename || fileUrl);
@@ -101,7 +103,7 @@ export const FileDocumentViewer = ({
 
   const onDocumentLoadError = (error: Error) => {
     console.error("PDF load error:", error);
-    setPdfError("Failed to load PDF. Try downloading the file instead.");
+    setPdfError(t("viewer.pdfError"));
   };
 
   const zoomIn = () => setScale((prev) => Math.min(2.5, prev + 0.25));
@@ -110,7 +112,7 @@ export const FileDocumentViewer = ({
   if (!resolvedUrl) {
     return (
       <div className="text-muted-foreground flex items-center justify-center rounded-lg border p-8">
-        <p>Unable to load document</p>
+        <p>{t("viewer.loadError")}</p>
       </div>
     );
   }
@@ -134,11 +136,11 @@ export const FileDocumentViewer = ({
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleOpenInNewTab}>
             <ExternalLink className="mr-2 h-4 w-4" />
-            Open in new tab
+            {t("viewer.openNewTab")}
           </Button>
           <Button variant="outline" size="sm" onClick={handleDownload}>
             <Download className="mr-2 h-4 w-4" />
-            Download
+            {t("viewer.download")}
           </Button>
         </div>
       </div>
@@ -155,7 +157,7 @@ export const FileDocumentViewer = ({
               className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2"
             >
               <span className="text-muted-foreground text-sm">
-                {numPages ? `${numPages} page${numPages > 1 ? "s" : ""}` : "Loading..."}
+                {numPages ? t("viewer.pageCount", { count: numPages }) : t("viewer.loading")}
               </span>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
@@ -179,7 +181,7 @@ export const FileDocumentViewer = ({
                   <p className="text-muted-foreground mb-4">{pdfError}</p>
                   <Button onClick={handleDownload}>
                     <Download className="mr-2 h-4 w-4" />
-                    Download PDF
+                    {t("viewer.downloadPdf")}
                   </Button>
                 </div>
               ) : baseWidth ? (
@@ -221,7 +223,7 @@ export const FileDocumentViewer = ({
             src={resolvedUrl}
             className="bg-muted w-full"
             style={{ height: "70vh", minHeight: 500 }}
-            title={originalFilename || "Text document"}
+            title={originalFilename || t("viewer.textDocument")}
           />
         ) : isHtml ? (
           // Use sandboxed iframe for HTML files
@@ -229,7 +231,7 @@ export const FileDocumentViewer = ({
             src={resolvedUrl}
             className="w-full"
             style={{ height: "70vh", minHeight: 500 }}
-            title={originalFilename || "HTML document"}
+            title={originalFilename || t("viewer.htmlDocument")}
             sandbox=""
           />
         ) : isOffice ? (
@@ -239,22 +241,28 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
           >
             <OfficeIcon className={`h-24 w-24 ${iconColor} mb-6`} />
-            <h3 className="mb-2 text-xl font-semibold">{originalFilename || "Document"}</h3>
+            <h3 className="mb-2 text-xl font-semibold">
+              {originalFilename || t("viewer.document")}
+            </h3>
             <p className="text-muted-foreground mb-6 max-w-md text-center">
-              {fileTypeLabel} files cannot be previewed in the browser.
+              {t("viewer.cannotPreview", { fileType: fileTypeLabel })}
               <br />
-              Download the file to view it in{" "}
-              {isWord ? "Microsoft Word" : isExcel ? "Microsoft Excel" : "Microsoft PowerPoint"} or
-              a compatible application.
+              {t("viewer.downloadToView", {
+                app: isWord
+                  ? "Microsoft Word"
+                  : isExcel
+                    ? "Microsoft Excel"
+                    : "Microsoft PowerPoint",
+              })}
             </p>
             <div className="flex gap-3">
               <Button onClick={handleDownload}>
                 <Download className="mr-2 h-4 w-4" />
-                Download {fileTypeLabel}
+                {t("viewer.downloadFileType", { fileType: fileTypeLabel })}
               </Button>
               <Button variant="outline" onClick={handleOpenInNewTab}>
                 <ExternalLink className="mr-2 h-4 w-4" />
-                Open in new tab
+                {t("viewer.openNewTab")}
               </Button>
             </div>
           </div>
@@ -265,13 +273,13 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
           >
             <FileText className="text-muted-foreground mb-6 h-24 w-24" />
-            <h3 className="mb-2 text-xl font-semibold">{originalFilename || "Document"}</h3>
-            <p className="text-muted-foreground mb-6">
-              This file type cannot be previewed in the browser.
-            </p>
+            <h3 className="mb-2 text-xl font-semibold">
+              {originalFilename || t("viewer.document")}
+            </h3>
+            <p className="text-muted-foreground mb-6">{t("viewer.unknownFileType")}</p>
             <Button onClick={handleDownload}>
               <Download className="mr-2 h-4 w-4" />
-              Download file
+              {t("viewer.downloadFile")}
             </Button>
           </div>
         )}
