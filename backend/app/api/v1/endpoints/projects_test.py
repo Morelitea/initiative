@@ -17,7 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from app.models.initiative import InitiativeRole
+
 from app.models.project import ProjectPermissionLevel
 from app.testing.factories import (
     create_guild,
@@ -27,8 +27,8 @@ from app.testing.factories import (
 )
 
 
-async def _create_initiative_with_member(session, guild, user, role=InitiativeRole.member):
-    """Helper to create an initiative with a member."""
+async def _create_initiative_with_member(session, guild, user):
+    """Helper to create an initiative and add the user as project manager."""
     from app.testing.factories import create_initiative as factory_create_initiative
 
     initiative = await factory_create_initiative(
@@ -209,9 +209,7 @@ async def test_create_project_as_member(client: AsyncClient, session: AsyncSessi
     guild = await create_guild(session)
     await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await _create_initiative_with_member(
-        session, guild, member, role=InitiativeRole.member
-    )
+    initiative = await _create_initiative_with_member(session, guild, member)
 
     headers = get_guild_headers(guild, member)
     payload = {

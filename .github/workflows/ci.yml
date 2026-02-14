@@ -2,17 +2,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   backend-tests:
     name: Backend Tests & Lint
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'push' ||
-      contains(github.event.pull_request.changed_files || '', 'backend/')
     services:
       postgres:
         image: postgres:17
@@ -30,7 +27,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
-      SECRET_KEY: test-secret-key-for-ci
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
       AUTO_APPROVED_EMAIL_DOMAINS: example.com
 
     steps:
@@ -95,9 +92,6 @@ jobs:
   frontend-lint-and-test:
     name: Frontend Lint & Tests
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'push' ||
-      contains(github.event.pull_request.changed_files || '', 'frontend/')
     steps:
       - uses: actions/checkout@v4
 
