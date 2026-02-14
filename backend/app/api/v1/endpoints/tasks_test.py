@@ -17,7 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from tests.factories import (
+from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
@@ -27,7 +27,7 @@ from tests.factories import (
 
 async def _create_initiative(session, guild, user):
     """Helper to create an initiative."""
-    from tests.factories import create_initiative as factory_create_initiative
+    from app.testing.factories import create_initiative as factory_create_initiative
 
     initiative = await factory_create_initiative(
         session, guild, user, name="Test Initiative"
@@ -37,7 +37,7 @@ async def _create_initiative(session, guild, user):
 
 async def _create_project(session, initiative, owner):
     """Helper to create a project."""
-    from tests.factories import create_project as factory_create_project
+    from app.testing.factories import create_project as factory_create_project
 
     project = await factory_create_project(
         session, initiative, owner, name="Test Project"
@@ -58,6 +58,7 @@ async def _create_task(session, project, title="Test Task"):
         title=title,
         project_id=project.id,
         task_status_id=status.id,
+        guild_id=project.guild_id,
     )
     session.add(task)
     await session.commit()
@@ -99,7 +100,7 @@ async def test_list_tasks_in_project(client: AsyncClient, session: AsyncSession)
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     task_ids = {t["id"] for t in data}
     assert task1.id in task_ids
     assert task2.id in task_ids
@@ -303,7 +304,7 @@ async def test_assign_user_to_task(client: AsyncClient, session: AsyncSession):
     initiative = await _create_initiative(session, guild, user)
 
     # Add assignee to initiative
-    from tests.factories import create_initiative_member
+    from app.testing.factories import create_initiative_member
     await create_initiative_member(session, initiative, assignee, role_name="member")
 
     project = await _create_project(session, initiative, user)
@@ -557,7 +558,7 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
     response = await client.get("/api/v1/tasks/?assignee_ids=me", headers=headers)
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     task_ids = {t["id"] for t in data}
     assert my_task.id in task_ids
     assert other_task.id not in task_ids
@@ -584,10 +585,10 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
     # Create tasks with different statuses
     from app.models.task import Task
     task1 = Task(
-        title="Todo Task", project_id=project.id, task_status_id=todo_status.id
+        title="Todo Task", project_id=project.id, task_status_id=todo_status.id, guild_id=guild.id
     )
     task2 = Task(
-        title="Done Task", project_id=project.id, task_status_id=done_status.id
+        title="Done Task", project_id=project.id, task_status_id=done_status.id, guild_id=guild.id
     )
     session.add(task1)
     session.add(task2)
@@ -600,7 +601,7 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     task_titles = {t["title"] for t in data}
     assert "Todo Task" in task_titles
     assert "Done Task" not in task_titles
@@ -640,6 +641,7 @@ async def test_rolling_recurrence_preserves_due_time(
         title="Recurring Task",
         project_id=project.id,
         task_status_id=todo_status.id,
+        guild_id=guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="rolling",  # After completion mode
@@ -663,7 +665,7 @@ async def test_rolling_recurrence_preserves_due_time(
         f"/api/v1/tasks/?project_id={project.id}", headers=headers
     )
     assert response.status_code == 200
-    tasks = response.json()
+    tasks = response.json()["items"]
 
     # Should have 2 tasks: original (completed) and new recurring task
     assert len(tasks) == 2
@@ -714,6 +716,7 @@ async def test_fixed_recurrence_uses_original_due_date(
         title="Fixed Recurring Task",
         project_id=project.id,
         task_status_id=todo_status.id,
+        guild_id=guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="fixed",  # Fixed mode (default)
@@ -737,7 +740,7 @@ async def test_fixed_recurrence_uses_original_due_date(
         f"/api/v1/tasks/?project_id={project.id}", headers=headers
     )
     assert response.status_code == 200
-    tasks = response.json()
+    tasks = response.json()["items"]
 
     # Find the new task
     new_task = next((t for t in tasks if t["id"] != task.id), None)
@@ -787,6 +790,7 @@ async def test_rolling_recurrence_with_midnight_time(
         title="Midnight Task",
         project_id=project.id,
         task_status_id=todo_status.id,
+        guild_id=guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="rolling",
@@ -810,7 +814,7 @@ async def test_rolling_recurrence_with_midnight_time(
         f"/api/v1/tasks/?project_id={project.id}", headers=headers
     )
     assert response.status_code == 200
-    tasks = response.json()
+    tasks = response.json()["items"]
 
     # Find the new task
     new_task = next((t for t in tasks if t["id"] != task.id), None)

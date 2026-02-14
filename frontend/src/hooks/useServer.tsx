@@ -23,7 +23,7 @@ interface ServerContextValue {
   getServerHostname: () => string | null;
 }
 
-const ServerContext = createContext<ServerContextValue | undefined>(undefined);
+export const ServerContext = createContext<ServerContextValue | undefined>(undefined);
 
 /**
  * Normalize a server URL to include /api/v1 suffix

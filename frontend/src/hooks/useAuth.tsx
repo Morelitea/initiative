@@ -32,7 +32,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const TOKEN_STORAGE_KEY = "initiative-token";
 const DEVICE_TOKEN_KEY = "initiative-is-device-token";

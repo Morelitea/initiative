@@ -17,7 +17,7 @@ interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 const THEME_STORAGE_KEY = "initiative-theme";
 const THEME_CYCLE: Theme[] = ["system", "light", "dark"];

@@ -31,7 +31,7 @@ interface GuildContextValue {
   canCreateGuilds: boolean;
 }
 
-const GuildContext = createContext<GuildContextValue | undefined>(undefined);
+export const GuildContext = createContext<GuildContextValue | undefined>(undefined);
 
 const GUILD_STORAGE_KEY = "initiative-active-guild";
 

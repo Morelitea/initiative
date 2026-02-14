@@ -17,9 +17,9 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from app.models.initiative import InitiativeRole
+
 from app.models.project import ProjectPermissionLevel
-from tests.factories import (
+from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
@@ -27,9 +27,9 @@ from tests.factories import (
 )
 
 
-async def _create_initiative_with_member(session, guild, user, role=InitiativeRole.member):
-    """Helper to create an initiative with a member."""
-    from tests.factories import create_initiative as factory_create_initiative
+async def _create_initiative_with_member(session, guild, user):
+    """Helper to create an initiative and add the user as project manager."""
+    from app.testing.factories import create_initiative as factory_create_initiative
 
     initiative = await factory_create_initiative(
         session, guild, user, name="Test Initiative"
@@ -40,7 +40,7 @@ async def _create_initiative_with_member(session, guild, user, role=InitiativeRo
 
 async def _create_project(session, initiative, owner):
     """Helper to create a project."""
-    from tests.factories import create_project as factory_create_project
+    from app.testing.factories import create_project as factory_create_project
 
     project = await factory_create_project(
         session, initiative, owner, name="Test Project", description="Test description"
@@ -74,7 +74,7 @@ async def test_list_projects_as_admin_shows_all(
     await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
 
     initiative = await _create_initiative_with_member(session, guild, admin)
-    project1 = await _create_project(session, initiative, admin)
+    await _create_project(session, initiative, admin)
     project2 = await _create_project(session, initiative, admin)
     project2.name = "Project 2"
     session.add(project2)
@@ -102,7 +102,7 @@ async def test_list_projects_member_sees_initiative_projects(
     initiative = await _create_initiative_with_member(session, guild, admin)
 
     # Add member to initiative
-    from tests.factories import create_initiative_member
+    from app.testing.factories import create_initiative_member
     await create_initiative_member(session, initiative, member, role_name="member")
 
     project = await _create_project(session, initiative, admin)
@@ -209,9 +209,7 @@ async def test_create_project_as_member(client: AsyncClient, session: AsyncSessi
     guild = await create_guild(session)
     await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await _create_initiative_with_member(
-        session, guild, member, role=InitiativeRole.member
-    )
+    initiative = await _create_initiative_with_member(session, guild, member)
 
     headers = get_guild_headers(guild, member)
     payload = {
@@ -598,7 +596,7 @@ async def test_add_project_member(client: AsyncClient, session: AsyncSession):
     initiative = await _create_initiative_with_member(session, guild, owner)
 
     # Add new_member to initiative
-    from tests.factories import create_initiative_member
+    from app.testing.factories import create_initiative_member
     await create_initiative_member(session, initiative, new_member, role_name="member")
 
     project = await _create_project(session, initiative, owner)

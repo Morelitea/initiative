@@ -11,12 +11,11 @@ Tests the auth API endpoints including:
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import get_password_hash
 from app.models.user import User
-from tests.factories import create_user
+from app.testing.factories import create_user
 
 
 @pytest.mark.integration
