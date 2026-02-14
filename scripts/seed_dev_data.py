@@ -62,7 +62,6 @@ from app.services.task_statuses import ensure_default_statuses  # noqa: E402
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
 
-now = datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
