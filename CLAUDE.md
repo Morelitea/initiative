@@ -62,42 +62,25 @@ This project uses **semantic versioning** (semver) with a single source of truth
 - **Frontend**: Vite injects VERSION as `__APP_VERSION__` constant, displayed in the sidebar footer
 - **Docker**: VERSION is copied into the image and set as OCI labels
 
-### Bumping the Version
+### Releasing a Version
 
-Use the provided script to bump versions:
-
-```bash
-./scripts/bump-version.sh
-```
-
-This interactive script will:
-
-1. Show the current version
-2. Offer bump options: patch, minor, major, or custom
-3. Update the VERSION file
-4. Create a git commit with message `bump version to X.Y.Z`
-5. Create a git tag `vX.Y.Z`
-
-After running the script, push changes:
+Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `main` with the version bump and changelog stamp. Only code owners (@jordandrako, @LeeJMorel) can run this script.
 
 ```bash
-git push && git push --tags
+# Patch release (0.29.1 → 0.29.2)
+./scripts/promote.sh --patch
+
+# Minor release (0.29.1 → 0.30.0)
+./scripts/promote.sh --minor
+
+# Major release (0.29.1 → 1.0.0)
+./scripts/promote.sh --major
+
+# Preview without making changes
+./scripts/promote.sh --dry-run
 ```
 
-### Manual Version Bump
-
-If you prefer to bump manually:
-
-```bash
-# Update VERSION file
-echo "0.2.0" > VERSION
-
-# Commit and tag
-git add VERSION
-git commit -m "bump version to 0.2.0"
-git tag v0.2.0
-git push && git push --tags
-```
+After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, which triggers the Docker build and GitHub Release.
 
 ### Semantic Versioning Guidelines
 
@@ -380,14 +363,13 @@ This project uses GitHub Actions to automatically build and publish Docker image
 The typical deployment process:
 
 ```bash
-# 1. Bump version and create tag
-./scripts/bump-version.sh
+# 1. Create a release PR (bumps version + stamps changelog)
+./scripts/promote.sh --patch   # or --minor / --major
 
-# 2. Push to trigger Docker build
-git push && git push --tags
+# 2. Merge the release PR on GitHub
 
-# 3. Monitor build progress
-# Go to: GitHub → Actions → "Build and Push Docker Image"
+# 3. tag-release.yml auto-creates the version tag
+#    docker-publish.yml builds, publishes, and notifies
 
 # 4. Verify on Docker Hub
 # Check: https://hub.docker.com/r/USERNAME/initiative/tags
