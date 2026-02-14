@@ -166,7 +166,9 @@ const TaskDragOverlay = ({
         {task.assignees.length > 0 ? (
           <TaskAssigneeList assignees={task.assignees} className="text-xs" />
         ) : null}
-        {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+        {task.due_date ? (
+          <p>{t("kanban.due", { date: new Date(task.due_date).toLocaleString() })}</p>
+        ) : null}
       </div>
       <TaskChecklistProgress progress={task.subtask_progress} />
       <Badge variant={priorityVariant[task.priority]}>

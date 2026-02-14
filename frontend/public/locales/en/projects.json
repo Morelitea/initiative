@@ -476,7 +476,8 @@
   },
 
   "kanban": {
-    "priority": "Priority: {{priority}}"
+    "priority": "Priority: {{priority}}",
+    "due": "Due: {{date}}"
   },
 
   "recurrence": {
