@@ -1,0 +1,8 @@
+# Global owner — reviews required on all PRs
+* @jordandrako
+
+# Backend and database
+/backend/ @leejmorel
+
+# GitHub Actions and CI/CD
+/.github/ @leejmorel
