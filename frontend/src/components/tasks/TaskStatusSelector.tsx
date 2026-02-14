@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
@@ -29,6 +30,7 @@ export const TaskStatusSelector = ({
   fetchProjectStatuses,
   projectStatusCache,
 }: TaskStatusSelectorProps) => {
+  const { t } = useTranslation("tasks");
   const [statuses, setStatuses] = useState<ProjectTaskStatus[]>(() => {
     const cached = projectStatusCache.current.get(task.project_id);
     return cached?.statuses ?? [task.task_status];
@@ -70,7 +72,7 @@ export const TaskStatusSelector = ({
       onValueChange={(value) => {
         const targetId = Number(value);
         if (Number.isNaN(targetId)) {
-          toast.error("Invalid status selected.");
+          toast.error(t("statusSelector.invalidStatus"));
           return;
         }
         void changeTaskStatusById(task, targetId);

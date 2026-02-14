@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import {
@@ -53,12 +54,6 @@ import { useSetProjectTags } from "@/hooks/useTags";
 
 const INITIATIVES_QUERY_KEY = ["initiatives"];
 
-const PERMISSION_LABELS: Record<ProjectPermissionLevel, string> = {
-  owner: "Owner",
-  write: "Can edit",
-  read: "Can view",
-};
-
 interface PermissionRow {
   userId: number;
   displayName: string;
@@ -73,6 +68,7 @@ export const ProjectSettingsPage = () => {
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
+  const { t } = useTranslation("projects");
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<string>("");
   const [initiativeMessage, setInitiativeMessage] = useState<string | null>(null);
   const [nameText, setNameText] = useState<string>("");
@@ -142,7 +138,7 @@ export const ProjectSettingsPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      setInitiativeMessage("Project initiative updated");
+      setInitiativeMessage(t("settings.initiative.updated"));
       setSelectedInitiativeId(String(data.initiative_id));
       void queryClient.invalidateQueries({
         queryKey: ["project", parsedProjectId],
@@ -164,7 +160,7 @@ export const ProjectSettingsPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      setIdentityMessage("Project details updated");
+      setIdentityMessage(t("settings.details.detailsUpdated"));
       setNameText(data.name);
       setIconText(data.icon ?? "");
       void queryClient.invalidateQueries({
@@ -215,7 +211,7 @@ export const ProjectSettingsPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      setDescriptionMessage("Description updated");
+      setDescriptionMessage(t("settings.details.descriptionUpdated"));
       setDescriptionText(data.description ?? "");
       void queryClient.invalidateQueries({
         queryKey: ["project", parsedProjectId],
@@ -234,7 +230,7 @@ export const ProjectSettingsPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      setDuplicateMessage("Project duplicated");
+      setDuplicateMessage(t("settings.duplicate.duplicated"));
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({ queryKey: ["project", data.id] });
       void queryClient.invalidateQueries({
@@ -253,7 +249,9 @@ export const ProjectSettingsPage = () => {
     },
     onSuccess: (data, nextStatus) => {
       setTemplateMessage(
-        nextStatus ? "Project marked as template" : "Project removed from templates"
+        nextStatus
+          ? t("settings.templateStatus.markedAsTemplate")
+          : t("settings.templateStatus.removedFromTemplates")
       );
       void queryClient.invalidateQueries({
         queryKey: ["project", parsedProjectId],
@@ -286,7 +284,7 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access granted");
+      setAccessMessage(t("settings.access.granted"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
@@ -294,7 +292,7 @@ export const ProjectSettingsPage = () => {
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to grant access");
+      setAccessError(t("settings.access.grantError"));
     },
   });
 
@@ -305,13 +303,13 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access updated");
+      setAccessMessage(t("settings.access.updated"));
       setAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to update access");
+      setAccessError(t("settings.access.updateError"));
     },
   });
 
@@ -320,13 +318,13 @@ export const ProjectSettingsPage = () => {
       await apiClient.delete(`/projects/${parsedProjectId}/members/${userId}`);
     },
     onSuccess: () => {
-      setAccessMessage("Access removed");
+      setAccessMessage(t("settings.access.removed"));
       setAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to remove access");
+      setAccessError(t("settings.access.removeError"));
     },
   });
 
@@ -339,7 +337,7 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access granted to all members");
+      setAccessMessage(t("settings.access.grantedAll"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
@@ -347,7 +345,7 @@ export const ProjectSettingsPage = () => {
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to grant access to all members");
+      setAccessError(t("settings.access.grantAllError"));
     },
   });
 
@@ -365,14 +363,14 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access updated for selected members");
+      setAccessMessage(t("settings.access.bulkUpdated"));
       setAccessError(null);
       setSelectedMembers([]);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to update access for selected members");
+      setAccessError(t("settings.access.bulkUpdateError"));
     },
   });
 
@@ -383,14 +381,14 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setAccessMessage("Access removed for selected members");
+      setAccessMessage(t("settings.access.bulkRemoved"));
       setAccessError(null);
       setSelectedMembers([]);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
     },
     onError: () => {
       setAccessMessage(null);
-      setAccessError("Unable to remove access for selected members");
+      setAccessError(t("settings.access.bulkRemoveError"));
     },
   });
 
@@ -406,7 +404,7 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setRoleAccessMessage("Role access granted");
+      setRoleAccessMessage(t("settings.roleAccess.granted"));
       setRoleAccessError(null);
       setSelectedNewRoleId("");
       setSelectedNewRoleLevel("read");
@@ -415,7 +413,7 @@ export const ProjectSettingsPage = () => {
     },
     onError: () => {
       setRoleAccessMessage(null);
-      setRoleAccessError("Unable to grant role access");
+      setRoleAccessError(t("settings.roleAccess.grantError"));
     },
   });
 
@@ -426,14 +424,14 @@ export const ProjectSettingsPage = () => {
       });
     },
     onSuccess: () => {
-      setRoleAccessMessage("Role access updated");
+      setRoleAccessMessage(t("settings.roleAccess.updated"));
       setRoleAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
     onError: () => {
       setRoleAccessMessage(null);
-      setRoleAccessError("Unable to update role access");
+      setRoleAccessError(t("settings.roleAccess.updateError"));
     },
   });
 
@@ -442,14 +440,14 @@ export const ProjectSettingsPage = () => {
       await apiClient.delete(`/projects/${parsedProjectId}/role-permissions/${roleId}`);
     },
     onSuccess: () => {
-      setRoleAccessMessage("Role access removed");
+      setRoleAccessMessage(t("settings.roleAccess.removed"));
       setRoleAccessError(null);
       void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
     onError: () => {
       setRoleAccessMessage(null);
-      setRoleAccessError("Unable to remove role access");
+      setRoleAccessError(t("settings.roleAccess.removeError"));
     },
   });
 
@@ -467,12 +465,12 @@ export const ProjectSettingsPage = () => {
     () => [
       {
         accessorKey: "role_display_name",
-        header: "Role Name",
+        header: t("settings.roleAccess.roleNameColumn"),
         cell: ({ row }) => <span className="font-medium">{row.original.role_display_name}</span>,
       },
       {
         accessorKey: "level",
-        header: "Access Level",
+        header: t("settings.roleAccess.accessLevelColumn"),
         cell: ({ row }) => (
           <Select
             value={row.original.level}
@@ -490,15 +488,15 @@ export const ProjectSettingsPage = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="read">Can view</SelectItem>
-              <SelectItem value="write">Can edit</SelectItem>
+              <SelectItem value="read">{t("settings.roleAccess.canView")}</SelectItem>
+              <SelectItem value="write">{t("settings.roleAccess.canEdit")}</SelectItem>
             </SelectContent>
           </Select>
         ),
       },
       {
         id: "actions",
-        header: () => <div className="text-right">Actions</div>,
+        header: () => <div className="text-right">{t("settings.roleAccess.actionsColumn")}</div>,
         cell: ({ row }) => (
           <div className="text-right">
             <Button
@@ -513,13 +511,13 @@ export const ProjectSettingsPage = () => {
               }}
               disabled={removeRolePermission.isPending}
             >
-              Remove
+              {t("settings.roleAccess.remove")}
             </Button>
           </div>
         ),
       },
     ],
-    [updateRolePermission, removeRolePermission]
+    [updateRolePermission, removeRolePermission, t]
   );
 
   const initiativeMembers = useMemo(
@@ -558,20 +556,22 @@ export const ProjectSettingsPage = () => {
     () => [
       {
         accessorKey: "displayName",
-        header: "Name",
+        header: t("settings.access.nameColumn"),
         cell: ({ row }) => <span className="font-medium">{row.original.displayName}</span>,
       },
       {
         accessorKey: "email",
-        header: "Email",
+        header: t("settings.access.emailColumn"),
         cell: ({ row }) => <span className="text-muted-foreground">{row.original.email}</span>,
       },
       {
         accessorKey: "level",
-        header: "Access",
+        header: t("settings.access.accessColumn"),
         cell: ({ row }) => {
           if (row.original.isOwner) {
-            return <span className="text-muted-foreground">Owner</span>;
+            return (
+              <span className="text-muted-foreground">{t("settings.access.permissionOwner")}</span>
+            );
           }
           return (
             <Select
@@ -590,8 +590,8 @@ export const ProjectSettingsPage = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                <SelectItem value="read">{t("settings.access.permissionRead")}</SelectItem>
+                <SelectItem value="write">{t("settings.access.permissionWrite")}</SelectItem>
               </SelectContent>
             </Select>
           );
@@ -599,7 +599,7 @@ export const ProjectSettingsPage = () => {
       },
       {
         id: "actions",
-        header: () => <div className="text-right">Actions</div>,
+        header: () => <div className="text-right">{t("settings.access.actionsColumn")}</div>,
         cell: ({ row }) => {
           if (row.original.isOwner) {
             return <div className="text-muted-foreground text-right text-xs">-</div>;
@@ -618,14 +618,14 @@ export const ProjectSettingsPage = () => {
                 }}
                 disabled={removeMember.isPending}
               >
-                Remove
+                {t("settings.access.remove")}
               </Button>
             </div>
           );
         },
       },
     ],
-    [updateMemberLevel, removeMember]
+    [updateMemberLevel, removeMember, t]
   );
 
   // Initiative members who don't have permissions yet
@@ -646,15 +646,15 @@ export const ProjectSettingsPage = () => {
   const initiativesLoading = user?.role === "admin" ? initiativesQuery.isLoading : false;
 
   if (projectQuery.isLoading || initiativesLoading) {
-    return <p className="text-muted-foreground text-sm">Loading project settings...</p>;
+    return <p className="text-muted-foreground text-sm">{t("settings.loading")}</p>;
   }
 
   if (projectQuery.isError || !project) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">Unable to load project.</p>
+        <p className="text-destructive">{t("settings.loadError")}</p>
         <Button asChild variant="link" className="px-0">
-          <Link to={gp("/projects")}>Back to projects</Link>
+          <Link to={gp("/projects")}>{t("settings.backToProjects")}</Link>
         </Button>
       </div>
     );
@@ -673,17 +673,19 @@ export const ProjectSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button asChild variant="link" className="px-0">
-          <Link to={gp(`/projects/${project.id}`)}>Back to project</Link>
+          <Link to={gp(`/projects/${project.id}`)}>{t("settings.backToProject")}</Link>
         </Button>
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Project settings</CardTitle>
-            <CardDescription>You do not have permission to manage this project.</CardDescription>
+            <CardTitle>{t("settings.title")}</CardTitle>
+            <CardDescription>{t("settings.noPermission")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
     );
   }
+
+  const projectDisplayName = project.icon ? `${project.icon} ${project.name}` : project.name;
 
   return (
     <div className="space-y-6">
@@ -708,41 +710,40 @@ export const ProjectSettingsPage = () => {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Settings</BreadcrumbPage>
+            <BreadcrumbPage>{t("settings.breadcrumbSettings")}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Project settings</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("settings.title")}</h1>
         <p className="text-muted-foreground">
-          Configure access, ownership, and archival status for{" "}
-          {project.icon ? `${project.icon} ${project.name}` : project.name}.
+          {t("settings.description", { name: projectDisplayName })}
         </p>
       </div>
 
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList className="w-full max-w-xl justify-start">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          {canManageAccess ? <TabsTrigger value="access">Access</TabsTrigger> : null}
-          <TabsTrigger value="task-statuses">Task statuses</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="details">{t("settings.tabDetails")}</TabsTrigger>
+          {canManageAccess ? (
+            <TabsTrigger value="access">{t("settings.tabAccess")}</TabsTrigger>
+          ) : null}
+          <TabsTrigger value="task-statuses">{t("settings.tabTaskStatuses")}</TabsTrigger>
+          <TabsTrigger value="advanced">{t("settings.tabAdvanced")}</TabsTrigger>
         </TabsList>
 
         {/* ── Details tab ── */}
         <TabsContent value="details" className="space-y-6">
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Project details</CardTitle>
-              <CardDescription>
-                Update the icon, name, and description shown across the workspace.
-              </CardDescription>
+              <CardTitle>{t("settings.details.title")}</CardTitle>
+              <CardDescription>{t("settings.details.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <h3 className="text-base font-medium">Identity</h3>
+                  <h3 className="text-base font-medium">{t("settings.details.identityHeading")}</h3>
                   <p className="text-muted-foreground text-sm">
-                    Give the project a recognizable name and emoji.
+                    {t("settings.details.identityDescription")}
                   </p>
                 </div>
                 {canWriteProject ? (
@@ -756,42 +757,46 @@ export const ProjectSettingsPage = () => {
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-start">
                       <div className="w-full space-y-2 md:max-w-xs">
-                        <Label htmlFor="project-icon">Icon</Label>
+                        <Label htmlFor="project-icon">{t("settings.details.iconLabel")}</Label>
                         <EmojiPicker
                           id="project-icon"
                           value={iconText || undefined}
                           onChange={(emoji) => setIconText(emoji ?? "")}
                         />
                         <p className="text-muted-foreground text-sm">
-                          Pick an emoji to make this project easy to spot.
+                          {t("settings.details.iconHint")}
                         </p>
                       </div>
                       <div className="w-full flex-1 space-y-2">
-                        <Label htmlFor="project-name">Name</Label>
+                        <Label htmlFor="project-name">{t("settings.details.nameLabel")}</Label>
                         <Input
                           id="project-name"
                           value={nameText}
                           onChange={(event) => setNameText(event.target.value)}
-                          placeholder="Product roadmap"
+                          placeholder={t("settings.details.namePlaceholder")}
                           required
                         />
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
                       <Button type="submit" disabled={updateIdentity.isPending}>
-                        {updateIdentity.isPending ? "Saving..." : "Save project details"}
+                        {updateIdentity.isPending
+                          ? t("settings.details.saving")
+                          : t("settings.details.saveDetails")}
                       </Button>
                       {identityMessage ? (
                         <p className="text-primary text-sm">{identityMessage}</p>
                       ) : null}
                       {updateIdentity.isError ? (
-                        <p className="text-destructive text-sm">Unable to update project.</p>
+                        <p className="text-destructive text-sm">
+                          {t("settings.details.updateError")}
+                        </p>
                       ) : null}
                     </div>
                   </form>
                 ) : (
                   <p className="text-muted-foreground text-sm">
-                    You need write access to change the project name or icon.
+                    {t("settings.details.noWriteAccessIdentity")}
                   </p>
                 )}
               </div>
@@ -800,9 +805,11 @@ export const ProjectSettingsPage = () => {
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <h3 className="text-base font-medium">Description</h3>
+                  <h3 className="text-base font-medium">
+                    {t("settings.details.descriptionHeading")}
+                  </h3>
                   <p className="text-muted-foreground text-sm">
-                    Share context to help collaborators understand the work.
+                    {t("settings.details.descriptionDescription")}
                   </p>
                 </div>
                 {canWriteProject ? (
@@ -817,11 +824,13 @@ export const ProjectSettingsPage = () => {
                       rows={4}
                       value={descriptionText}
                       onChange={(event) => setDescriptionText(event.target.value)}
-                      placeholder="What are we trying to accomplish?"
+                      placeholder={t("settings.details.descriptionPlaceholder")}
                     />
                     <div className="flex flex-col gap-2">
                       <Button type="submit" disabled={updateDescription.isPending}>
-                        {updateDescription.isPending ? "Saving..." : "Save description"}
+                        {updateDescription.isPending
+                          ? t("settings.details.saving")
+                          : t("settings.details.saveDescription")}
                       </Button>
                       {descriptionMessage ? (
                         <p className="text-primary text-sm">{descriptionMessage}</p>
@@ -830,7 +839,7 @@ export const ProjectSettingsPage = () => {
                   </form>
                 ) : (
                   <p className="text-muted-foreground text-sm">
-                    You need write access to edit the description.
+                    {t("settings.details.noWriteAccessDescription")}
                   </p>
                 )}
               </div>
@@ -839,9 +848,9 @@ export const ProjectSettingsPage = () => {
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <h3 className="text-base font-medium">Tags</h3>
+                  <h3 className="text-base font-medium">{t("settings.details.tagsHeading")}</h3>
                   <p className="text-muted-foreground text-sm">
-                    Add tags to organize and filter projects.
+                    {t("settings.details.tagsDescription")}
                   </p>
                 </div>
                 {canWriteProject ? (
@@ -851,13 +860,13 @@ export const ProjectSettingsPage = () => {
                       setProjectTags(newTags);
                       setProjectTagsMutation.mutate({
                         projectId: parsedProjectId,
-                        tagIds: newTags.map((t) => t.id),
+                        tagIds: newTags.map((tag) => tag.id),
                       });
                     }}
                   />
                 ) : (
                   <p className="text-muted-foreground text-sm">
-                    You need write access to manage tags.
+                    {t("settings.details.noWriteAccessTags")}
                   </p>
                 )}
               </div>
@@ -867,12 +876,12 @@ export const ProjectSettingsPage = () => {
           {user?.role === "admin" ? (
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Initiative ownership</CardTitle>
-                <CardDescription>Select which initiative owns this project.</CardDescription>
+                <CardTitle>{t("settings.initiative.title")}</CardTitle>
+                <CardDescription>{t("settings.initiative.description")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {initiativesQuery.isError ? (
-                  <p className="text-destructive text-sm">Unable to load initiatives.</p>
+                  <p className="text-destructive text-sm">{t("settings.initiative.loadError")}</p>
                 ) : (
                   <form
                     className="flex flex-wrap items-end gap-3"
@@ -882,10 +891,12 @@ export const ProjectSettingsPage = () => {
                     }}
                   >
                     <div className="min-w-[220px] flex-1">
-                      <Label htmlFor="project-initiative">Owning initiative</Label>
+                      <Label htmlFor="project-initiative">
+                        {t("settings.initiative.owningInitiative")}
+                      </Label>
                       <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
                         <SelectTrigger id="project-initiative" className="mt-2">
-                          <SelectValue placeholder="Select initiative" />
+                          <SelectValue placeholder={t("settings.initiative.selectInitiative")} />
                         </SelectTrigger>
                         <SelectContent>
                           {initiativesQuery.data?.map((initiative) => (
@@ -898,7 +909,9 @@ export const ProjectSettingsPage = () => {
                     </div>
                     <div className="flex flex-col gap-2">
                       <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
-                        {updateInitiativeOwnership.isPending ? "Saving..." : "Save initiative"}
+                        {updateInitiativeOwnership.isPending
+                          ? t("settings.initiative.saving")
+                          : t("settings.initiative.saveInitiative")}
                       </Button>
                       {initiativeMessage ? (
                         <p className="text-primary text-sm">{initiativeMessage}</p>
@@ -916,10 +929,8 @@ export const ProjectSettingsPage = () => {
           <TabsContent value="access" className="space-y-6">
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Role access</CardTitle>
-                <CardDescription>
-                  Grant access to all members with a specific initiative role.
-                </CardDescription>
+                <CardTitle>{t("settings.roleAccess.title")}</CardTitle>
+                <CardDescription>{t("settings.roleAccess.description")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {(project.role_permissions ?? []).length > 0 ? (
@@ -930,17 +941,19 @@ export const ProjectSettingsPage = () => {
                   />
                 ) : (
                   <p className="text-muted-foreground text-sm">
-                    No roles have been granted access to this project yet.
+                    {t("settings.roleAccess.noRoles")}
                   </p>
                 )}
 
                 <div className="space-y-2 pt-2">
-                  <Label>Add role</Label>
+                  <Label>{t("settings.roleAccess.addRole")}</Label>
                   {initiativeRolesQuery.isLoading ? (
-                    <p className="text-muted-foreground text-sm">Loading roles...</p>
+                    <p className="text-muted-foreground text-sm">
+                      {t("settings.roleAccess.loadingRoles")}
+                    </p>
                   ) : availableRoles.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      All initiative roles already have access to this project.
+                      {t("settings.roleAccess.allRolesAssigned")}
                     </p>
                   ) : (
                     <form
@@ -948,7 +961,7 @@ export const ProjectSettingsPage = () => {
                       onSubmit={(event) => {
                         event.preventDefault();
                         if (!selectedNewRoleId) {
-                          setRoleAccessError("Select a role");
+                          setRoleAccessError(t("settings.roleAccess.selectRoleError"));
                           return;
                         }
                         setRoleAccessError(null);
@@ -960,7 +973,7 @@ export const ProjectSettingsPage = () => {
                     >
                       <Select value={selectedNewRoleId} onValueChange={setSelectedNewRoleId}>
                         <SelectTrigger className="min-w-[200px]">
-                          <SelectValue placeholder="Select role" />
+                          <SelectValue placeholder={t("settings.roleAccess.selectRole")} />
                         </SelectTrigger>
                         <SelectContent>
                           {availableRoles.map((role) => (
@@ -980,12 +993,14 @@ export const ProjectSettingsPage = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="read">Can view</SelectItem>
-                          <SelectItem value="write">Can edit</SelectItem>
+                          <SelectItem value="read">{t("settings.roleAccess.canView")}</SelectItem>
+                          <SelectItem value="write">{t("settings.roleAccess.canEdit")}</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button type="submit" disabled={addRolePermission.isPending}>
-                        {addRolePermission.isPending ? "Adding..." : "Add"}
+                        {addRolePermission.isPending
+                          ? t("settings.roleAccess.adding")
+                          : t("settings.roleAccess.add")}
                       </Button>
                     </form>
                   )}
@@ -1001,14 +1016,16 @@ export const ProjectSettingsPage = () => {
 
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>Individual access</CardTitle>
-                <CardDescription>Control who can view and edit this project.</CardDescription>
+                <CardTitle>{t("settings.access.title")}</CardTitle>
+                <CardDescription>{t("settings.access.description")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Bulk action bar */}
                 {selectedMembers.length > 0 && (
                   <div className="bg-muted flex items-center gap-3 rounded-md p-3">
-                    <span className="text-sm font-medium">{selectedMembers.length} selected</span>
+                    <span className="text-sm font-medium">
+                      {t("settings.access.selected", { count: selectedMembers.length })}
+                    </span>
                     <Select
                       onValueChange={(level) => {
                         const userIds = selectedMembers
@@ -1024,11 +1041,13 @@ export const ProjectSettingsPage = () => {
                       disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
                     >
                       <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Change access..." />
+                        <SelectValue placeholder={t("settings.access.changeAccess")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                        <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                        <SelectItem value="read">{t("settings.access.permissionRead")}</SelectItem>
+                        <SelectItem value="write">
+                          {t("settings.access.permissionWrite")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
@@ -1045,7 +1064,9 @@ export const ProjectSettingsPage = () => {
                       }}
                       disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
                     >
-                      {bulkRemoveMembers.isPending ? "Removing..." : "Remove"}
+                      {bulkRemoveMembers.isPending
+                        ? t("settings.access.removing")
+                        : t("settings.access.remove")}
                     </Button>
                   </div>
                 )}
@@ -1057,7 +1078,7 @@ export const ProjectSettingsPage = () => {
                   enablePagination
                   enableFilterInput
                   filterInputColumnKey="displayName"
-                  filterInputPlaceholder="Filter by name"
+                  filterInputPlaceholder={t("settings.access.filterByName")}
                   enableRowSelection
                   onRowSelectionChange={setSelectedMembers}
                   onExitSelection={() => setSelectedMembers([])}
@@ -1066,10 +1087,10 @@ export const ProjectSettingsPage = () => {
 
                 {/* Add member form */}
                 <div className="space-y-2 pt-2">
-                  <Label>Grant access</Label>
+                  <Label>{t("settings.access.grantAccess")}</Label>
                   {availableMembers.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
-                      All initiative members already have access to this project.
+                      {t("settings.access.allMembersHaveAccess")}
                     </p>
                   ) : (
                     <form
@@ -1077,7 +1098,7 @@ export const ProjectSettingsPage = () => {
                       onSubmit={(event) => {
                         event.preventDefault();
                         if (!selectedNewUserId) {
-                          setAccessError("Select a member");
+                          setAccessError(t("settings.access.selectMemberError"));
                           return;
                         }
                         setAccessError(null);
@@ -1094,8 +1115,8 @@ export const ProjectSettingsPage = () => {
                         }))}
                         value={selectedNewUserId}
                         onValueChange={setSelectedNewUserId}
-                        placeholder="Select member"
-                        emptyMessage="No members found"
+                        placeholder={t("settings.access.selectMember")}
+                        emptyMessage={t("settings.access.noMembersFound")}
                         className="min-w-[200px]"
                       />
                       <Select
@@ -1108,15 +1129,21 @@ export const ProjectSettingsPage = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="read">{PERMISSION_LABELS.read}</SelectItem>
-                          <SelectItem value="write">{PERMISSION_LABELS.write}</SelectItem>
+                          <SelectItem value="read">
+                            {t("settings.access.permissionRead")}
+                          </SelectItem>
+                          <SelectItem value="write">
+                            {t("settings.access.permissionWrite")}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <Button
                         type="submit"
                         disabled={addMember.isPending || addAllMembers.isPending}
                       >
-                        {addMember.isPending ? "Adding..." : "Add"}
+                        {addMember.isPending
+                          ? t("settings.access.adding")
+                          : t("settings.access.add")}
                       </Button>
                       <Button
                         type="button"
@@ -1125,8 +1152,8 @@ export const ProjectSettingsPage = () => {
                         disabled={addMember.isPending || addAllMembers.isPending}
                       >
                         {addAllMembers.isPending
-                          ? "Adding all..."
-                          : `Add all (${availableMembers.length})`}
+                          ? t("settings.access.addingAll")
+                          : t("settings.access.addAll", { count: availableMembers.length })}
                       </Button>
                     </form>
                   )}
@@ -1150,17 +1177,14 @@ export const ProjectSettingsPage = () => {
         <TabsContent value="advanced" className="space-y-6">
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Template status</CardTitle>
-              <CardDescription>
-                Convert this project into a reusable template or revert it back to a standard
-                project.
-              </CardDescription>
+              <CardTitle>{t("settings.templateStatus.title")}</CardTitle>
+              <CardDescription>{t("settings.templateStatus.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-muted-foreground text-sm">
                 {project.is_template
-                  ? "This project is currently a template and appears on the Templates page."
-                  : "This project behaves like a standard project."}
+                  ? t("settings.templateStatus.isTemplate")
+                  : t("settings.templateStatus.isStandard")}
               </p>
               {templateMessage ? <p className="text-primary text-sm">{templateMessage}</p> : null}
             </CardContent>
@@ -1175,16 +1199,18 @@ export const ProjectSettingsPage = () => {
                   }}
                   disabled={toggleTemplateStatus.isPending}
                 >
-                  {project.is_template ? "Convert to standard project" : "Mark as template"}
+                  {project.is_template
+                    ? t("settings.templateStatus.convertToStandard")
+                    : t("settings.templateStatus.markAsTemplate")}
                 </Button>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  You need write access to change template status.
+                  {t("settings.templateStatus.noWriteAccess")}
                 </p>
               )}
               {project.is_template ? (
                 <Button asChild variant="link" className="px-0">
-                  <Link to={gp("/projects")}>View all templates</Link>
+                  <Link to={gp("/projects")}>{t("settings.templateStatus.viewAllTemplates")}</Link>
                 </Button>
               ) : null}
             </CardFooter>
@@ -1192,10 +1218,8 @@ export const ProjectSettingsPage = () => {
 
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Duplicate project</CardTitle>
-              <CardDescription>
-                Clone this project, including its initiative and tasks, to jumpstart new work.
-              </CardDescription>
+              <CardTitle>{t("settings.duplicate.title")}</CardTitle>
+              <CardDescription>{t("settings.duplicate.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               {duplicateMessage ? <p className="text-primary text-sm">{duplicateMessage}</p> : null}
@@ -1206,7 +1230,7 @@ export const ProjectSettingsPage = () => {
                   type="button"
                   onClick={() => {
                     const defaultName = `${project.name} copy`;
-                    const newName = window.prompt("Name for duplicated project", defaultName);
+                    const newName = window.prompt(t("settings.duplicate.promptName"), defaultName);
                     if (newName === null) {
                       return;
                     }
@@ -1215,11 +1239,13 @@ export const ProjectSettingsPage = () => {
                   }}
                   disabled={duplicateProject.isPending}
                 >
-                  {duplicateProject.isPending ? "Duplicating..." : "Duplicate project"}
+                  {duplicateProject.isPending
+                    ? t("settings.duplicate.duplicating")
+                    : t("settings.duplicate.duplicateButton")}
                 </Button>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  You need write access to duplicate this project.
+                  {t("settings.duplicate.noWriteAccess")}
                 </p>
               )}
             </CardFooter>
@@ -1227,9 +1253,11 @@ export const ProjectSettingsPage = () => {
 
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle>Archive status</CardTitle>
+              <CardTitle>{t("settings.archiveStatus.title")}</CardTitle>
               <CardDescription>
-                {project.is_archived ? "This project is archived." : "This project is active."}
+                {project.is_archived
+                  ? t("settings.archiveStatus.isArchived")
+                  : t("settings.archiveStatus.isActive")}
               </CardDescription>
             </CardHeader>
             <CardFooter>
@@ -1242,11 +1270,13 @@ export const ProjectSettingsPage = () => {
                   }
                   disabled={archiveProject.isPending || unarchiveProject.isPending}
                 >
-                  {project.is_archived ? "Unarchive project" : "Archive project"}
+                  {project.is_archived
+                    ? t("settings.archiveStatus.unarchive")
+                    : t("settings.archiveStatus.archive")}
                 </Button>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  You need write access to change archive status.
+                  {t("settings.archiveStatus.noWriteAccess")}
                 </p>
               )}
             </CardFooter>
@@ -1255,9 +1285,9 @@ export const ProjectSettingsPage = () => {
           {isOwner ? (
             <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-destructive">Danger zone</CardTitle>
+                <CardTitle className="text-destructive">{t("settings.danger.title")}</CardTitle>
                 <CardDescription className="text-destructive">
-                  Deleting a project removes all of its tasks permanently.
+                  {t("settings.danger.description")}
                 </CardDescription>
               </CardHeader>
               <CardFooter>
@@ -1267,7 +1297,7 @@ export const ProjectSettingsPage = () => {
                   onClick={() => setShowDeleteConfirm(true)}
                   disabled={deleteProject.isPending}
                 >
-                  Delete project
+                  {t("settings.danger.deleteButton")}
                 </Button>
               </CardFooter>
             </Card>
@@ -1278,9 +1308,9 @@ export const ProjectSettingsPage = () => {
       <ConfirmDialog
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
-        title="Delete project?"
-        description="This will permanently delete the project and all of its tasks. This cannot be undone."
-        confirmLabel="Delete"
+        title={t("settings.danger.deleteTitle")}
+        description={t("settings.danger.deleteDescription")}
+        confirmLabel={t("settings.danger.deleteConfirm")}
         onConfirm={() => {
           deleteProject.mutate();
           setShowDeleteConfirm(false);

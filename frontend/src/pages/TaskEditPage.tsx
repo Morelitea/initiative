@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { isAxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -92,6 +93,7 @@ export const TaskEditPage = () => {
   const router = useRouter();
   useAuth();
   const { activeGuild } = useGuilds();
+  const { t } = useTranslation("tasks");
   const gp = useGuildPath();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -185,7 +187,7 @@ export const TaskEditPage = () => {
   const updateTask = useMutation({
     mutationFn: async () => {
       if (!Number.isFinite(statusId)) {
-        throw new Error("Task status is required");
+        throw new Error(t("edit.taskStatusRequired"));
       }
       const payload: Record<string, unknown> = {
         title,
@@ -212,7 +214,7 @@ export const TaskEditPage = () => {
       setDueDate(toLocalInputValue(updatedTask.due_date));
       setRecurrence(updatedTask.recurrence ?? null);
       setRecurrenceStrategy(updatedTask.recurrence_strategy ?? "fixed");
-      toast.success("Task updated");
+      toast.success(t("edit.taskUpdated"));
     },
   });
 
@@ -222,7 +224,7 @@ export const TaskEditPage = () => {
       return response.data;
     },
     onSuccess: (newTask) => {
-      toast.success("Task duplicated");
+      toast.success(t("edit.taskDuplicated"));
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
       router.navigate({ to: gp(`/tasks/${newTask.id}`) });
@@ -234,7 +236,7 @@ export const TaskEditPage = () => {
       await apiClient.delete(`/tasks/${parsedTaskId}`);
     },
     onSuccess: () => {
-      toast.success("Task deleted");
+      toast.success(t("edit.taskDeleted"));
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
       router.navigate({ to: gp(`/projects/${projectId}`) });
@@ -272,12 +274,16 @@ export const TaskEditPage = () => {
       }
       void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
       setIsMoveDialogOpen(false);
-      toast.success(`Task moved to ${variables?.targetProjectName ?? "the selected project"}.`);
+      toast.success(
+        t("edit.moveSuccess", {
+          projectName: variables?.targetProjectName ?? "the selected project",
+        })
+      );
     },
     onError: (error) => {
       const message = isAxiosError(error)
-        ? (error.response?.data?.detail ?? "Unable to move task")
-        : "Unable to move task";
+        ? (error.response?.data?.detail ?? t("edit.moveError"))
+        : t("edit.moveError");
       toast.error(message);
     },
   });
@@ -291,14 +297,14 @@ export const TaskEditPage = () => {
     },
     onSuccess: (updatedTask) => {
       queryClient.setQueryData<Task>(["task", parsedTaskId], updatedTask);
-      toast.success(updatedTask.is_archived ? "Task archived" : "Task unarchived");
+      toast.success(updatedTask.is_archived ? t("edit.taskArchived") : t("edit.taskUnarchived"));
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
     },
     onError: (error) => {
       const message = isAxiosError(error)
-        ? (error.response?.data?.detail ?? "Unable to update task")
-        : "Unable to update task";
+        ? (error.response?.data?.detail ?? t("edit.archiveError"))
+        : t("edit.archiveError");
       toast.error(message);
     },
   });
@@ -313,12 +319,12 @@ export const TaskEditPage = () => {
     onSuccess: (data) => {
       setDescription(data.description);
       setIsEditingDescription(true);
-      toast.success("Description generated");
+      toast.success(t("edit.descriptionGenerated"));
     },
     onError: (error) => {
       const message = isAxiosError(error)
-        ? (error.response?.data?.detail ?? "Unable to generate description")
-        : "Unable to generate description";
+        ? (error.response?.data?.detail ?? t("edit.generateDescriptionError"))
+        : t("edit.generateDescriptionError");
       toast.error(message);
     },
   });
@@ -393,9 +399,9 @@ export const TaskEditPage = () => {
   const projectIsArchived = project?.is_archived ?? false;
   const isReadOnly = !canWriteProject || projectIsArchived;
   const readOnlyMessage = !canWriteProject
-    ? "You only have read access to this project, so task fields are disabled."
+    ? t("edit.readOnlyNoAccess")
     : projectIsArchived
-      ? "This project is archived. Unarchive it from project settings to edit tasks."
+      ? t("edit.readOnlyArchived")
       : null;
   // Pure DAC: comment moderation requires write permission on project
   const canModerateComments = hasWritePermission;
@@ -462,24 +468,24 @@ export const TaskEditPage = () => {
   if (!Number.isFinite(parsedTaskId)) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">Invalid task id.</p>
+        <p className="text-destructive">{t("edit.invalidTaskId")}</p>
         <Button variant="link" className="px-0" onClick={handleBackClick}>
-          ← Back
+          {t("edit.back")}
         </Button>
       </div>
     );
   }
 
   if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading task…</p>;
+    return <p className="text-muted-foreground text-sm">{t("edit.loadingTask")}</p>;
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">Unable to load task.</p>
+        <p className="text-destructive">{t("edit.loadError")}</p>
         <Button variant="link" className="px-0" onClick={handleBackClick}>
-          ← Back
+          {t("edit.back")}
         </Button>
       </div>
     );
@@ -488,9 +494,9 @@ export const TaskEditPage = () => {
   if (Number.isFinite(projectId) && projectQuery.isError) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">Unable to load project context for this task.</p>
+        <p className="text-destructive">{t("edit.loadProjectError")}</p>
         <Button variant="link" className="px-0" onClick={handleBackClick}>
-          ← Back
+          {t("edit.back")}
         </Button>
       </div>
     );
@@ -534,16 +540,16 @@ export const TaskEditPage = () => {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">{title || task?.title}</h1>
-          <Badge variant="secondary">{currentStatus?.name ?? "Status"}</Badge>
+          <Badge variant="secondary">{currentStatus?.name ?? t("edit.statusBadge")}</Badge>
         </div>
-        <p className="text-muted-foreground text-sm">Edit every detail of this task.</p>
+        <p className="text-muted-foreground text-sm">{t("edit.subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-6">
         <Card className="flex-1 shadow-sm sm:min-w-100">
           <CardHeader>
-            <CardTitle>Task details</CardTitle>
-            <CardDescription>Update the fields below and save your changes.</CardDescription>
+            <CardTitle>{t("edit.detailsTitle")}</CardTitle>
+            <CardDescription>{t("edit.detailsDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             {isReadOnly && readOnlyMessage ? (
@@ -553,12 +559,12 @@ export const TaskEditPage = () => {
             ) : null}
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <Label htmlFor="task-title">Title</Label>
+                <Label htmlFor="task-title">{t("edit.titleLabel")}</Label>
                 <Input
                   id="task-title"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Task title"
+                  placeholder={t("edit.titlePlaceholder")}
                   required
                   disabled={isReadOnly}
                 />
@@ -566,7 +572,7 @@ export const TaskEditPage = () => {
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="task-description">Description</Label>
+                  <Label htmlFor="task-description">{t("edit.descriptionLabel")}</Label>
                   {!isReadOnly ? (
                     <Button
                       type="button"
@@ -575,7 +581,7 @@ export const TaskEditPage = () => {
                       className="h-8 px-2 text-xs"
                       onClick={() => setIsEditingDescription((prev) => !prev)}
                     >
-                      {isEditingDescription ? "Preview" : "Edit"}
+                      {isEditingDescription ? t("edit.preview") : t("common:edit")}
                     </Button>
                   ) : null}
                   {!isReadOnly && aiEnabled ? (
@@ -592,7 +598,7 @@ export const TaskEditPage = () => {
                       ) : (
                         <Sparkles className="h-3 w-3" />
                       )}
-                      AI Generate
+                      {t("edit.aiGenerate")}
                     </Button>
                   ) : null}
                 </div>
@@ -602,7 +608,7 @@ export const TaskEditPage = () => {
                     rows={6}
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Add extra context or acceptance criteria. Markdown supported."
+                    placeholder={t("edit.descriptionPlaceholder")}
                     disabled={isReadOnly}
                   />
                 ) : description ? (
@@ -611,16 +617,14 @@ export const TaskEditPage = () => {
                   </div>
                 ) : (
                   <p className="text-muted-foreground text-sm italic">
-                    {isReadOnly
-                      ? "No description yet."
-                      : "No description yet. Click edit to add more context."}
+                    {isReadOnly ? t("edit.noDescriptionReadOnly") : t("edit.noDescription")}
                   </p>
                 )}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{t("edit.statusLabel")}</Label>
                   <Select
                     value={statusId ? String(statusId) : undefined}
                     onValueChange={(value) => {
@@ -632,7 +636,7 @@ export const TaskEditPage = () => {
                     disabled={statusSelectDisabled}
                   >
                     <SelectTrigger disabled={statusSelectDisabled}>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t("edit.selectStatus")} />
                     </SelectTrigger>
                     <SelectContent>
                       {taskStatuses.map((value) => (
@@ -644,7 +648,7 @@ export const TaskEditPage = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Priority</Label>
+                  <Label>{t("edit.priorityLabel")}</Label>
                   <Select
                     value={priority}
                     onValueChange={(value) => setPriority(value as TaskPriority)}
@@ -656,7 +660,7 @@ export const TaskEditPage = () => {
                     <SelectContent>
                       {priorityOrder.map((value) => (
                         <SelectItem key={value} value={value}>
-                          {value.replace("_", " ")}
+                          {t(`priority.${value}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -666,13 +670,13 @@ export const TaskEditPage = () => {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="task-start-date">Start date</Label>
+                  <Label htmlFor="task-start-date">{t("edit.startDateLabel")}</Label>
                   <DateTimePicker
                     id="task-start-date"
                     value={startDate}
                     onChange={setStartDate}
                     disabled={isReadOnly}
-                    placeholder="Optional"
+                    placeholder={t("common:optional")}
                     calendarProps={{
                       hidden: {
                         after: new Date(dueDate),
@@ -681,13 +685,13 @@ export const TaskEditPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="task-due-date">Due date</Label>
+                  <Label htmlFor="task-due-date">{t("edit.dueDateLabel")}</Label>
                   <DateTimePicker
                     id="task-due-date"
                     value={dueDate}
                     onChange={setDueDate}
                     disabled={isReadOnly}
-                    placeholder="Optional"
+                    placeholder={t("common:optional")}
                     calendarProps={{
                       hidden: {
                         before: new Date(startDate),
@@ -699,22 +703,22 @@ export const TaskEditPage = () => {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Assignees</Label>
+                  <Label>{t("edit.assigneesLabel")}</Label>
                   <AssigneeSelector
                     selectedIds={assigneeIds}
                     options={userOptions}
                     onChange={setAssigneeIds}
                     disabled={isReadOnly}
-                    emptyMessage={`No initiative ${memberLabel} role holders available yet.`}
+                    emptyMessage={t("edit.assigneesEmptyMessage", { memberLabel })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Tags</Label>
+                  <Label>{t("edit.tagsLabel")}</Label>
                   <TagPicker
                     selectedTags={tags}
                     onChange={handleTagsChange}
                     disabled={isReadOnly}
-                    placeholder="Add tags..."
+                    placeholder={t("edit.tagsPlaceholder")}
                   />
                 </div>
               </div>
@@ -731,7 +735,7 @@ export const TaskEditPage = () => {
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" disabled={updateTask.isPending || isReadOnly}>
                   <Save className="h-4 w-4" />
-                  {updateTask.isPending ? "Saving…" : "Save task"}
+                  {updateTask.isPending ? t("edit.saving") : t("edit.saveTask")}
                 </Button>
                 <Button
                   type="button"
@@ -739,7 +743,7 @@ export const TaskEditPage = () => {
                   onClick={() => router.navigate({ to: gp(`/projects/${projectId}`) })}
                 >
                   <X className="h-4 w-4" />
-                  Cancel
+                  {t("common:cancel")}
                 </Button>
                 {!isReadOnly ? (
                   <>
@@ -747,7 +751,7 @@ export const TaskEditPage = () => {
                       trigger={
                         <Button type="button" variant="secondary" disabled={moveTask.isPending}>
                           <FolderInput className="h-4 w-4" />
-                          Move to project
+                          {t("edit.moveToProject")}
                         </Button>
                       }
                       open={isMoveDialogOpen}
@@ -768,7 +772,7 @@ export const TaskEditPage = () => {
                       disabled={duplicateTask.isPending}
                     >
                       <Copy className="h-4 w-4" />
-                      {duplicateTask.isPending ? "Duplicating…" : "Duplicate task"}
+                      {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
                     </Button>
                     <Button
                       type="button"
@@ -779,12 +783,12 @@ export const TaskEditPage = () => {
                       {task?.is_archived ? (
                         <>
                           <ArchiveRestore className="h-4 w-4" />
-                          {toggleArchive.isPending ? "Unarchiving…" : "Unarchive"}
+                          {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
                         </>
                       ) : (
                         <>
                           <Archive className="h-4 w-4" />
-                          {toggleArchive.isPending ? "Archiving…" : "Archive"}
+                          {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
                         </>
                       )}
                     </Button>
@@ -795,7 +799,7 @@ export const TaskEditPage = () => {
                       disabled={deleteTask.isPending}
                     >
                       <Trash2 className="h-4 w-4" />
-                      {deleteTask.isPending ? "Deleting…" : "Delete task"}
+                      {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
                     </Button>
                   </>
                 ) : null}
@@ -811,7 +815,7 @@ export const TaskEditPage = () => {
             canEdit={!isReadOnly}
           />
           {commentsQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load comments right now.</p>
+            <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
           ) : null}
           <CommentSection
             entityType="task"
@@ -830,9 +834,9 @@ export const TaskEditPage = () => {
       <ConfirmDialog
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
-        title="Delete task?"
-        description="This will permanently delete the task and all of its subtasks. This cannot be undone."
-        confirmLabel="Delete"
+        title={t("edit.deleteTitle")}
+        description={t("edit.deleteDescription")}
+        confirmLabel={t("common:delete")}
         onConfirm={() => {
           deleteTask.mutate();
           setShowDeleteConfirm(false);

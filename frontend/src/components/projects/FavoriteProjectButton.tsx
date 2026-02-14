@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import { Star } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import { useProjectFavoriteMutation } from "@/hooks/useProjectFavoriteMutation";
@@ -19,6 +20,7 @@ export const FavoriteProjectButton = ({
   suppressNavigation = false,
   iconSize = "md",
 }: FavoriteProjectButtonProps) => {
+  const { t } = useTranslation("projects");
   const favoriteMutation = useProjectFavoriteMutation();
   const pending = favoriteMutation.isPending && favoriteMutation.variables?.projectId === projectId;
 
@@ -41,7 +43,7 @@ export const FavoriteProjectButton = ({
         className
       )}
       aria-pressed={isFavorited}
-      aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+      aria-label={isFavorited ? t("favorite.remove") : t("favorite.add")}
       disabled={pending}
       onClick={handleClick}
     >

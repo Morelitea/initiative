@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
@@ -25,10 +26,10 @@ export const AssigneeSelector = ({
   disabled = false,
   emptyMessage,
 }: AssigneeSelectorProps) => {
+  const { t } = useTranslation("projects");
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
-  const resolvedEmptyMessage =
-    emptyMessage ?? `Invite initiative ${memberLabel} role holders to assign tasks.`;
+  const resolvedEmptyMessage = emptyMessage ?? t("assignee.emptyMessage", { memberLabel });
   const [searchValue, setSearchValue] = useState("");
 
   const labelById = useMemo(() => {
@@ -79,14 +80,14 @@ export const AssigneeSelector = ({
             setSearchValue("");
             addAssignee(id);
           }}
-          placeholder={`Search ${memberLabel}`}
+          placeholder={t("assignee.searchPlaceholder", { memberLabel })}
           emptyMessage={resolvedEmptyMessage}
           disabled={disabled}
         />
       )}
       <div className="space-y-2 rounded-md border p-3">
         {selectedOptions.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No assignees selected.</p>
+          <p className="text-muted-foreground text-sm">{t("assignee.noAssignees")}</p>
         ) : (
           <ul className="space-y-2">
             {selectedOptions.map((option) => (
@@ -100,7 +101,9 @@ export const AssigneeSelector = ({
                   onClick={() => removeAssignee(option.id)}
                   disabled={disabled}
                 >
-                  <span className="sr-only">Remove {option.label}</span>
+                  <span className="sr-only">
+                    {t("assignee.removeAssignee", { name: option.label })}
+                  </span>
                   <X className="h-4 w-4" />
                 </Button>
               </li>
@@ -116,7 +119,7 @@ export const AssigneeSelector = ({
           onClick={() => onChange([])}
           disabled={disabled}
         >
-          Clear assignees
+          {t("assignee.clearAssignees")}
         </Button>
       ) : null}
     </div>

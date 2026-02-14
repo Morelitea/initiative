@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { isAxiosError } from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -48,6 +49,7 @@ type UpdatePayload = {
 };
 
 export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps) => {
+  const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [newContent, setNewContent] = useState("");
@@ -119,10 +121,10 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
     onSuccess: () => {
       setNewContent("");
       invalidateRelatedData();
-      toast.success("Checklist item added");
+      toast.success(t("checklist.itemAdded"));
     },
     onError: (error) => {
-      toast.error(parseErrorMessage(error, "Unable to add checklist item. Please try again."));
+      toast.error(parseErrorMessage(error, t("checklist.addError")));
     },
   });
 
@@ -142,7 +144,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
       invalidateRelatedData();
     },
     onError: (error) => {
-      toast.error(parseErrorMessage(error, "Unable to update checklist item. Please try again."));
+      toast.error(parseErrorMessage(error, t("checklist.updateError")));
     },
   });
 
@@ -157,10 +159,10 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
         return next;
       });
       invalidateRelatedData();
-      toast.success("Checklist item deleted");
+      toast.success(t("checklist.itemDeleted"));
     },
     onError: (error) => {
-      toast.error(parseErrorMessage(error, "Unable to delete checklist item. Please try again."));
+      toast.error(parseErrorMessage(error, t("checklist.deleteError")));
     },
   });
 
@@ -175,7 +177,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
       invalidateRelatedData();
     },
     onError: (error) => {
-      toast.error(parseErrorMessage(error, "Unable to reorder checklist items. Please try again."));
+      toast.error(parseErrorMessage(error, t("checklist.reorderError")));
     },
   });
 
@@ -192,7 +194,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
       setAiDialogOpen(true);
     },
     onError: (error) => {
-      toast.error(parseErrorMessage(error, "Unable to generate subtasks. Please try again."));
+      toast.error(parseErrorMessage(error, t("checklist.generateError")));
     },
   });
 
@@ -208,12 +210,12 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
         contents: subtasksToAdd,
       });
       invalidateRelatedData();
-      toast.success(`Added ${subtasksToAdd.length} subtask${subtasksToAdd.length > 1 ? "s" : ""}`);
+      toast.success(t("checklist.batchAdded", { count: subtasksToAdd.length }));
       setAiDialogOpen(false);
       setGeneratedSubtasks([]);
       setSelectedSubtasks(new Set());
     } catch (error) {
-      toast.error(parseErrorMessage(error, "Unable to add subtasks. Please try again."));
+      toast.error(parseErrorMessage(error, t("checklist.batchAddError")));
     }
   };
 
@@ -268,7 +270,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
         delete next[item.id];
         return next;
       });
-      toast.error("Checklist content cannot be empty.");
+      toast.error(t("checklist.contentEmpty"));
       return;
     }
     if (trimmed === item.content) {
@@ -334,7 +336,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <SquareCheck className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-            Subtasks
+            {t("checklist.title")}
           </CardTitle>
           {canEdit && aiEnabled ? (
             <Button
@@ -349,7 +351,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
               ) : (
                 <Sparkles className="h-3 w-3" />
               )}
-              AI Generate
+              {t("checklist.aiGenerate")}
             </Button>
           ) : null}
         </div>
@@ -358,13 +360,13 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
         {subtasksQuery.isLoading ? (
           <p className="text-muted-foreground inline-flex items-center gap-2 text-sm">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading checklist…
+            {t("checklist.loading")}
           </p>
         ) : subtasksQuery.isError ? (
-          <p className="text-destructive text-sm">Unable to load checklist items right now.</p>
+          <p className="text-destructive text-sm">{t("checklist.loadError")}</p>
         ) : localSubtasks.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            No checklist items yet. {canEdit ? "Add your first step below." : ""}
+            {t("checklist.empty")} {canEdit ? t("checklist.emptyCanEdit") : ""}
           </p>
         ) : (
           <div className="space-y-3">
@@ -408,7 +410,9 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
         <div className="flex gap-2">
           <Input
             ref={inputRef}
-            placeholder={canEdit ? "Add checklist item" : "Read-only"}
+            placeholder={
+              canEdit ? t("checklist.addPlaceholder") : t("checklist.readOnlyPlaceholder")
+            }
             value={newContent}
             onChange={(event) => setNewContent(event.target.value)}
             onKeyDown={(event) => {
@@ -424,17 +428,15 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
           </Button>
         </div>
         {!canEdit ? (
-          <p className="text-muted-foreground text-xs">
-            You only have read access, so checklist changes are disabled.
-          </p>
+          <p className="text-muted-foreground text-xs">{t("checklist.readOnlyMessage")}</p>
         ) : null}
       </CardContent>
 
       <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>AI-Generated Subtasks</DialogTitle>
-            <DialogDescription>Select the subtasks you want to add to this task.</DialogDescription>
+            <DialogTitle>{t("checklist.aiDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("checklist.aiDialogDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-4">
             {generatedSubtasks.map((subtask, index) => (
@@ -455,10 +457,10 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAiDialogOpen(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button onClick={handleAddSelectedSubtasks} disabled={selectedSubtasks.size === 0}>
-              Add Selected ({selectedSubtasks.size})
+              {t("checklist.addSelected", { count: selectedSubtasks.size })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -492,6 +494,7 @@ const ChecklistItemRow = ({
   onToggle,
   onDelete,
 }: ChecklistItemRowProps) => {
+  const { t } = useTranslation("tasks");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id.toString(),
     disabled: reorderDisabled,
@@ -516,7 +519,7 @@ const ChecklistItemRow = ({
             type="button"
             className="text-muted-foreground mt-1"
             disabled={reorderDisabled}
-            aria-label="Reorder checklist item"
+            aria-label={t("checklist.reorderItem")}
             {...attributes}
             {...listeners}
           >
@@ -527,7 +530,9 @@ const ChecklistItemRow = ({
           checked={item.is_completed}
           onCheckedChange={(value) => onToggle(Boolean(value))}
           disabled={!canEdit || isUpdating}
-          aria-label={item.is_completed ? "Mark subtask as incomplete" : "Mark subtask as complete"}
+          aria-label={
+            item.is_completed ? t("checklist.markIncomplete") : t("checklist.markComplete")
+          }
         />
         <Input
           value={contentValue}

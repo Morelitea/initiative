@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { Progress } from "@/components/ui/progress";
 import type { TaskSubtaskProgress } from "@/types/api";
 import { cn } from "@/lib/utils";
@@ -8,6 +10,8 @@ type TaskChecklistProgressProps = {
 };
 
 export const TaskChecklistProgress = ({ progress, className }: TaskChecklistProgressProps) => {
+  const { t } = useTranslation("tasks");
+
   if (!progress || progress.total === 0) {
     return null;
   }
@@ -18,7 +22,11 @@ export const TaskChecklistProgress = ({ progress, className }: TaskChecklistProg
     <div className={cn("space-y-1", className)}>
       <Progress value={ratio} className="h-1.5" />
       <p className="text-muted-foreground text-[11px] font-medium">
-        {progress.completed}/{progress.total} subtask{progress.total === 1 ? "" : "s"}
+        {t("checklist.progress", {
+          completed: progress.completed,
+          total: progress.total,
+          count: progress.total,
+        })}
       </p>
     </div>
   );

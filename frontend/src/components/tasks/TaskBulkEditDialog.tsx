@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ export const TaskBulkEditDialog = ({
   onApply,
   onCancel,
 }: TaskBulkEditDialogProps) => {
+  const { t } = useTranslation("tasks");
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
@@ -111,55 +113,58 @@ export const TaskBulkEditDialog = ({
   return (
     <DialogContent className="bg-card max-h-screen overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Edit tasks</DialogTitle>
+        <DialogTitle>{t("bulkEdit.title")}</DialogTitle>
         <DialogDescription>
-          Apply changes to {selectedTasks.length} selected task
-          {selectedTasks.length === 1 ? "" : "s"}. Only fields you set will be updated.
+          {t("bulkEdit.description", { count: selectedTasks.length })}
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="dates">
-            <AccordionTrigger>Dates</AccordionTrigger>
+            <AccordionTrigger>{t("bulkEdit.datesSection")}</AccordionTrigger>
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
-                <Label htmlFor="bulk-start-date">Start date</Label>
+                <Label htmlFor="bulk-start-date">{t("bulkEdit.startDateLabel")}</Label>
                 <DateTimePicker
                   value={startDate}
                   onChange={setStartDate}
-                  placeholder="Set start date"
+                  placeholder={t("bulkEdit.startDatePlaceholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bulk-due-date">Due date</Label>
-                <DateTimePicker value={dueDate} onChange={setDueDate} placeholder="Set due date" />
+                <Label htmlFor="bulk-due-date">{t("bulkEdit.dueDateLabel")}</Label>
+                <DateTimePicker
+                  value={dueDate}
+                  onChange={setDueDate}
+                  placeholder={t("bulkEdit.dueDatePlaceholder")}
+                />
               </div>
             </AccordionContent>
           </AccordionItem>
 
           <AccordionItem value="assignment">
-            <AccordionTrigger>Assignment</AccordionTrigger>
+            <AccordionTrigger>{t("bulkEdit.assignmentSection")}</AccordionTrigger>
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
-                <Label>Assignees</Label>
+                <Label>{t("bulkEdit.assigneesLabel")}</Label>
                 <AssigneeSelector
                   selectedIds={assigneeIds}
                   options={userOptions}
                   onChange={setAssigneeIds}
-                  emptyMessage="No users available"
+                  emptyMessage={t("bulkEdit.noUsersAvailable")}
                 />
               </div>
             </AccordionContent>
           </AccordionItem>
 
           <AccordionItem value="details">
-            <AccordionTrigger>Details</AccordionTrigger>
+            <AccordionTrigger>{t("bulkEdit.detailsSection")}</AccordionTrigger>
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
-                <Label htmlFor="bulk-status">Status</Label>
+                <Label htmlFor="bulk-status">{t("bulkEdit.statusLabel")}</Label>
                 <Select value={statusId} onValueChange={setStatusId}>
                   <SelectTrigger id="bulk-status">
-                    <SelectValue placeholder="Select status" />
+                    <SelectValue placeholder={t("bulkEdit.selectStatus")} />
                   </SelectTrigger>
                   <SelectContent>
                     {taskStatuses.map((status) => (
@@ -172,16 +177,16 @@ export const TaskBulkEditDialog = ({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bulk-priority">Priority</Label>
+                <Label htmlFor="bulk-priority">{t("bulkEdit.priorityLabel")}</Label>
                 <Select value={priority} onValueChange={setPriority}>
                   <SelectTrigger id="bulk-priority">
-                    <SelectValue placeholder="Select priority" />
+                    <SelectValue placeholder={t("bulkEdit.selectPriority")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="low">{t("priority.low")}</SelectItem>
+                    <SelectItem value="medium">{t("priority.medium")}</SelectItem>
+                    <SelectItem value="high">{t("priority.high")}</SelectItem>
+                    <SelectItem value="urgent">{t("priority.urgent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -189,10 +194,10 @@ export const TaskBulkEditDialog = ({
           </AccordionItem>
 
           <AccordionItem value="recurrence">
-            <AccordionTrigger>Recurrence</AccordionTrigger>
+            <AccordionTrigger>{t("bulkEdit.recurrenceSection")}</AccordionTrigger>
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
-                <Label>Recurring schedule</Label>
+                <Label>{t("bulkEdit.recurringSchedule")}</Label>
                 <TaskRecurrenceSelector
                   recurrence={recurrence}
                   onChange={setRecurrence}
@@ -206,16 +211,16 @@ export const TaskBulkEditDialog = ({
 
         <DialogFooter className="mt-6">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button type="submit" disabled={!hasChanges || isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Applying…
+                {t("bulkEdit.applying")}
               </>
             ) : (
-              "Apply changes"
+              t("bulkEdit.applyChanges")
             )}
           </Button>
         </DialogFooter>

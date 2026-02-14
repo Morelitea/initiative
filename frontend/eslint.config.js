@@ -15,6 +15,7 @@ export default defineConfig([
     ignores: [
       "vite.config.ts",
       "vite.config.js",
+      "vitest.config.*",
       "capacitor.config.*",
       "dist/**",
       "public/**",

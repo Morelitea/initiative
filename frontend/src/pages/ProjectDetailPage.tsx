@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
@@ -24,6 +25,7 @@ import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus, User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
+  const { t } = useTranslation("projects");
   const { projectId } = useParams({ strict: false }) as { projectId: string };
   const router = useRouter();
   const { user } = useAuth();
@@ -147,24 +149,24 @@ export const ProjectDetailPage = () => {
   if (!Number.isFinite(parsedProjectId)) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">Invalid project id.</p>
+        <p className="text-destructive">{t("detail.invalidProjectId")}</p>
         <Button asChild variant="link" className="px-0">
-          <Link to={gp("/projects")}>← Back to projects</Link>
+          <Link to={gp("/projects")}>{t("detail.backToProjects")}</Link>
         </Button>
       </div>
     );
   }
 
   if (projectQuery.isLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading project…</p>;
+    return <p className="text-muted-foreground text-sm">{t("detail.loading")}</p>;
   }
 
   if (projectQuery.isError || taskStatusesQuery.isError || !project) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">Unable to load project.</p>
+        <p className="text-destructive">{t("detail.loadError")}</p>
         <Button asChild variant="link" className="px-0">
-          <Link to={gp("/projects")}>← Back to projects</Link>
+          <Link to={gp("/projects")}>{t("detail.backToProjects")}</Link>
         </Button>
       </div>
     );
@@ -220,9 +222,14 @@ export const ProjectDetailPage = () => {
             </BreadcrumbList>
           </Breadcrumb>
           {canManageSettings ? (
-            <Button asChild variant="outline" size="sm" aria-label="Open project settings">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              aria-label={t("detail.openProjectSettings")}
+            >
               <Link to={gp(`/projects/${project.id}/settings`)}>
-                <Settings className="h-5 w-5" /> Project Settings
+                <Settings className="h-5 w-5" /> {t("detail.projectSettings")}
               </Link>
             </Button>
           ) : null}

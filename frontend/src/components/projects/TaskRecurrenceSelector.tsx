@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type {
   TaskRecurrence,
@@ -26,36 +27,43 @@ import {
   detectRecurrencePreset,
   ensureMonthlyDefaults,
   ensureYearlyDefaults,
-  summarizeRecurrence,
   updateMonthlyDay,
   updateMonthlyWeekday,
   updateWeeklyWeekdays,
   updateYearlyMonth,
 } from "@/lib/recurrence";
 
-const MONTH_OPTIONS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const MONTH_KEYS = [
+  "recurrence.monthJanuary",
+  "recurrence.monthFebruary",
+  "recurrence.monthMarch",
+  "recurrence.monthApril",
+  "recurrence.monthMay",
+  "recurrence.monthJune",
+  "recurrence.monthJuly",
+  "recurrence.monthAugust",
+  "recurrence.monthSeptember",
+  "recurrence.monthOctober",
+  "recurrence.monthNovember",
+  "recurrence.monthDecember",
+] as const;
 
 const WEEK_POSITION_OPTIONS: TaskWeekPosition[] = ["first", "second", "third", "fourth", "last"];
 
-const frequencyOptions: { value: TaskRecurrenceFrequency; label: string }[] = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "yearly", label: "Yearly" },
-];
+const POSITION_KEYS: Record<TaskWeekPosition, string> = {
+  first: "recurrence.positionFirst",
+  second: "recurrence.positionSecond",
+  third: "recurrence.positionThird",
+  fourth: "recurrence.positionFourth",
+  last: "recurrence.positionLast",
+};
+
+const FREQUENCY_UNIT_KEYS: Record<TaskRecurrenceFrequency, string> = {
+  daily: "recurrence.repeatEveryDays",
+  weekly: "recurrence.repeatEveryWeeks",
+  monthly: "recurrence.repeatEveryMonths",
+  yearly: "recurrence.repeatEveryYears",
+};
 
 const getAnchorDate = (referenceDate?: string | null) => {
   if (!referenceDate) {
@@ -85,6 +93,8 @@ export const TaskRecurrenceSelector = ({
   disabled = false,
   referenceDate,
 }: TaskRecurrenceSelectorProps) => {
+  const { t, i18n } = useTranslation("projects");
+
   const detectedPreset = detectRecurrencePreset(recurrence);
   const [forceCustomMode, setForceCustomMode] = useState(detectedPreset === "custom");
   useEffect(() => {
@@ -99,7 +109,6 @@ export const TaskRecurrenceSelector = ({
 
   const preset = forceCustomMode ? "custom" : detectedPreset;
   const anchorDate = getAnchorDate(referenceDate);
-  const summary = summarizeRecurrence(recurrence, { referenceDate, strategy });
   const showCustomFields = forceCustomMode && recurrence !== null;
 
   const ensureRule = (): TaskRecurrence => {
@@ -217,36 +226,154 @@ export const TaskRecurrenceSelector = ({
     }
   };
 
-  const quickOptions: { value: RecurrencePreset; label: string }[] = [
-    { value: "none", label: "Does not repeat" },
-    { value: "daily", label: "Daily" },
-    { value: "weekdays", label: "Every weekday (Mon–Fri)" },
-    {
-      value: "weekly",
-      label: `Weekly on ${anchorDate.toLocaleDateString(undefined, { weekday: "long" })}`,
+  const frequencyOptions = useMemo(
+    (): { value: TaskRecurrenceFrequency; label: string }[] => [
+      { value: "daily", label: t("recurrence.frequencyDaily") },
+      { value: "weekly", label: t("recurrence.frequencyWeekly") },
+      { value: "monthly", label: t("recurrence.frequencyMonthly") },
+      { value: "yearly", label: t("recurrence.frequencyYearly") },
+    ],
+    [t]
+  );
+
+  const quickOptions = useMemo(
+    (): { value: RecurrencePreset; label: string }[] => [
+      { value: "none", label: t("recurrence.doesNotRepeat") },
+      { value: "daily", label: t("recurrence.daily") },
+      { value: "weekdays", label: t("recurrence.everyWeekday") },
+      {
+        value: "weekly",
+        label: t("recurrence.weeklyOn", {
+          day: anchorDate.toLocaleDateString(undefined, { weekday: "long" }),
+        }),
+      },
+      {
+        value: "monthly",
+        label: t("recurrence.monthlyOnDay", { day: anchorDate.getDate() }),
+      },
+      {
+        value: "yearly",
+        label: t("recurrence.annuallyOn", {
+          month: anchorDate.toLocaleDateString(undefined, { month: "long" }),
+          day: anchorDate.getDate(),
+        }),
+      },
+      { value: "custom", label: t("recurrence.custom") },
+    ],
+    [anchorDate, t]
+  );
+
+  const monthOptions = useMemo(
+    () => MONTH_KEYS.map((key, index) => ({ label: t(key), value: index + 1 })),
+    [t]
+  );
+
+  const formatWeekdayList = useCallback(
+    (weekdays: TaskWeekday[]) => {
+      if (!weekdays.length) {
+        return "";
+      }
+      const sorted = [...new Set(weekdays)].sort((a, b) => {
+        const orderA = WEEKDAYS.findIndex((w) => w.value === a);
+        const orderB = WEEKDAYS.findIndex((w) => w.value === b);
+        return orderA - orderB;
+      });
+      const labels = sorted.map(
+        (day) => WEEKDAYS.find((config) => config.value === day)?.label ?? day
+      );
+      const formatter = new Intl.ListFormat(i18n.language, {
+        style: "long",
+        type: "conjunction",
+      });
+      return formatter.format(labels);
     },
-    { value: "monthly", label: `Monthly on day ${anchorDate.getDate()}` },
-    {
-      value: "yearly",
-      label: `Annually on ${anchorDate.toLocaleDateString(undefined, {
-        month: "long",
-        day: "numeric",
-      })}`,
-    },
-    { value: "custom", label: "Custom…" },
-  ];
+    [i18n.language]
+  );
+
+  const summary = useMemo(() => {
+    if (!recurrence) {
+      return t("recurrence.doesNotRepeat");
+    }
+    const rule = recurrence;
+    const interval = rule.interval;
+
+    let base = "";
+    switch (rule.frequency) {
+      case "daily":
+        base =
+          interval === 1
+            ? t("recurrence.summary.everyDay")
+            : t("recurrence.summary.everyNDays", { count: interval });
+        break;
+      case "weekly": {
+        const days = formatWeekdayList(rule.weekdays);
+        base =
+          interval === 1
+            ? t("recurrence.summary.everyWeek", { days })
+            : t("recurrence.summary.everyNWeeks", { count: interval, days });
+        break;
+      }
+      case "monthly": {
+        if (rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number") {
+          base =
+            interval === 1
+              ? t("recurrence.summary.everyMonthDay", { day: rule.day_of_month })
+              : t("recurrence.summary.everyNMonthsDay", {
+                  count: interval,
+                  day: rule.day_of_month,
+                });
+        } else if (rule.weekday_position && rule.weekday) {
+          const weekdayLabel =
+            WEEKDAYS.find((item) => item.value === rule.weekday)?.label ?? rule.weekday;
+          const positionLabel = rule.weekday_position;
+          base =
+            interval === 1
+              ? t("recurrence.summary.everyMonthWeekday", {
+                  position: positionLabel,
+                  weekday: weekdayLabel,
+                })
+              : t("recurrence.summary.everyNMonthsWeekday", {
+                  count: interval,
+                  position: positionLabel,
+                  weekday: weekdayLabel,
+                });
+        }
+        break;
+      }
+      case "yearly": {
+        const monthIndex =
+          typeof rule.month === "number"
+            ? Math.max(1, Math.min(12, rule.month)) - 1
+            : referenceDate
+              ? getAnchorDate(referenceDate).getMonth()
+              : new Date().getMonth();
+        const monthName = t(MONTH_KEYS[monthIndex]);
+        const day =
+          rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number"
+            ? rule.day_of_month
+            : getAnchorDate(referenceDate).getDate();
+        base =
+          interval === 1
+            ? t("recurrence.summary.everyYear", { month: monthName, day })
+            : t("recurrence.summary.everyNYears", { count: interval, month: monthName, day });
+        break;
+      }
+    }
+
+    return base || t("recurrence.doesNotRepeat");
+  }, [recurrence, referenceDate, t, formatWeekdayList]);
 
   return (
     <div className="border-border/70 space-y-4 rounded-md border border-dashed p-4">
       <div className="space-y-2">
-        <Label>Repeat</Label>
+        <Label>{t("recurrence.repeat")}</Label>
         <Select
           value={preset}
           onValueChange={(value) => handlePresetChange(value as RecurrencePreset)}
           disabled={disabled}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Does not repeat" />
+            <SelectValue placeholder={t("recurrence.doesNotRepeat")} />
           </SelectTrigger>
           <SelectContent>
             {quickOptions.map((option) => (
@@ -263,7 +390,7 @@ export const TaskRecurrenceSelector = ({
         <div className="border-border/70 space-y-4 rounded-md border p-4">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Frequency</Label>
+              <Label>{t("recurrence.frequency")}</Label>
               <Select
                 value={recurrence.frequency}
                 onValueChange={(value) => handleFrequencyChange(value as TaskRecurrenceFrequency)}
@@ -282,7 +409,7 @@ export const TaskRecurrenceSelector = ({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="recurrence-interval">Repeat every</Label>
+              <Label htmlFor="recurrence-interval">{t("recurrence.repeatEvery")}</Label>
               <Input
                 id="recurrence-interval"
                 type="number"
@@ -292,15 +419,15 @@ export const TaskRecurrenceSelector = ({
                 onChange={(event) => handleIntervalChange(event.target.value)}
                 disabled={disabled}
               />
-              <p className="text-muted-foreground text-xs capitalize">
-                {recurrence.frequency ? `${recurrence.frequency.replace("_", " ")}` : ""}
+              <p className="text-muted-foreground text-xs">
+                {recurrence.frequency ? t(FREQUENCY_UNIT_KEYS[recurrence.frequency]) : ""}
               </p>
             </div>
           </div>
 
           {recurrence.frequency === "weekly" ? (
             <div className="space-y-2">
-              <Label>Repeat on</Label>
+              <Label>{t("recurrence.repeatOn")}</Label>
               <div className="flex flex-wrap gap-2">
                 {WEEKDAYS.map((weekday) => {
                   const checked = recurrence.weekdays.includes(weekday.value);
@@ -330,7 +457,7 @@ export const TaskRecurrenceSelector = ({
             <div className="space-y-4">
               {recurrence.frequency === "yearly" ? (
                 <div className="space-y-2">
-                  <Label>Month</Label>
+                  <Label>{t("recurrence.month")}</Label>
                   <Select
                     value={(recurrence.month ?? anchorDate.getMonth() + 1).toString()}
                     onValueChange={(value) =>
@@ -342,9 +469,9 @@ export const TaskRecurrenceSelector = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MONTH_OPTIONS.map((label, index) => (
-                        <SelectItem key={label} value={(index + 1).toString()}>
-                          {label}
+                      {monthOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value.toString()}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -352,7 +479,7 @@ export const TaskRecurrenceSelector = ({
                 </div>
               ) : null}
               <div className="space-y-2">
-                <Label>On</Label>
+                <Label>{t("recurrence.on")}</Label>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -361,7 +488,7 @@ export const TaskRecurrenceSelector = ({
                     onClick={() => handleMonthlyModeChange("day_of_month")}
                     disabled={disabled}
                   >
-                    Day
+                    {t("recurrence.dayMode")}
                   </Button>
                   <Button
                     type="button"
@@ -370,7 +497,7 @@ export const TaskRecurrenceSelector = ({
                     onClick={() => handleMonthlyModeChange("weekday")}
                     disabled={disabled}
                   >
-                    Weekday
+                    {t("recurrence.weekdayMode")}
                   </Button>
                 </div>
                 {recurrence.monthly_mode === "day_of_month" ? (
@@ -400,12 +527,12 @@ export const TaskRecurrenceSelector = ({
                       disabled={disabled}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Position" />
+                        <SelectValue placeholder={t("recurrence.position")} />
                       </SelectTrigger>
                       <SelectContent>
                         {WEEK_POSITION_OPTIONS.map((option) => (
                           <SelectItem key={option} value={option}>
-                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                            {t(POSITION_KEYS[option])}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -424,7 +551,7 @@ export const TaskRecurrenceSelector = ({
                       disabled={disabled}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Weekday" />
+                        <SelectValue placeholder={t("recurrence.weekday")} />
                       </SelectTrigger>
                       <SelectContent>
                         {WEEKDAYS.map((weekday) => (
@@ -441,7 +568,7 @@ export const TaskRecurrenceSelector = ({
           ) : null}
 
           <div className="space-y-2">
-            <Label>Ends</Label>
+            <Label>{t("recurrence.ends")}</Label>
             <Select
               value={recurrence.ends ?? "never"}
               onValueChange={(value) => handleEndsChange(value as TaskRecurrence["ends"])}
@@ -451,9 +578,9 @@ export const TaskRecurrenceSelector = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="never">Never</SelectItem>
-                <SelectItem value="on_date">On date</SelectItem>
-                <SelectItem value="after_occurrences">After number of occurrences</SelectItem>
+                <SelectItem value="never">{t("recurrence.endsNever")}</SelectItem>
+                <SelectItem value="on_date">{t("recurrence.endsOnDate")}</SelectItem>
+                <SelectItem value="after_occurrences">{t("recurrence.endsAfterCount")}</SelectItem>
               </SelectContent>
             </Select>
             {recurrence.ends === "on_date" ? (
@@ -487,24 +614,24 @@ export const TaskRecurrenceSelector = ({
           </div>
 
           <div className="space-y-2">
-            <Label>Repeat strategy</Label>
+            <Label>{t("recurrence.repeatStrategy")}</Label>
             <Select
               value={strategy}
               onValueChange={(value) => onStrategyChange(value as TaskRecurrenceStrategy)}
               disabled={disabled || !recurrence}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select strategy" />
+                <SelectValue placeholder={t("recurrence.selectStrategy")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fixed">On schedule</SelectItem>
-                <SelectItem value="rolling">After completion</SelectItem>
+                <SelectItem value="fixed">{t("recurrence.strategyOnSchedule")}</SelectItem>
+                <SelectItem value="rolling">{t("recurrence.strategyAfterCompletion")}</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
               {strategy === "rolling"
-                ? "Next dates are based on when you complete the task."
-                : "Next dates follow the calendar schedule regardless of completion time."}
+                ? t("recurrence.strategyAfterCompletionDescription")
+                : t("recurrence.strategyOnScheduleDescription")}
             </p>
           </div>
         </div>

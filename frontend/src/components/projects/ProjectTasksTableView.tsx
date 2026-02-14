@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   DndContext,
@@ -131,6 +132,7 @@ const ProjectTasksTableViewComponent = ({
   onTaskSelectionChange,
   onExitSelection,
 }: ProjectTasksListViewProps) => {
+  const { t } = useTranslation("projects");
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
   const gp = useGuildPath();
 
@@ -148,7 +150,7 @@ const ProjectTasksTableViewComponent = ({
     () => [
       {
         id: "drag",
-        header: () => <span className="sr-only">Reorder</span>,
+        header: () => <span className="sr-only">{t("table.reorder")}</span>,
         cell: ({ table }) => {
           const sorting = table.getState().sorting;
           const grouping = table.getState().grouping;
@@ -167,7 +169,7 @@ const ProjectTasksTableViewComponent = ({
           return (
             <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                Date window
+                {t("table.dateWindow")}
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -175,7 +177,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ getValue }) => (
           <span className="text-base font-medium">
-            {getTaskDateStatusLabel(getValue<string>())}
+            {getTaskDateStatusLabel(getValue<string>(), t)}
           </span>
         ),
         enableHiding: true,
@@ -184,7 +186,7 @@ const ProjectTasksTableViewComponent = ({
       },
       {
         id: "completed",
-        header: () => <span className="font-medium">Done</span>,
+        header: () => <span className="font-medium">{t("table.doneColumn")}</span>,
         cell: ({ row }) => {
           const task = row.original;
           const isDone = task.task_status.category === "done";
@@ -204,7 +206,7 @@ const ProjectTasksTableViewComponent = ({
               }}
               className="h-6 w-6"
               disabled={statusDisabled}
-              aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
+              aria-label={isDone ? t("table.markInProgress") : t("table.markDone")}
             />
           );
         },
@@ -220,7 +222,7 @@ const ProjectTasksTableViewComponent = ({
           return (
             <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                Task
+                {t("table.taskColumn")}
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -245,7 +247,7 @@ const ProjectTasksTableViewComponent = ({
           return (
             <div className="flex min-w-30 items-center gap-2">
               <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                Start Date
+                {t("table.startDateColumn")}
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -263,7 +265,7 @@ const ProjectTasksTableViewComponent = ({
           return (
             <div className="flex min-w-30 items-center gap-2">
               <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                Due Date
+                {t("table.dueDateColumn")}
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -287,7 +289,7 @@ const ProjectTasksTableViewComponent = ({
           return (
             <div className="flex items-center gap-2">
               <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                Priority
+                {t("table.priorityColumn")}
                 <SortIcon isSorted={isSorted} />
               </Button>
             </div>
@@ -301,11 +303,11 @@ const ProjectTasksTableViewComponent = ({
       },
       {
         id: "tags",
-        header: () => <span className="font-medium">Tags</span>,
+        header: () => <span className="font-medium">{t("table.tagsColumn")}</span>,
         cell: ({ row }) => {
           const taskTags = row.original.tags ?? [];
           if (taskTags.length === 0) {
-            return <span className="text-muted-foreground text-sm">—</span>;
+            return <span className="text-muted-foreground text-sm">&mdash;</span>;
           }
           return (
             <div className="flex flex-wrap gap-1">
@@ -313,7 +315,9 @@ const ProjectTasksTableViewComponent = ({
                 <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
               ))}
               {taskTags.length > 3 && (
-                <span className="text-muted-foreground text-xs">+{taskTags.length - 3}</span>
+                <span className="text-muted-foreground text-xs">
+                  {t("table.moreTagsCount", { count: taskTags.length - 3 })}
+                </span>
               )}
             </div>
           );
@@ -322,7 +326,7 @@ const ProjectTasksTableViewComponent = ({
       },
       {
         id: "comments",
-        header: () => <span className="font-medium">Comments</span>,
+        header: () => <span className="font-medium">{t("table.commentsColumn")}</span>,
         cell: ({ row }) => {
           const count = row.original.comment_count ?? 0;
           return count > 0 ? (
@@ -338,7 +342,7 @@ const ProjectTasksTableViewComponent = ({
       },
       {
         id: "status",
-        header: () => <span className="font-medium">Status</span>,
+        header: () => <span className="font-medium">{t("table.statusColumn")}</span>,
         cell: ({ row }) => {
           const task = row.original;
           return (
@@ -371,9 +375,9 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: false,
       },
     ],
-    [canOpenTask, gp, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup]
+    [canOpenTask, gp, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup, t]
   );
-  const groupingOptions = useMemo(() => [{ id: "date group", label: "Date" }], []);
+  const groupingOptions = useMemo(() => [{ id: "date group", label: t("table.dateWindow") }], [t]);
 
   return (
     <DndContext
@@ -397,7 +401,7 @@ const ProjectTasksTableViewComponent = ({
             const disableDnd = sorting.length > 0 || grouping.length > 0;
             return disableDnd ? (
               <div className="text-muted-foreground">
-                Manual sorting disabled,{" "}
+                {t("table.manualSortDisabled")}{" "}
                 <Button
                   variant="link"
                   className="text-foreground px-0 text-base"
@@ -406,9 +410,9 @@ const ProjectTasksTableViewComponent = ({
                     table.resetGrouping();
                   }}
                 >
-                  reset column sorting and row grouping
+                  {t("table.resetSortingAndGrouping")}
                 </Button>{" "}
-                to reorder.
+                {t("table.toReorder")}
               </div>
             ) : null;
           }}
@@ -424,7 +428,7 @@ const ProjectTasksTableViewComponent = ({
           )}
           enableFilterInput
           filterInputColumnKey="title"
-          filterInputPlaceholder="Filter tasks..."
+          filterInputPlaceholder={t("table.filterPlaceholder")}
           enableColumnVisibilityDropdown
           enableResetSorting
           enableRowSelection
@@ -457,6 +461,7 @@ export const ProjectTasksTableView = memo(
 );
 
 const DragHandleCell = () => {
+  const { t } = useTranslation("projects");
   const sortable = useSortableRowContext();
   if (!sortable) {
     return null;
@@ -470,7 +475,7 @@ const DragHandleCell = () => {
       {...(attributes ?? {})}
       {...(listeners ?? {})}
       disabled={dragDisabled}
-      aria-label="Reorder task"
+      aria-label={t("table.reorderTask")}
     >
       <GripVertical className="h-4 w-4 cursor-grab" />
     </button>
@@ -484,15 +489,20 @@ type TaskCellProps = {
 };
 
 const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
+  const { t } = useTranslation("projects");
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;
-    const summary = summarizeRecurrence(task.recurrence, {
-      referenceDate: task.start_date || task.due_date,
-      strategy: task.recurrence_strategy,
-    });
+    const summary = summarizeRecurrence(
+      task.recurrence,
+      {
+        referenceDate: task.start_date || task.due_date,
+        strategy: task.recurrence_strategy,
+      },
+      t
+    );
     return summary ? truncateText(summary, 100) : null;
-  }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy]);
+  }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy, t]);
 
   return (
     <div className="flex items-center gap-2">

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -49,14 +50,16 @@ export const ProjectTasksFilters = ({
   onTagFiltersChange,
   onShowArchivedChange,
 }: ProjectTasksFiltersProps) => {
+  const { t } = useTranslation("projects");
+
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTags = useMemo(() => {
-    const tagMap = new Map(tags.map((t) => [t.id, t]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is Tag => t !== undefined);
+    const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+    return tagFilters.map((id) => tagMap.get(id)).filter((tag): tag is Tag => tag !== undefined);
   }, [tags, tagFilters]);
 
   const handleTagsChange = (newTags: TagSummary[]) => {
-    onTagFiltersChange(newTags.map((t) => t.id));
+    onTagFiltersChange(newTags.map((tag) => tag.id));
   };
 
   return (
@@ -66,7 +69,7 @@ export const ProjectTasksFilters = ({
           htmlFor="assignee-filter"
           className="text-muted-foreground block text-xs font-medium"
         >
-          Filter by assignee
+          {t("filters.filterByAssignee")}
         </Label>
         <MultiSelect
           selectedValues={assigneeFilters}
@@ -75,27 +78,27 @@ export const ProjectTasksFilters = ({
             label: option.label,
           }))}
           onChange={onAssigneeFiltersChange}
-          placeholder="All assignees"
-          emptyMessage="No users available"
+          placeholder={t("filters.allAssignees")}
+          emptyMessage={t("filters.noUsersAvailable")}
         />
       </div>
       <div className="w-full space-y-2 sm:w-48">
         <Label htmlFor="due-filter" className="text-muted-foreground block text-xs font-medium">
-          Due filter
+          {t("filters.dueFilter")}
         </Label>
         <Select
           value={dueFilter}
           onValueChange={(value) => onDueFilterChange(value as DueFilterOption)}
         >
           <SelectTrigger id="due-filter">
-            <SelectValue placeholder="All due dates" />
+            <SelectValue placeholder={t("filters.allDueDates")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All due dates</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
-            <SelectItem value="today">Due today</SelectItem>
-            <SelectItem value="7_days">Due next 7 days</SelectItem>
-            <SelectItem value="30_days">Due next 30 days</SelectItem>
+            <SelectItem value="all">{t("filters.allDueDates")}</SelectItem>
+            <SelectItem value="overdue">{t("filters.overdue")}</SelectItem>
+            <SelectItem value="today">{t("filters.dueToday")}</SelectItem>
+            <SelectItem value="7_days">{t("filters.dueNext7Days")}</SelectItem>
+            <SelectItem value="30_days">{t("filters.dueNext30Days")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -105,7 +108,7 @@ export const ProjectTasksFilters = ({
             htmlFor="status-filter"
             className="text-muted-foreground block text-xs font-medium"
           >
-            Filter by status
+            {t("filters.filterByStatus")}
           </Label>
           <MultiSelect
             selectedValues={statusFilters.map(String)}
@@ -117,19 +120,19 @@ export const ProjectTasksFilters = ({
               const numericValues = values.map(Number).filter(Number.isFinite);
               onStatusFiltersChange(numericValues);
             }}
-            placeholder="All statuses"
-            emptyMessage="No statuses available"
+            placeholder={t("filters.allStatuses")}
+            emptyMessage={t("filters.noStatusesAvailable")}
           />
         </div>
       ) : null}
       <div className="w-full space-y-2 sm:w-48">
         <Label htmlFor="tag-filter" className="text-muted-foreground block text-xs font-medium">
-          Filter by tag
+          {t("filters.filterByTag")}
         </Label>
         <TagPicker
           selectedTags={selectedTags}
           onChange={handleTagsChange}
-          placeholder="All tags"
+          placeholder={t("filters.allTags")}
           variant="filter"
         />
       </div>
@@ -140,7 +143,7 @@ export const ProjectTasksFilters = ({
           onCheckedChange={(checked) => onShowArchivedChange(checked === true)}
         />
         <Label htmlFor="show-archived" className="cursor-pointer text-sm font-medium">
-          Show archived
+          {t("filters.showArchived")}
         </Label>
       </div>
     </div>
