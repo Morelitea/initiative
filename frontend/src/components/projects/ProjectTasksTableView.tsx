@@ -377,7 +377,7 @@ const ProjectTasksTableViewComponent = ({
     ],
     [canOpenTask, gp, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup, t]
   );
-  const groupingOptions = useMemo(() => [{ id: "date group", label: "Date" }], []);
+  const groupingOptions = useMemo(() => [{ id: "date group", label: t("table.dateWindow") }], [t]);
 
   return (
     <DndContext
