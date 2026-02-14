@@ -59,7 +59,7 @@ async def test_get_guild_by_id(session: AsyncSession):
 @pytest.mark.service
 async def test_get_guild_not_found(session: AsyncSession):
     """Test that getting nonexistent guild raises error."""
-    with pytest.raises(ValueError, match="Guild not found"):
+    with pytest.raises(ValueError, match="GUILD_NOT_FOUND"):
         await guild_service.get_guild(session, guild_id=99999)
 
 
@@ -405,7 +405,7 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
 
-    with pytest.raises(guild_service.GuildInviteError, match="expired"):
+    with pytest.raises(guild_service.GuildInviteError, match="INVITE_EXPIRED_OR_USED"):
         await guild_service.redeem_invite_for_user(
             session,
             code=invite.code,
