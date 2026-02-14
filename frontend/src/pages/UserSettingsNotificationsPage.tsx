@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -77,6 +78,7 @@ export const UserSettingsNotificationsPage = ({
   user,
   refreshUser,
 }: UserSettingsNotificationsPageProps) => {
+  const { t } = useTranslation("settings");
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
 
   const { data: fcmConfig } = useQuery({
@@ -150,7 +152,7 @@ export const UserSettingsNotificationsPage = ({
         },
         onError: () => {
           setter(previousValue);
-          toast.error("Unable to update notification settings");
+          toast.error(t("notifications.toggleError"));
         },
       }
     );
@@ -162,10 +164,10 @@ export const UserSettingsNotificationsPage = ({
       {
         onSuccess: async () => {
           await refreshUser();
-          toast.success("Notification schedule updated");
+          toast.success(t("notifications.scheduleSuccess"));
         },
         onError: () => {
-          toast.error("Unable to update notification schedule");
+          toast.error(t("notifications.scheduleError"));
           setTimezone(user.timezone ?? "UTC");
           setNotificationTime(user.overdue_notification_time ?? "21:00");
         },
@@ -175,8 +177,8 @@ export const UserSettingsNotificationsPage = ({
 
   const categories: NotificationCategory[] = [
     {
-      label: "Initiative invites",
-      description: "When you\u2019re added to a new initiative.",
+      label: t("notifications.categories.initiativeInvites"),
+      description: t("notifications.categories.initiativeInvitesDescription"),
       emailField: "email_initiative_addition",
       emailValue: emailInitiative,
       emailSetter: setEmailInitiative,
@@ -185,8 +187,8 @@ export const UserSettingsNotificationsPage = ({
       pushSetter: setPushInitiative,
     },
     {
-      label: "Task assignments",
-      description: "Hourly summary when others assign you tasks.",
+      label: t("notifications.categories.taskAssignments"),
+      description: t("notifications.categories.taskAssignmentsDescription"),
       emailField: "email_task_assignment",
       emailValue: emailAssignment,
       emailSetter: setEmailAssignment,
@@ -195,8 +197,8 @@ export const UserSettingsNotificationsPage = ({
       pushSetter: setPushAssignment,
     },
     {
-      label: "Mentions",
-      description: "When someone mentions you or comments on your work.",
+      label: t("notifications.categories.mentions"),
+      description: t("notifications.categories.mentionsDescription"),
       emailField: "email_mentions",
       emailValue: emailMentions,
       emailSetter: setEmailMentions,
@@ -205,8 +207,8 @@ export const UserSettingsNotificationsPage = ({
       pushSetter: setPushMentions,
     },
     {
-      label: "New project in initiative",
-      description: "When projects are created in your initiatives.",
+      label: t("notifications.categories.newProject"),
+      description: t("notifications.categories.newProjectDescription"),
       emailField: "email_project_added",
       emailValue: emailProjectAdded,
       emailSetter: setEmailProjectAdded,
@@ -215,8 +217,8 @@ export const UserSettingsNotificationsPage = ({
       pushSetter: setPushProjectAdded,
     },
     {
-      label: "Overdue tasks",
-      description: "Daily reminder for tasks past due at your scheduled time.",
+      label: t("notifications.categories.overdueTasks"),
+      description: t("notifications.categories.overdueTasksDescription"),
       emailField: "email_overdue_tasks",
       emailValue: emailOverdue,
       emailSetter: setEmailOverdue,
@@ -229,11 +231,8 @@ export const UserSettingsNotificationsPage = ({
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>Notification settings</CardTitle>
-        <CardDescription>
-          Control which notifications you receive by channel. Bell notifications always appear
-          regardless of these settings.
-        </CardDescription>
+        <CardTitle>{t("notifications.title")}</CardTitle>
+        <CardDescription>{t("notifications.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Push Notifications Section (Mobile Only) */}
@@ -241,31 +240,32 @@ export const UserSettingsNotificationsPage = ({
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Push Notifications</p>
+                <p className="font-medium">{t("notifications.pushNotifications")}</p>
                 <p className="text-muted-foreground text-sm">
-                  Receive real-time alerts on your device
+                  {t("notifications.pushDescription")}
                 </p>
               </div>
               {permissionStatus === "granted" && (
                 <Badge variant="default" className="bg-green-600 hover:bg-green-600">
-                  Enabled
+                  {t("notifications.pushEnabled")}
                 </Badge>
               )}
-              {permissionStatus === "denied" && <Badge variant="destructive">Blocked</Badge>}
-              {permissionStatus === "prompt" && <Badge variant="secondary">Not enabled</Badge>}
+              {permissionStatus === "denied" && (
+                <Badge variant="destructive">{t("notifications.pushBlocked")}</Badge>
+              )}
+              {permissionStatus === "prompt" && (
+                <Badge variant="secondary">{t("notifications.pushNotEnabled")}</Badge>
+              )}
             </div>
             {permissionStatus === "prompt" && (
               <Button onClick={requestPermission} size="sm" className="w-full">
-                Enable Push Notifications
+                {t("notifications.enablePush")}
               </Button>
             )}
             {permissionStatus === "denied" && (
               <div className="text-muted-foreground bg-muted rounded p-3 text-sm">
-                <p className="mb-1 font-medium">Push notifications are blocked</p>
-                <p>
-                  To enable push notifications, open your device settings, find this app, and enable
-                  notifications.
-                </p>
+                <p className="mb-1 font-medium">{t("notifications.pushBlockedTitle")}</p>
+                <p>{t("notifications.pushBlockedDescription")}</p>
               </div>
             )}
           </div>
@@ -273,26 +273,24 @@ export const UserSettingsNotificationsPage = ({
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label>Timezone</Label>
+            <Label>{t("notifications.timezone")}</Label>
             <SearchableCombobox
               items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
               value={timezone}
               onValueChange={(value) => setTimezone(value)}
-              placeholder="Select timezone"
-              emptyMessage="No timezone found."
+              placeholder={t("notifications.timezonePlaceholder")}
+              emptyMessage={t("notifications.timezoneEmpty")}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="overdue-time">Overdue reminder time</Label>
+            <Label htmlFor="overdue-time">{t("notifications.overdueTime")}</Label>
             <Input
               id="overdue-time"
               type="time"
               value={notificationTime}
               onChange={(event) => setNotificationTime(event.target.value)}
             />
-            <p className="text-muted-foreground text-xs">
-              Daily reminder time (uses the timezone above).
-            </p>
+            <p className="text-muted-foreground text-xs">{t("notifications.overdueTimeHelp")}</p>
           </div>
           <div className="flex items-center">
             <Button
@@ -301,7 +299,9 @@ export const UserSettingsNotificationsPage = ({
               onClick={handleScheduleSave}
               disabled={updateNotificationSchedule.isPending}
             >
-              {updateNotificationSchedule.isPending ? "Saving\u2026" : "Save schedule"}
+              {updateNotificationSchedule.isPending
+                ? t("notifications.savingSchedule")
+                : t("notifications.saveSchedule")}
             </Button>
           </div>
         </div>
@@ -312,11 +312,15 @@ export const UserSettingsNotificationsPage = ({
           <div
             className={`grid items-center gap-4 border-b pb-2 ${showPushColumn ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}
           >
-            <p className="text-muted-foreground text-sm font-medium">Category</p>
-            <p className="text-muted-foreground w-16 text-center text-sm font-medium">Email</p>
+            <p className="text-muted-foreground text-sm font-medium">
+              {t("notifications.categoryHeader")}
+            </p>
+            <p className="text-muted-foreground w-16 text-center text-sm font-medium">
+              {t("notifications.emailHeader")}
+            </p>
             {showPushColumn && (
               <p className="text-muted-foreground w-16 text-center text-sm font-medium">
-                Mobile App
+                {t("notifications.mobileAppHeader")}
               </p>
             )}
           </div>

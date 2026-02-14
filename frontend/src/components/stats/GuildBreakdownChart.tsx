@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
@@ -16,16 +17,17 @@ const COLORS = [
 ];
 
 export function GuildBreakdownChart({ data }: GuildBreakdownChartProps) {
+  const { t } = useTranslation("stats");
   if (data.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Tasks by Guild</CardTitle>
-          <CardDescription>Completed tasks breakdown by guild</CardDescription>
+          <CardTitle>{t("guildBreakdown.title")}</CardTitle>
+          <CardDescription>{t("guildBreakdown.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
-            No guild data available
+            {t("guildBreakdown.noData")}
           </div>
         </CardContent>
       </Card>
@@ -53,8 +55,8 @@ export function GuildBreakdownChart({ data }: GuildBreakdownChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tasks by Guild</CardTitle>
-        <CardDescription>Completed tasks breakdown by guild</CardDescription>
+        <CardTitle>{t("guildBreakdown.title")}</CardTitle>
+        <CardDescription>{t("guildBreakdown.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
@@ -74,6 +75,7 @@ const suggestStatusForSection = (
 };
 
 export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogProps) => {
+  const { t } = useTranslation("import");
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [csvContent, setCsvContent] = useState("");
@@ -141,11 +143,11 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
     onSuccess: (data) => {
       setParseResult(data);
       if (data.sections.length === 0) {
-        toast.error("No sections found in the CSV");
+        toast.error(t("todoist.noSectionsFound"));
       }
     },
     onError: () => {
-      toast.error("Failed to parse CSV file");
+      toast.error(t("todoist.parseFailed"));
     },
   });
 
@@ -168,7 +170,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
       queryClient.invalidateQueries({ queryKey: ["project", selectedProjectId] });
     },
     onError: () => {
-      toast.error("Import failed");
+      toast.error(t("common.importFailed"));
     },
   });
 
@@ -217,11 +219,11 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Import from Todoist</DialogTitle>
+          <DialogTitle>{t("todoist.title")}</DialogTitle>
           <DialogDescription>
-            {step === "upload" && "Upload your Todoist CSV export file or paste the content."}
-            {step === "configure" && "Map Todoist sections to project statuses."}
-            {step === "result" && "Import complete."}
+            {step === "upload" && t("todoist.stepUploadDescription")}
+            {step === "configure" && t("todoist.stepConfigureDescription")}
+            {step === "result" && t("common.resultTitle")}
           </DialogDescription>
         </DialogHeader>
 
@@ -229,12 +231,12 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
           <div className="space-y-4">
             {/* File Upload */}
             <div>
-              <Label>Upload CSV file</Label>
+              <Label>{t("todoist.uploadFileLabel")}</Label>
               <div className="mt-2">
                 <label className="border-muted hover:bg-accent flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors">
                   <Upload className="text-muted-foreground mb-2 h-8 w-8" />
                   <span className="text-muted-foreground text-sm">
-                    Click to upload or drag and drop
+                    {t("common.uploadDragDrop")}
                   </span>
                   <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                 </label>
@@ -242,13 +244,13 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
             </div>
 
             {/* Or paste content */}
-            <div className="text-muted-foreground text-center text-sm">or</div>
+            <div className="text-muted-foreground text-center text-sm">{t("common.or")}</div>
 
             <div>
-              <Label htmlFor="csv-content">Paste CSV content</Label>
+              <Label htmlFor="csv-content">{t("todoist.pasteLabel")}</Label>
               <Textarea
                 id="csv-content"
-                placeholder="Paste your Todoist CSV export here..."
+                placeholder={t("todoist.csvPlaceholder")}
                 value={csvContent}
                 onChange={(e) => setCsvContent(e.target.value)}
                 className="mt-2 h-32 font-mono text-xs"
@@ -260,7 +262,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
                 onClick={handlePasteContent}
                 disabled={!csvContent.trim() || parseMutation.isPending}
               >
-                {parseMutation.isPending ? "Parsing..." : "Parse content"}
+                {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
               </Button>
             </div>
 
@@ -269,12 +271,18 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
               <div className="bg-muted rounded-lg p-4">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
-                  <span className="font-medium">CSV parsed successfully</span>
+                  <span className="font-medium">{t("todoist.csvParsed")}</span>
                 </div>
                 <div className="text-muted-foreground mt-2 text-sm">
-                  <p>Found {parseResult.task_count} tasks</p>
-                  <p>Sections: {parseResult.sections.map((s) => s.name).join(", ") || "None"}</p>
-                  {parseResult.has_subtasks && <p>Includes subtasks</p>}
+                  <p>{t("todoist.foundTasks", { count: parseResult.task_count })}</p>
+                  <p>
+                    {t("todoist.sections", {
+                      sections:
+                        parseResult.sections.map((s) => s.name).join(", ") ||
+                        t("todoist.sectionsNone"),
+                    })}
+                  </p>
+                  {parseResult.has_subtasks && <p>{t("common.includesSubtasks")}</p>}
                 </div>
               </div>
             )}
@@ -282,13 +290,13 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
             {/* Project selection */}
             {parseResult && (
               <div>
-                <Label>Import to project</Label>
+                <Label>{t("common.importToProject")}</Label>
                 <Select
                   value={selectedProjectId?.toString() ?? ""}
                   onValueChange={(value) => setSelectedProjectId(Number(value))}
                 >
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select a project" />
+                    <SelectValue placeholder={t("common.selectProject")} />
                   </SelectTrigger>
                   <SelectContent>
                     {activeProjects.map((project) => (
@@ -304,10 +312,10 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button onClick={handleNext} disabled={!parseResult || !selectedProjectId}>
-                Next
+                {t("common.next")}
               </Button>
             </div>
           </div>
@@ -316,10 +324,8 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
         {step === "configure" && (
           <div className="space-y-4">
             <div>
-              <Label>Map sections to statuses</Label>
-              <p className="text-muted-foreground text-sm">
-                Choose which project status each Todoist section should map to.
-              </p>
+              <Label>{t("todoist.mapSectionsLabel")}</Label>
+              <p className="text-muted-foreground text-sm">{t("todoist.mapSectionsDescription")}</p>
             </div>
 
             <div className="space-y-3">
@@ -328,7 +334,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{section.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {section.task_count} task{section.task_count === 1 ? "" : "s"}
+                      {t("todoist.taskCount", { count: section.task_count })}
                     </p>
                   </div>
                   <Select
@@ -341,7 +347,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
                     }
                   >
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t("common.selectStatus")} />
                     </SelectTrigger>
                     <SelectContent>
                       {statuses.map((status) => (
@@ -357,7 +363,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStep("upload")}>
-                Back
+                {t("common.back")}
               </Button>
               <Button
                 onClick={handleImport}
@@ -366,7 +372,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
                   Object.keys(sectionMapping).length !== parseResult?.sections.length
                 }
               >
-                {importMutation.isPending ? "Importing..." : "Import"}
+                {importMutation.isPending ? t("common.importing") : t("common.import")}
               </Button>
             </div>
           </div>
@@ -387,22 +393,22 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
               <div>
                 <p className="font-medium">
                   {importResult.tasks_failed === 0
-                    ? "Import successful!"
-                    : "Import completed with warnings"}
+                    ? t("common.importSuccessful")
+                    : t("common.importWarnings")}
                 </p>
                 <p className="text-muted-foreground text-sm">
-                  {importResult.tasks_created} task{importResult.tasks_created === 1 ? "" : "s"}{" "}
-                  created
+                  {t("common.tasksCreated", { count: importResult.tasks_created })}
                   {importResult.subtasks_created > 0 &&
-                    `, ${importResult.subtasks_created} subtask${importResult.subtasks_created === 1 ? "" : "s"}`}
-                  {importResult.tasks_failed > 0 && `, ${importResult.tasks_failed} failed`}
+                    `, ${t("common.subtasksCount", { count: importResult.subtasks_created })}`}
+                  {importResult.tasks_failed > 0 &&
+                    `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
                 </p>
               </div>
             </div>
 
             {importResult.errors.length > 0 && (
               <div className="bg-muted max-h-40 overflow-y-auto rounded-lg p-3">
-                <p className="mb-2 text-sm font-medium">Errors:</p>
+                <p className="mb-2 text-sm font-medium">{t("common.errors")}</p>
                 <ul className="text-muted-foreground space-y-1 text-xs">
                   {importResult.errors.map((error, index) => (
                     <li key={index}>{error}</li>
@@ -412,7 +418,7 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
             )}
 
             <div className="flex justify-end">
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
+              <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
             </div>
           </div>
         )}

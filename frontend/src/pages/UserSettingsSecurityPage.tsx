@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Smartphone, Trash2 } from "lucide-react";
 
@@ -47,15 +48,16 @@ const formatDateTime = (value?: string | null) => {
 
 const computeStatus = (key: ApiKeyMetadata) => {
   if (!key.is_active) {
-    return { label: "Disabled", variant: "destructive" as const };
+    return { labelKey: "security.statusDisabled" as const, variant: "destructive" as const };
   }
   if (key.expires_at && new Date(key.expires_at).getTime() <= Date.now()) {
-    return { label: "Expired", variant: "secondary" as const };
+    return { labelKey: "security.statusExpired" as const, variant: "secondary" as const };
   }
-  return { label: "Active", variant: "default" as const };
+  return { labelKey: "security.statusActive" as const, variant: "default" as const };
 };
 
 export const UserSettingsSecurityPage = () => {
+  const { t } = useTranslation("settings");
   const [name, setName] = useState("");
   const [expiresAtInput, setExpiresAtInput] = useState("");
   const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
@@ -77,14 +79,14 @@ export const UserSettingsSecurityPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      toast.success("API key created");
+      toast.success(t("security.createSuccess"));
       setGeneratedSecret(data.secret);
       setName("");
       setExpiresAtInput("");
       void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
     },
     onError: () => {
-      toast.error("Unable to create API key");
+      toast.error(t("security.createError"));
     },
   });
 
@@ -96,11 +98,11 @@ export const UserSettingsSecurityPage = () => {
       setDeleteTarget(keyId);
     },
     onSuccess: () => {
-      toast.success("API key deleted");
+      toast.success(t("security.deleteSuccess"));
       void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
     },
     onError: () => {
-      toast.error("Unable to delete API key");
+      toast.error(t("security.deleteError"));
     },
     onSettled: () => {
       setDeleteTarget(null);
@@ -121,11 +123,11 @@ export const UserSettingsSecurityPage = () => {
       await apiClient.delete(`/auth/device-tokens/${tokenId}`);
     },
     onSuccess: () => {
-      toast.success("Device logged out");
+      toast.success(t("security.revokeSuccess"));
       void queryClient.invalidateQueries({ queryKey: DEVICE_TOKENS_QUERY_KEY });
     },
     onError: () => {
-      toast.error("Unable to revoke device access");
+      toast.error(t("security.revokeError"));
     },
     onSettled: () => {
       setRevokeTarget(null);
@@ -136,7 +138,7 @@ export const UserSettingsSecurityPage = () => {
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      toast.error("Name is required");
+      toast.error(t("security.nameRequired"));
       return;
     }
     const payload: { name: string; expires_at?: string | null } = { name: trimmedName };
@@ -163,7 +165,7 @@ export const UserSettingsSecurityPage = () => {
       return;
     }
     void navigator.clipboard.writeText(generatedSecret).then(() => {
-      toast.success("API key copied to clipboard");
+      toast.success(t("security.keyCopied"));
     });
   };
 
@@ -172,25 +174,20 @@ export const UserSettingsSecurityPage = () => {
       {/* Device Tokens Section */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Logged in devices</CardTitle>
-          <CardDescription>
-            Mobile devices that are currently logged in to your account. Revoking access will log
-            the device out.
-          </CardDescription>
+          <CardTitle>{t("security.devicesTitle")}</CardTitle>
+          <CardDescription>{t("security.devicesDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           {devicesQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading devices...</p>
+            <p className="text-muted-foreground text-sm">{t("security.loadingDevices")}</p>
           ) : devicesQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load devices.</p>
+            <p className="text-destructive text-sm">{t("security.devicesError")}</p>
           ) : devices.length === 0 ? (
             <div className="text-muted-foreground flex flex-col items-center gap-3 py-6 text-center">
               <Smartphone className="h-10 w-10 opacity-50" />
               <div>
-                <p className="font-medium">No devices logged in</p>
-                <p className="text-sm">
-                  When you log in from a mobile device, it will appear here.
-                </p>
+                <p className="font-medium">{t("security.noDevices")}</p>
+                <p className="text-sm">{t("security.noDevicesHint")}</p>
               </div>
             </div>
           ) : (
@@ -205,9 +202,11 @@ export const UserSettingsSecurityPage = () => {
                       <Smartphone className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-medium">{device.device_name ?? "Unknown device"}</p>
+                      <p className="font-medium">
+                        {device.device_name ?? t("security.unknownDevice")}
+                      </p>
                       <p className="text-muted-foreground text-sm">
-                        Logged in {formatDateTime(device.created_at)}
+                        {t("security.loggedIn", { date: formatDateTime(device.created_at) })}
                       </p>
                     </div>
                   </div>
@@ -219,7 +218,7 @@ export const UserSettingsSecurityPage = () => {
                     disabled={revokeToken.isPending}
                   >
                     <Trash2 className="mr-1.5 h-4 w-4" />
-                    Revoke
+                    {t("security.revoke")}
                   </Button>
                 </div>
               ))}
@@ -232,17 +231,15 @@ export const UserSettingsSecurityPage = () => {
       {generatedSecret ? (
         <Card className="border-primary/50 shadow-sm">
           <CardHeader>
-            <CardTitle>New API key</CardTitle>
-            <CardDescription>
-              Copy this key now. You will not be able to view it again.
-            </CardDescription>
+            <CardTitle>{t("security.newKeyTitle")}</CardTitle>
+            <CardDescription>{t("security.newKeyDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-start gap-4">
             <code className="bg-muted flex-1 rounded-md border px-3 py-2 font-mono text-sm break-all">
               {generatedSecret}
             </code>
             <Button type="button" variant="secondary" onClick={copySecret}>
-              Copy
+              {t("security.copy")}
             </Button>
           </CardContent>
         </Card>
@@ -250,41 +247,37 @@ export const UserSettingsSecurityPage = () => {
 
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Generate an API key</CardTitle>
-          <CardDescription>
-            Create long-lived credentials for scripts or integrations.
-          </CardDescription>
+          <CardTitle>{t("security.generateTitle")}</CardTitle>
+          <CardDescription>{t("security.generateDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleCreate}>
             <div className="space-y-2">
-              <Label htmlFor="api-key-name">Key name</Label>
+              <Label htmlFor="api-key-name">{t("security.keyNameLabel")}</Label>
               <Input
                 id="api-key-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. reporting-script"
+                placeholder={t("security.keyNamePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="api-key-expiration">Expiration (optional)</Label>
+              <Label htmlFor="api-key-expiration">{t("security.expirationLabel")}</Label>
               <DateTimePicker
                 id="api-key-expiration"
                 value={expiresAtInput}
                 onChange={setExpiresAtInput}
-                placeholder="Never expires"
+                placeholder={t("security.neverExpires")}
                 calendarProps={{
                   hidden: {
                     before: new Date(),
                   },
                 }}
               />
-              <p className="text-muted-foreground text-xs">
-                Leave blank for a key that never expires.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("security.expirationHelp")}</p>
             </div>
             <Button type="submit" disabled={createKey.isPending}>
-              {createKey.isPending ? "Generating..." : "Generate API key"}
+              {createKey.isPending ? t("security.generating") : t("security.generateButton")}
             </Button>
           </form>
         </CardContent>
@@ -292,29 +285,27 @@ export const UserSettingsSecurityPage = () => {
 
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Existing keys</CardTitle>
-          <CardDescription>
-            Only the last few characters are shown. Rotate keys regularly.
-          </CardDescription>
+          <CardTitle>{t("security.existingTitle")}</CardTitle>
+          <CardDescription>{t("security.existingDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           {apiKeysQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading API keys...</p>
+            <p className="text-muted-foreground text-sm">{t("security.loadingKeys")}</p>
           ) : apiKeysQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load API keys.</p>
+            <p className="text-destructive text-sm">{t("security.keysError")}</p>
           ) : apiKeys.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No API keys yet.</p>
+            <p className="text-muted-foreground text-sm">{t("security.noKeys")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-muted-foreground text-left">
                   <tr>
-                    <th className="py-2 pr-4 font-medium">Name</th>
-                    <th className="py-2 pr-4 font-medium">Prefix</th>
-                    <th className="py-2 pr-4 font-medium">Status</th>
-                    <th className="py-2 pr-4 font-medium">Last used</th>
-                    <th className="py-2 pr-4 font-medium">Expires</th>
-                    <th className="py-2 text-right font-medium">Actions</th>
+                    <th className="py-2 pr-4 font-medium">{t("security.columnName")}</th>
+                    <th className="py-2 pr-4 font-medium">{t("security.columnPrefix")}</th>
+                    <th className="py-2 pr-4 font-medium">{t("security.columnStatus")}</th>
+                    <th className="py-2 pr-4 font-medium">{t("security.columnLastUsed")}</th>
+                    <th className="py-2 pr-4 font-medium">{t("security.columnExpires")}</th>
+                    <th className="py-2 text-right font-medium">{t("security.columnActions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -330,10 +321,12 @@ export const UserSettingsSecurityPage = () => {
                         </td>
                         <td className="py-3 pr-4 font-mono">{key.token_prefix}...</td>
                         <td className="py-3 pr-4">
-                          <Badge variant={status.variant}>{status.label}</Badge>
+                          <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
                         </td>
                         <td className="py-3 pr-4">
-                          {key.last_used_at ? formatDateTime(key.last_used_at) : "Never"}
+                          {key.last_used_at
+                            ? formatDateTime(key.last_used_at)
+                            : t("security.never")}
                         </td>
                         <td className="py-3 pr-4">{formatDateTime(key.expires_at)}</td>
                         <td className="py-3 text-right">
@@ -345,8 +338,8 @@ export const UserSettingsSecurityPage = () => {
                             disabled={deleteTarget === key.id && deleteKey.isPending}
                           >
                             {deleteTarget === key.id && deleteKey.isPending
-                              ? "Removing..."
-                              : "Delete"}
+                              ? t("security.deleting")
+                              : t("security.deleteButton")}
                           </Button>
                         </td>
                       </tr>
@@ -363,17 +356,19 @@ export const UserSettingsSecurityPage = () => {
       <AlertDialog open={revokeTarget !== null} onOpenChange={() => setRevokeTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke device access?</AlertDialogTitle>
+            <AlertDialogTitle>{t("security.revokeDialogTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will log out{" "}
-              <span className="font-medium">{revokeTarget?.device_name ?? "this device"}</span>.
-              They will need to log in again to access your account.
+              {t("security.revokeDialogDescriptionPrefix")}{" "}
+              <span className="font-medium">
+                {revokeTarget?.device_name ?? t("security.unknownDevice")}
+              </span>
+              . {t("security.revokeDialogDescriptionSuffix")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("security.revokeDialogCancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleRevoke} disabled={revokeToken.isPending}>
-              {revokeToken.isPending ? "Revoking..." : "Revoke access"}
+              {revokeToken.isPending ? t("security.revoking") : t("security.revokeDialogConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

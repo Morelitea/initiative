@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "My Stats",
+    "subtitle": "Track your productivity and task completion metrics",
+    "guildFilterPlaceholder": "Select guild",
+    "allGuilds": "All Guilds",
+    "loading": "Loading stats\u2026",
+    "error": "Failed to load stats. Please try again later."
+  },
+  "metrics": {
+    "currentStreak": "Current Streak",
+    "consecutiveDays": "Consecutive work days",
+    "onTimeRate": "On-Time Rate",
+    "onTimeSubtitle": "Tasks completed before due date",
+    "avgCompletion": "Avg Completion",
+    "avgCompletionSubtitle": "From start to completion",
+    "backlogTrend": "Backlog Trend",
+    "thisWeek": "This week",
+    "days": "days",
+    "growing": "Growing",
+    "shrinking": "Shrinking"
+  },
+  "tasksCompleted": {
+    "title": "Tasks Completed",
+    "allTime": "All time",
+    "thisWeek": "This week"
+  },
+  "velocity": {
+    "title": "Velocity",
+    "description": "Tasks assigned vs completed per week",
+    "descriptionLong": "Tasks assigned vs completed per week (last 12 weeks)",
+    "noData": "No velocity data available",
+    "assigned": "Assigned",
+    "completed": "Completed"
+  },
+  "guildBreakdown": {
+    "title": "Tasks by Guild",
+    "description": "Completed tasks breakdown by guild",
+    "noData": "No guild data available"
+  },
+  "heatmap": {
+    "title": "Activity Heatmap",
+    "description": "Task activity over the past year",
+    "noData": "No activity data available",
+    "less": "Less",
+    "more": "More",
+    "activity_one": "{{count}} activity",
+    "activity_other": "{{count}} activities"
+  }
+}

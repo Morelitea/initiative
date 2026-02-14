@@ -1,4 +1,5 @@
 import { format, parseISO } from "date-fns";
+import { useTranslation } from "react-i18next";
 import {
   Bar,
   BarChart,
@@ -17,18 +18,19 @@ interface VelocityChartProps {
   data: VelocityWeekData[];
 }
 
-const chartConfig = {
-  assigned: {
-    label: "Assigned",
-    color: "var(--chart-1)",
-  },
-  completed: {
-    label: "Completed",
-    color: "var(--chart-2)",
-  },
-};
-
 export function VelocityChart({ data }: VelocityChartProps) {
+  const { t } = useTranslation("stats");
+
+  const chartConfig = {
+    assigned: {
+      label: t("velocity.assigned"),
+      color: "var(--chart-1)",
+    },
+    completed: {
+      label: t("velocity.completed"),
+      color: "var(--chart-2)",
+    },
+  };
   // Format data for display
   const formattedData = data.map((week) => ({
     ...week,
@@ -39,12 +41,12 @@ export function VelocityChart({ data }: VelocityChartProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Velocity</CardTitle>
-          <CardDescription>Tasks assigned vs completed per week</CardDescription>
+          <CardTitle>{t("velocity.title")}</CardTitle>
+          <CardDescription>{t("velocity.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground flex h-[300px] items-center justify-center text-sm">
-            No velocity data available
+            {t("velocity.noData")}
           </div>
         </CardContent>
       </Card>
@@ -54,8 +56,8 @@ export function VelocityChart({ data }: VelocityChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Velocity</CardTitle>
-        <CardDescription>Tasks assigned vs completed per week (last 12 weeks)</CardDescription>
+        <CardTitle>{t("velocity.title")}</CardTitle>
+        <CardDescription>{t("velocity.descriptionLong")}</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">

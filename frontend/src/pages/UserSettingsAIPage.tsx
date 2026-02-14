@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -44,6 +45,7 @@ const DEFAULT_STATE: FormState = {
 };
 
 export const UserSettingsAIPage = () => {
+  const { t } = useTranslation("settings");
   const [formState, setFormState] = useState<FormState>(DEFAULT_STATE);
   const [hasExistingKey, setHasExistingKey] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -84,13 +86,13 @@ export const UserSettingsAIPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      toast.success("AI settings saved");
+      toast.success(t("ai.saveSuccess"));
       setFormState((prev) => ({ ...prev, apiKey: "" }));
       setHasExistingKey(data.has_api_key);
       void settingsQuery.refetch();
     },
     onError: (error: Error & { response?: { status?: number; data?: { detail?: string } } }) => {
-      const message = error.response?.data?.detail ?? "Unable to save AI settings";
+      const message = error.response?.data?.detail ?? t("ai.saveError");
       toast.error(message);
     },
   });
@@ -125,7 +127,7 @@ export const UserSettingsAIPage = () => {
         toast.error(data.message);
       }
     },
-    onError: () => toast.error("Unable to test connection"),
+    onError: () => toast.error(t("ai.testError")),
   });
 
   const fetchModelsMutation = useMutation({
@@ -153,43 +155,48 @@ export const UserSettingsAIPage = () => {
   });
 
   if (settingsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading AI settings...</p>;
+    return <p className="text-muted-foreground text-sm">{t("ai.loading")}</p>;
   }
 
   if (settingsQuery.isError) {
-    return <p className="text-destructive text-sm">Unable to load AI settings.</p>;
+    return <p className="text-destructive text-sm">{t("ai.loadError")}</p>;
   }
 
   if (!settingsQuery.data) {
-    return <p className="text-muted-foreground text-sm">No AI settings available.</p>;
+    return <p className="text-muted-foreground text-sm">{t("ai.noSettings")}</p>;
   }
 
   if (!settingsQuery.data.can_override) {
     return (
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>AI Configuration</CardTitle>
-          <CardDescription>AI settings are managed by your administrator.</CardDescription>
+          <CardTitle>{t("ai.title")}</CardTitle>
+          <CardDescription>{t("ai.managedByAdmin")}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-sm">
-            Your administrator has disabled user-level AI configuration. AI features are using{" "}
-            {settingsQuery.data.settings_source === "guild" ? "guild" : "platform"} settings.
+            {t("ai.adminDisabledUser", {
+              source:
+                settingsQuery.data.settings_source === "guild"
+                  ? t("ai.settingsSourceGuild")
+                  : t("ai.settingsSourcePlatform"),
+            })}
           </p>
           <div className="mt-4 space-y-2">
             <p className="text-sm">
-              <span className="font-medium">Status:</span>{" "}
-              {settingsQuery.data.effective_enabled ? "Enabled" : "Disabled"}
+              <span className="font-medium">{t("ai.statusLabel")}</span>{" "}
+              {settingsQuery.data.effective_enabled ? t("ai.enabled") : t("ai.disabled")}
             </p>
             {settingsQuery.data.effective_provider && (
               <p className="text-sm">
-                <span className="font-medium">Provider:</span>{" "}
+                <span className="font-medium">{t("ai.providerLabel")}</span>{" "}
                 {settingsQuery.data.effective_provider}
               </p>
             )}
             {settingsQuery.data.effective_model && (
               <p className="text-sm">
-                <span className="font-medium">Model:</span> {settingsQuery.data.effective_model}
+                <span className="font-medium">{t("ai.modelLabel")}</span>{" "}
+                {settingsQuery.data.effective_model}
               </p>
             )}
           </div>
@@ -229,29 +236,26 @@ export const UserSettingsAIPage = () => {
 
   const settingsSourceLabel =
     settingsQuery.data.settings_source === "guild"
-      ? "guild"
+      ? t("ai.settingsSourceGuild")
       : settingsQuery.data.settings_source === "user"
-        ? "your personal"
+        ? t("ai.settingsSourceUser")
         : settingsQuery.data.settings_source === "mixed"
-          ? "inherited"
-          : "platform";
+          ? t("ai.settingsSourceMixed")
+          : t("ai.settingsSourcePlatform");
 
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>AI Configuration</CardTitle>
-        <CardDescription>
-          Configure your personal AI settings. You can use {settingsSourceLabel} defaults or bring
-          your own API key (BYOK).
-        </CardDescription>
+        <CardTitle>{t("ai.title")}</CardTitle>
+        <CardDescription>{t("ai.description", { source: settingsSourceLabel })}</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="flex items-center justify-between rounded-md border px-4 py-3">
             <div>
-              <p className="font-medium">Use default settings</p>
+              <p className="font-medium">{t("ai.useDefaultSettings")}</p>
               <p className="text-muted-foreground text-sm">
-                Inherit AI configuration from {settingsSourceLabel} defaults.
+                {t("ai.useDefaultSettingsDescription", { source: settingsSourceLabel })}
               </p>
             </div>
             <Switch
@@ -279,22 +283,23 @@ export const UserSettingsAIPage = () => {
           {formState.useInheritedSettings && (
             <div className="bg-muted/50 rounded-md border p-4">
               <p className="text-muted-foreground mb-2 text-sm font-medium">
-                Current {settingsSourceLabel} settings:
+                {t("ai.currentSettings", { source: settingsSourceLabel })}
               </p>
               <div className="space-y-1 text-sm">
                 <p>
-                  <span className="font-medium">Status:</span>{" "}
-                  {settingsQuery.data.effective_enabled ? "Enabled" : "Disabled"}
+                  <span className="font-medium">{t("ai.statusLabel")}</span>{" "}
+                  {settingsQuery.data.effective_enabled ? t("ai.enabled") : t("ai.disabled")}
                 </p>
                 {settingsQuery.data.effective_provider && (
                   <p>
-                    <span className="font-medium">Provider:</span>{" "}
+                    <span className="font-medium">{t("ai.providerLabel")}</span>{" "}
                     {settingsQuery.data.effective_provider}
                   </p>
                 )}
                 {settingsQuery.data.effective_model && (
                   <p>
-                    <span className="font-medium">Model:</span> {settingsQuery.data.effective_model}
+                    <span className="font-medium">{t("ai.modelLabel")}</span>{" "}
+                    {settingsQuery.data.effective_model}
                   </p>
                 )}
               </div>
@@ -305,8 +310,8 @@ export const UserSettingsAIPage = () => {
             <>
               <div className="flex items-center justify-between rounded-md border px-4 py-3">
                 <div>
-                  <p className="font-medium">Enable AI features</p>
-                  <p className="text-muted-foreground text-sm">Use AI-powered features.</p>
+                  <p className="font-medium">{t("ai.enableAI")}</p>
+                  <p className="text-muted-foreground text-sm">{t("ai.enableAIDescription")}</p>
                 </div>
                 <Switch
                   checked={formState.enabled ?? false}
@@ -317,7 +322,7 @@ export const UserSettingsAIPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ai-provider">Provider</Label>
+                <Label htmlFor="ai-provider">{t("ai.providerFieldLabel")}</Label>
                 <Select
                   value={formState.provider}
                   onValueChange={(value) => {
@@ -331,7 +336,7 @@ export const UserSettingsAIPage = () => {
                   }}
                 >
                   <SelectTrigger id="ai-provider">
-                    <SelectValue placeholder="Select a provider" />
+                    <SelectValue placeholder={t("ai.providerPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {(
@@ -350,7 +355,7 @@ export const UserSettingsAIPage = () => {
 
               {showApiKeyField && (
                 <div className="space-y-2">
-                  <Label htmlFor="ai-api-key">API Key</Label>
+                  <Label htmlFor="ai-api-key">{t("ai.apiKeyLabel")}</Label>
                   <Input
                     id="ai-api-key"
                     type="password"
@@ -358,19 +363,21 @@ export const UserSettingsAIPage = () => {
                     onChange={(event) =>
                       setFormState((prev) => ({ ...prev, apiKey: event.target.value }))
                     }
-                    placeholder={hasExistingKey ? "••••••••" : "Enter your API key"}
+                    placeholder={
+                      hasExistingKey
+                        ? t("ai.apiKeyPlaceholderExisting")
+                        : t("ai.apiKeyPlaceholderNew")
+                    }
                   />
                   <p className="text-muted-foreground text-xs">
-                    {hasExistingKey
-                      ? "Leave blank to keep your existing key."
-                      : "Enter your personal API key for this provider."}
+                    {hasExistingKey ? t("ai.apiKeyHelpExisting") : t("ai.apiKeyHelpNew")}
                   </p>
                 </div>
               )}
 
               {showBaseUrlField && (
                 <div className="space-y-2">
-                  <Label htmlFor="ai-base-url">Base URL</Label>
+                  <Label htmlFor="ai-base-url">{t("ai.baseUrlLabel")}</Label>
                   <Input
                     id="ai-base-url"
                     value={formState.baseUrl}
@@ -384,7 +391,7 @@ export const UserSettingsAIPage = () => {
 
               {activeProvider && (
                 <div className="space-y-2">
-                  <Label>Model</Label>
+                  <Label>{t("ai.modelFieldLabel")}</Label>
                   <ModelCombobox
                     models={getModelOptions()}
                     value={formState.model}
@@ -404,7 +411,7 @@ export const UserSettingsAIPage = () => {
 
           <div className="flex gap-2">
             <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save settings"}
+              {updateMutation.isPending ? t("ai.savingSettings") : t("ai.saveSettings")}
             </Button>
             <Button
               type="button"
@@ -414,7 +421,7 @@ export const UserSettingsAIPage = () => {
                 testMutation.isPending || (!formState.useInheritedSettings && !activeProvider)
               }
             >
-              {testMutation.isPending ? "Testing..." : "Test Connection"}
+              {testMutation.isPending ? t("ai.testing") : t("ai.testConnection")}
             </Button>
           </div>
         </form>

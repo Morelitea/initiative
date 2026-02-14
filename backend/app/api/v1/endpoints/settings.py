@@ -32,6 +32,7 @@ from app.schemas.settings import (
     RoleLabelsUpdate,
 )
 from app.schemas.push import FCMConfigResponse
+from app.core.messages import SettingsMessages
 from app.services import app_settings as app_settings_service
 from app.services import email as email_service
 
@@ -203,11 +204,11 @@ async def send_test_email(
     settings_obj = await app_settings_service.get_app_settings(session)
     recipient = payload.recipient or settings_obj.smtp_test_recipient
     if not recipient:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide a test email address.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SettingsMessages.PROVIDE_TEST_EMAIL)
     try:
         await email_service.send_test_email(session, recipient)
     except email_service.EmailNotConfiguredError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP settings are incomplete.") from None
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SettingsMessages.SMTP_INCOMPLETE) from None
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return {"status": "sent"}
@@ -313,35 +314,35 @@ async def create_oidc_mapping(
     try:
         target_type = OIDCMappingTargetType(payload.target_type)
     except ValueError:
-        raise HTTPException(status_code=400, detail="target_type must be 'guild' or 'initiative'")
+        raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE)
 
     # Validate guild_role
     if payload.guild_role not in ("admin", "member"):
-        raise HTTPException(status_code=400, detail="guild_role must be 'admin' or 'member'")
+        raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE)
 
     # Validate guild exists
     guild = (await session.exec(select(Guild).where(Guild.id == payload.guild_id))).one_or_none()
     if not guild:
-        raise HTTPException(status_code=400, detail="Guild not found")
+        raise HTTPException(status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND)
 
     # Validate initiative fields if target_type is initiative
     if target_type == OIDCMappingTargetType.initiative:
         if not payload.initiative_id:
-            raise HTTPException(status_code=400, detail="initiative_id required for initiative mappings")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_ID_REQUIRED)
         if not payload.initiative_role_id:
-            raise HTTPException(status_code=400, detail="initiative_role_id required for initiative mappings")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_ID_REQUIRED)
         initiative = (await session.exec(
             select(Initiative).where(Initiative.id == payload.initiative_id)
         )).one_or_none()
         if not initiative:
-            raise HTTPException(status_code=400, detail="Initiative not found")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND)
         if initiative.guild_id != payload.guild_id:
-            raise HTTPException(status_code=400, detail="Initiative does not belong to the specified guild")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD)
         role = (await session.exec(
             select(InitiativeRoleModel).where(InitiativeRoleModel.id == payload.initiative_role_id)
         )).one_or_none()
         if not role:
-            raise HTTPException(status_code=400, detail="Initiative role not found")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND)
 
     mapping = OIDCClaimMapping(
         claim_value=payload.claim_value.strip(),
@@ -368,7 +369,7 @@ async def update_oidc_mapping(
         select(OIDCClaimMapping).where(OIDCClaimMapping.id == mapping_id)
     )).one_or_none()
     if not mapping:
-        raise HTTPException(status_code=404, detail="Mapping not found")
+        raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
 
     data = payload.model_dump(exclude_unset=True)
     if "claim_value" in data and data["claim_value"] is not None:
@@ -377,15 +378,15 @@ async def update_oidc_mapping(
         try:
             mapping.target_type = OIDCMappingTargetType(data["target_type"])
         except ValueError:
-            raise HTTPException(status_code=400, detail="target_type must be 'guild' or 'initiative'")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_TARGET_TYPE)
     if "guild_id" in data and data["guild_id"] is not None:
         guild = (await session.exec(select(Guild).where(Guild.id == data["guild_id"]))).one_or_none()
         if not guild:
-            raise HTTPException(status_code=400, detail="Guild not found")
+            raise HTTPException(status_code=400, detail=SettingsMessages.GUILD_NOT_FOUND)
         mapping.guild_id = data["guild_id"]
     if "guild_role" in data and data["guild_role"] is not None:
         if data["guild_role"] not in ("admin", "member"):
-            raise HTTPException(status_code=400, detail="guild_role must be 'admin' or 'member'")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INVALID_GUILD_ROLE)
         mapping.guild_role = data["guild_role"]
     if "initiative_id" in data:
         mapping.initiative_id = data["initiative_id"]
@@ -398,19 +399,19 @@ async def update_oidc_mapping(
         effective_target = OIDCMappingTargetType(effective_target)
     if effective_target == OIDCMappingTargetType.initiative:
         if not mapping.initiative_id or not mapping.initiative_role_id:
-            raise HTTPException(status_code=400, detail="initiative_id and initiative_role_id required for initiative mappings")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_FIELDS_REQUIRED)
         initiative = (await session.exec(
             select(Initiative).where(Initiative.id == mapping.initiative_id)
         )).one_or_none()
         if not initiative:
-            raise HTTPException(status_code=400, detail="Initiative not found")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND)
         if initiative.guild_id != mapping.guild_id:
-            raise HTTPException(status_code=400, detail="Initiative does not belong to the specified guild")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD)
         role = (await session.exec(
             select(InitiativeRoleModel).where(InitiativeRoleModel.id == mapping.initiative_role_id)
         )).one_or_none()
         if not role:
-            raise HTTPException(status_code=400, detail="Initiative role not found")
+            raise HTTPException(status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND)
     else:
         # Guild-only mapping: clear initiative fields
         mapping.initiative_id = None
@@ -433,7 +434,7 @@ async def delete_oidc_mapping(
         select(OIDCClaimMapping).where(OIDCClaimMapping.id == mapping_id)
     )).one_or_none()
     if not mapping:
-        raise HTTPException(status_code=404, detail="Mapping not found")
+        raise HTTPException(status_code=404, detail=SettingsMessages.MAPPING_NOT_FOUND)
     await session.delete(mapping)
     await session.commit()
 
