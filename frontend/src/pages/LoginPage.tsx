@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { Device } from "@capacitor/device";
 import { Browser } from "@capacitor/browser";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
 
 export const LoginPage = () => {
+  const { t } = useTranslation("auth");
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { login } = useAuth();
@@ -51,7 +53,7 @@ export const LoginPage = () => {
         }>("/auth/oidc/status");
         if (response.data.enabled && response.data.login_url) {
           setOidcLoginUrl(response.data.login_url);
-          setOidcProviderName(response.data.provider_name ?? "Single Sign-On");
+          setOidcProviderName(response.data.provider_name ?? null);
         } else {
           setOidcLoginUrl(null);
           setOidcProviderName(null);
@@ -109,7 +111,7 @@ export const LoginPage = () => {
       }
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "Unable to log in. Check your credentials.");
+      setError(err instanceof Error ? err.message : t("login.defaultError"));
     } finally {
       setSubmitting(false);
     }
@@ -118,7 +120,7 @@ export const LoginPage = () => {
   if (bootstrapStatus === "loading") {
     return (
       <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
       </div>
     );
   }
@@ -141,22 +143,22 @@ export const LoginPage = () => {
       <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
         <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
-          initiative
+          {t("common:appName")}
         </div>
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Sign in to keep work flowing.</CardDescription>
+            <CardTitle>{t("login.title")}</CardTitle>
+            <CardDescription>{t("login.subtitle")}</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("login.emailLabel")}</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="you@company.com"
+                  placeholder={t("login.emailPlaceholder")}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   autoComplete="username"
@@ -165,12 +167,12 @@ export const LoginPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("login.passwordLabel")}</Label>
                 <Input
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder={t("login.passwordPlaceholder")}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   autoComplete="current-password"
@@ -181,12 +183,12 @@ export const LoginPage = () => {
                     className="text-primary text-sm underline-offset-4 hover:underline"
                     to="/forgot-password"
                   >
-                    Forgot password?
+                    {t("login.forgotPassword")}
                   </Link>
                 </div>
               </div>
               <Button className="w-full" type="submit" disabled={submitting}>
-                {submitting ? "Signing in…" : "Sign in"}
+                {submitting ? t("login.submitting") : t("login.submit")}
               </Button>
               {oidcLoginUrl ? (
                 <Button
@@ -212,7 +214,9 @@ export const LoginPage = () => {
                     }
                   }}
                 >
-                  Continue with {oidcProviderName ?? "Single Sign-On"}
+                  {t("login.continueWith", {
+                    provider: oidcProviderName ?? t("login.defaultSsoProvider"),
+                  })}
                 </Button>
               ) : null}
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
@@ -221,25 +225,25 @@ export const LoginPage = () => {
           <CardFooter className="text-muted-foreground flex flex-col items-start gap-2 text-sm">
             {isNativePlatform && (
               <p className="text-xs">
-                Connected to <span className="font-medium">{getServerHostname()}</span>
+                {t("login.connectedTo")} <span className="font-medium">{getServerHostname()}</span>
                 {" · "}
                 <button
                   type="button"
                   className="text-primary underline-offset-4 hover:underline"
                   onClick={handleChangeServer}
                 >
-                  Change
+                  {t("login.changeServer")}
                 </button>
               </p>
             )}
             <p>
-              Need an account?{" "}
+              {t("login.needAccount")}{" "}
               <Link
                 className="text-primary underline-offset-4 hover:underline"
                 to="/register"
                 search={inviteCodeParam ? { invite_code: inviteCodeParam } : undefined}
               >
-                Register
+                {t("login.register")}
               </Link>
             </p>
           </CardFooter>

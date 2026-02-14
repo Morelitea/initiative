@@ -1,8 +1,9 @@
 import "./styles.css";
+import "./i18n";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
-import React from "react";
+import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 
@@ -45,17 +46,19 @@ async function bootstrap() {
 
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
-      <ThemeProvider>
-        <ServerProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <GuildProvider>
-                <InnerApp />
-              </GuildProvider>
-            </AuthProvider>
-          </QueryClientProvider>
-        </ServerProvider>
-      </ThemeProvider>
+      <Suspense fallback={null}>
+        <ThemeProvider>
+          <ServerProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <GuildProvider>
+                  <InnerApp />
+                </GuildProvider>
+              </AuthProvider>
+            </QueryClientProvider>
+          </ServerProvider>
+        </ThemeProvider>
+      </Suspense>
     </React.StrictMode>
   );
 

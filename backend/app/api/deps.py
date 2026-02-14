@@ -9,6 +9,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.messages import AuthMessages, GuildMessages
 from app.db.session import get_session, set_rls_context
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.user import User, UserRole
@@ -46,14 +47,14 @@ async def get_current_user(
         user = await _authenticate_device_token(session, device_token)
         if user:
             return user
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid device token")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_DEVICE_TOKEN)
 
     # Use the bearer token from OAuth2 scheme
     token = bearer_token
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -67,16 +68,16 @@ async def get_current_user(
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
     except JWTError as exc:  # pragma: no cover - FastAPI handles formatting
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Could not validate credentials") from exc
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS) from exc
 
     if not token_data.sub:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token payload")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_TOKEN_PAYLOAD)
 
     statement = select(User).where(User.id == int(token_data.sub))
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
     return user
 
 
@@ -84,14 +85,14 @@ async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> User:
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     return current_user
 
 
 def require_roles(*roles: UserRole) -> Callable:
     async def dependency(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
         if roles and current_user.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient privileges")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INSUFFICIENT_PRIVILEGES)
         return current_user
 
     return dependency
@@ -132,7 +133,7 @@ async def get_guild_membership(
     if guild_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No guild membership. Join or create a guild to continue.",
+            detail=GuildMessages.NO_GUILD_MEMBERSHIP,
         )
     membership = await guilds_service.get_membership(
         session,
@@ -140,7 +141,7 @@ async def get_guild_membership(
         user_id=current_user.id,
     )
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ACCESS_DENIED)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     return GuildContext(guild=guild, membership=membership)
 
@@ -148,7 +149,7 @@ async def get_guild_membership(
 def require_guild_roles(*roles: GuildRole) -> Callable:
     async def dependency(context: Annotated[GuildContext, Depends(get_guild_membership)]) -> GuildContext:
         if roles and context.membership.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild permission required")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_PERMISSION_REQUIRED)
         return context
 
     return dependency

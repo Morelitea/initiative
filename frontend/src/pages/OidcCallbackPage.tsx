@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { Browser } from "@capacitor/browser";
+import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 
 export const OidcCallbackPage = () => {
+  const { t } = useTranslation("auth");
   const searchParams = useSearch({ strict: false }) as {
     token?: string;
     token_type?: string;
@@ -15,17 +17,17 @@ export const OidcCallbackPage = () => {
   const router = useRouter();
   const { completeOidcLogin } = useAuth();
   const { isNativePlatform } = useServer();
-  const [status, setStatus] = useState("Finishing login…");
+  const [status, setStatus] = useState(t("oidcCallback.finishing"));
 
   useEffect(() => {
     const token = searchParams.token;
     const error = searchParams.error;
     if (error) {
-      setStatus(`OIDC login failed: ${error}`);
+      setStatus(t("oidcCallback.failedWithError", { error }));
       return;
     }
     if (!token) {
-      setStatus("OIDC login failed: missing token");
+      setStatus(t("oidcCallback.failedMissingToken"));
       return;
     }
     const run = async () => {
@@ -42,18 +44,18 @@ export const OidcCallbackPage = () => {
         router.navigate({ to: "/", replace: true });
       } catch (err) {
         console.error(err);
-        setStatus("Unable to complete OIDC login.");
+        setStatus(t("oidcCallback.error"));
       }
     };
     void run();
-  }, [completeOidcLogin, isNativePlatform, router, searchParams]);
+  }, [completeOidcLogin, isNativePlatform, router, searchParams, t]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <Card className="w-full max-w-md shadow-sm">
         <CardHeader>
-          <CardTitle>Signing you in…</CardTitle>
-          <CardDescription>Hold tight while we finish authenticating your account.</CardDescription>
+          <CardTitle>{t("oidcCallback.title")}</CardTitle>
+          <CardDescription>{t("oidcCallback.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-sm">{status}</p>

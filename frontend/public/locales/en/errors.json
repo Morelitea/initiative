@@ -1,0 +1,23 @@
+{
+  "EMAIL_ALREADY_REGISTERED": "Email already registered",
+  "REGISTRATION_REQUIRES_INVITE": "Registration requires an invite code",
+  "UNABLE_TO_CREATE_USER": "Unable to create user",
+  "INCORRECT_CREDENTIALS": "Incorrect email or password",
+  "INACTIVE_USER": "Inactive user",
+  "EMAIL_NOT_VERIFIED": "Email not verified",
+  "TOKEN_NOT_FOUND": "Token not found",
+  "NOT_AUTHENTICATED": "Not authenticated",
+  "INVALID_DEVICE_TOKEN": "Invalid device token",
+  "COULD_NOT_VALIDATE_CREDENTIALS": "Could not validate credentials",
+  "INVALID_TOKEN_PAYLOAD": "Invalid token payload",
+  "USER_NOT_FOUND": "User not found",
+  "INSUFFICIENT_PRIVILEGES": "Insufficient privileges",
+  "NO_GUILD_MEMBERSHIP": "No guild membership. Join or create a guild to continue.",
+  "GUILD_ACCESS_DENIED": "Guild access denied",
+  "GUILD_PERMISSION_REQUIRED": "Guild permission required",
+  "OIDC_NOT_ENABLED": "OIDC is not enabled",
+  "OIDC_METADATA_INCOMPLETE": "OIDC metadata incomplete",
+  "SMTP_NOT_CONFIGURED": "SMTP settings are incomplete.",
+  "INVALID_OR_EXPIRED_TOKEN": "Invalid or expired token",
+  "fallback": "Something went wrong. Please try again."
+}

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { AxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ interface RegisterPageProps {
 }
 
 export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
+  const { t } = useTranslation("auth");
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { register, login } = useAuth();
@@ -85,7 +87,9 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         }
         setInviteStatus(response.data);
         setInviteStatusError(
-          response.data.is_valid ? null : (response.data.reason ?? "Invite is no longer valid.")
+          response.data.is_valid
+            ? null
+            : (response.data.reason ?? t("register.inviteNoLongerValid"))
         );
       })
       .catch((error) => {
@@ -94,7 +98,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         }
         console.error("Failed to load invite", error);
         setInviteStatus(null);
-        setInviteStatusError("Unable to load invite details right now.");
+        setInviteStatusError(t("register.unableToLoadInvite"));
       })
       .finally(() => {
         if (!ignore) {
@@ -104,7 +108,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     return () => {
       ignore = true;
     };
-  }, [inviteCode]);
+  }, [inviteCode, t]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -113,11 +117,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setInfoMessage(null);
     try {
       if (password !== confirmPassword) {
-        setError("Passwords do not match.");
+        setError(t("register.passwordMismatch"));
         return;
       }
       if (inviteCode && inviteStatus && !inviteStatus.is_valid) {
-        setError(inviteStatus.reason ?? "Invite code is no longer valid.");
+        setError(inviteStatus.reason ?? t("register.inviteInvalid"));
         return;
       }
       const createdUser = await register({
@@ -130,11 +134,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         await login({ email: email.toLowerCase().trim(), password });
         router.navigate({ to: "/", replace: true });
       } else if (createdUser.is_active && !createdUser.email_verified) {
-        setInfoMessage("Thanks! Check your inbox to verify your email before signing in.");
+        setInfoMessage(t("register.verifyEmailMessage"));
         setPassword("");
         setConfirmPassword("");
       } else {
-        setInfoMessage("Thanks! Your account is pending approval from an administrator.");
+        setInfoMessage(t("register.pendingApproval"));
         setPassword("");
         setConfirmPassword("");
       }
@@ -142,7 +146,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       console.error(err);
       const axiosError = err as AxiosError<{ detail?: string }>;
       const detail = axiosError.response?.data?.detail;
-      setError(detail ?? "Unable to register. Try a different email.");
+      setError(detail ?? t("register.defaultError"));
     } finally {
       setSubmitting(false);
     }
@@ -154,7 +158,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   if (publicRegistrationEnabled === null) {
     return (
       <div className="bg-muted/60 flex min-h-screen items-center justify-center px-4 py-12">
-        <p className="text-muted-foreground text-sm">Loading…</p>
+        <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
       </div>
     );
   }
@@ -173,20 +177,17 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
           <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
             <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
-            initiative
+            {t("common:appName")}
           </div>
           <Card className="w-full max-w-md shadow-lg">
             <CardHeader>
-              <CardTitle>Invite required</CardTitle>
-              <CardDescription>
-                Public registration is not available. Please ask an existing member for an invite
-                link to join.
-              </CardDescription>
+              <CardTitle>{t("inviteRequired.title")}</CardTitle>
+              <CardDescription>{t("inviteRequired.subtitle")}</CardDescription>
             </CardHeader>
             <CardFooter className="text-muted-foreground text-sm">
-              Already have an account?{" "}
+              {t("inviteRequired.haveAccount")}{" "}
               <Link className="text-primary ml-1 underline-offset-4 hover:underline" to="/login">
-                Sign in
+                {t("inviteRequired.signIn")}
               </Link>
             </CardFooter>
           </Card>
@@ -207,21 +208,21 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
         <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
-          initiative
+          {t("common:appName")}
         </div>
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
-            <CardTitle>{bootstrapMode ? "Create the first account" : "Create account"}</CardTitle>
+            <CardTitle>
+              {bootstrapMode ? t("register.titleBootstrap") : t("register.title")}
+            </CardTitle>
             <CardDescription>
-              {bootstrapMode
-                ? "No users exist yet. This account will become the workspace super user."
-                : "We will auto-approve your email if it matches the workspace allow list."}
+              {bootstrapMode ? t("register.subtitleBootstrap") : t("register.subtitle")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <Label htmlFor="full-name">Full name</Label>
+                <Label htmlFor="full-name">{t("register.fullNameLabel")}</Label>
                 <Input
                   id="full-name"
                   value={fullName}
@@ -229,7 +230,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="register-email">Email</Label>
+                <Label htmlFor="register-email">{t("register.emailLabel")}</Label>
                 <Input
                   id="register-email"
                   type="email"
@@ -240,7 +241,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="register-password">Password</Label>
+                <Label htmlFor="register-password">{t("register.passwordLabel")}</Label>
                 <Input
                   id="register-password"
                   type="password"
@@ -250,7 +251,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Label htmlFor="confirm-password">{t("register.confirmPasswordLabel")}</Label>
                 <Input
                   id="confirm-password"
                   type="password"
@@ -261,9 +262,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
               </div>
               {inviteCode ? (
                 <p className="text-muted-foreground text-sm">
-                  {inviteStatusLoading && "Checking invite…"}
+                  {inviteStatusLoading && t("register.checkingInvite")}
                   {!inviteStatusLoading && inviteStatus && inviteStatus.is_valid
-                    ? `You’re joining ${inviteStatus.guild_name ?? "this guild"}.`
+                    ? inviteStatus.guild_name
+                      ? t("register.joiningGuild", { guildName: inviteStatus.guild_name })
+                      : t("register.joiningGuildDefault")
                     : null}
                   {!inviteStatusLoading && inviteStatusError ? (
                     <span className="text-destructive">{inviteStatusError}</span>
@@ -280,16 +283,16 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                     : false)
                 }
               >
-                {submitting ? "Creating account…" : "Sign up"}
+                {submitting ? t("register.submitting") : t("register.submit")}
               </Button>
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
               {infoMessage ? <p className="text-primary text-sm">{infoMessage}</p> : null}
             </form>
           </CardContent>
           <CardFooter className="text-muted-foreground text-sm">
-            Have an account?{" "}
+            {t("register.haveAccount")}{" "}
             <Link className="text-primary ml-1 underline-offset-4 hover:underline" to="/login">
-              Sign in
+              {t("register.signIn")}
             </Link>
           </CardFooter>
         </Card>
