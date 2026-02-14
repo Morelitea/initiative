@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DndContext,
@@ -20,6 +21,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
+import { getErrorMessage } from "@/lib/errorMessage";
 import type { ProjectTaskStatus, TaskStatusCategory } from "@/types/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,13 +52,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { TFunction } from "i18next";
 
-const CATEGORY_OPTIONS: { value: TaskStatusCategory; label: string }[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "todo", label: "To Do" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "done", label: "Done" },
-];
+const CATEGORY_VALUES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
 const STATUS_QUERY_KEY = (projectId: number) => ["projects", projectId, "task-statuses"];
 
@@ -78,27 +76,19 @@ export const ProjectTaskStatusesManager = ({
   projectId,
   canManage,
 }: ProjectTaskStatusesManagerProps) => {
-  const getErrorMessage = (error: unknown, fallback: string) => {
-    // Check for axios error with response data
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response &&
-      typeof error.response === "object" &&
-      "data" in error.response
-    ) {
-      const data = error.response.data as Record<string, unknown>;
-      if (data.detail && typeof data.detail === "string") {
-        return data.detail;
-      }
-    }
-    // Check for standard Error object
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-    return fallback;
-  };
+  const { t } = useTranslation("projects");
+
+  const categoryOptions = useMemo(
+    () =>
+      CATEGORY_VALUES.map((value) => ({
+        value,
+        label: t(
+          `statuses.category${value.charAt(0).toUpperCase()}${value.slice(1).replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())}` as `statuses.categoryBacklog`
+        ),
+      })),
+    [t]
+  );
+
   const [orderedStatuses, setOrderedStatuses] = useState<ProjectTaskStatus[]>([]);
   const [drafts, setDrafts] = useState<
     Record<number, { name: string; category: TaskStatusCategory }>
@@ -138,10 +128,10 @@ export const ProjectTaskStatusesManager = ({
       const sorted = sortStatuses(data);
       setOrderedStatuses(sorted);
       queryClient.setQueryData(STATUS_QUERY_KEY(projectId), sorted);
-      toast.success("Status order saved");
+      toast.success(t("statuses.orderSaved"));
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Unable to reorder statuses"));
+      toast.error(getErrorMessage(error, "projects:statuses.reorderError"));
     },
   });
 
@@ -181,11 +171,11 @@ export const ProjectTaskStatusesManager = ({
     },
     onSuccess: () => {
       setNewName("");
-      toast.success("Task status created");
+      toast.success(t("statuses.created"));
       invalidateStatuses();
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Unable to create status"));
+      toast.error(getErrorMessage(error, "projects:statuses.createError"));
     },
   });
 
@@ -195,11 +185,11 @@ export const ProjectTaskStatusesManager = ({
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Task status updated");
+      toast.success(t("statuses.updated"));
       invalidateStatuses();
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Unable to update status"));
+      toast.error(getErrorMessage(error, "projects:statuses.updateError"));
     },
   });
 
@@ -216,13 +206,13 @@ export const ProjectTaskStatusesManager = ({
       });
     },
     onSuccess: () => {
-      toast.success("Task status deleted");
+      toast.success(t("statuses.deleted"));
       setFallbackId("");
       setDeleteTarget(null);
       invalidateStatuses();
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Unable to delete status"));
+      toast.error(getErrorMessage(error, "projects:statuses.deleteError"));
     },
   });
 
@@ -287,7 +277,7 @@ export const ProjectTaskStatusesManager = ({
     });
 
     if (updates.length === 0) {
-      toast.info("No changes to save");
+      toast.info(t("statuses.noChanges"));
       return;
     }
 
@@ -308,18 +298,18 @@ export const ProjectTaskStatusesManager = ({
       } else {
         failed.push({
           statusName: update.statusName,
-          error: getErrorMessage(result.reason, "Unknown error"),
+          error: getErrorMessage(result.reason, "projects:statuses.unknownError"),
         });
       }
     });
 
     if (succeeded.length > 0) {
-      toast.success(`${succeeded.length} status${succeeded.length === 1 ? "" : "es"} updated`);
+      toast.success(t("statuses.bulkUpdated", { count: succeeded.length }));
     }
 
     if (failed.length > 0) {
       failed.forEach(({ statusName, error }) => {
-        toast.error(`Failed to update "${statusName}": ${error}`);
+        toast.error(t("statuses.bulkUpdateError", { name: statusName, error }));
       });
     }
 
@@ -353,7 +343,7 @@ export const ProjectTaskStatusesManager = ({
     }
     const fallback = Number(fallbackId);
     if (!Number.isFinite(fallback)) {
-      toast.error("Select a fallback status");
+      toast.error(t("statuses.selectFallbackError"));
       return;
     }
     deleteStatus.mutate({ statusId: deleteTarget.id, fallbackStatusId: fallback });
@@ -374,24 +364,19 @@ export const ProjectTaskStatusesManager = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Task statuses</CardTitle>
-        <CardDescription>
-          Reorder, rename, or change category for the task columns used by this project.
-        </CardDescription>
+        <CardTitle>{t("statuses.title")}</CardTitle>
+        <CardDescription>{t("statuses.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {!canManage ? (
-          <p className="text-muted-foreground text-sm">
-            Only project managers can modify task statuses. Contact a project manager if you need
-            changes.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("statuses.noManagePermission")}</p>
         ) : null}
         <div className="space-y-4">
-          <h4 className="text-sm font-semibold">Add status</h4>
+          <h4 className="text-sm font-semibold">{t("statuses.addStatus")}</h4>
           <div className="flex flex-wrap gap-3">
             <Input
               className="max-w-xs"
-              placeholder="Status name"
+              placeholder={t("statuses.statusNamePlaceholder")}
               value={newName}
               onChange={(event) => setNewName(event.target.value)}
               disabled={!canManage || createStatus.isPending}
@@ -402,10 +387,10 @@ export const ProjectTaskStatusesManager = ({
               disabled={!canManage || createStatus.isPending}
             >
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select category" />
+                <SelectValue placeholder={t("statuses.selectCategory")} />
               </SelectTrigger>
               <SelectContent>
-                {CATEGORY_OPTIONS.map((option) => (
+                {categoryOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -417,14 +402,14 @@ export const ProjectTaskStatusesManager = ({
               disabled={!canManage || createStatus.isPending}
             >
               {createStatus.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Add
+              {t("statuses.add")}
             </Button>
           </div>
         </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold">Existing statuses</h4>
+            <h4 className="text-sm font-semibold">{t("statuses.existingStatuses")}</h4>
             <div className="flex items-center gap-2">
               {isLoading ? (
                 <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
@@ -437,7 +422,7 @@ export const ProjectTaskStatusesManager = ({
                   disabled={!hasChanges || updateStatus.isPending}
                 >
                   <Save className="mr-2 h-4 w-4" />
-                  Save changes
+                  {t("statuses.saveChanges")}
                 </Button>
               )}
             </div>
@@ -447,10 +432,10 @@ export const ProjectTaskStatusesManager = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead className="min-w-40">Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="w-24 text-center">Default</TableHead>
-                  <TableHead className="w-20 text-right">Actions</TableHead>
+                  <TableHead className="min-w-40">{t("statuses.nameColumn")}</TableHead>
+                  <TableHead>{t("statuses.categoryColumn")}</TableHead>
+                  <TableHead className="w-24 text-center">{t("statuses.defaultColumn")}</TableHead>
+                  <TableHead className="w-20 text-right">{t("statuses.actionsColumn")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -472,6 +457,8 @@ export const ProjectTaskStatusesManager = ({
                           setDeleteTarget(status);
                           setFallbackId("");
                         }}
+                        t={t}
+                        categoryOptions={categoryOptions}
                       />
                     ))}
                   </SortableContext>
@@ -482,7 +469,7 @@ export const ProjectTaskStatusesManager = ({
                       colSpan={5}
                       className="text-muted-foreground py-6 text-center text-sm"
                     >
-                      No statuses configured yet.
+                      {t("statuses.noStatuses")}
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -495,14 +482,13 @@ export const ProjectTaskStatusesManager = ({
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="bg-card max-h-screen overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Delete status</DialogTitle>
+            <DialogTitle>{t("statuses.deleteTitle")}</DialogTitle>
             <DialogDescription>
-              Select a fallback status in the same category to move any existing tasks before
-              deleting &quot;{deleteTarget?.name}&quot;.
+              {t("statuses.deleteDescription", { name: deleteTarget?.name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="fallback-status">Fallback status</Label>
+            <Label htmlFor="fallback-status">{t("statuses.fallbackLabel")}</Label>
             <Select
               value={fallbackId}
               onValueChange={setFallbackId}
@@ -510,7 +496,9 @@ export const ProjectTaskStatusesManager = ({
             >
               <SelectTrigger id="fallback-status">
                 <SelectValue
-                  placeholder={fallbackOptions.length ? "Choose fallback" : "No fallback available"}
+                  placeholder={
+                    fallbackOptions.length ? t("statuses.chooseFallback") : t("statuses.noFallback")
+                  }
                 />
               </SelectTrigger>
               <SelectContent>
@@ -524,7 +512,7 @@ export const ProjectTaskStatusesManager = ({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -532,7 +520,7 @@ export const ProjectTaskStatusesManager = ({
               disabled={deleteStatus.isPending || !fallbackOptions.length}
             >
               {deleteStatus.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete
+              {t("common:delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -549,6 +537,8 @@ interface SortableStatusRowProps {
   onFieldChange: (statusId: number, field: "name" | "category", value: string) => void;
   onSetDefault: (statusId: number) => void;
   onDelete: () => void;
+  t: TFunction<"projects">;
+  categoryOptions: { value: TaskStatusCategory; label: string }[];
 }
 
 const SortableStatusRow = ({
@@ -559,6 +549,8 @@ const SortableStatusRow = ({
   onFieldChange,
   onSetDefault,
   onDelete,
+  t,
+  categoryOptions,
 }: SortableStatusRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: status.id,
@@ -579,7 +571,7 @@ const SortableStatusRow = ({
           {...attributes}
           {...listeners}
           disabled={disabled}
-          aria-label="Reorder"
+          aria-label={t("statuses.reorder")}
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -601,7 +593,7 @@ const SortableStatusRow = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {CATEGORY_OPTIONS.map((option) => (
+            {categoryOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
@@ -617,7 +609,7 @@ const SortableStatusRow = ({
               onSetDefault(status.id);
             }
           }}
-          aria-label="Set as default"
+          aria-label={t("statuses.setAsDefault")}
           disabled={disabled || isDefault}
         />
       </TableCell>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DragEndEvent,
@@ -75,11 +76,13 @@ type StoredFilters = {
   showArchived: boolean;
 };
 
-const TASK_VIEW_OPTIONS: { value: ViewMode; label: string; icon: LucideIcon }[] = [
-  { value: "table", label: "Table", icon: Table },
-  { value: "kanban", label: "Kanban", icon: Kanban },
-  { value: "calendar", label: "Calendar", icon: Calendar },
-  { value: "gantt", label: "Gantt", icon: GanttChart },
+type TaskViewOption = { value: ViewMode; labelKey: string; icon: LucideIcon };
+
+const TASK_VIEW_OPTIONS: TaskViewOption[] = [
+  { value: "table", labelKey: "tasks.viewTable", icon: Table },
+  { value: "kanban", labelKey: "tasks.viewKanban", icon: Kanban },
+  { value: "calendar", labelKey: "tasks.viewCalendar", icon: Calendar },
+  { value: "gantt", labelKey: "tasks.viewGantt", icon: GanttChart },
 ];
 
 const getDefaultFiltersVisibility = () => {
@@ -110,6 +113,7 @@ export const ProjectTasksSection = ({
   canViewTaskDetails,
   onTaskClick,
 }: ProjectTasksSectionProps) => {
+  const { t } = useTranslation("projects");
   const sortedTaskStatuses = useMemo(() => {
     return [...taskStatuses].sort((a, b) => {
       if (a.position === b.position) {
@@ -390,10 +394,10 @@ export const ProjectTasksSection = ({
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
-      toast.success("Task created");
+      toast.success(t("tasks.taskCreated"));
     },
     onError: () => {
-      toast.error("Unable to create task. Please try again once statuses load.");
+      toast.error(t("tasks.createError"));
     },
   });
 
@@ -418,7 +422,7 @@ export const ProjectTasksSection = ({
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
-      toast.success("Task updated");
+      toast.success(t("tasks.taskUpdated"));
     },
   });
 
@@ -437,7 +441,7 @@ export const ProjectTasksSection = ({
     },
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
-      toast.success(`${count} task${count === 1 ? "" : "s"} updated`);
+      toast.success(t("tasks.bulkUpdated", { count }));
       // setSelectedTasks([]);
       setIsBulkEditDialogOpen(false);
       setLocalOverride(null);
@@ -446,7 +450,7 @@ export const ProjectTasksSection = ({
       });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to update tasks right now.";
+      const message = error instanceof Error ? error.message : t("tasks.bulkUpdateError");
       toast.error(message);
     },
   });
@@ -457,7 +461,7 @@ export const ProjectTasksSection = ({
     },
     onSuccess: (_data, taskIds) => {
       const count = taskIds.length;
-      toast.success(`${count} task${count === 1 ? "" : "s"} deleted`);
+      toast.success(t("tasks.bulkDeleted", { count }));
       setSelectedTasks([]);
       setLocalOverride(null);
       void queryClient.invalidateQueries({
@@ -465,7 +469,7 @@ export const ProjectTasksSection = ({
       });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to delete tasks right now.";
+      const message = error instanceof Error ? error.message : t("tasks.bulkDeleteError");
       toast.error(message);
     },
   });
@@ -479,7 +483,7 @@ export const ProjectTasksSection = ({
     },
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
-      toast.success(`${count} task${count === 1 ? "" : "s"} archived`);
+      toast.success(t("tasks.archivedSuccess", { count }));
       setSelectedTasks([]);
       setLocalOverride(null);
       void queryClient.invalidateQueries({
@@ -487,7 +491,7 @@ export const ProjectTasksSection = ({
       });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to archive tasks right now.";
+      const message = error instanceof Error ? error.message : t("tasks.archiveError");
       toast.error(message);
     },
   });
@@ -510,16 +514,16 @@ export const ProjectTasksSection = ({
     onSuccess: (data) => {
       const count = data.archived_count;
       if (count === 0) {
-        toast.info("No done tasks to archive");
+        toast.info(t("tasks.noDoneTasksToArchive"));
       } else {
-        toast.success(`${count} task${count === 1 ? "" : "s"} archived`);
+        toast.success(t("tasks.archivedSuccess", { count }));
       }
       void queryClient.invalidateQueries({
         queryKey: ["tasks", projectId],
       });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to archive tasks right now.";
+      const message = error instanceof Error ? error.message : t("tasks.archiveError");
       toast.error(message);
     },
   });
@@ -846,18 +850,18 @@ export const ProjectTasksSection = ({
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">
-            <h2 className="text-xl font-semibold">Project tasks</h2>
+            <h2 className="text-xl font-semibold">{t("tasks.projectTasks")}</h2>
             {canEditTaskDetails && (
               <TooltipProvider>
                 <Tooltip delayDuration={400}>
                   <TooltipTrigger asChild>
                     <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
                       <Plus className="h-4 w-4" />
-                      Add Task
+                      {t("tasks.addTask")}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" sideOffset={12}>
-                    Hit &lsquo;enter&rsquo; to create a new task
+                    {t("tasks.enterTooltip")}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -867,13 +871,13 @@ export const ProjectTasksSection = ({
             <div className="w-full sm:hidden">
               <Select value={viewMode} onValueChange={handleViewModeChange}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select view" />
+                  <SelectValue placeholder={t("tasks.selectView")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TASK_VIEW_OPTIONS.map(({ value, label, icon: Icon }) => (
+                  {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
                     <SelectItem key={value} value={value}>
                       <Icon className="mr-2 inline h-4 w-4" />
-                      {label}
+                      {t(labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -881,10 +885,10 @@ export const ProjectTasksSection = ({
             </div>
             <div className="hidden sm:block">
               <TabsList>
-                {TASK_VIEW_OPTIONS.map(({ value, label, icon: Icon }) => (
+                {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
                   <TabsTrigger key={value} value={value} className="gap-2">
                     <Icon className="h-4 w-4" />
-                    {label}
+                    {t(labelKey)}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -896,11 +900,11 @@ export const ProjectTasksSection = ({
           <div className="flex items-center justify-between sm:hidden">
             <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
               <Filter className="h-4 w-4" />
-              Filters
+              {t("tasks.filtersHeading")}
             </div>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 px-3">
-                {filtersOpen ? "Hide" : "Show"} filters
+                {filtersOpen ? t("tasks.hideFilters") : t("tasks.showFilters")}
                 <ChevronDown
                   className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
                 />
@@ -963,11 +967,7 @@ export const ProjectTasksSection = ({
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
               onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}
               onDelete={() => {
-                if (
-                  confirm(
-                    `Delete ${selectedTasks.length} task${selectedTasks.length === 1 ? "" : "s"}?`
-                  )
-                ) {
+                if (confirm(t("tasks.bulkDeleteConfirm", { count: selectedTasks.length }))) {
                   bulkDeleteTasks.mutate(selectedTasks.map((t) => t.id));
                 }
               }}
@@ -1007,7 +1007,7 @@ export const ProjectTasksSection = ({
                 disabled={archiveDoneTasks.isPending}
               >
                 <Archive className="h-4 w-4" />
-                {archiveDoneTasks.isPending ? "Archiving…" : "Archive done tasks"}
+                {archiveDoneTasks.isPending ? t("tasks.archiving") : t("tasks.archiveDoneTasks")}
               </Button>
             </div>
           )}
@@ -1038,11 +1038,11 @@ export const ProjectTasksSection = ({
                   onClick={() => setIsComposerOpen(true)}
                 >
                   <Plus className="h-4 w-4" />
-                  Add Task
+                  {t("tasks.addTask")}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={12}>
-                Hit &lsquo;enter&rsquo; to create a new task
+                {t("tasks.enterTooltip")}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -1101,15 +1101,15 @@ export const ProjectTasksSection = ({
       <ConfirmDialog
         open={isArchiveDialogOpen}
         onOpenChange={setIsArchiveDialogOpen}
-        title="Archive tasks"
+        title={t("tasks.archiveDialogTitle")}
         description={(() => {
           const count =
             archiveDialogStatusId !== undefined
               ? (archivableCountByStatus[archiveDialogStatusId] ?? 0)
               : archivableDoneTasksCount;
-          return `This will archive ${count} task${count === 1 ? "" : "s"}. Archived tasks are hidden by default but can be shown using the filter.`;
+          return t("tasks.archiveDialogDescription", { count });
         })()}
-        confirmLabel="Archive"
+        confirmLabel={t("tasks.archiveConfirm")}
         onConfirm={() => {
           archiveDoneTasks.mutate(archiveDialogStatusId);
           setIsArchiveDialogOpen(false);

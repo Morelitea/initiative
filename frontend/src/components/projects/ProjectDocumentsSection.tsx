@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getItem, setItem } from "@/lib/storage";
 import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
@@ -44,6 +45,7 @@ export const ProjectDocumentsSection = ({
   canCreate,
   canAttach,
 }: ProjectDocumentsSectionProps) => {
+  const { t } = useTranslation("projects");
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -80,7 +82,7 @@ export const ProjectDocumentsSection = ({
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Document attached.");
+      toast.success(t("documents.attached"));
       setDialogOpen(false);
       setSelectedDocumentId("");
       void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
@@ -88,7 +90,7 @@ export const ProjectDocumentsSection = ({
       void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
     },
     onError: () => {
-      toast.error("Unable to attach document.");
+      toast.error(t("documents.attachError"));
     },
   });
 
@@ -98,13 +100,13 @@ export const ProjectDocumentsSection = ({
       return documentId;
     },
     onSuccess: () => {
-      toast.success("Document detached.");
+      toast.success(t("documents.detached"));
       void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
     },
     onError: () => {
-      toast.error("Unable to detach document.");
+      toast.error(t("documents.detachError"));
     },
   });
 
@@ -144,7 +146,7 @@ export const ProjectDocumentsSection = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-2">
-            <h2 className="text-xl font-semibold">Documents</h2>
+            <h2 className="text-xl font-semibold">{t("documents.title")}</h2>
             <Button
               type="button"
               variant="ghost"
@@ -157,7 +159,9 @@ export const ProjectDocumentsSection = ({
                   return next;
                 });
               }}
-              aria-label={isCollapsed ? "Expand documents" : "Collapse documents"}
+              aria-label={
+                isCollapsed ? t("documents.expandDocuments") : t("documents.collapseDocuments")
+              }
             >
               {isCollapsed ? (
                 <ChevronDown className="h-4 w-4" />
@@ -166,16 +170,14 @@ export const ProjectDocumentsSection = ({
               )}
             </Button>
           </div>
-          <p className="text-muted-foreground text-sm">
-            Attach initiative documents to keep context close to project work.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("documents.description")}</p>
         </div>
         {(canCreate || canAttach) && (
           <div className="flex items-center gap-2">
             {canCreate && (
               <Button type="button" size="sm" onClick={() => setCreateDialogOpen(true)}>
                 <FilePlus className="mr-2 h-4 w-4" />
-                New document
+                {t("documents.newDocument")}
               </Button>
             )}
             {canAttach && (
@@ -183,15 +185,13 @@ export const ProjectDocumentsSection = ({
                 <DialogTrigger asChild>
                   <Button type="button" size="sm" variant="outline">
                     <Link className="mr-2 h-4 w-4" />
-                    Attach existing
+                    {t("documents.attachExisting")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
                   <DialogHeader>
-                    <DialogTitle>Attach document</DialogTitle>
-                    <DialogDescription>
-                      Only documents created under this initiative are available.
-                    </DialogDescription>
+                    <DialogTitle>{t("documents.attachDocument")}</DialogTitle>
+                    <DialogDescription>{t("documents.attachDialogDescription")}</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -200,19 +200,18 @@ export const ProjectDocumentsSection = ({
                         value={selectedDocumentId}
                         onValueChange={(value) => setSelectedDocumentId(value)}
                         placeholder={
-                          initiativeDocsQuery.isLoading ? "Loading documents…" : "Choose document"
+                          initiativeDocsQuery.isLoading
+                            ? t("documents.loadingDocuments")
+                            : t("documents.chooseDocument")
                         }
                         emptyMessage={
                           availableDocs.length === 0
-                            ? "All initiative documents are already attached."
-                            : "No matches found."
+                            ? t("documents.allAttached")
+                            : t("documents.noMatchesFound")
                         }
                         buttonClassName="justify-between"
                       />
-                      <p className="text-muted-foreground text-xs">
-                        Need a new one? Open My Initiatives and use the initiative&apos;s Documents
-                        tab to create it, then return here to attach it.
-                      </p>
+                      <p className="text-muted-foreground text-xs">{t("documents.attachHint")}</p>
                     </div>
                   </div>
                   <DialogFooter>
@@ -228,10 +227,10 @@ export const ProjectDocumentsSection = ({
                       {attachMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Attaching…
+                          {t("documents.attaching")}
                         </>
                       ) : (
-                        "Attach"
+                        t("documents.attach")
                       )}
                     </Button>
                   </DialogFooter>
@@ -252,7 +251,7 @@ export const ProjectDocumentsSection = ({
       <CollapsibleContent className="space-y-4 data-[state=closed]:hidden">
         {documents.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            No documents attached yet. {canAttach ? "Attach one to highlight relevant briefs." : ""}
+            {t("documents.noDocuments")} {canAttach ? t("documents.noDocumentsHint") : ""}
           </p>
         ) : (
           <Carousel className="relative">
@@ -279,7 +278,7 @@ export const ProjectDocumentsSection = ({
                               detachMutation.mutate(doc.document_id);
                             }}
                             disabled={detachMutation.isPending}
-                            aria-label="Detach document"
+                            aria-label={t("documents.detachDocument")}
                           >
                             {detachMutation.isPending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -290,8 +289,9 @@ export const ProjectDocumentsSection = ({
                         ) : null}
                       </div>
                       <div className="text-muted-foreground text-xs">
-                        Attached{" "}
-                        {formatDistanceToNow(new Date(doc.attached_at), { addSuffix: true })}
+                        {t("documents.attachedAgo", {
+                          time: formatDistanceToNow(new Date(doc.attached_at)),
+                        })}
                       </div>
                     </div>
                   </CarouselItem>

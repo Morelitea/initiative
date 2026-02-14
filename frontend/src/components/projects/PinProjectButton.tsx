@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import { Pin } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import { useProjectPinMutation } from "@/hooks/useProjectPinMutation";
@@ -28,6 +29,7 @@ export const PinProjectButton = ({
   suppressNavigation = false,
   iconSize = "md",
 }: PinProjectButtonProps) => {
+  const { t } = useTranslation("projects");
   const pinMutation = useProjectPinMutation();
   const pending = pinMutation.isPending && pinMutation.variables?.projectId === projectId;
   const sizeClasses = iconSize === "sm" ? "h-7 w-7" : "h-9 w-9";
@@ -55,8 +57,8 @@ export const PinProjectButton = ({
       <div
         className={cn(baseClasses, sizeClasses, "cursor-default", className)}
         role="img"
-        aria-label="Pinned project"
-        title="Pinned project"
+        aria-label={t("pin.pinned")}
+        title={t("pin.pinned")}
       >
         <PinGlyph isPinned={isPinned} />
       </div>
@@ -68,7 +70,7 @@ export const PinProjectButton = ({
       type="button"
       className={cn(baseClasses, sizeClasses, "hover:text-primary disabled:opacity-60", className)}
       aria-pressed={isPinned}
-      aria-label={isPinned ? "Unpin project" : "Pin project"}
+      aria-label={isPinned ? t("pin.unpin") : t("pin.pin")}
       disabled={pending}
       onClick={handleClick}
     >

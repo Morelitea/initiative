@@ -30,6 +30,7 @@ from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import documents as documents_service
 from app.services import task_statuses as task_statuses_service
+from app.core.messages import ProjectMessages
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
@@ -209,7 +210,7 @@ async def _get_project_or_404(project_id: int, session: SessionDep, guild_id: in
     result = await session.exec(statement)
     project = result.one_or_none()
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND)
     return project
 
 
@@ -224,7 +225,7 @@ async def _get_initiative_or_404(initiative_id: int, session: SessionDep, guild_
     )
     initiative = result.one_or_none()
     if not initiative or (guild_id is not None and initiative.guild_id != guild_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.INITIATIVE_NOT_FOUND)
     return initiative
 
 
@@ -375,7 +376,7 @@ async def _ensure_user_in_initiative(initiative_id: int, user_id: int, session: 
 
 def _ensure_not_archived(project: Project) -> None:
     if project.is_archived:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED)
 
 
 async def _remove_user_task_assignments(
@@ -849,16 +850,16 @@ async def _require_project_membership(
         if effective != ProjectPermissionLevel.owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Project owner permission required",
+                detail=ProjectMessages.OWNER_REQUIRED,
             )
         return
 
     if effective is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this project")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ProjectMessages.NO_ACCESS)
 
     # Check access level for non-manager operations
     if access == "write" and effective == ProjectPermissionLevel.read:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ProjectMessages.WRITE_ACCESS_REQUIRED)
 
 
 def _has_project_write_access(
@@ -933,7 +934,7 @@ async def create_project(
     if project_in.template_id is not None:
         template_project = await _get_project_or_404(project_in.template_id, session, guild_context.guild_id)
         if not template_project.is_template:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected template is invalid")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.INVALID_TEMPLATE)
         await _require_project_membership(
             template_project,
             current_user,
@@ -954,7 +955,7 @@ async def create_project(
         else (template_project.initiative_id if template_project else None)
     )
     if initiative_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiative is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.INITIATIVE_REQUIRED)
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if guild_context.role != GuildRole.admin:
         has_perm = await initiatives_service.check_initiative_permission(
@@ -966,7 +967,7 @@ async def create_project(
         if not has_perm:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission required to create projects",
+                detail=ProjectMessages.CREATE_PERMISSION_REQUIRED,
             )
     await _ensure_user_in_initiative(initiative_id, owner_id, session)
     project = Project(
@@ -1524,14 +1525,14 @@ async def update_project(
         if not can_pin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guild admins and initiative managers can pin projects",
+                detail=ProjectMessages.PIN_PERMISSION_REQUIRED,
             )
         project.pinned_at = datetime.now(timezone.utc) if bool(pinned_value) else None
 
     if "initiative_id" in update_data:
         new_initiative_id = update_data.pop("initiative_id")
         if new_initiative_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Initiatives are required")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.INITIATIVES_REQUIRED)
         if new_initiative_id != project.initiative_id:
             await _get_initiative_or_404(new_initiative_id, session, guild_context.guild_id)
             await _ensure_user_in_initiative(new_initiative_id, project.owner_id, session)
@@ -1603,9 +1604,9 @@ async def attach_project_document(
         guild_id=guild_context.guild_id,
     )
     if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.DOCUMENT_NOT_FOUND)
     if document.initiative_id != project.initiative_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document belongs to a different initiative")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.DOCUMENT_WRONG_INITIATIVE)
     await documents_service.attach_document_to_project(
         session,
         document=document,
@@ -1649,9 +1650,9 @@ async def detach_project_document(
         guild_id=guild_context.guild_id,
     )
     if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.DOCUMENT_NOT_FOUND)
     if document.initiative_id != project.initiative_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document belongs to a different initiative")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.DOCUMENT_WRONG_INITIATIVE)
     await documents_service.detach_document_from_project(
         session,
         document_id=document.id,
@@ -1689,9 +1690,9 @@ async def add_project_member(
             )
     _ensure_not_archived(project)
     if member_in.level == ProjectPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_ASSIGN_OWNER)
     if member_in.user_id == project.owner_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Owner already has full access")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.OWNER_HAS_FULL_ACCESS)
     if project.initiative_id:
         await _ensure_user_in_initiative(project.initiative_id, member_in.user_id, session)
 
@@ -1736,7 +1737,7 @@ async def add_project_members_bulk(
     _ensure_not_archived(project)
 
     if bulk_in.level == ProjectPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_ASSIGN_OWNER)
 
     if not bulk_in.user_ids:
         return []
@@ -1861,15 +1862,15 @@ async def update_project_member(
     _ensure_not_archived(project)
 
     if update_in.level == ProjectPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_ASSIGN_OWNER)
     if user_id == project.owner_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_MODIFY_OWNER)
 
     permission = await _get_project_permission(project, user_id, session)
     if not permission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.PERMISSION_NOT_FOUND)
     if permission.level == ProjectPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_MODIFY_OWNER)
 
     # If downgrading to read, remove task assignments
     if update_in.level == ProjectPermissionLevel.read:
@@ -1900,7 +1901,7 @@ async def remove_project_member(
             )
     _ensure_not_archived(project)
     if user_id == project.owner_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the project owner")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_REMOVE_OWNER)
     permission = await _get_project_permission(project, user_id, session)
     if not permission:
         return
@@ -2073,14 +2074,14 @@ async def add_project_role_permission(
     _ensure_not_archived(project)
 
     if role_perm_in.level == ProjectPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_ASSIGN_OWNER_TO_ROLE)
 
     # Validate the role belongs to the same initiative as the project
     stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_perm_in.initiative_role_id)
     result = await session.exec(stmt)
     role = result.one_or_none()
     if not role or role.initiative_id != project.initiative_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role must belong to the project's initiative")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.ROLE_WRONG_INITIATIVE)
 
     # Check if already exists
     existing_stmt = select(ProjectRolePermission).where(
@@ -2137,7 +2138,7 @@ async def update_project_role_permission(
     _ensure_not_archived(project)
 
     if update_in.level == ProjectPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.CANNOT_ASSIGN_OWNER_TO_ROLE)
 
     stmt = select(ProjectRolePermission).where(
         ProjectRolePermission.project_id == project_id,
@@ -2146,7 +2147,7 @@ async def update_project_role_permission(
     result = await session.exec(stmt)
     role_perm = result.one_or_none()
     if not role_perm:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role permission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.ROLE_PERMISSION_NOT_FOUND)
 
     role_perm.level = update_in.level
     session.add(role_perm)
