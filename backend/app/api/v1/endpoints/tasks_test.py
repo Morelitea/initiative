@@ -58,6 +58,7 @@ async def _create_task(session, project, title="Test Task"):
         title=title,
         project_id=project.id,
         task_status_id=status.id,
+        guild_id=project.guild_id,
     )
     session.add(task)
     await session.commit()
@@ -99,7 +100,7 @@ async def test_list_tasks_in_project(client: AsyncClient, session: AsyncSession)
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     task_ids = {t["id"] for t in data}
     assert task1.id in task_ids
     assert task2.id in task_ids
@@ -557,7 +558,7 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
     response = await client.get("/api/v1/tasks/?assignee_ids=me", headers=headers)
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     task_ids = {t["id"] for t in data}
     assert my_task.id in task_ids
     assert other_task.id not in task_ids
@@ -584,10 +585,10 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
     # Create tasks with different statuses
     from app.models.task import Task
     task1 = Task(
-        title="Todo Task", project_id=project.id, task_status_id=todo_status.id
+        title="Todo Task", project_id=project.id, task_status_id=todo_status.id, guild_id=guild.id
     )
     task2 = Task(
-        title="Done Task", project_id=project.id, task_status_id=done_status.id
+        title="Done Task", project_id=project.id, task_status_id=done_status.id, guild_id=guild.id
     )
     session.add(task1)
     session.add(task2)
@@ -600,7 +601,7 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
     )
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     task_titles = {t["title"] for t in data}
     assert "Todo Task" in task_titles
     assert "Done Task" not in task_titles
