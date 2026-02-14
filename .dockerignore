@@ -1,0 +1,23 @@
+# Test files (not needed in production image)
+backend/app/testing/
+backend/app/**/*_test.py
+backend/conftest.py
+backend/pytest.ini
+backend/.coveragerc
+backend/setup_test_db.sh
+
+# Python
+**/__pycache__
+**/*.pyc
+backend/.venv
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# OS
+**/.DS_Store

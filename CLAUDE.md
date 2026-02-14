@@ -49,7 +49,7 @@ history/
 - `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes.
 - `cd frontend && npm install && npm run dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8000/api/v1`).
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
-- `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters.
+- `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
 
 ## Versioning
 
@@ -173,7 +173,100 @@ Python uses 4-space indentation, full type hints, `snake_case` modules/functions
 
 ## Testing Guidelines
 
-Write Pytest suites under `backend/tests`, exercising API routers with `httpx.AsyncClient` fixtures and covering RBAC, JWT flows, and initiative visibility rules. For new UI logic, add Vitest + Testing Library specs under the relevant feature folder (or `frontend/src/__tests__`); prioritize coverage for auth, project CRUD, and optimistic updates.
+Tests are co-located next to their source files using a `_test.py` suffix (e.g., `app/services/guilds_test.py` tests `app/services/guilds.py`). Shared test factories live in `app/testing/factories.py` and are re-exported from `app/testing/__init__.py`. The root `backend/conftest.py` provides session, client, and auth fixtures. Run all tests with `cd backend && pytest` (testpaths is set to `app` in `pytest.ini`). For new UI logic, add Vitest + Testing Library specs under the relevant feature folder (or `frontend/src/__tests__`); prioritize coverage for auth, project CRUD, and optimistic updates.
+
+### Running Tests
+
+```bash
+# Run all backend tests
+cd backend && pytest
+
+# Run tests for a specific module
+cd backend && pytest app/services/guilds_test.py
+
+# Run tests for a whole directory
+cd backend && pytest app/api/v1/endpoints/
+
+# Run only unit or integration tests
+cd backend && pytest -m unit
+cd backend && pytest -m integration
+
+# Run tests for files you've changed (vs main)
+cd backend && ./scripts/test-changed.sh
+
+# Run tests for staged files only
+cd backend && ./scripts/test-changed.sh --staged
+
+# Run all frontend tests
+cd frontend && pnpm test:run
+
+# Run frontend tests in watch mode
+cd frontend && pnpm test
+
+# Run frontend tests for files you've changed (vs main)
+cd frontend && ./scripts/test-changed.sh
+
+# Run frontend tests for staged files only
+cd frontend && ./scripts/test-changed.sh --staged
+```
+
+### Test Factories
+
+Both backend and frontend provide factory functions for creating test data with sensible defaults. Always use these instead of hand-crafting test objects.
+
+**Backend factories** live in `app/testing/factories.py` and are re-exported from `app/testing/__init__.py`. They are async functions that persist models to the test database and accept keyword overrides for any field.
+
+Available factories:
+- `create_user(session, **overrides)` — creates a `User` with unique email, hashed password, and default notification preferences
+- `create_guild(session, creator=None, **overrides)` — creates a `Guild`; auto-creates a creator user if not provided
+- `create_guild_membership(session, user=None, guild=None, role=GuildRole.member)` — links a user to a guild
+- `create_initiative(session, guild, creator, **overrides)` — creates an `Initiative` with built-in roles and adds the creator as project manager
+- `create_initiative_member(session, initiative, user, role_name="member")` — adds a user to an initiative with proper role lookup
+- `create_project(session, initiative, owner, **overrides)` — creates a `Project` with owner permission
+
+Auth helpers:
+- `get_auth_token(user)` — returns a JWT string for the user
+- `get_auth_headers(user)` — returns `{"Authorization": "Bearer <token>"}` dict
+- `get_guild_headers(guild, user=None)` — returns `{"X-Guild-ID": "..."}` with optional auth
+
+```python
+from app.testing import create_user, create_guild, create_guild_membership, get_guild_headers
+from app.models.guild import GuildRole
+
+async def test_something(session, client):
+    user = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    headers = get_guild_headers(guild, user)
+    response = await client.get("/api/v1/initiatives", headers=headers)
+    assert response.status_code == 200
+```
+
+**Frontend factories** live in `src/__tests__/factories/` and are pure functions that return typed API response objects. They use auto-incrementing IDs and accept partial overrides via a spread pattern.
+
+Available factories:
+- `buildUser(overrides?)` / `buildUserPublic(overrides?)` / `buildUserGuildMember(overrides?)` — user objects at different detail levels
+- `buildGuild(overrides?)` / `buildGuildInviteStatus(overrides?)` — guild and invite objects
+- `buildInitiative(overrides?)` / `buildInitiativeMember(overrides?)` — initiative objects
+- `buildProject(overrides?)` / `buildProjectPermission(overrides?)` — project objects
+- `buildProjectTaskStatus(overrides?)` / `buildDefaultTaskStatuses(projectId?)` — task status objects (the latter returns all four default statuses)
+- `buildTask(overrides?)` / `buildTaskListResponse(items?)` / `buildTaskAssignee(overrides?)` — task objects
+- `buildTag(overrides?)` / `buildTagSummary(overrides?)` — tag objects
+- `buildDocumentSummary(overrides?)` — document objects
+- `buildComment(overrides?)` — comment objects
+- `buildNotification(overrides?)` — notification objects
+- `resetFactories()` — resets all ID counters (called automatically in test setup)
+
+```typescript
+import { buildUser, buildGuild, buildProject, buildTask } from "@/__tests__/factories";
+
+const user = buildUser({ full_name: "Alice" });
+const guild = buildGuild({ role: "admin" });
+const project = buildProject({ owner_id: user.id, name: "My Project" });
+const task = buildTask({ project_id: project.id, priority: "high" });
+```
+
+Frontend tests also use MSW (Mock Service Worker) handlers in `src/__tests__/helpers/handlers/` to mock API responses, and custom render helpers (`renderWithProviders`, `renderPage`) from `src/__tests__/helpers/render.tsx`.
 
 ## Commit & Pull Request Guidelines
 

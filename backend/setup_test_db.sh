@@ -27,4 +27,4 @@ alembic upgrade head
 
 echo "✓ Test database setup complete!"
 echo "Database: $DB_NAME"
-echo "You can now run tests with: python3 -m pytest tests/"
+echo "You can now run tests with: python3 -m pytest app/"

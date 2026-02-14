@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildInvite, GuildRole
 from app.services import guilds as guild_service
-from tests.factories import create_guild, create_guild_membership, create_user
+from app.testing.factories import create_guild, create_guild_membership, create_user
 
 
 @pytest.mark.unit

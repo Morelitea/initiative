@@ -12,7 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from tests.factories import create_user, get_auth_headers
+from app.testing.factories import create_user, get_auth_headers
 
 
 @pytest.mark.integration

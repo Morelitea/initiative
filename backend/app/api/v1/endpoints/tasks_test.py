@@ -17,7 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from tests.factories import (
+from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
@@ -27,7 +27,7 @@ from tests.factories import (
 
 async def _create_initiative(session, guild, user):
     """Helper to create an initiative."""
-    from tests.factories import create_initiative as factory_create_initiative
+    from app.testing.factories import create_initiative as factory_create_initiative
 
     initiative = await factory_create_initiative(
         session, guild, user, name="Test Initiative"
@@ -37,7 +37,7 @@ async def _create_initiative(session, guild, user):
 
 async def _create_project(session, initiative, owner):
     """Helper to create a project."""
-    from tests.factories import create_project as factory_create_project
+    from app.testing.factories import create_project as factory_create_project
 
     project = await factory_create_project(
         session, initiative, owner, name="Test Project"
@@ -303,7 +303,7 @@ async def test_assign_user_to_task(client: AsyncClient, session: AsyncSession):
     initiative = await _create_initiative(session, guild, user)
 
     # Add assignee to initiative
-    from tests.factories import create_initiative_member
+    from app.testing.factories import create_initiative_member
     await create_initiative_member(session, initiative, assignee, role_name="member")
 
     project = await _create_project(session, initiative, user)

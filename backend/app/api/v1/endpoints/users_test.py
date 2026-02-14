@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
 from app.models.user import UserRole
-from tests.factories import (
+from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
