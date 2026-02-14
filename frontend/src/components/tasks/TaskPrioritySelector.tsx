@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -13,13 +15,6 @@ import { apiClient } from "@/api/client";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import type { Task, TaskPriority } from "@/types/api";
 
-const PRIORITIES: { value: TaskPriority; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-];
-
 type TaskPrioritySelectorProps = {
   task: Task;
   /** Guild ID override. If not provided, uses the default from apiClient interceptor. */
@@ -28,7 +23,18 @@ type TaskPrioritySelectorProps = {
 };
 
 export const TaskPrioritySelector = ({ task, guildId, disabled }: TaskPrioritySelectorProps) => {
+  const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
+
+  const PRIORITIES: { value: TaskPriority; label: string }[] = useMemo(
+    () => [
+      { value: "low", label: t("priority.low") },
+      { value: "medium", label: t("priority.medium") },
+      { value: "high", label: t("priority.high") },
+      { value: "urgent", label: t("priority.urgent") },
+    ],
+    [t]
+  );
 
   const updatePriority = useMutation({
     mutationFn: async (priority: TaskPriority) => {
@@ -44,11 +50,13 @@ export const TaskPrioritySelector = ({ task, guildId, disabled }: TaskPrioritySe
       void queryClient.invalidateQueries({ queryKey: ["tasks", task.project_id] });
       void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
       void queryClient.invalidateQueries({ queryKey: ["task", task.id] });
-      toast.success(`Priority changed to ${updatedTask.priority}`);
+      toast.success(
+        t("prioritySelector.changed", { priority: t(`priority.${updatedTask.priority}`) })
+      );
     },
     onError: (error) => {
       console.error(error);
-      const message = error instanceof Error ? error.message : "Unable to update priority.";
+      const message = error instanceof Error ? error.message : t("prioritySelector.updateError");
       toast.error(message);
     },
   });
@@ -66,7 +74,7 @@ export const TaskPrioritySelector = ({ task, guildId, disabled }: TaskPrioritySe
         <button
           type="button"
           className="focus:ring-ring cursor-pointer rounded-md focus:ring-2 focus:ring-offset-2 focus:outline-none"
-          aria-label={`Priority: ${task.priority}. Click to change.`}
+          aria-label={t("prioritySelector.ariaLabel", { priority: t(`priority.${task.priority}`) })}
         >
           <Badge variant={priorityVariant[task.priority]} className="capitalize">
             {task.priority.replace("_", " ")}

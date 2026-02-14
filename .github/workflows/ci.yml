@@ -136,6 +136,11 @@ jobs:
           cd frontend
           pnpm lint
 
+      - name: TypeScript Check
+        run: |
+          cd frontend
+          pnpm tsc --noEmit
+
       - name: Run tests
         run: |
           cd frontend

@@ -477,7 +477,18 @@
 
   "kanban": {
     "priority": "Priority: {{priority}}",
-    "due": "Due: {{date}}"
+    "starts": "Starts: {{date}}",
+    "due": "Due: {{date}}",
+    "dropHere": "Drop tasks here",
+    "noTasks": "No tasks yet.",
+    "archiving": "Archiving\u2026",
+    "archiveDone": "Archive done tasks",
+    "taskCount_one": "{{count}} task",
+    "taskCount_other": "{{count}} tasks",
+    "collapse": "Collapse {{name}}",
+    "expand": "Expand {{name}}",
+    "comments_one": "{{count}} comment",
+    "comments_other": "{{count}} comments"
   },
 
   "recurrence": {

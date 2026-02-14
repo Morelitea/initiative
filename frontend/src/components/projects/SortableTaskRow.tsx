@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +42,7 @@ export const SortableTaskRow = ({
   onTaskClick,
   canOpenTask,
 }: SortableTaskRowProps) => {
+  const { t } = useTranslation("projects");
   const router = useRouter();
   const gp = useGuildPath();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -77,10 +79,14 @@ export const SortableTaskRow = ({
   };
   const isDone = task.task_status.category === "done";
   const recurrenceSummary = task.recurrence
-    ? summarizeRecurrence(task.recurrence, {
-        referenceDate: task.start_date || task.due_date,
-        strategy: task.recurrence_strategy,
-      })
+    ? summarizeRecurrence(
+        task.recurrence,
+        {
+          referenceDate: task.start_date || task.due_date,
+          strategy: task.recurrence_strategy,
+        },
+        t
+      )
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
@@ -105,7 +111,7 @@ export const SortableTaskRow = ({
           checked={isDone}
           onCheckedChange={(value) => handleCompletionToggle(Boolean(value))}
           disabled={statusDisabled}
-          aria-label={isDone ? "Mark task as in progress" : "Mark task as done"}
+          aria-label={isDone ? t("tasks:checkbox.markInProgress") : t("tasks:checkbox.markDone")}
         />
       </td>
       <td className="px-2 py-2">
@@ -141,16 +147,16 @@ export const SortableTaskRow = ({
               ) : null}
               {formattedStart || formattedDue ? (
                 <p>
-                  {formattedStart ? `Starts: ${formattedStart}` : null}
+                  {formattedStart ? t("kanban.starts", { date: formattedStart }) : null}
                   {formattedStart && formattedDue ? <span> &mdash; </span> : null}
-                  {formattedDue ? `Due: ${formattedDue}` : null}
+                  {formattedDue ? t("kanban.due", { date: formattedDue }) : null}
                 </p>
               ) : null}
               {recurrenceText ? <p>{recurrenceText}</p> : null}
               {commentCount > 0 ? (
                 <p className="inline-flex items-center gap-1">
                   <MessageSquare className="h-3 w-3" aria-hidden="true" />
-                  {commentCount} comment{commentCount === 1 ? "" : "s"}
+                  {t("kanban.comments", { count: commentCount })}
                 </p>
               ) : null}
             </div>
@@ -169,7 +175,9 @@ export const SortableTaskRow = ({
         </div>
       </td>
       <td className="px-2 py-2 align-top">
-        <Badge variant={priorityVariant[task.priority]}>{task.priority.replace("_", " ")}</Badge>
+        <Badge variant={priorityVariant[task.priority]}>
+          {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
+        </Badge>
       </td>
       <td className="px-2 py-2 align-top">
         <Select

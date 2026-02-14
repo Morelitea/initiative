@@ -3,6 +3,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare, Archive } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export const KanbanColumn = ({
   onArchiveDoneTasks,
   isArchiving,
 }: KanbanColumnProps) => {
+  const { t } = useTranslation("projects");
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${status.id}`,
     data: { type: "column", statusId: status.id },
@@ -78,9 +80,9 @@ export const KanbanColumn = ({
         )}
       >
         {collapsed ? (
-          <span className="text-muted-foreground text-xs">Drop tasks here</span>
+          <span className="text-muted-foreground text-xs">{t("kanban.dropHere")}</span>
         ) : tasks.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No tasks yet.</p>
+          <p className="text-muted-foreground text-sm">{t("kanban.noTasks")}</p>
         ) : (
           <SortableContext
             items={tasks.map((task) => task.id.toString())}
@@ -109,7 +111,7 @@ export const KanbanColumn = ({
             disabled={isArchiving}
           >
             <Archive className="h-3.5 w-3.5" />
-            {isArchiving ? "Archiving…" : "Archive done tasks"}
+            {isArchiving ? t("kanban.archiving") : t("kanban.archiveDone")}
           </Button>
         </div>
       )}
@@ -125,30 +127,33 @@ const ExpandedHeader = ({
   status: ProjectTaskStatus;
   taskCount: number;
   onToggleCollapse: (statusId: number) => void;
-}) => (
-  <div
-    className="bg-card sticky top-0 z-20 flex items-center justify-between gap-2 border-b px-3 py-2"
-    style={{ borderTopLeftRadius: "0.5rem", borderTopRightRadius: "0.5rem" }}
-    data-kanban-scroll-lock="true"
-  >
-    <div>
-      <p className="text-lg leading-none font-semibold">{status.name}</p>
-      <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-        <SquareCheckBig className="h-3 w-3" /> {taskCount} task{taskCount === 1 ? "" : "s"}
-      </p>
-    </div>
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="text-muted-foreground h-7 w-7"
-      onClick={() => onToggleCollapse(status.id)}
-      aria-label={`Collapse ${status.name}`}
+}) => {
+  const { t } = useTranslation("projects");
+  return (
+    <div
+      className="bg-card sticky top-0 z-20 flex items-center justify-between gap-2 border-b px-3 py-2"
+      style={{ borderTopLeftRadius: "0.5rem", borderTopRightRadius: "0.5rem" }}
+      data-kanban-scroll-lock="true"
     >
-      <ChevronLeft className="h-4 w-4" />
-    </Button>
-  </div>
-);
+      <div>
+        <p className="text-lg leading-none font-semibold">{status.name}</p>
+        <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+          <SquareCheckBig className="h-3 w-3" /> {t("kanban.taskCount", { count: taskCount })}
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground h-7 w-7"
+        onClick={() => onToggleCollapse(status.id)}
+        aria-label={t("kanban.collapse", { name: status.name })}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
 
 const CollapsedHeader = ({
   status,
@@ -158,28 +163,31 @@ const CollapsedHeader = ({
   status: ProjectTaskStatus;
   taskCount: number;
   onToggleCollapse: (statusId: number) => void;
-}) => (
-  <div className="flex flex-col items-center gap-3 py-4" data-kanban-scroll-lock="true">
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="text-muted-foreground h-7 w-7"
-      onClick={() => onToggleCollapse(status.id)}
-      aria-label={`Expand ${status.name}`}
-    >
-      <ChevronRight className="h-4 w-4" />
-    </Button>
-    <div className="flex h-16 items-center justify-center">
-      <span className="text-muted-foreground rotate-90 text-xs font-semibold tracking-wide whitespace-nowrap">
-        {status.name}
+}) => {
+  const { t } = useTranslation("projects");
+  return (
+    <div className="flex flex-col items-center gap-3 py-4" data-kanban-scroll-lock="true">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground h-7 w-7"
+        onClick={() => onToggleCollapse(status.id)}
+        aria-label={t("kanban.expand", { name: status.name })}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      <div className="flex h-16 items-center justify-center">
+        <span className="text-muted-foreground rotate-90 text-xs font-semibold tracking-wide whitespace-nowrap">
+          {status.name}
+        </span>
+      </div>
+      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+        <SquareCheckBig className="h-3 w-3" /> {taskCount}
       </span>
     </div>
-    <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-      <SquareCheckBig className="h-3 w-3" /> {taskCount}
-    </span>
-  </div>
-);
+  );
+};
 
 interface KanbanTaskCardProps {
   task: Task;
@@ -196,6 +204,7 @@ const KanbanTaskCard = ({
   onTaskClick,
   canOpenTask,
 }: KanbanTaskCardProps) => {
+  const { t } = useTranslation("projects");
   const router = useRouter();
   const gp = useGuildPath();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -217,10 +226,14 @@ const KanbanTaskCard = ({
   };
 
   const recurrenceSummary = task.recurrence
-    ? summarizeRecurrence(task.recurrence, {
-        referenceDate: task.start_date || task.due_date,
-        strategy: task.recurrence_strategy,
-      })
+    ? summarizeRecurrence(
+        task.recurrence,
+        {
+          referenceDate: task.start_date || task.due_date,
+          strategy: task.recurrence_strategy,
+        },
+        t
+      )
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
   const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
@@ -260,15 +273,15 @@ const KanbanTaskCard = ({
           {task.assignees.length > 0 ? (
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
           ) : null}
-          {formattedStart ? <p>Starts: {formattedStart}</p> : null}
-          {formattedDue ? <p>Due: {formattedDue}</p> : null}
+          {formattedStart ? <p>{t("kanban.starts", { date: formattedStart })}</p> : null}
+          {formattedDue ? <p>{t("kanban.due", { date: formattedDue })}</p> : null}
           {recurrenceText ? <p>{recurrenceText}</p> : null}
         </div>
         <TaskChecklistProgress progress={task.subtask_progress} className="w-full pt-1" />
       </button>
       <div className="flex flex-wrap gap-2">
         <Badge variant={priorityVariant[task.priority]}>
-          Priority: {task.priority.replace("_", " ")}
+          {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
         </Badge>
         {commentCount > 0 ? (
           <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">

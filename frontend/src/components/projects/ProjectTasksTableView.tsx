@@ -177,7 +177,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ getValue }) => (
           <span className="text-base font-medium">
-            {getTaskDateStatusLabel(getValue<string>())}
+            {getTaskDateStatusLabel(getValue<string>(), t)}
           </span>
         ),
         enableHiding: true,
@@ -489,15 +489,20 @@ type TaskCellProps = {
 };
 
 const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
+  const { t } = useTranslation("projects");
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;
-    const summary = summarizeRecurrence(task.recurrence, {
-      referenceDate: task.start_date || task.due_date,
-      strategy: task.recurrence_strategy,
-    });
+    const summary = summarizeRecurrence(
+      task.recurrence,
+      {
+        referenceDate: task.start_date || task.due_date,
+        strategy: task.recurrence_strategy,
+      },
+      t
+    );
     return summary ? truncateText(summary, 100) : null;
-  }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy]);
+  }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy, t]);
 
   return (
     <div className="flex items-center gap-2">

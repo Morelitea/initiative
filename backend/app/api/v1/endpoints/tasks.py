@@ -39,6 +39,7 @@ from app.services import notifications as notifications_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
+from app.core.messages import ProjectMessages, TaskMessages, SubtaskMessages
 
 router = APIRouter()
 
@@ -328,7 +329,7 @@ async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: lis
         result = await session.exec(stmt)
         users = result.all()
         if len(users) != len(unique_ids):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more assignees not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.ASSIGNEES_NOT_FOUND)
 
     delete_stmt = delete(TaskAssignee).where(TaskAssignee.task_id == task.id)
     await session.exec(delete_stmt)
@@ -489,9 +490,9 @@ async def _get_project_with_access(
     project_result = await session.exec(project_stmt)
     project = project_result.one_or_none()
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND)
     if project.is_archived and access == "write":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project is archived")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED)
 
     # Check explicit project permission
     permission = _permission_from_project(project, user.id)
@@ -516,14 +517,14 @@ async def _get_project_with_access(
             effective = role_level
 
     if effective is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No permission for this project")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ProjectMessages.NO_ACCESS)
 
     if access == "read":
         return project
 
     # Write access requires owner or write permission level
     if effective not in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for this project")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ProjectMessages.WRITE_ACCESS_REQUIRED)
 
     return project
 
@@ -756,7 +757,7 @@ async def list_tasks(
                     try:
                         user_ids.append(int(assignee_id))
                     except ValueError:
-                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid assignee_id: {assignee_id}")
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.INVALID_ASSIGNEE_ID)
             if user_ids:
                 stmt = stmt.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
                     TaskAssignee.user_id.in_(tuple(user_ids))
@@ -845,7 +846,7 @@ async def create_task(
             project_id=project.id,
         )
         if selected_status is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task status not found for project")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.STATUS_NOT_FOUND)
     else:
         selected_status = await task_statuses_service.get_default_status(session, project.id)
 
@@ -878,7 +879,7 @@ async def create_task(
     await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task not found after creation")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_CREATE)
     await broadcast_event("task", "created", _task_payload(task))
     return task
 
@@ -892,7 +893,7 @@ async def read_task(
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _get_project_with_access(
         session,
@@ -914,7 +915,7 @@ async def update_task(
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     project = await _get_project_with_access(
         session,
@@ -936,7 +937,7 @@ async def update_task(
             project_id=task.project_id,
         )
         if selected_status is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task status not found for project")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.STATUS_NOT_FOUND)
         task.task_status_id = selected_status.id
         task.task_status = selected_status
 
@@ -987,7 +988,7 @@ async def update_task(
     await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
     await broadcast_event("task", "updated", _task_payload(task))
     return task
 
@@ -1002,10 +1003,10 @@ async def move_task(
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     if task.project_id == move_in.target_project_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task already belongs to this project")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.ALREADY_IN_PROJECT)
 
     await _ensure_can_manage(
         session,
@@ -1022,7 +1023,7 @@ async def move_task(
         access="write",
     )
     if target_project.is_template:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot move task to a template project")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.CANNOT_MOVE_TO_TEMPLATE)
 
     default_status = await task_statuses_service.get_default_status(session, target_project.id)
     now = datetime.now(timezone.utc)
@@ -1037,7 +1038,7 @@ async def move_task(
 
     updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
     if updated_task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after move")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_MOVE)
     await broadcast_event("task", "updated", _task_payload(updated_task))
     return updated_task
 
@@ -1066,7 +1067,7 @@ async def duplicate_task(
     task_result = await session.exec(task_stmt)
     original_task = task_result.one_or_none()
     if not original_task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1127,7 +1128,7 @@ async def duplicate_task(
     # Annotate and return the task
     task_with_relations = await _fetch_task(session, new_task.id, guild_context.guild_id)
     if not task_with_relations:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duplicated task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.DUPLICATE_NOT_FOUND)
 
     return task_with_relations
 
@@ -1151,7 +1152,7 @@ async def delete_task(
     task_result = await session.exec(task_stmt)
     task = task_result.one_or_none()
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1199,7 +1200,7 @@ async def reorder_tasks(
 
     missing_ids = set(task_ids) - set(task_map.keys())
     if missing_ids:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     now = datetime.now(timezone.utc)
     status_cache: dict[int, TaskStatus] = {}
@@ -1207,7 +1208,7 @@ async def reorder_tasks(
         task = task_map[item.id]
         previous_status_category = task.task_status.category if task.task_status else None
         if task.project_id != reorder_in.project_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task project mismatch")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.PROJECT_MISMATCH)
 
         if item.task_status_id != task.task_status_id:
             status_obj = status_cache.get(item.task_status_id)
@@ -1220,7 +1221,7 @@ async def reorder_tasks(
                 if status_obj is None:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Task status not found for project",
+                        detail=TaskMessages.STATUS_NOT_FOUND,
                     )
                 status_cache[item.task_status_id] = status_obj
             task.task_status_id = status_obj.id
@@ -1321,7 +1322,7 @@ async def list_subtasks(
 ) -> List[Subtask]:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _get_project_with_access(
         session,
@@ -1343,7 +1344,7 @@ async def create_subtask(
 ) -> Subtask:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1354,7 +1355,7 @@ async def create_subtask(
 
     content = subtask_in.content.strip()
     if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content cannot be empty")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SubtaskMessages.CONTENT_EMPTY)
 
     position = await _next_subtask_position(session, task.id)
     subtask = Subtask(
@@ -1385,7 +1386,7 @@ async def create_subtasks_batch(
     """Create multiple subtasks at once."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1438,7 +1439,7 @@ async def reorder_subtasks(
 ) -> List[Subtask]:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1459,7 +1460,7 @@ async def reorder_subtasks(
     subtasks = result.all()
     subtask_map = {subtask.id: subtask for subtask in subtasks}
     if len(subtask_map) != len(subtask_ids):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtask not found for this task")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND_FOR_TASK)
 
     now = datetime.now(timezone.utc)
     for item in reorder_in.items:
@@ -1485,11 +1486,11 @@ async def update_subtask(
 ) -> Subtask:
     subtask = await session.get(Subtask, subtask_id)
     if not subtask:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtask not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND)
 
     task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1505,7 +1506,7 @@ async def update_subtask(
     if "content" in update_data and update_data["content"] is not None:
         content_value = update_data["content"].strip()
         if not content_value:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content cannot be empty")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SubtaskMessages.CONTENT_EMPTY)
         subtask.content = content_value
 
     if "is_completed" in update_data and update_data["is_completed"] is not None:
@@ -1532,11 +1533,11 @@ async def delete_subtask(
 ) -> None:
     subtask = await session.get(Subtask, subtask_id)
     if not subtask:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtask not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND)
 
     task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1565,7 +1566,7 @@ async def generate_task_subtasks(
     """Generate AI-powered subtask suggestions for a task."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     # Check write access and get project with initiative
     project = await _get_project_with_access(
@@ -1600,7 +1601,7 @@ async def generate_task_description(
     """Generate AI-powered description for a task."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     # Check write access and get project with initiative
     project = await _get_project_with_access(
@@ -1636,7 +1637,7 @@ async def set_task_tags(
     """Set the tags for a task. Replaces all existing tags with the provided list."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
 
     await _ensure_can_manage(
         session,
@@ -1657,7 +1658,7 @@ async def set_task_tags(
         if len(tags) != len(unique_tag_ids):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="One or more tags not found",
+                detail=TaskMessages.TAGS_NOT_FOUND,
             )
 
     # Delete existing task tags
@@ -1675,7 +1676,7 @@ async def set_task_tags(
     # Fetch fresh task to avoid issues with deleted relationship objects
     fresh_task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
     if fresh_task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
     fresh_task.updated_at = datetime.now(timezone.utc)
     await session.commit()
     await reapply_rls_context(session)
@@ -1683,6 +1684,6 @@ async def set_task_tags(
     # Refresh and return
     task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task missing after update")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
     await broadcast_event("task", "updated", _task_payload(task))
     return task

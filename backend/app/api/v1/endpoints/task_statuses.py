@@ -16,6 +16,7 @@ from app.schemas.task_status import (
     TaskStatusRead,
     TaskStatusUpdate,
 )
+from app.core.messages import TaskStatusMessages
 from app.services import task_statuses as task_statuses_service
 
 router = APIRouter(prefix="/projects/{project_id}/task-statuses", tags=["task-statuses"])
@@ -48,7 +49,7 @@ async def _load_status_or_404(session: SessionDep, project_id: int, status_id: i
     result = await session.exec(stmt)
     status_obj = result.one_or_none()
     if status_obj is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task status not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskStatusMessages.NOT_FOUND)
     return status_obj
 
 
@@ -69,7 +70,7 @@ async def _ensure_category_not_last(
     if count <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove the final status for this category",
+            detail=TaskStatusMessages.CANNOT_REMOVE_LAST,
         )
 
 
@@ -202,10 +203,10 @@ async def reorder_task_statuses(
     ordered: list[TaskStatus] = []
     for item in sorted(reorder_in.items, key=lambda entry: entry.position):
         if item.id in seen:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate status id")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskStatusMessages.DUPLICATE_ID)
         status_obj = status_map.get(item.id)
         if status_obj is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task status not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskStatusMessages.NOT_FOUND)
         ordered.append(status_obj)
         seen.add(item.id)
     remaining = [status for status in statuses if status.id not in seen]
@@ -243,14 +244,14 @@ async def delete_task_status(
     fallback_obj: TaskStatus | None = None
     if task_count:
         if delete_in.fallback_status_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fallback status required")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskStatusMessages.FALLBACK_REQUIRED)
         if delete_in.fallback_status_id == target.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fallback status must differ")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskStatusMessages.FALLBACK_MUST_DIFFER)
         fallback_obj = await _load_status_or_404(session, project_id, delete_in.fallback_status_id)
         if fallback_obj.category != target.category:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Fallback status must share the same category",
+                detail=TaskStatusMessages.FALLBACK_CATEGORY_MISMATCH,
             )
         await session.exec(
             update(Task)

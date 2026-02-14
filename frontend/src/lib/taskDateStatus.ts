@@ -1,13 +1,15 @@
+import type { TFunction } from "i18next";
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 type TaskDateStatusKey = "0_overdue" | "1_today" | "2_this_week" | "3_this_month" | "4_later";
 
-const TASK_DATE_STATUS_LABELS: Record<TaskDateStatusKey, string> = {
-  "0_overdue": "Overdue",
-  "1_today": "Today",
-  "2_this_week": "This Week",
-  "3_this_month": "This Month",
-  "4_later": "Later",
+const STATUS_KEY_MAP: Record<TaskDateStatusKey, string> = {
+  "0_overdue": "overdue",
+  "1_today": "today",
+  "2_this_week": "thisWeek",
+  "3_this_month": "thisMonth",
+  "4_later": "later",
 };
 
 const parseDate = (value?: string | null) => {
@@ -75,17 +77,15 @@ export const getTaskDateStatus = (
   return "4_later";
 };
 
-export const getTaskDateStatusLabel = (value?: string | null) => {
-  if (!value) {
-    return TASK_DATE_STATUS_LABELS["4_later"];
+export const getTaskDateStatusLabel = (value: string | null | undefined, t: TFunction) => {
+  const key = (value ?? "4_later") as TaskDateStatusKey;
+  const i18nKey = STATUS_KEY_MAP[key];
+  if (i18nKey) {
+    return t(`dates:status.${i18nKey}`);
   }
-  const key = value as TaskDateStatusKey;
-  if (TASK_DATE_STATUS_LABELS[key]) {
-    return TASK_DATE_STATUS_LABELS[key];
-  }
-  const sanitized = value.replace(/^\d+_/, "").replace(/_/g, " ");
+  const sanitized = (value ?? "").replace(/^\d+_/, "").replace(/_/g, " ");
   if (!sanitized) {
-    return TASK_DATE_STATUS_LABELS["4_later"];
+    return t("dates:status.later");
   }
   return sanitized
     .split(" ")

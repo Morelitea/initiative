@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ export function BulkEditTaskTagsDialog({
   tasks,
   onSuccess,
 }: BulkEditTaskTagsDialogProps) {
+  const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [tagsToAdd, setTagsToAdd] = useState<TagSummary[]>([]);
@@ -82,7 +84,7 @@ export function BulkEditTaskTagsDialog({
           })
         );
         const count = tasks.length;
-        toast.success(`Tags added to ${count} task${count === 1 ? "" : "s"}`);
+        toast.success(t("bulkEditTags.tagsAdded", { count }));
       } else {
         const removeIds = new Set(tagsToRemove.map((t) => t.id));
         await Promise.all(
@@ -92,7 +94,7 @@ export function BulkEditTaskTagsDialog({
           })
         );
         const count = tasks.length;
-        toast.success(`Tags removed from ${count} task${count === 1 ? "" : "s"}`);
+        toast.success(t("bulkEditTags.tagsRemoved", { count }));
       }
 
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -100,12 +102,12 @@ export function BulkEditTaskTagsDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to update tags right now.";
+      const message = error instanceof Error ? error.message : t("bulkEditTags.updateError");
       toast.error(message);
     } finally {
       setIsPending(false);
     }
-  }, [mode, tagsToAdd, tagsToRemove, tasks, queryClient, resetState, onOpenChange, onSuccess]);
+  }, [mode, tagsToAdd, tagsToRemove, tasks, queryClient, resetState, onOpenChange, onSuccess, t]);
 
   const canApply = mode === "add" ? tagsToAdd.length > 0 : tagsToRemove.length > 0;
 
@@ -113,20 +115,21 @@ export function BulkEditTaskTagsDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Tags</DialogTitle>
+          <DialogTitle>{t("bulkEditTags.title")}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? "Add" : "Remove"} tags {mode === "add" ? "to" : "from"} {tasks.length}{" "}
-            selected task{tasks.length === 1 ? "" : "s"}.
+            {mode === "add"
+              ? t("bulkEditTags.descriptionAdd", { count: tasks.length })
+              : t("bulkEditTags.descriptionRemove", { count: tasks.length })}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as "add" | "remove")}>
           <TabsList className="w-full">
             <TabsTrigger value="add" className="flex-1">
-              Add
+              {t("bulkEditTags.tabAdd")}
             </TabsTrigger>
             <TabsTrigger value="remove" className="flex-1">
-              Remove
+              {t("bulkEditTags.tabRemove")}
             </TabsTrigger>
           </TabsList>
 
@@ -134,20 +137,20 @@ export function BulkEditTaskTagsDialog({
             <TagPicker
               selectedTags={tagsToAdd}
               onChange={setTagsToAdd}
-              placeholder="Select tags to add..."
+              placeholder={t("bulkEditTags.addPlaceholder")}
             />
           </TabsContent>
 
           <TabsContent value="remove" className="mt-4">
             {existingTags.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No tags on the selected tasks.</p>
+              <p className="text-muted-foreground text-sm">{t("bulkEditTags.noTags")}</p>
             ) : (
               <TagPicker
                 selectedTags={tagsToRemove}
                 onChange={(tags) =>
                   setTagsToRemove(tags.filter((t) => existingTags.some((e) => e.id === t.id)))
                 }
-                placeholder="Select tags to remove..."
+                placeholder={t("bulkEditTags.removePlaceholder")}
               />
             )}
           </TabsContent>
@@ -155,16 +158,16 @@ export function BulkEditTaskTagsDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button onClick={() => void handleApply()} disabled={isPending || !canApply}>
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Applying…
+                {t("bulkEditTags.applying")}
               </>
             ) : (
-              "Apply"
+              t("bulkEditTags.apply")
             )}
           </Button>
         </DialogFooter>
