@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dev Environment",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "echo 'Dev environment is running. Press Ctrl+C to stop.'",
+      "preLaunchTask": "dev:setup",
+      "postDebugTask": "dev:cleanup"
+    }
+  ]
+}

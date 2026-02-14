@@ -1,0 +1,90 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev:db-start",
+      "type": "shell",
+      "command": "docker-compose up db -d --wait",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "dev:migrate",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-migrate.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "dependsOn": ["dev:db-start"]
+    },
+    {
+      "label": "dev:seed",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-seed.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "dependsOn": ["dev:migrate"]
+    },
+    {
+      "label": "dev:backend",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-backend.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^INFO",
+          "endsPattern": "Uvicorn running|Application startup complete"
+        }
+      },
+      "dependsOn": ["dev:seed"]
+    },
+    {
+      "label": "dev:frontend",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-frontend.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\s*VITE",
+          "endsPattern": "Local:\\s+http"
+        }
+      },
+      "dependsOn": ["dev:seed"]
+    },
+    {
+      "label": "dev:open-browser",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-open-browser.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "dependsOn": ["dev:backend", "dev:frontend"]
+    },
+    {
+      "label": "dev:setup",
+      "dependsOn": ["dev:open-browser"],
+      "dependsOrder": "sequence",
+      "presentation": { "reveal": "silent" },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev:cleanup",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-cleanup.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared" }
+    }
+  ]
+}
