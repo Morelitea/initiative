@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import type { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -144,9 +144,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       }
     } catch (err) {
       console.error(err);
-      const axiosError = err as AxiosError<{ detail?: string }>;
-      const detail = axiosError.response?.data?.detail;
-      setError(detail ?? t("register.defaultError"));
+      setError(getErrorMessage(err, "auth:register.defaultError"));
     } finally {
       setSubmitting(false);
     }
