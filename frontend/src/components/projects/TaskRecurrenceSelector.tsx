@@ -93,7 +93,7 @@ export const TaskRecurrenceSelector = ({
   disabled = false,
   referenceDate,
 }: TaskRecurrenceSelectorProps) => {
-  const { t } = useTranslation("projects");
+  const { t, i18n } = useTranslation("projects");
 
   const detectedPreset = detectRecurrencePreset(recurrence);
   const [forceCustomMode, setForceCustomMode] = useState(detectedPreset === "custom");
@@ -268,26 +268,27 @@ export const TaskRecurrenceSelector = ({
     [t]
   );
 
-  const formatWeekdayList = useCallback((weekdays: TaskWeekday[]) => {
-    if (!weekdays.length) {
-      return "";
-    }
-    const sorted = [...new Set(weekdays)].sort((a, b) => {
-      const orderA = WEEKDAYS.findIndex((w) => w.value === a);
-      const orderB = WEEKDAYS.findIndex((w) => w.value === b);
-      return orderA - orderB;
-    });
-    const labels = sorted.map(
-      (day) => WEEKDAYS.find((config) => config.value === day)?.label ?? day
-    );
-    if (labels.length === 1) {
-      return labels[0] ?? "";
-    }
-    if (labels.length === 2) {
-      return `${labels[0]} and ${labels[1]}`;
-    }
-    return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
-  }, []);
+  const formatWeekdayList = useCallback(
+    (weekdays: TaskWeekday[]) => {
+      if (!weekdays.length) {
+        return "";
+      }
+      const sorted = [...new Set(weekdays)].sort((a, b) => {
+        const orderA = WEEKDAYS.findIndex((w) => w.value === a);
+        const orderB = WEEKDAYS.findIndex((w) => w.value === b);
+        return orderA - orderB;
+      });
+      const labels = sorted.map(
+        (day) => WEEKDAYS.find((config) => config.value === day)?.label ?? day
+      );
+      const formatter = new Intl.ListFormat(i18n.language, {
+        style: "long",
+        type: "conjunction",
+      });
+      return formatter.format(labels);
+    },
+    [i18n.language]
+  );
 
   const summary = useMemo(() => {
     if (!recurrence) {
