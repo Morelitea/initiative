@@ -85,7 +85,7 @@
     "i18next": "^25.8.7",
     "i18next-http-backend": "^3.0.2",
     "lexical": "^0.39.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "lucide-react": "^0.555.0",
     "radix-ui": "^1.4.3",
     "react": "^18.2.0",
