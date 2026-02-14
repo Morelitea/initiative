@@ -4,7 +4,34 @@ Thanks for your interest in contributing! This guide covers what you need to kno
 
 ## Getting Set Up
 
-Follow the [Manual Development Setup](./README.md#manual-development-setup) in the README to get the backend and frontend running locally. The [Key Environment Variables](./README.md#key-environment-variables) section covers configuration.
+### One-Click Dev Environment (Recommended)
+
+The project includes a VS Code task configuration that starts everything with a single command:
+
+1. **Prerequisites**: Docker, Python 3.10+ venv at `backend/.venv/`, Node.js 18+ with pnpm, PostgreSQL client tools (`pg_isready`)
+2. **Configure**: Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL` / `SECRET_KEY`
+3. **Launch**: Open the VS Code Command Palette (`Ctrl+Shift+P`) and run **Tasks: Run Task** → **`dev:setup`**
+
+This will:
+- Start PostgreSQL via Docker
+- Run migrations and create a dev superuser (`admin@example.com` / `changeme`)
+- Seed TTRPG-themed test data (campaigns, quests, NPCs, documents, tags)
+- Start the backend (uvicorn) and frontend (Vite) dev servers
+- Open the app in your browser
+
+When you're done, run **`dev:cleanup`** from the task palette to remove all seeded test data. Stopping the debug session (if launched via F5) also triggers cleanup automatically.
+
+**What gets seeded:**
+- 2 campaign initiatives (Curse of Strahd, Lost Mine of Phandelver) + the default initiative
+- 3 projects with 12 tasks across all priorities and statuses
+- Subtasks, assignees, documents, tags, and comments
+- All data is clearly TTRPG-themed so it's never confused with real data
+
+The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown. See `scripts/seed_dev_data.py` for details.
+
+### Manual Setup
+
+Alternatively, follow the [Manual Development Setup](./README.md#manual-development-setup) in the README to start each service by hand. The [Key Environment Variables](./README.md#key-environment-variables) section covers configuration.
 
 ## Running Tests
 
