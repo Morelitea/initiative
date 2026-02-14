@@ -14,7 +14,7 @@ The project includes a VS Code task configuration that starts everything with a 
 
 This will:
 - Start PostgreSQL via Docker
-- Run migrations and create a dev superuser (`user@example.com` / `abc123`)
+- Run migrations and create a dev superuser (`admin@example.com` / `changeme`)
 - Seed TTRPG-themed test data (campaigns, quests, NPCs, documents, tags)
 - Start the backend (uvicorn) and frontend (Vite) dev servers
 - Open the app in your browser

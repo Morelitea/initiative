@@ -87,7 +87,7 @@ async def _find_superuser(session: AsyncSession) -> User:
     Reads FIRST_SUPERUSER_EMAIL from the environment so manual invocations
     work even when .env uses a different email than the VS Code wrapper scripts.
     """
-    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "user@example.com")
+    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "admin@example.com")
     result = await session.exec(
         select(User).where(User.email == email)
     )
@@ -661,8 +661,9 @@ async def seed() -> None:
 
     _save_state(ids)
     print("Done! TTRPG dev data seeded successfully.")
-    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "user@example.com")
-    print(f"  Login: {email} / abc123")
+    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "admin@example.com")
+    password = os.environ.get("FIRST_SUPERUSER_PASSWORD", "changeme")
+    print(f"  Login: {email} / {password}")
 
 
 # ---------------------------------------------------------------------------
