@@ -167,6 +167,52 @@ docker-compose build --build-arg VERSION=$VERSION
 
 The version will be included as OCI image labels and available in the container.
 
+## Internationalization (i18n)
+
+All user-facing strings must be externalized for localization. **Never hardcode user-visible text in components or API error responses.**
+
+### Frontend: react-i18next
+
+Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
+
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`
+
+**Rules:**
+
+1. **Use `useTranslation` in components** — call `const { t } = useTranslation("<namespace>")` and replace all hardcoded strings with `t("key")`.
+2. **Cross-namespace references** use the `namespace:key` syntax — e.g., `t("common:loading")` from within a component using the `auth` namespace.
+3. **Interpolation** uses `{{variable}}` syntax in JSON — `t("register.joiningGuild", { guildName })` maps to `"You're joining {{guildName}}."`.
+4. **Plurals** use `_one`/`_other` suffixes in JSON — `{ "tasksArchived_one": "{{count}} task archived", "tasksArchived_other": "{{count}} tasks archived" }`.
+5. **API error handling** — use `getErrorMessage(error, "namespace:fallbackKey")` from `@/lib/errorMessage` instead of displaying raw `detail` strings. This maps backend error codes to localized messages via `errors.json`.
+6. **Utility functions outside React** — pass the `t` function as a parameter: `export const getLabel = (value: string, t: TFunction) => t(\`dates:status.${value}\`)`.
+7. **Add new keys** to the appropriate namespace JSON file when adding new UI text. Keep keys organized with dot-notation grouping (e.g., `login.title`, `login.subtitle`).
+
+```tsx
+// Component pattern
+const { t } = useTranslation("projects");
+<CardTitle>{t("createProject.title")}</CardTitle>
+<Input placeholder={t("createProject.namePlaceholder")} />
+<Button>{submitting ? t("common:submitting") : t("common:save")}</Button>
+
+// Error handling pattern
+import { getErrorMessage } from "@/lib/errorMessage";
+setError(getErrorMessage(err, "projects:createProject.error"));
+
+// Toast pattern
+toast.success(t("projects:projectCreated"));
+```
+
+### Backend: Error code constants
+
+All `HTTPException` detail strings must use constants from `backend/app/core/messages.py` instead of inline strings. These constants are machine-readable codes (e.g., `EMAIL_ALREADY_REGISTERED`) that the frontend maps to localized messages.
+
+**Rules:**
+
+1. **Add new constants** to the appropriate class in `messages.py` (`AuthMessages`, `GuildMessages`, `OidcMessages`, or create new classes as needed).
+2. **Use constants in HTTPException** — `raise HTTPException(status_code=400, detail=AuthMessages.INCORRECT_CREDENTIALS)`.
+3. **Map codes in `errors.json`** — add a corresponding entry in `frontend/public/locales/en/errors.json` so the frontend can display a localized message.
+4. **Tests assert on constants** — use `assert response.json()["detail"] == "EMAIL_ALREADY_REGISTERED"`, not substring matching on human-readable text.
+
 ## Coding Style & Naming Conventions
 
 Python uses 4-space indentation, full type hints, `snake_case` modules/functions, and `PascalCase` SQLModel or schema classes; keep routing thin and push validation to `schemas` and `services`. React components are `PascalCase` files, hooks follow the `useThing` convention, and shared helpers live in `frontend/src/lib` or `api`. Ruff and ESLint must pass before opening a PR.

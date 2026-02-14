@@ -1,9 +1,9 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from "react";
-import type { AxiosError } from "axios";
 import { Capacitor } from "@capacitor/core";
 
 import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "@/api/client";
 import { getItem, setItem, removeItem } from "@/lib/storage";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
 import { User } from "../types/api";
 
@@ -134,9 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await refreshUser();
       }
     } catch (error) {
-      const axiosError = error as AxiosError<{ detail?: string }>;
-      const detail = axiosError.response?.data?.detail;
-      throw new Error(detail ?? "Unable to log in. Check your credentials.");
+      throw new Error(getErrorMessage(error, "auth:login.defaultError"));
     }
   };
 
