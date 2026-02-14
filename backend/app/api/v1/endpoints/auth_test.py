@@ -79,7 +79,7 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
     response = await client.post("/api/v1/auth/register", json=user_data)
 
     assert response.status_code == 400
-    assert "already registered" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "EMAIL_ALREADY_REGISTERED"
 
 
 @pytest.mark.integration
@@ -209,7 +209,7 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
     )
 
     assert response.status_code == 400
-    assert "not verified" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "EMAIL_NOT_VERIFIED"
 
 
 @pytest.mark.integration
