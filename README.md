@@ -222,7 +222,7 @@ Login: `user@example.com` / `abc123`
 
 For local development without Docker (or without VS Code):
 
-### Prerequisites
+#### Prerequisites
 
 - Python 3.11+
 - Node.js 18+
