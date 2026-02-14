@@ -35,6 +35,7 @@ import {
   Plus,
   Pin as PinIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { getItem, setItem } from "@/lib/storage";
@@ -104,6 +105,7 @@ type ProjectsViewProps = {
 };
 
 export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
+  const { t } = useTranslation("projects");
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
@@ -698,7 +700,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       <div className="border-b pb-4">
         <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
           <PinIcon className="h-4 w-4" />
-          Pinned
+          {t("pinned")}
         </div>
 
         {viewMode === "list" ? (
@@ -718,11 +720,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     ) : null;
 
   if (projectsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading projects…</p>;
+    return <p className="text-muted-foreground text-sm">{t("loading")}</p>;
   }
 
   if (projectsQuery.isError) {
-    return <p className="text-destructive text-sm">Unable to load projects.</p>;
+    return <p className="text-destructive text-sm">{t("loadError")}</p>;
   }
 
   return (
@@ -731,17 +733,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
         {!lockedInitiativeId && !fixedTagIds && (
           <div>
             <div className="flex items-baseline gap-4">
-              <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
               {canCreateProjects && (
                 <Button size="sm" variant="outline" onClick={() => setIsComposerOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  Add Project
+                  {t("addProject")}
                 </Button>
               )}
             </div>
-            <p className="text-muted-foreground">
-              Track initiatives and collaborate with your guild.
-            </p>
+            <p className="text-muted-foreground">{t("subtitle")}</p>
           </div>
         )}
 
@@ -754,15 +754,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             <TabsList className="w-full justify-start overflow-x-auto">
               <TabsTrigger value="active" className="inline-flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4" />
-                Active Projects
+                {t("tabs.active")}
               </TabsTrigger>
               <TabsTrigger value="templates" className="inline-flex items-center gap-2">
                 <ScrollText className="h-4 w-4" />
-                Templates
+                {t("tabs.templates")}
               </TabsTrigger>
               <TabsTrigger value="archive" className="inline-flex items-center gap-2">
                 <Archive className="h-4 w-4" />
-                Archive
+                {t("tabs.archive")}
               </TabsTrigger>
             </TabsList>
           )}
@@ -772,7 +772,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               {canCreateProjects && lockedInitiativeId && (
                 <Button variant="outline" onClick={() => setIsComposerOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  Add Project
+                  {t("addProject")}
                 </Button>
               )}
               <Tabs
@@ -783,11 +783,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                 <TabsList className="grid grid-cols-2">
                   <TabsTrigger value="grid" className="inline-flex items-center gap-2">
                     <LayoutGrid className="h-4 w-4" />
-                    Grid
+                    {t("view.grid")}
                   </TabsTrigger>
                   <TabsTrigger value="list" className="inline-flex items-center gap-2">
                     <List className="h-4 w-4" />
-                    List
+                    {t("view.list")}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -796,11 +796,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               <div className="flex items-center justify-between sm:hidden">
                 <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
                   <Filter className="h-4 w-4" />
-                  Filters
+                  {t("filters.heading")}
                 </div>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 px-3">
-                    {filtersOpen ? "Hide" : "Show"} filters
+                    {filtersOpen ? t("filters.hide") : t("filters.show")}
                     <ChevronDown
                       className={`ml-1 h-4 w-4 transition-transform ${
                         filtersOpen ? "rotate-180" : ""
@@ -816,11 +816,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       htmlFor="project-search"
                       className="text-muted-foreground block text-xs font-medium"
                     >
-                      Filter by name
+                      {t("filters.filterByName")}
                     </Label>
                     <Input
                       id="project-search"
-                      placeholder="Search projects"
+                      placeholder={t("filters.searchProjects")}
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       className="min-w-60"
@@ -829,10 +829,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   {lockedInitiativeId ? (
                     <div className="w-full space-y-2 sm:w-60">
                       <Label className="text-muted-foreground block text-xs font-medium">
-                        Initiative
+                        {t("filters.initiative")}
                       </Label>
                       <p className="text-sm font-medium">
-                        {lockedInitiative?.name ?? "Selected initiative"}
+                        {lockedInitiative?.name ?? t("filters.selectedInitiative")}
                       </p>
                     </div>
                   ) : (
@@ -841,14 +841,16 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                         htmlFor="project-initiative-filter"
                         className="text-muted-foreground block text-xs font-medium"
                       >
-                        Filter by initiative
+                        {t("filters.filterByInitiative")}
                       </Label>
                       <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
                         <SelectTrigger id="project-initiative-filter">
-                          <SelectValue placeholder="All initiatives" />
+                          <SelectValue placeholder={t("filters.allInitiatives")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                          <SelectItem value={INITIATIVE_FILTER_ALL}>
+                            {t("filters.allInitiatives")}
+                          </SelectItem>
                           {viewableInitiatives.map((initiative) => (
                             <SelectItem key={initiative.id} value={initiative.id.toString()}>
                               {initiative.name}
@@ -864,12 +866,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                         htmlFor="tag-filter"
                         className="text-muted-foreground block text-xs font-medium"
                       >
-                        Filter by tag
+                        {t("filters.filterByTag")}
                       </Label>
                       <TagPicker
                         selectedTags={selectedTagsForFilter}
                         onChange={handleTagFiltersChange}
-                        placeholder="All tags"
+                        placeholder={t("filters.allTags")}
                         variant="filter"
                       />
                     </div>
@@ -879,7 +881,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       htmlFor="project-sort"
                       className="text-muted-foreground block text-xs font-medium"
                     >
-                      Sort projects
+                      {t("filters.sortProjects")}
                     </Label>
                     <Select
                       value={sortMode}
@@ -895,14 +897,18 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       }
                     >
                       <SelectTrigger id="project-sort">
-                        <SelectValue placeholder="Select sort order" />
+                        <SelectValue placeholder={t("filters.selectSortOrder")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="custom">Custom (drag & drop)</SelectItem>
-                        <SelectItem value="recently_viewed">Recently opened</SelectItem>
-                        <SelectItem value="updated">Recently updated</SelectItem>
-                        <SelectItem value="created">Recently created</SelectItem>
-                        <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                        <SelectItem value="custom">{t("filters.sortCustom")}</SelectItem>
+                        <SelectItem value="recently_viewed">
+                          {t("filters.sortRecentlyOpened")}
+                        </SelectItem>
+                        <SelectItem value="updated">{t("filters.sortRecentlyUpdated")}</SelectItem>
+                        <SelectItem value="created">{t("filters.sortRecentlyCreated")}</SelectItem>
+                        <SelectItem value="alphabetical">
+                          {t("filters.sortAlphabetical")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -911,16 +917,18 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       htmlFor="favorites-only"
                       className="text-muted-foreground block text-xs font-medium"
                     >
-                      Favorites
+                      {t("filters.favorites")}
                     </Label>
                     <div className="bg-background/60 flex h-10 items-center gap-3 rounded-md border px-3">
                       <Switch
                         id="favorites-only"
                         checked={favoritesOnly}
                         onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
-                        aria-label="Filter to favorite projects"
+                        aria-label={t("filters.showOnlyFavorites")}
                       />
-                      <span className="text-muted-foreground text-sm">Show only favorites</span>
+                      <span className="text-muted-foreground text-sm">
+                        {t("filters.showOnlyFavorites")}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -930,18 +938,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             {!canViewProjects ? (
               <Card className="border-destructive/50 bg-destructive/5">
                 <CardHeader>
-                  <CardTitle className="text-destructive">Access Restricted</CardTitle>
-                  <CardDescription>
-                    You don&apos;t have permission to view projects in this initiative. Contact an
-                    administrator if you believe this is an error.
-                  </CardDescription>
+                  <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
+                  <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
                 </CardHeader>
               </Card>
             ) : filteredProjects.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                {projects.length === 0
-                  ? "No projects yet. Create one to get started."
-                  : "No projects match your filters."}
+                {projects.length === 0 ? t("noProjects") : t("noMatchingProjects")}
               </p>
             ) : (
               <>
@@ -949,9 +952,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                 {sortedProjects.length > 0 ? (
                   projectCards
                 ) : pinnedProjects.length > 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    Only pinned projects match your filters.
-                  </p>
+                  <p className="text-muted-foreground text-sm">{t("onlyPinnedMatch")}</p>
                 ) : null}
               </>
             )}
@@ -961,17 +962,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             {!canViewProjects ? (
               <Card className="border-destructive/50 bg-destructive/5">
                 <CardHeader>
-                  <CardTitle className="text-destructive">Access Restricted</CardTitle>
-                  <CardDescription>
-                    You don&apos;t have permission to view projects in this initiative. Contact an
-                    administrator if you believe this is an error.
-                  </CardDescription>
+                  <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
+                  <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
                 </CardHeader>
               </Card>
             ) : templatesQuery.isLoading ? (
-              <p className="text-muted-foreground text-sm">Loading templates…</p>
+              <p className="text-muted-foreground text-sm">{t("templates.loading")}</p>
             ) : templatesQuery.isError ? (
-              <p className="text-destructive text-sm">Unable to load templates.</p>
+              <p className="text-destructive text-sm">{t("templates.loadError")}</p>
             ) : templatesQuery.data?.length ? (
               <div className="grid gap-4 md:grid-cols-2">
                 {templatesQuery.data.map((template) => (
@@ -983,12 +981,20 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       ) : null}
                     </CardHeader>
                     <CardContent className="text-muted-foreground space-y-2 text-sm">
-                      {template.initiative ? <p>Initiative: {template.initiative.name}</p> : null}
-                      <p>Last updated: {new Date(template.updated_at).toLocaleString()}</p>
+                      {template.initiative ? (
+                        <p>{t("templates.initiativeLabel", { name: template.initiative.name })}</p>
+                      ) : null}
+                      <p>
+                        {t("templates.lastUpdated", {
+                          date: new Date(template.updated_at).toLocaleString(),
+                        })}
+                      </p>
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to={gp(`/projects/${template.id}`)}>View template</Link>
+                        <Link to={gp(`/projects/${template.id}`)}>
+                          {t("templates.viewTemplate")}
+                        </Link>
                       </Button>
                       {hasProjectWritePermission(template) ? (
                         <Button
@@ -997,7 +1003,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                           onClick={() => removeTemplate.mutate(template.id)}
                           disabled={removeTemplate.isPending}
                         >
-                          Stop using as template
+                          {t("templates.stopUsingAsTemplate")}
                         </Button>
                       ) : null}
                     </CardFooter>
@@ -1007,10 +1013,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             ) : (
               <Card className="shadow-sm">
                 <CardHeader>
-                  <CardTitle>No templates available</CardTitle>
-                  <CardDescription>
-                    Create a template from any project in project settings.
-                  </CardDescription>
+                  <CardTitle>{t("templates.noTemplates")}</CardTitle>
+                  <CardDescription>{t("templates.noTemplatesDescription")}</CardDescription>
                 </CardHeader>
               </Card>
             )}
@@ -1020,17 +1024,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             {!canViewProjects ? (
               <Card className="border-destructive/50 bg-destructive/5">
                 <CardHeader>
-                  <CardTitle className="text-destructive">Access Restricted</CardTitle>
-                  <CardDescription>
-                    You don&apos;t have permission to view projects in this initiative. Contact an
-                    administrator if you believe this is an error.
-                  </CardDescription>
+                  <CardTitle className="text-destructive">{t("accessRestricted")}</CardTitle>
+                  <CardDescription>{t("accessRestrictedDescription")}</CardDescription>
                 </CardHeader>
               </Card>
             ) : archivedQuery.isLoading ? (
-              <p className="text-muted-foreground text-sm">Loading archived projects…</p>
+              <p className="text-muted-foreground text-sm">{t("archived.loading")}</p>
             ) : archivedQuery.isError ? (
-              <p className="text-destructive text-sm">Unable to load archived projects.</p>
+              <p className="text-destructive text-sm">{t("archived.loadError")}</p>
             ) : archivedQuery.data?.length ? (
               <div className="grid gap-4 md:grid-cols-2">
                 {archivedQuery.data.map((archived) => (
@@ -1042,17 +1043,20 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       ) : null}
                     </CardHeader>
                     <CardContent className="text-muted-foreground space-y-2 text-sm">
-                      {archived.initiative ? <p>Initiative: {archived.initiative.name}</p> : null}
+                      {archived.initiative ? (
+                        <p>{t("archived.initiativeLabel", { name: archived.initiative.name })}</p>
+                      ) : null}
                       <p>
-                        Archived at:{" "}
-                        {archived.archived_at
-                          ? new Date(archived.archived_at).toLocaleString()
-                          : "Unknown"}
+                        {t("archived.archivedAt", {
+                          date: archived.archived_at
+                            ? new Date(archived.archived_at).toLocaleString()
+                            : t("archived.archivedAtUnknown"),
+                        })}
                       </p>
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-3">
                       <Button asChild variant="link" className="px-0">
-                        <Link to={gp(`/projects/${archived.id}`)}>View details</Link>
+                        <Link to={gp(`/projects/${archived.id}`)}>{t("archived.viewDetails")}</Link>
                       </Button>
                       {hasProjectWritePermission(archived) ? (
                         <Button
@@ -1061,7 +1065,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                           onClick={() => unarchiveProject.mutate(archived.id)}
                           disabled={unarchiveProject.isPending}
                         >
-                          Unarchive
+                          {t("archived.unarchive")}
                         </Button>
                       ) : null}
                     </CardFooter>
@@ -1071,8 +1075,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             ) : (
               <Card className="shadow-sm">
                 <CardHeader>
-                  <CardTitle>No archived projects</CardTitle>
-                  <CardDescription>Active projects stay on the Active tab.</CardDescription>
+                  <CardTitle>{t("archived.noArchived")}</CardTitle>
+                  <CardDescription>{t("archived.noArchivedDescription")}</CardDescription>
                 </CardHeader>
               </Card>
             )}
@@ -1085,7 +1089,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             onClick={() => setIsComposerOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Add Project
+            {t("addProject")}
           </Button>
         )}
 
@@ -1093,15 +1097,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
           <Dialog open={isComposerOpen} onOpenChange={handleComposerOpenChange}>
             <DialogContent className="bg-card max-h-screen overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create project</DialogTitle>
-                <DialogDescription>
-                  Give the project a name, optional description, and owning initiative.
-                </DialogDescription>
+                <DialogTitle>{t("createDialog.title")}</DialogTitle>
+                <DialogDescription>{t("createDialog.description")}</DialogDescription>
               </DialogHeader>
               <form className="w-full max-w-lg" onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="project-icon">Icon (optional)</Label>
+                    <Label htmlFor="project-icon">{t("createDialog.iconLabel")}</Label>
                     <EmojiPicker
                       id="project-icon"
                       value={icon || undefined}
@@ -1109,39 +1111,45 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="project-name">Name</Label>
+                    <Label htmlFor="project-name">{t("createDialog.nameLabel")}</Label>
                     <Input
                       id="project-name"
-                      placeholder="Foundation refresh"
+                      placeholder={t("createDialog.namePlaceholder")}
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="project-description">Description (Markdown supported)</Label>
+                    <Label htmlFor="project-description">
+                      {t("createDialog.descriptionLabel")}
+                    </Label>
                     <Textarea
                       id="project-description"
-                      placeholder="Share context to help the initiative prioritize."
+                      placeholder={t("createDialog.descriptionPlaceholder")}
                       rows={3}
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Initiative</Label>
+                    <Label>{t("createDialog.initiativeLabel")}</Label>
                     {lockedInitiativeId ? (
                       <div className="rounded-md border px-3 py-2 text-sm">
-                        {lockedInitiative?.name ?? "Selected initiative"}
+                        {lockedInitiative?.name ?? t("filters.selectedInitiative")}
                       </div>
                     ) : initiativesQuery.isLoading ? (
-                      <p className="text-muted-foreground text-sm">Loading initiatives…</p>
+                      <p className="text-muted-foreground text-sm">
+                        {t("createDialog.loadingInitiatives")}
+                      </p>
                     ) : initiativesQuery.isError ? (
-                      <p className="text-destructive text-sm">Unable to load initiatives.</p>
+                      <p className="text-destructive text-sm">
+                        {t("createDialog.initiativeLoadError")}
+                      </p>
                     ) : creatableInitiatives.length > 0 ? (
                       <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select initiative" />
+                          <SelectValue placeholder={t("createDialog.selectInitiative")} />
                         </SelectTrigger>
                         <SelectContent>
                           {creatableInitiatives.map((initiative) => (
@@ -1152,15 +1160,21 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-muted-foreground text-sm">No initiatives available.</p>
+                      <p className="text-muted-foreground text-sm">
+                        {t("createDialog.noInitiatives")}
+                      </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="project-template">Template (optional)</Label>
+                    <Label htmlFor="project-template">{t("createDialog.templateLabel")}</Label>
                     {templatesQuery.isLoading ? (
-                      <p className="text-muted-foreground text-sm">Loading templates…</p>
+                      <p className="text-muted-foreground text-sm">
+                        {t("createDialog.loadingTemplates")}
+                      </p>
                     ) : templatesQuery.isError ? (
-                      <p className="text-destructive text-sm">Unable to load templates.</p>
+                      <p className="text-destructive text-sm">
+                        {t("createDialog.templateLoadError")}
+                      </p>
                     ) : (
                       <Select
                         value={selectedTemplateId}
@@ -1168,10 +1182,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                         disabled={isTemplateProject}
                       >
                         <SelectTrigger id="project-template">
-                          <SelectValue placeholder="No template" />
+                          <SelectValue placeholder={t("createDialog.noTemplate")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={NO_TEMPLATE_VALUE}>No template</SelectItem>
+                          <SelectItem value={NO_TEMPLATE_VALUE}>
+                            {t("createDialog.noTemplate")}
+                          </SelectItem>
                           {templatesQuery.data?.map((template) => (
                             <SelectItem key={template.id} value={String(template.id)}>
                               {template.name}
@@ -1182,18 +1198,17 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                     )}
                     {isTemplateProject ? (
                       <p className="text-muted-foreground text-xs">
-                        Disable &ldquo;Save as template&rdquo; to pick a template.
+                        {t("createDialog.disableTemplateHint")}
                       </p>
                     ) : null}
                   </div>
                   <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
                     <div>
                       <Label htmlFor="create-as-template" className="text-base">
-                        Save as template
+                        {t("createDialog.saveAsTemplate")}
                       </Label>
                       <p className="text-muted-foreground text-xs">
-                        Template projects live under the Templates tab and can be reused to spin up
-                        new work.
+                        {t("createDialog.saveAsTemplateHint")}
                       </p>
                     </div>
                     <Switch
@@ -1210,7 +1225,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {createProject.isError ? (
-                      <p className="text-destructive text-sm">Unable to create project.</p>
+                      <p className="text-destructive text-sm">{t("createDialog.createError")}</p>
                     ) : null}
                     <div className="ml-auto flex gap-2">
                       <Button
@@ -1219,10 +1234,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                         disabled={createProject.isPending}
                         onClick={() => handleComposerOpenChange(false)}
                       >
-                        Cancel
+                        {t("common:cancel")}
                       </Button>
                       <Button type="submit" disabled={createProject.isPending}>
-                        {createProject.isPending ? "Creating…" : "Create project"}
+                        {createProject.isPending
+                          ? t("createDialog.creating")
+                          : t("createDialog.createProject")}
                       </Button>
                     </div>
                   </div>

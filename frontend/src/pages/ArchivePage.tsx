@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
@@ -20,6 +21,7 @@ import { guildPath } from "@/lib/guildUrl";
 import { Project } from "@/types/api";
 
 export const ArchivePage = () => {
+  const { t } = useTranslation("projects");
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
 
@@ -51,11 +53,11 @@ export const ArchivePage = () => {
   });
 
   if (archivedProjectsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading archived projects…</p>;
+    return <p className="text-muted-foreground text-sm">{t("archived.loading")}</p>;
   }
 
   if (archivedProjectsQuery.isError) {
-    return <p className="text-destructive text-sm">Unable to load archived projects.</p>;
+    return <p className="text-destructive text-sm">{t("archived.loadError")}</p>;
   }
 
   const projects = archivedProjectsQuery.data ?? [];
@@ -63,15 +65,15 @@ export const ArchivePage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Archived projects</h1>
-        <p className="text-muted-foreground">Reopen an initiative when the work picks back up.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("archived.title")}</h1>
+        <p className="text-muted-foreground">{t("archived.subtitle")}</p>
       </div>
 
       {projects.length === 0 ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>No archived projects</CardTitle>
-            <CardDescription>Active projects stay on the main projects tab.</CardDescription>
+            <CardTitle>{t("archived.noArchived")}</CardTitle>
+            <CardDescription>{t("archived.noArchivedDescriptionAlt")}</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -85,15 +87,20 @@ export const ArchivePage = () => {
                 ) : null}
               </CardHeader>
               <CardContent className="text-muted-foreground space-y-2 text-sm">
-                {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
+                {project.initiative ? (
+                  <p>{t("archived.initiativeLabel", { name: project.initiative.name })}</p>
+                ) : null}
                 <p>
-                  Archived at:{" "}
-                  {project.archived_at ? new Date(project.archived_at).toLocaleString() : "Unknown"}
+                  {project.archived_at
+                    ? t("archived.archivedAt", {
+                        date: new Date(project.archived_at).toLocaleString(),
+                      })
+                    : t("archived.archivedAtUnknown")}
                 </p>
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">
                 <Button asChild variant="link" className="px-0">
-                  <Link to={gp(`/projects/${project.id}`)}>View details</Link>
+                  <Link to={gp(`/projects/${project.id}`)}>{t("archived.viewDetails")}</Link>
                 </Button>
                 {canManageProjects ? (
                   <Button
@@ -102,7 +109,7 @@ export const ArchivePage = () => {
                     onClick={() => unarchiveProject.mutate(project.id)}
                     disabled={unarchiveProject.isPending}
                   >
-                    Unarchive
+                    {t("archived.unarchive")}
                   </Button>
                 ) : null}
               </CardFooter>

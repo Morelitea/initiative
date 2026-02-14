@@ -12,6 +12,7 @@ import {
   type UniqueIdentifier,
 } from "@dnd-kit/core";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
@@ -151,26 +152,29 @@ const TaskDragOverlay = ({
 }: {
   task: Task;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
-}) => (
-  <div className="bg-card w-64 space-y-3 rounded-lg border p-3 shadow-lg">
-    <div className="space-y-1">
-      <p className="font-medium">{task.title}</p>
-      {task.description ? (
-        <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
-      ) : null}
+}) => {
+  const { t } = useTranslation("projects");
+  return (
+    <div className="bg-card w-64 space-y-3 rounded-lg border p-3 shadow-lg">
+      <div className="space-y-1">
+        <p className="font-medium">{task.title}</p>
+        {task.description ? (
+          <p className="text-muted-foreground text-xs">{truncateText(task.description, 80)}</p>
+        ) : null}
+      </div>
+      <div className="text-muted-foreground space-y-1 text-xs">
+        {task.assignees.length > 0 ? (
+          <TaskAssigneeList assignees={task.assignees} className="text-xs" />
+        ) : null}
+        {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
+      </div>
+      <TaskChecklistProgress progress={task.subtask_progress} />
+      <Badge variant={priorityVariant[task.priority]}>
+        {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
+      </Badge>
     </div>
-    <div className="text-muted-foreground space-y-1 text-xs">
-      {task.assignees.length > 0 ? (
-        <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-      ) : null}
-      {task.due_date ? <p>Due: {new Date(task.due_date).toLocaleString()}</p> : null}
-    </div>
-    <TaskChecklistProgress progress={task.subtask_progress} />
-    <Badge variant={priorityVariant[task.priority]}>
-      Priority: {task.priority.replace("_", " ")}
-    </Badge>
-  </div>
-);
+  );
+};
 
 const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement>) => {
   useEffect(() => {

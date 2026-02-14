@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -19,6 +20,7 @@ type ProjectOverviewCardProps = {
 };
 
 export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverviewCardProps) => {
+  const { t } = useTranslation("projects");
   const gp = useGuildPath();
   const detailCardStyle = useMemo(() => {
     const initiativeColor = resolveInitiativeColor(project.initiative?.color);
@@ -40,9 +42,9 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
             isFavorited={project.is_favorited ?? false}
           />
           <Badge variant={projectIsArchived ? "destructive" : "secondary"}>
-            {projectIsArchived ? "Archived" : "Active"}
+            {projectIsArchived ? t("overview.archived") : t("overview.active")}
           </Badge>
-          {project.is_template ? <Badge variant="outline">Template</Badge> : null}
+          {project.is_template ? <Badge variant="outline">{t("overview.template")}</Badge> : null}
         </div>
       </div>
       {project.initiative ? (
@@ -56,13 +58,13 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
       ) : null}
       {project.is_template ? (
         <p className="border-muted/70 bg-muted/30 text-muted-foreground rounded-md border px-4 py-2 text-sm">
-          This project is a template. Use it to create new projects from the Templates tab.
+          {t("overview.templateInfo")}
         </p>
       ) : null}
       {project.description ? <Markdown content={project.description} /> : null}
       {projectIsArchived ? (
         <p className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
-          This project is archived. Unarchive it from settings to add or update tasks.
+          {t("overview.archivedInfo")}
         </p>
       ) : null}
     </div>

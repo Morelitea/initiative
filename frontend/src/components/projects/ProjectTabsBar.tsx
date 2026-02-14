@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import { guildPath } from "@/lib/guildUrl";
@@ -22,6 +23,7 @@ export const ProjectTabsBar = ({
   loading,
   onClose,
 }: ProjectTabsBarProps) => {
+  const { t } = useTranslation("projects");
   const { activeGuildId } = useGuilds();
 
   // Helper to create guild-scoped paths
@@ -35,7 +37,7 @@ export const ProjectTabsBar = ({
     <ScrollArea className="h-12 pt-2.5">
       <div className="flex h-full items-end gap-2 px-4">
         {loading ? (
-          <p className="text-muted-foreground py-3 text-xs">Loading recent projects…</p>
+          <p className="text-muted-foreground py-3 text-xs">{t("tabsBar.loadingRecent")}</p>
         ) : (
           projects?.map((project) => {
             const isActive = project.id === activeProjectId;
@@ -67,7 +69,7 @@ export const ProjectTabsBar = ({
                     event.preventDefault();
                     onClose(project.id);
                   }}
-                  aria-label={`Close ${project.name}`}
+                  aria-label={t("tabsBar.closeProject", { name: project.name })}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
