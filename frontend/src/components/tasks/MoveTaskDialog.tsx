@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 
 import type { Project } from "@/types/api";
@@ -37,6 +38,7 @@ export const MoveTaskDialog = ({
   hasError = false,
   onConfirm,
 }: MoveTaskDialogProps) => {
+  const { t } = useTranslation("tasks");
   const availableProjects = useMemo(() => {
     return projects.filter((project) => project.id !== currentProjectId);
   }, [projects, currentProjectId]);
@@ -82,34 +84,29 @@ export const MoveTaskDialog = ({
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
       <DialogContent className="bg-card">
         <DialogHeader>
-          <DialogTitle>Move task to another project</DialogTitle>
-          <DialogDescription>
-            Select a destination project within the current guild. You can only move tasks to
-            projects where you have permission to create new work.
-          </DialogDescription>
+          <DialogTitle>{t("move.title")}</DialogTitle>
+          <DialogDescription>{t("move.description")}</DialogDescription>
         </DialogHeader>
 
         {hasError ? (
-          <p className="text-destructive text-sm">Unable to load writable projects.</p>
+          <p className="text-destructive text-sm">{t("move.loadError")}</p>
         ) : isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading available projects…</p>
+          <p className="text-muted-foreground text-sm">{t("move.loading")}</p>
         ) : availableProjects.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            You don&rsquo;t have any other writable projects available yet.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("move.noProjects")}</p>
         ) : (
           <SearchableCombobox
             items={comboboxItems}
             value={selectedValue}
             onValueChange={setSelectedValue}
-            placeholder="Search projects…"
+            placeholder={t("move.searchPlaceholder")}
             disabled={isDisabled}
           />
         )}
 
         <div className="flex items-start gap-2 rounded-md border px-3 py-2 text-sm">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>Moving this task will reset its status to &lsquo;Backlog&rsquo;.</span>
+          <span>{t("move.statusResetWarning")}</span>
         </div>
 
         <DialogFooter>
@@ -119,10 +116,10 @@ export const MoveTaskDialog = ({
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
           >
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={confirmDisabled}>
-            {isSaving ? "Moving…" : "Move task"}
+            {isSaving ? t("move.moving") : t("move.moveTask")}
           </Button>
         </DialogFooter>
       </DialogContent>

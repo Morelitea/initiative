@@ -1,4 +1,5 @@
 import { ReactElement } from "react";
+import { vi } from "vitest";
 import { render, RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -124,10 +125,16 @@ function buildDefaultTheme(): React.ComponentProps<typeof ThemeContext.Provider>
 
 function buildWrapper(options: ProviderOptions = {}) {
   const queryClient = options.queryClient ?? createTestQueryClient();
-  const auth = { ...buildDefaultAuth(), ...options.auth };
-  const guilds = { ...buildDefaultGuilds(), ...options.guilds };
-  const server = { ...buildDefaultServer(), ...options.server };
-  const theme = { ...buildDefaultTheme(), ...options.theme };
+  const auth = { ...buildDefaultAuth(), ...options.auth } as ReturnType<typeof buildDefaultAuth>;
+  const guilds = { ...buildDefaultGuilds(), ...options.guilds } as ReturnType<
+    typeof buildDefaultGuilds
+  >;
+  const server = { ...buildDefaultServer(), ...options.server } as ReturnType<
+    typeof buildDefaultServer
+  >;
+  const theme = { ...buildDefaultTheme(), ...options.theme } as ReturnType<
+    typeof buildDefaultTheme
+  >;
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -135,9 +142,7 @@ function buildWrapper(options: ProviderOptions = {}) {
         <ServerContext.Provider value={server}>
           <ThemeContext.Provider value={theme}>
             <AuthContext.Provider value={auth}>
-              <GuildContext.Provider value={guilds}>
-                {children}
-              </GuildContext.Provider>
+              <GuildContext.Provider value={guilds}>{children}</GuildContext.Provider>
             </AuthContext.Provider>
           </ThemeContext.Provider>
         </ServerContext.Provider>
@@ -154,7 +159,7 @@ function buildWrapper(options: ProviderOptions = {}) {
 
 export function renderWithProviders(
   ui: ReactElement,
-  options: ProviderOptions & Omit<RenderOptions, "wrapper"> = {},
+  options: ProviderOptions & Omit<RenderOptions, "wrapper"> = {}
 ): RenderWithProvidersResult {
   const { auth, guilds, server, theme, queryClient: qc, ...renderOptions } = options;
   const { Wrapper, queryClient } = buildWrapper({ auth, guilds, server, theme, queryClient: qc });
@@ -170,7 +175,7 @@ export function renderWithProviders(
 
 export function renderPage(
   PageComponent: React.ComponentType,
-  options: RenderPageOptions & Omit<RenderOptions, "wrapper"> = {},
+  options: RenderPageOptions & Omit<RenderOptions, "wrapper"> = {}
 ): RenderWithProvidersResult {
   const {
     auth,
@@ -196,7 +201,7 @@ export function renderPage(
   const childRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: initialRoute,
-    component: PageComponent,
+    component: PageComponent as () => ReactElement,
     validateSearch: () => routerSearch ?? {},
   });
 
@@ -210,10 +215,9 @@ export function renderPage(
 
   const result = render(
     <Wrapper>
-      {/* @ts-expect-error -- router type is generic; the test router satisfies runtime needs */}
       <RouterProvider router={router} />
     </Wrapper>,
-    renderOptions,
+    renderOptions
   );
 
   return { ...result, queryClient };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
@@ -29,13 +30,6 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { DateCell } from "@/components/tasks/TaskDateCell";
 import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
-
-const statusOptions: { value: TaskStatusCategory; label: string }[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "todo", label: "To Do" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "done", label: "Done" },
-];
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -69,6 +63,7 @@ const SORT_FIELD_MAP: Record<string, string> = {
 };
 
 export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
+  const { t } = useTranslation("tasks");
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
   const router = useRouter();
@@ -88,6 +83,16 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
   const [sortBy, setSortBy] = useState<string | undefined>("due_date");
   const [sortDir, setSortDir] = useState<string | undefined>("asc");
+
+  const statusOptions = useMemo(
+    () => [
+      { value: "backlog" as TaskStatusCategory, label: t("statusCategory.backlog") },
+      { value: "todo" as TaskStatusCategory, label: t("statusCategory.todo") },
+      { value: "in_progress" as TaskStatusCategory, label: t("statusCategory.in_progress") },
+      { value: "done" as TaskStatusCategory, label: t("statusCategory.done") },
+    ],
+    [t]
+  );
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -286,7 +291,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     async (task: Task, targetStatusId: number) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
-        toast.error("Unable to determine guild context for this task.");
+        toast.error(t("errors.guildContext"));
         return;
       }
       try {
@@ -297,18 +302,18 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         });
       } catch (error) {
         console.error(error);
-        const message = error instanceof Error ? error.message : "Unable to update task status.";
+        const message = error instanceof Error ? error.message : t("errors.statusUpdate");
         toast.error(message);
       }
     },
-    [activeGuildId, updateTaskStatusMutate]
+    [activeGuildId, updateTaskStatusMutate, t]
   );
 
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
-        toast.error("Unable to determine guild context for this task.");
+        toast.error(t("errors.guildContext"));
         return;
       }
       const targetStatusId = await resolveStatusIdForCategory(
@@ -317,18 +322,18 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         targetGuildId
       );
       if (!targetStatusId) {
-        toast.error("Unable to update task status. No matching status found.");
+        toast.error(t("errors.statusNoMatch"));
         return;
       }
       await changeTaskStatusById(task, targetStatusId);
     },
-    [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory]
+    [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
   const columns: ColumnDef<Task>[] = [
     {
       id: "completed",
-      header: () => <span className="font-medium">Done</span>,
+      header: () => <span className="font-medium">{t("columns.done")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         return (
@@ -343,8 +348,8 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
             disabled={isUpdatingTaskStatus}
             aria-label={
               task.task_status.category === "done"
-                ? "Mark task as in progress"
-                : "Mark task as done"
+                ? t("checkbox.markInProgress")
+                : t("checkbox.markDone")
             }
           />
         );
@@ -360,7 +365,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Task
+              {t("columns.task")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -391,7 +396,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     },
     {
       id: "project",
-      header: () => <span className="font-medium">Project</span>,
+      header: () => <span className="font-medium">{t("columns.project")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         return (
@@ -400,7 +405,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
               to={gp(`/projects/${task.project_id}`)}
               className="text-primary text-sm font-medium hover:underline"
             >
-              {task.project_name ?? `Project #${task.project_id}`}
+              {task.project_name ?? t("projectFallback", { id: task.project_id })}
             </Link>
           </div>
         );
@@ -414,7 +419,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         return (
           <div className="flex min-w-30 items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Start Date
+              {t("columns.startDate")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -431,7 +436,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         return (
           <div className="flex min-w-30 items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Due Date
+              {t("columns.dueDate")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -454,7 +459,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Priority
+              {t("columns.priority")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -474,7 +479,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     },
     {
       id: "status",
-      header: () => <span className="font-medium">Status</span>,
+      header: () => <span className="font-medium">{t("columns.status")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         return (
@@ -523,11 +528,11 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         <div className="flex items-center justify-between sm:hidden">
           <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
             <Filter className="h-4 w-4" />
-            Filters
+            {t("filters.heading")}
           </div>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 px-3">
-              {filtersOpen ? "Hide" : "Show"} filters
+              {filtersOpen ? t("filters.hide") : t("filters.show")}
               <ChevronDown
                 className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
               />
@@ -538,7 +543,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
             <div className="w-full sm:w-60 lg:flex-1">
               <Label className="text-muted-foreground mb-2 block text-xs font-medium">
-                Status category
+                {t("filters.statusCategory")}
               </Label>
               <MultiSelect
                 selectedValues={statusFilters}
@@ -547,23 +552,23 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
                   label: option.label,
                 }))}
                 onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder="All status categories"
-                emptyMessage="No status categories available"
+                placeholder={t("filters.allStatusCategories")}
+                emptyMessage={t("filters.noStatusCategories")}
               />
             </div>
             <div className="w-full sm:w-60 lg:flex-1">
               <Label className="text-muted-foreground mb-2 block text-xs font-medium">
-                Priority
+                {t("filters.priorityLabel")}
               </Label>
               <MultiSelect
                 selectedValues={priorityFilters}
                 options={priorityOrder.map((priority) => ({
                   value: priority,
-                  label: priority.replace("_", " "),
+                  label: t(`priority.${priority}`),
                 }))}
                 onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder="All priorities"
-                emptyMessage="No priorities available"
+                placeholder={t("filters.allPriorities")}
+                emptyMessage={t("filters.noPriorities")}
               />
             </div>
           </div>
@@ -575,7 +580,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
             <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-muted-foreground text-sm">Updating…</span>
+              <span className="text-muted-foreground text-sm">{t("updating")}</span>
             </div>
           </div>
         ) : null}
@@ -584,7 +589,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : hasError ? (
-          <p className="text-destructive py-8 text-center text-sm">Unable to load tasks.</p>
+          <p className="text-destructive py-8 text-center text-sm">{t("tagTasks.loadError")}</p>
         ) : (
           <DataTable
             columns={columns}
@@ -592,7 +597,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
             initialSorting={[{ id: "due date", desc: false }]}
             enableFilterInput
             filterInputColumnKey="title"
-            filterInputPlaceholder="Filter tasks..."
+            filterInputPlaceholder={t("filters.filterPlaceholder")}
             enablePagination
             manualPagination
             pageCount={totalPages}

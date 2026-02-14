@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { getItem, setItem } from "@/lib/storage";
@@ -37,13 +38,6 @@ import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { TagBadge } from "@/components/tags/TagBadge";
 
-const statusOptions: { value: TaskStatusCategory; label: string }[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "todo", label: "To Do" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "done", label: "Done" },
-];
-
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
   todo: ["todo", "backlog"],
@@ -51,7 +45,6 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   done: ["done", "in_progress", "todo", "backlog"],
 };
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
-const guild_DEFAULT_LABEL = "No Guild";
 
 const MY_TASKS_FILTERS_KEY = "initiative-my-tasks-filters";
 const FILTER_DEFAULTS = {
@@ -89,8 +82,6 @@ const getDefaultFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
-const getGuildGroupLabel = (task: Task) => task.guild_name ?? guild_DEFAULT_LABEL;
-
 const PAGE_SIZE = 20;
 
 /** Map DataTable column IDs to backend sort field names */
@@ -103,6 +94,7 @@ const SORT_FIELD_MAP: Record<string, string> = {
 };
 
 export const MyTasksPage = () => {
+  const { t } = useTranslation("tasks");
   const { guilds, activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
   const router = useRouter();
@@ -112,6 +104,22 @@ export const MyTasksPage = () => {
   const projectStatusCache = useRef<
     Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
   >(new Map());
+
+  const statusOptions = useMemo(
+    () => [
+      { value: "backlog" as TaskStatusCategory, label: t("statusCategory.backlog") },
+      { value: "todo" as TaskStatusCategory, label: t("statusCategory.todo") },
+      { value: "in_progress" as TaskStatusCategory, label: t("statusCategory.in_progress") },
+      { value: "done" as TaskStatusCategory, label: t("statusCategory.done") },
+    ],
+    [t]
+  );
+
+  const guildDefaultLabel = t("myTasks.noGuild");
+  const getGuildGroupLabel = useCallback(
+    (task: Task) => task.guild_name ?? guildDefaultLabel,
+    [guildDefaultLabel]
+  );
 
   // Helper to create guild-scoped paths for a task
   const taskGuildPath = (task: Task, path: string) => {
@@ -395,7 +403,7 @@ export const MyTasksPage = () => {
     async (task: Task, targetStatusId: number) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
-        toast.error("Unable to determine guild context for this task.");
+        toast.error(t("errors.guildContext"));
         return;
       }
       try {
@@ -406,18 +414,18 @@ export const MyTasksPage = () => {
         });
       } catch (error) {
         console.error(error);
-        const message = error instanceof Error ? error.message : "Unable to update task status.";
+        const message = error instanceof Error ? error.message : t("errors.statusUpdate");
         toast.error(message);
       }
     },
-    [activeGuildId, updateTaskStatusMutate]
+    [activeGuildId, updateTaskStatusMutate, t]
   );
 
   const changeTaskStatus = useCallback(
     async (task: Task, targetCategory: TaskStatusCategory) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
-        toast.error("Unable to determine guild context for this task.");
+        toast.error(t("errors.guildContext"));
         return;
       }
       const targetStatusId = await resolveStatusIdForCategory(
@@ -426,12 +434,12 @@ export const MyTasksPage = () => {
         targetGuildId
       );
       if (!targetStatusId) {
-        toast.error("Unable to update task status. No matching status found.");
+        toast.error(t("errors.statusNoMatch"));
         return;
       }
       await changeTaskStatusById(task, targetStatusId);
     },
-    [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory]
+    [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
   const excludedProjectIds = useMemo(() => {
@@ -465,14 +473,16 @@ export const MyTasksPage = () => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Date window
+              {t("columns.dateWindow")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
         );
       },
       cell: ({ getValue }) => (
-        <span className="text-base font-medium">{getTaskDateStatusLabel(getValue<string>())}</span>
+        <span className="text-base font-medium">
+          {getTaskDateStatusLabel(getValue<string>(), t)}
+        </span>
       ),
       enableHiding: true,
       enableSorting: true,
@@ -486,7 +496,7 @@ export const MyTasksPage = () => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Guild
+              {t("columns.guild")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -499,7 +509,7 @@ export const MyTasksPage = () => {
     },
     {
       id: "completed",
-      header: () => <span className="font-medium">Done</span>,
+      header: () => <span className="font-medium">{t("columns.done")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         return (
@@ -516,8 +526,8 @@ export const MyTasksPage = () => {
             disabled={isUpdatingTaskStatus}
             aria-label={
               task.task_status.category === "done"
-                ? "Mark task as in progress"
-                : "Mark task as done"
+                ? t("checkbox.markInProgress")
+                : t("checkbox.markDone")
             }
           />
         );
@@ -533,7 +543,7 @@ export const MyTasksPage = () => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Task
+              {t("columns.task")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -542,10 +552,14 @@ export const MyTasksPage = () => {
       cell: ({ row }) => {
         const task = row.original;
         const recurrenceSummary = task.recurrence
-          ? summarizeRecurrence(task.recurrence, {
-              referenceDate: task.start_date || task.due_date,
-              strategy: task.recurrence_strategy,
-            })
+          ? summarizeRecurrence(
+              task.recurrence,
+              {
+                referenceDate: task.start_date || task.due_date,
+                strategy: task.recurrence_strategy,
+              },
+              t
+            )
           : null;
         return (
           <div className="flex min-w-60 flex-col text-left">
@@ -579,7 +593,7 @@ export const MyTasksPage = () => {
         return (
           <div className="flex min-w-30 items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Start Date
+              {t("columns.startDate")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -596,7 +610,7 @@ export const MyTasksPage = () => {
         return (
           <div className="flex min-w-30 items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Due Date
+              {t("columns.dueDate")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -613,11 +627,12 @@ export const MyTasksPage = () => {
     },
     {
       id: "path",
-      header: () => <span className="font-medium">Project Path</span>,
+      header: () => <span className="font-medium">{t("columns.projectPath")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         const project = projectsById[task.project_id];
-        const projectLabel = task.project_name ?? project?.name ?? `Project #${task.project_id}`;
+        const projectLabel =
+          task.project_name ?? project?.name ?? t("projectFallback", { id: task.project_id });
         const projectIdentifier = project?.id ?? task.project_id;
         const guildName = task.guild_name;
         const initiativeId = task.initiative_id ?? project?.initiative_id;
@@ -668,7 +683,7 @@ export const MyTasksPage = () => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Priority
+              {t("columns.priority")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -688,7 +703,7 @@ export const MyTasksPage = () => {
     },
     {
       id: "tags",
-      header: () => <span className="font-medium">Tags</span>,
+      header: () => <span className="font-medium">{t("columns.tags")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         const taskTags = task.tags ?? [];
@@ -715,7 +730,7 @@ export const MyTasksPage = () => {
     },
     {
       id: "status",
-      header: () => <span className="font-medium">Status</span>,
+      header: () => <span className="font-medium">{t("columns.status")}</span>,
       cell: ({ row }) => {
         const task = row.original;
         return (
@@ -735,10 +750,10 @@ export const MyTasksPage = () => {
   ];
   const groupingOptions = useMemo(
     () => [
-      { id: "date group", label: "Date" },
-      { id: "guild", label: "Guild" },
+      { id: "date group", label: t("myTasks.groupByDate") },
+      { id: "guild", label: t("myTasks.groupByGuild") },
     ],
-    []
+    [t]
   );
 
   useEffect(() => {
@@ -780,20 +795,19 @@ export const MyTasksPage = () => {
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">My Tasks</h1>
-          <p className="text-muted-foreground">Everything assigned to you across all projects.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("myTasks.title")}</h1>
+          <p className="text-muted-foreground">{t("myTasks.subtitle")}</p>
         </div>
 
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
           <div className="flex items-center justify-between sm:hidden">
             <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
               <Filter className="h-4 w-4" />
-              Filters
+              {t("filters.heading")}
             </div>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 px-3">
-                {filtersOpen ? "Hide" : "Show"}
-                <span className="ml-1">filters</span>
+                {filtersOpen ? t("filters.hide") : t("filters.show")}
                 <ChevronDown
                   className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
                 />
@@ -807,7 +821,7 @@ export const MyTasksPage = () => {
                   htmlFor="task-status-filter"
                   className="text-muted-foreground mb-2 block text-xs font-medium"
                 >
-                  Filter by status category
+                  {t("filters.filterByStatusCategory")}
                 </Label>
                 <MultiSelect
                   selectedValues={statusFilters}
@@ -816,8 +830,8 @@ export const MyTasksPage = () => {
                     label: option.label,
                   }))}
                   onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                  placeholder="All status categories"
-                  emptyMessage="No status categories available"
+                  placeholder={t("filters.allStatusCategories")}
+                  emptyMessage={t("filters.noStatusCategories")}
                 />
               </div>
               <div className="w-full sm:w-60 lg:flex-1">
@@ -825,17 +839,17 @@ export const MyTasksPage = () => {
                   htmlFor="task-priority-filter"
                   className="text-muted-foreground mb-2 block text-xs font-medium"
                 >
-                  Filter by priority
+                  {t("filters.filterByPriority")}
                 </Label>
                 <MultiSelect
                   selectedValues={priorityFilters}
                   options={priorityOrder.map((priority) => ({
                     value: priority,
-                    label: priority.replace("_", " "),
+                    label: t(`priority.${priority}`),
                   }))}
                   onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                  placeholder="All priorities"
-                  emptyMessage="No priorities available"
+                  placeholder={t("filters.allPriorities")}
+                  emptyMessage={t("filters.noPriorities")}
                 />
               </div>
               <div className="w-full sm:w-60 lg:flex-1">
@@ -843,7 +857,7 @@ export const MyTasksPage = () => {
                   htmlFor="task-guild-filter"
                   className="text-muted-foreground mb-2 block text-xs font-medium"
                 >
-                  Filter by guild
+                  {t("filters.filterByGuild")}
                 </Label>
                 <MultiSelect
                   selectedValues={guildFilters.map(String)}
@@ -855,8 +869,8 @@ export const MyTasksPage = () => {
                     const numericValues = values.map(Number).filter(Number.isFinite);
                     setGuildFilters(numericValues);
                   }}
-                  placeholder="All guilds"
-                  emptyMessage="No guilds available"
+                  placeholder={t("filters.allGuilds")}
+                  emptyMessage={t("filters.noGuilds")}
                 />
               </div>
             </div>
@@ -868,7 +882,7 @@ export const MyTasksPage = () => {
             <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
               <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-muted-foreground text-sm">Updating…</span>
+                <span className="text-muted-foreground text-sm">{t("updating")}</span>
               </div>
             </div>
           ) : null}
@@ -877,7 +891,7 @@ export const MyTasksPage = () => {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : hasError ? (
-            <p className="text-destructive py-8 text-center text-sm">Unable to load your tasks.</p>
+            <p className="text-destructive py-8 text-center text-sm">{t("myTasks.loadError")}</p>
           ) : (
             <DataTable
               columns={columns}
@@ -894,7 +908,7 @@ export const MyTasksPage = () => {
               ]}
               enableFilterInput
               filterInputColumnKey="title"
-              filterInputPlaceholder="Filter tasks..."
+              filterInputPlaceholder={t("filters.filterPlaceholder")}
               enablePagination
               manualPagination
               pageCount={totalPages}

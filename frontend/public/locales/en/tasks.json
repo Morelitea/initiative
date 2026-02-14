@@ -1,0 +1,229 @@
+{
+  "statusCategory": {
+    "backlog": "Backlog",
+    "todo": "To Do",
+    "in_progress": "In Progress",
+    "done": "Done"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+
+  "filters": {
+    "heading": "Filters",
+    "show": "Show filters",
+    "hide": "Hide filters",
+    "statusCategory": "Status category",
+    "filterByStatusCategory": "Filter by status category",
+    "allStatusCategories": "All status categories",
+    "noStatusCategories": "No status categories available",
+    "filterByPriority": "Filter by priority",
+    "priorityLabel": "Priority",
+    "allPriorities": "All priorities",
+    "noPriorities": "No priorities available",
+    "filterByGuild": "Filter by guild",
+    "allGuilds": "All guilds",
+    "noGuilds": "No guilds available",
+    "filterPlaceholder": "Filter tasks..."
+  },
+
+  "columns": {
+    "done": "Done",
+    "task": "Task",
+    "project": "Project",
+    "startDate": "Start Date",
+    "dueDate": "Due Date",
+    "dateWindow": "Date window",
+    "guild": "Guild",
+    "projectPath": "Project Path",
+    "priority": "Priority",
+    "tags": "Tags",
+    "status": "Status"
+  },
+
+  "checkbox": {
+    "markDone": "Mark task as done",
+    "markInProgress": "Mark task as in progress"
+  },
+
+  "errors": {
+    "guildContext": "Unable to determine guild context for this task.",
+    "statusUpdate": "Unable to update task status.",
+    "statusNoMatch": "Unable to update task status. No matching status found."
+  },
+
+  "updating": "Updating\u2026",
+  "projectFallback": "Project #{{id}}",
+
+  "edit": {
+    "invalidTaskId": "Invalid task id.",
+    "back": "\u2190 Back",
+    "loadingTask": "Loading task\u2026",
+    "loadError": "Unable to load task.",
+    "loadProjectError": "Unable to load project context for this task.",
+    "statusBadge": "Status",
+    "subtitle": "Edit every detail of this task.",
+    "detailsTitle": "Task details",
+    "detailsDescription": "Update the fields below and save your changes.",
+    "readOnlyNoAccess": "You only have read access to this project, so task fields are disabled.",
+    "readOnlyArchived": "This project is archived. Unarchive it from project settings to edit tasks.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Task title",
+    "descriptionLabel": "Description",
+    "preview": "Preview",
+    "aiGenerate": "AI Generate",
+    "descriptionPlaceholder": "Add extra context or acceptance criteria. Markdown supported.",
+    "noDescriptionReadOnly": "No description yet.",
+    "noDescription": "No description yet. Click edit to add more context.",
+    "statusLabel": "Status",
+    "selectStatus": "Select status",
+    "priorityLabel": "Priority",
+    "startDateLabel": "Start date",
+    "dueDateLabel": "Due date",
+    "assigneesLabel": "Assignees",
+    "assigneesEmptyMessage": "No initiative {{memberLabel}} role holders available yet.",
+    "tagsLabel": "Tags",
+    "tagsPlaceholder": "Add tags...",
+    "saving": "Saving\u2026",
+    "saveTask": "Save task",
+    "moveToProject": "Move to project",
+    "duplicating": "Duplicating\u2026",
+    "duplicateTask": "Duplicate task",
+    "unarchiving": "Unarchiving\u2026",
+    "unarchive": "Unarchive",
+    "archiving": "Archiving\u2026",
+    "archive": "Archive",
+    "deleting": "Deleting\u2026",
+    "deleteTask": "Delete task",
+    "deleteTitle": "Delete task?",
+    "deleteDescription": "This will permanently delete the task and all of its subtasks. This cannot be undone.",
+    "taskUpdated": "Task updated",
+    "taskDuplicated": "Task duplicated",
+    "taskDeleted": "Task deleted",
+    "taskArchived": "Task archived",
+    "taskUnarchived": "Task unarchived",
+    "moveSuccess": "Task moved to {{projectName}}.",
+    "moveError": "Unable to move task",
+    "archiveError": "Unable to update task",
+    "descriptionGenerated": "Description generated",
+    "generateDescriptionError": "Unable to generate description",
+    "commentsError": "Unable to load comments right now.",
+    "taskStatusRequired": "Task status is required"
+  },
+
+  "myTasks": {
+    "title": "My Tasks",
+    "subtitle": "Everything assigned to you across all projects.",
+    "noGuild": "No Guild",
+    "loadError": "Unable to load your tasks.",
+    "groupByDate": "Date",
+    "groupByGuild": "Guild"
+  },
+
+  "tagTasks": {
+    "loadError": "Unable to load tasks."
+  },
+
+  "checklist": {
+    "title": "Subtasks",
+    "aiGenerate": "AI Generate",
+    "loading": "Loading checklist\u2026",
+    "loadError": "Unable to load checklist items right now.",
+    "empty": "No checklist items yet.",
+    "emptyCanEdit": "Add your first step below.",
+    "addPlaceholder": "Add checklist item",
+    "readOnlyPlaceholder": "Read-only",
+    "readOnlyMessage": "You only have read access, so checklist changes are disabled.",
+    "aiDialogTitle": "AI-Generated Subtasks",
+    "aiDialogDescription": "Select the subtasks you want to add to this task.",
+    "addSelected": "Add Selected ({{count}})",
+    "reorderItem": "Reorder checklist item",
+    "markIncomplete": "Mark subtask as incomplete",
+    "markComplete": "Mark subtask as complete",
+    "itemAdded": "Checklist item added",
+    "addError": "Unable to add checklist item. Please try again.",
+    "updateError": "Unable to update checklist item. Please try again.",
+    "itemDeleted": "Checklist item deleted",
+    "deleteError": "Unable to delete checklist item. Please try again.",
+    "reorderError": "Unable to reorder checklist items. Please try again.",
+    "generateError": "Unable to generate subtasks. Please try again.",
+    "batchAdded": "Added {{count}} subtask",
+    "batchAdded_other": "Added {{count}} subtasks",
+    "batchAddError": "Unable to add subtasks. Please try again.",
+    "contentEmpty": "Checklist content cannot be empty.",
+    "progress": "{{completed}}/{{total}} subtask",
+    "progress_other": "{{completed}}/{{total}} subtasks"
+  },
+
+  "prioritySelector": {
+    "ariaLabel": "Priority: {{priority}}. Click to change.",
+    "changed": "Priority changed to {{priority}}",
+    "updateError": "Unable to update priority."
+  },
+
+  "statusSelector": {
+    "invalidStatus": "Invalid status selected."
+  },
+
+  "move": {
+    "title": "Move task to another project",
+    "description": "Select a destination project within the current guild. You can only move tasks to projects where you have permission to create new work.",
+    "loadError": "Unable to load writable projects.",
+    "loading": "Loading available projects\u2026",
+    "noProjects": "You don\u2019t have any other writable projects available yet.",
+    "searchPlaceholder": "Search projects\u2026",
+    "statusResetWarning": "Moving this task will reset its status to \u2018Backlog\u2019.",
+    "moving": "Moving\u2026",
+    "moveTask": "Move task"
+  },
+
+  "bulkEditTags": {
+    "title": "Edit Tags",
+    "descriptionAdd": "Add tags to {{count}} selected task.",
+    "descriptionAdd_other": "Add tags to {{count}} selected tasks.",
+    "descriptionRemove": "Remove tags from {{count}} selected task.",
+    "descriptionRemove_other": "Remove tags from {{count}} selected tasks.",
+    "tabAdd": "Add",
+    "tabRemove": "Remove",
+    "addPlaceholder": "Select tags to add...",
+    "removePlaceholder": "Select tags to remove...",
+    "noTags": "No tags on the selected tasks.",
+    "applying": "Applying\u2026",
+    "apply": "Apply",
+    "tagsAdded": "Tags added to {{count}} task",
+    "tagsAdded_other": "Tags added to {{count}} tasks",
+    "tagsRemoved": "Tags removed from {{count}} task",
+    "tagsRemoved_other": "Tags removed from {{count}} tasks",
+    "updateError": "Unable to update tags right now."
+  },
+
+  "bulkEdit": {
+    "title": "Edit tasks",
+    "description": "Apply changes to {{count}} selected task. Only fields you set will be updated.",
+    "description_other": "Apply changes to {{count}} selected tasks. Only fields you set will be updated.",
+    "datesSection": "Dates",
+    "startDateLabel": "Start date",
+    "startDatePlaceholder": "Set start date",
+    "dueDateLabel": "Due date",
+    "dueDatePlaceholder": "Set due date",
+    "assignmentSection": "Assignment",
+    "assigneesLabel": "Assignees",
+    "noUsersAvailable": "No users available",
+    "detailsSection": "Details",
+    "statusLabel": "Status",
+    "selectStatus": "Select status",
+    "priorityLabel": "Priority",
+    "selectPriority": "Select priority",
+    "recurrenceSection": "Recurrence",
+    "recurringSchedule": "Recurring schedule",
+    "applying": "Applying\u2026",
+    "applyChanges": "Apply changes",
+    "selected": "{{count}} task selected",
+    "selected_other": "{{count}} tasks selected",
+    "editTags": "Edit Tags",
+    "archiving": "Archiving\u2026"
+  }
+}

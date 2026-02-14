@@ -1,0 +1,61 @@
+{
+  "status": {
+    "overdue": "Overdue",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "later": "Later"
+  },
+  "weekdays": {
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
+  },
+  "months": {
+    "1": "January",
+    "2": "February",
+    "3": "March",
+    "4": "April",
+    "5": "May",
+    "6": "June",
+    "7": "July",
+    "8": "August",
+    "9": "September",
+    "10": "October",
+    "11": "November",
+    "12": "December"
+  },
+  "positions": {
+    "first": "first",
+    "second": "second",
+    "third": "third",
+    "fourth": "fourth",
+    "last": "last"
+  },
+  "recurrenceSummary": {
+    "doesNotRepeat": "Does not repeat",
+    "repeats": "Repeats {{schedule}}",
+    "everySingular": "every {{unit}}",
+    "everyPlural": "every {{count}} {{unit}}",
+    "day": "day",
+    "days": "days",
+    "week": "week",
+    "weeks": "weeks",
+    "month": "month",
+    "months": "months",
+    "year": "year",
+    "years": "years",
+    "onWeekdays": "on {{weekdays}}",
+    "onDay": "on day {{day}}",
+    "onPositionWeekday": "on the {{position}} {{weekday}}",
+    "detailOfMonth": "{{detail}} of {{month}}",
+    "inMonth": "in {{month}}",
+    "afterCompletion": "after completion",
+    "untilDate": "until {{date}}",
+    "forOccurrences": "for {{count}} occurrences"
+  }
+}
