@@ -37,11 +37,11 @@ This document explains how to configure Docker Hub deployment for the Initiative
 The workflow will automatically trigger when you push a version tag:
 
 ```bash
-# Bump version (creates tag)
-./scripts/bump-version.sh
+# Create a release PR (maintainers only)
+./scripts/promote.sh --patch   # or --minor / --major
 
-# Push tag to trigger workflow
-git push && git push --tags
+# After merging, tag-release.yml auto-creates the tag
+# which triggers docker-publish.yml
 ```
 
 You can monitor the build progress at:

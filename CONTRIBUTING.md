@@ -46,12 +46,64 @@ Tests are co-located next to source files (`_test.py` for backend, `.test.ts` fo
 
 ## Submitting Changes
 
-1. Fork the repo and create a branch from `main`
+1. Fork the repo and create a branch from **`dev`**
 2. Make your changes
 3. Ensure tests and linters pass
 4. Keep commits focused — separate backend, frontend, and infra changes when practical
-5. Open a pull request describing what changed and why
+5. Open a pull request **targeting `dev`** describing what changed and why
 6. Include screenshots or GIFs for UI changes
+
+**Important:** Do not open PRs against `main`. The `main` branch is restricted to project maintainers (@jordandrako, @LeeJMorel) who promote changes from `dev` using the release tooling below. PRs targeting `main` from non-maintainers will be closed.
+
+## Releases (Maintainers)
+
+Only project maintainers (@jordandrako, @LeeJMorel) have admin access to `main`. All changes reach `main` through the promotion script — never by direct push or PR.
+
+### Branching Model
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Production — admin-only, every commit is deployable |
+| `dev` | Integration — all feature work merges here via PR |
+| `release/vX.Y.Z` | Release prep — version bump + changelog stamp |
+| `promote/YYYY-MM-DD` | Code-only promotion (no version change) |
+| `hotfix/vX.Y.Z` | Cherry-pick urgent fixes to main |
+| `rollback/vX.Y.Z` | Revert a bad release |
+
+Contributors open PRs to `dev`. Maintainers promote `dev` to `main` when ready to release.
+
+### Using `promote.sh`
+
+The `scripts/promote.sh` script handles the full release lifecycle. It validates that the caller is a code owner before proceeding.
+
+```bash
+# Preview what would be promoted (safe, no side effects)
+./scripts/promote.sh --dry-run
+
+# Promote dev to main without a release
+./scripts/promote.sh
+
+# Create a patch release (0.29.1 → 0.29.2)
+./scripts/promote.sh --patch
+
+# Create a minor release (0.29.1 → 0.30.0)
+./scripts/promote.sh --minor
+
+# Cherry-pick a hotfix commit to main
+./scripts/promote.sh --cherry-pick abc123
+
+# Rollback the latest release
+./scripts/promote.sh --rollback
+```
+
+### Post-Merge Automation
+
+When a `release/v*` PR merges to `main`:
+
+1. **tag-release.yml** extracts the version from the branch name and creates a `vX.Y.Z` tag
+2. The tag push triggers **docker-publish.yml** which builds the Docker image, creates a GitHub Release with the Android APK, and sends a Discord notification
+
+No manual tagging is required.
 
 ## Reporting Issues
 

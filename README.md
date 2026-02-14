@@ -389,17 +389,13 @@ Images support both `linux/amd64` and `linux/arm64` architectures.
 
 ### Version Management
 
-Bump versions using the included script:
+Releases are managed by the promotion script (maintainers only):
 
 ```bash
-./scripts/bump-version.sh
+./scripts/promote.sh --patch   # or --minor / --major
 ```
 
-This will:
-
-1. Update the VERSION file
-2. Create a git commit and tag
-3. Trigger automated Docker builds when pushed
+This creates a release PR from `dev` to `main` with the version bump and changelog stamp. After merge, tagging and Docker builds happen automatically.
 
 ### Automated Builds
 
