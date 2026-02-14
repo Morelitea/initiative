@@ -640,6 +640,7 @@ async def test_rolling_recurrence_preserves_due_time(
         title="Recurring Task",
         project_id=project.id,
         task_status_id=todo_status.id,
+        guild_id=guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="rolling",  # After completion mode
@@ -663,7 +664,7 @@ async def test_rolling_recurrence_preserves_due_time(
         f"/api/v1/tasks/?project_id={project.id}", headers=headers
     )
     assert response.status_code == 200
-    tasks = response.json()
+    tasks = response.json()["items"]
 
     # Should have 2 tasks: original (completed) and new recurring task
     assert len(tasks) == 2
@@ -714,6 +715,7 @@ async def test_fixed_recurrence_uses_original_due_date(
         title="Fixed Recurring Task",
         project_id=project.id,
         task_status_id=todo_status.id,
+        guild_id=guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="fixed",  # Fixed mode (default)
@@ -737,7 +739,7 @@ async def test_fixed_recurrence_uses_original_due_date(
         f"/api/v1/tasks/?project_id={project.id}", headers=headers
     )
     assert response.status_code == 200
-    tasks = response.json()
+    tasks = response.json()["items"]
 
     # Find the new task
     new_task = next((t for t in tasks if t["id"] != task.id), None)
@@ -787,6 +789,7 @@ async def test_rolling_recurrence_with_midnight_time(
         title="Midnight Task",
         project_id=project.id,
         task_status_id=todo_status.id,
+        guild_id=guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="rolling",
@@ -810,7 +813,7 @@ async def test_rolling_recurrence_with_midnight_time(
         f"/api/v1/tasks/?project_id={project.id}", headers=headers
     )
     assert response.status_code == 200
-    tasks = response.json()
+    tasks = response.json()["items"]
 
     # Find the new task
     new_task = next((t for t in tasks if t["id"] != task.id), None)
