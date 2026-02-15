@@ -19,7 +19,7 @@ interface ProjectActivitySidebarProps {
 
 export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
   const { activeGuildId } = useGuilds();
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const dateLocale = useDateLocale();
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);

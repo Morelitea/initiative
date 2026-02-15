@@ -38,7 +38,7 @@ export const MoveTaskDialog = ({
   hasError = false,
   onConfirm,
 }: MoveTaskDialogProps) => {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "common"]);
   const availableProjects = useMemo(() => {
     return projects.filter((project) => project.id !== currentProjectId);
   }, [projects, currentProjectId]);

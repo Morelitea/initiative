@@ -264,7 +264,7 @@ export const TaskRecurrenceSelector = ({
   );
 
   const monthOptions = useMemo(
-    () => MONTH_KEYS.map((key, index) => ({ label: t(key), value: index + 1 })),
+    () => MONTH_KEYS.map((key, index) => ({ label: t(key as never), value: index + 1 })),
     [t]
   );
 
@@ -278,7 +278,7 @@ export const TaskRecurrenceSelector = ({
         const orderB = WEEKDAYS.findIndex((w) => w.value === b);
         return orderA - orderB;
       });
-      const labels = sorted.map((day) => t(`dates:weekdays.${day}`));
+      const labels = sorted.map((day) => t(`dates:weekdays.${day}` as never));
       const formatter = new Intl.ListFormat(i18n.language, {
         style: "long",
         type: "conjunction",
@@ -321,7 +321,9 @@ export const TaskRecurrenceSelector = ({
                   day: rule.day_of_month,
                 });
         } else if (rule.weekday_position && rule.weekday) {
-          const weekdayLabel = rule.weekday ? t(`dates:weekdays.${rule.weekday}`) : rule.weekday;
+          const weekdayLabel = rule.weekday
+            ? t(`dates:weekdays.${rule.weekday}` as never)
+            : rule.weekday;
           const positionLabel = rule.weekday_position;
           base =
             interval === 1
@@ -344,7 +346,7 @@ export const TaskRecurrenceSelector = ({
             : referenceDate
               ? getAnchorDate(referenceDate).getMonth()
               : new Date().getMonth();
-        const monthName = t(MONTH_KEYS[monthIndex]);
+        const monthName = t(MONTH_KEYS[monthIndex] as never);
         const day =
           rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number"
             ? rule.day_of_month
@@ -417,7 +419,7 @@ export const TaskRecurrenceSelector = ({
                 disabled={disabled}
               />
               <p className="text-muted-foreground text-xs">
-                {recurrence.frequency ? t(FREQUENCY_UNIT_KEYS[recurrence.frequency]) : ""}
+                {recurrence.frequency ? t(FREQUENCY_UNIT_KEYS[recurrence.frequency] as never) : ""}
               </p>
             </div>
           </div>
@@ -442,7 +444,7 @@ export const TaskRecurrenceSelector = ({
                         disabled ? "opacity-70" : ""
                       )}
                     >
-                      {t(`dates:weekdaysShort.${weekday.value}`)}
+                      {t(`dates:weekdaysShort.${weekday.value}` as never)}
                     </button>
                   );
                 })}
@@ -529,7 +531,7 @@ export const TaskRecurrenceSelector = ({
                       <SelectContent>
                         {WEEK_POSITION_OPTIONS.map((option) => (
                           <SelectItem key={option} value={option}>
-                            {t(POSITION_KEYS[option])}
+                            {t(POSITION_KEYS[option] as never)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -553,7 +555,7 @@ export const TaskRecurrenceSelector = ({
                       <SelectContent>
                         {WEEKDAYS.map((weekday) => (
                           <SelectItem key={weekday.value} value={weekday.value}>
-                            {t(`dates:weekdays.${weekday.value}`)}
+                            {t(`dates:weekdays.${weekday.value}` as never)}
                           </SelectItem>
                         ))}
                       </SelectContent>

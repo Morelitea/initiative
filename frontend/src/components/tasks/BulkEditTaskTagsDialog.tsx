@@ -31,7 +31,7 @@ export function BulkEditTaskTagsDialog({
   tasks,
   onSuccess,
 }: BulkEditTaskTagsDialogProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "common"]);
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [tagsToAdd, setTagsToAdd] = useState<TagSummary[]>([]);

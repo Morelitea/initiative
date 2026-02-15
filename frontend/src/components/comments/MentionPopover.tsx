@@ -49,7 +49,7 @@ export const MentionPopover = ({
   onSelect,
   onClose,
 }: MentionPopoverProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const popoverRef = useRef<HTMLDivElement>(null);
 

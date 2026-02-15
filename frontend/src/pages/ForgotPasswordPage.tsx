@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { LogoIcon } from "@/components/LogoIcon";
 
 export const ForgotPasswordPage = () => {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["auth", "common"]);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);

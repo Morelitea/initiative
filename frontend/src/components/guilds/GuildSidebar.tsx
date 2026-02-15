@@ -223,7 +223,7 @@ const SortableGuildButton = ({
 
 export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation(["guilds", "nav"]);
   const router = useRouter();
   const location = useLocation();
   const [activeDragId, setActiveDragId] = useState<number | null>(null);

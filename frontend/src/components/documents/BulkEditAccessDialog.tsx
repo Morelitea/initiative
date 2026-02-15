@@ -67,7 +67,7 @@ export function BulkEditAccessDialog({
   documents,
   onSuccess,
 }: BulkEditAccessDialogProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
   const [tab, setTab] = useState<"roles" | "users">("roles");

@@ -105,7 +105,7 @@ type ProjectsViewProps = {
 };
 
 export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();

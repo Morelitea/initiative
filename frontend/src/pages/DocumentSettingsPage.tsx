@@ -63,7 +63,7 @@ interface PermissionRow {
 }
 
 export const DocumentSettingsPage = () => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);

@@ -19,7 +19,7 @@ export const GuildInvitePage = () => {
     [normalizedCode]
   );
   const { user, refreshUser } = useAuth();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation(["guilds", "common"]);
   const [status, setStatus] = useState<GuildInviteStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

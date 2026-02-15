@@ -49,7 +49,7 @@ type UpdatePayload = {
 };
 
 export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps) => {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "common"]);
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [newContent, setNewContent] = useState("");

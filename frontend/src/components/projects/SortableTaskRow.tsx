@@ -15,6 +15,7 @@ import {
 import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -42,7 +43,7 @@ export const SortableTaskRow = ({
   onTaskClick,
   canOpenTask,
 }: SortableTaskRowProps) => {
-  const { t } = useTranslation(["projects", "dates"]);
+  const { t } = useTranslation(["projects", "dates", "tasks"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -85,7 +86,7 @@ export const SortableTaskRow = ({
           referenceDate: task.start_date || task.due_date,
           strategy: task.recurrence_strategy,
         },
-        t
+        t as TranslateFn
       )
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 100) : null;

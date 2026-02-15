@@ -20,7 +20,9 @@ export function InsertEmbeds() {
       <div className="flex items-center gap-1">
         {embedConfig.icon}
         <span>
-          {embedConfig.contentNameKey ? t(embedConfig.contentNameKey) : embedConfig.contentName}
+          {embedConfig.contentNameKey
+            ? t(embedConfig.contentNameKey as never)
+            : embedConfig.contentName}
         </span>
       </div>
     </SelectItem>

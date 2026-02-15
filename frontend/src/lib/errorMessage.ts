@@ -1,6 +1,9 @@
 import type { AxiosError } from "axios";
 import i18n from "@/i18n";
 
+/** Loose translation function that accepts dynamic keys without strict type checking. */
+const translate = i18n.t.bind(i18n) as (key: string, options?: Record<string, unknown>) => string;
+
 /**
  * Extract a user-facing error message from an API error response.
  *
@@ -14,7 +17,7 @@ export function getErrorMessage(error: unknown, fallbackKey?: string): string {
 
   if (detail) {
     // Try to look up the detail as a key in the errors namespace
-    const localized = i18n.t(detail, { ns: "errors", defaultValue: "" });
+    const localized = translate(detail, { ns: "errors", defaultValue: "" });
     if (localized) {
       return localized;
     }
@@ -23,8 +26,8 @@ export function getErrorMessage(error: unknown, fallbackKey?: string): string {
   }
 
   if (fallbackKey) {
-    return i18n.t(fallbackKey);
+    return translate(fallbackKey);
   }
 
-  return i18n.t("fallback", { ns: "errors" });
+  return translate("fallback", { ns: "errors" });
 }

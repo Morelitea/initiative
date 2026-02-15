@@ -11,6 +11,7 @@ import { Markdown } from "@/components/Markdown";
 import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -232,7 +233,7 @@ const KanbanTaskCard = ({
           referenceDate: task.start_date || task.due_date,
           strategy: task.recurrence_strategy,
         },
-        t
+        t as TranslateFn
       )
     : null;
   const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;

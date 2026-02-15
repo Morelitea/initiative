@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export const SettingsGuildPage = () => {
   const { activeGuild, refreshGuilds, updateGuildInState } = useGuilds();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation(["guilds", "common"]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);

@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { getItem, setItem } from "@/lib/storage";
 import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -94,7 +95,7 @@ const SORT_FIELD_MAP: Record<string, string> = {
 };
 
 export const MyTasksPage = () => {
-  const { t } = useTranslation(["tasks", "dates"]);
+  const { t } = useTranslation(["tasks", "dates", "common"]);
   const { guilds, activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
   const router = useRouter();
@@ -481,7 +482,7 @@ export const MyTasksPage = () => {
       },
       cell: ({ getValue }) => (
         <span className="text-base font-medium">
-          {getTaskDateStatusLabel(getValue<string>(), t)}
+          {getTaskDateStatusLabel(getValue<string>(), t as TranslateFn)}
         </span>
       ),
       enableHiding: true,
@@ -558,7 +559,7 @@ export const MyTasksPage = () => {
                 referenceDate: task.start_date || task.due_date,
                 strategy: task.recurrence_strategy,
               },
-              t
+              t as TranslateFn
             )
           : null;
         return (
@@ -845,7 +846,7 @@ export const MyTasksPage = () => {
                   selectedValues={priorityFilters}
                   options={priorityOrder.map((priority) => ({
                     value: priority,
-                    label: t(`priority.${priority}`),
+                    label: t(`priority.${priority}` as never),
                   }))}
                   onChange={(values) => setPriorityFilters(values as TaskPriority[])}
                   placeholder={t("filters.allPriorities")}

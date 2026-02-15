@@ -1,4 +1,4 @@
-import type { TFunction } from "i18next";
+import type { TranslateFn } from "@/types/i18n";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -77,7 +77,7 @@ export const getTaskDateStatus = (
   return "4_later";
 };
 
-export const getTaskDateStatusLabel = (value: string | null | undefined, t: TFunction) => {
+export const getTaskDateStatusLabel = (value: string | null | undefined, t: TranslateFn) => {
   const key = (value ?? "4_later") as TaskDateStatusKey;
   const i18nKey = STATUS_KEY_MAP[key];
   if (i18nKey) {

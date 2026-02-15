@@ -31,7 +31,7 @@ export function BulkEditTagsDialog({
   documents,
   onSuccess,
 }: BulkEditTagsDialogProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [tagsToAdd, setTagsToAdd] = useState<TagSummary[]>([]);
