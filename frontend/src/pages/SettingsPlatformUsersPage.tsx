@@ -355,8 +355,12 @@ export const SettingsPlatformUsersPage = () => {
         }
         description={
           roleChangeConfirm?.newRole === "admin"
-            ? `This will give ${roleChangeConfirm?.email ?? "this user"} platform admin permissions, allowing them to manage platform settings, users, and configurations.`
-            : `This will remove platform admin permissions from ${roleChangeConfirm?.email ?? "this user"}. They will no longer be able to access platform settings.`
+            ? t("platformUsers.promoteDescription", {
+                email: roleChangeConfirm?.email ?? "this user",
+              })
+            : t("platformUsers.demoteDescription", {
+                email: roleChangeConfirm?.email ?? "this user",
+              })
         }
         confirmLabel={
           roleChangeConfirm?.newRole === "admin"
