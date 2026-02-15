@@ -567,6 +567,22 @@
     "more": "+{{count}} more"
   },
 
+  "preview": {
+    "updated": "Updated {{date}}",
+    "tasksDone": "{{completed}}/{{total}} done"
+  },
+
+  "activitySidebar": {
+    "title": "Project activity",
+    "activity": "Activity",
+    "expand": "Expand activity sidebar",
+    "collapse": "Collapse activity sidebar",
+    "loading": "Loading activity\u2026",
+    "noComments": "No comments yet.",
+    "commentedOn": "commented on",
+    "loadMore": "Load more"
+  },
+
   "ganttView": {
     "title": "Timeline",
     "subtitle": "Plan start and due dates over the next few weeks.",

@@ -490,7 +490,8 @@
     "reactivateSuccess": "{{email}} ha sido reactivado",
     "reactivateError": "No se pudo reactivar al usuario",
     "cannotDemoteLastAdmin": "No se puede degradar al último administrador de la plataforma",
-    "cannotChangeOwnRole": "No puedes cambiar tu propio rol"
+    "cannotChangeOwnRole": "No puedes cambiar tu propio rol",
+    "permissionRequired": "Necesitas permisos de {{adminLabel}} para ver esta página."
   },
   "adminDeleteUser": {
     "title": "Eliminar usuario",

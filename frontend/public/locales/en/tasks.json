@@ -140,6 +140,7 @@
     "aiDialogTitle": "AI-Generated Subtasks",
     "aiDialogDescription": "Select the subtasks you want to add to this task.",
     "addSelected": "Add Selected ({{count}})",
+    "addButton": "Add",
     "reorderItem": "Reorder checklist item",
     "markIncomplete": "Mark subtask as incomplete",
     "markComplete": "Mark subtask as complete",

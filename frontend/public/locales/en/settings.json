@@ -490,7 +490,8 @@
     "reactivateSuccess": "{{email}} has been reactivated",
     "reactivateError": "Unable to reactivate user",
     "cannotDemoteLastAdmin": "Cannot demote the last platform admin",
-    "cannotChangeOwnRole": "Cannot change your own role"
+    "cannotChangeOwnRole": "Cannot change your own role",
+    "permissionRequired": "You need {{adminLabel}} permissions to view this page."
   },
   "adminDeleteUser": {
     "title": "Delete User",

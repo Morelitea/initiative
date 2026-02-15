@@ -227,12 +227,14 @@ export const OidcClaimMappingsSection = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>{t("auth.claimPathCardTitle")}</CardTitle>
+          {/* eslint-disable i18next/no-literal-string */}
           <CardDescription>
             {t("auth.claimPathCardDescription")} Keycloak:{" "}
             <code className="bg-muted rounded px-1">realm_access.roles</code>, Azure AD:{" "}
             <code className="bg-muted rounded px-1">groups</code>, Okta:{" "}
             <code className="bg-muted rounded px-1">groups</code>
           </CardDescription>
+          {/* eslint-enable i18next/no-literal-string */}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleClaimPathSubmit} className="flex items-end gap-3">

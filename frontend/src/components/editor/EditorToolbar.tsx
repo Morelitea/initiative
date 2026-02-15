@@ -712,6 +712,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           </div>
         </div>
         <DropdownMenuSeparator />
+        {/* eslint-disable i18next/no-literal-string */}
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -734,12 +735,14 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             ↻
           </Button>
         </div>
+        {/* eslint-enable i18next/no-literal-string */}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 
   const desktopToolbar = (
     <>
+      {/* eslint-disable i18next/no-literal-string */}
       <div className="flex items-center gap-1">
         <Button
           type="button"
@@ -762,6 +765,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           ↻
         </Button>
       </div>
+      {/* eslint-enable i18next/no-literal-string */}
       <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
         <SelectTrigger className="w-36">
           <SelectValue placeholder={t("editor.textStyle")} />

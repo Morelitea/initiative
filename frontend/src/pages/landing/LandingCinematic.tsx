@@ -260,7 +260,8 @@ const ScreenshotFrame = ({
           color: isDark ? "rgba(200, 200, 220, 0.4)" : "rgba(80, 60, 120, 0.3)",
         }}
       >
-        initiativepm.app
+        {/* eslint-disable-next-line i18next/no-literal-string */}
+        <span>initiativepm.app</span>
       </div>
     </div>
     {/* Screenshot area */}
@@ -350,7 +351,8 @@ const ScreenshotLightbox = ({
               color: isDark ? "rgba(200, 200, 220, 0.4)" : "rgba(80, 60, 120, 0.3)",
             }}
           >
-            initiativepm.app
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            <span>initiativepm.app</span>
           </div>
         </div>
         <img
@@ -582,6 +584,7 @@ export const LandingCinematic = () => {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="text-primary flex items-center gap-2.5 text-xl font-bold tracking-tight">
             <LogoIcon className="h-8 w-8" aria-hidden="true" />
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <span>initiative</span>
           </div>
           <div className="flex items-center gap-3">
@@ -1149,7 +1152,8 @@ export const LandingCinematic = () => {
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="text-primary flex items-center gap-2 font-semibold">
               <LogoIcon className="h-6 w-6" aria-hidden="true" />
-              initiative
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <span>initiative</span>
             </div>
             <p className="text-muted-foreground text-sm">
               {t("footer.copyright", { year: new Date().getFullYear() })}

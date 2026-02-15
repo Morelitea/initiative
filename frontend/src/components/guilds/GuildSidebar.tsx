@@ -328,6 +328,7 @@ export const GuildSidebar = () => {
           <TooltipTrigger asChild>
             <Link to="/" className="flex flex-col items-center">
               <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+              {/* eslint-disable-next-line i18next/no-literal-string */}
               <span className="text-primary text-s text-center">initiative</span>
             </Link>
           </TooltipTrigger>

@@ -359,7 +359,7 @@ export const SettingsUsersPage = () => {
                       addSuffix: true,
                       locale: dateLocale,
                     })
-                  : "Never";
+                  : t("users.neverExpires");
               return (
                 <div
                   key={invite.id}
@@ -368,7 +368,11 @@ export const SettingsUsersPage = () => {
                   <div>
                     <p className="font-medium">{link}</p>
                     <p className="text-muted-foreground">
-                      Uses: {invite.uses}/{invite.max_uses ?? "∞"} · Expires: {expires}
+                      {t("users.usesFormat", {
+                        uses: invite.uses,
+                        max: invite.max_uses ?? "\u221e",
+                        expires,
+                      })}
                     </p>
                   </div>
                   <div className="flex gap-2">

@@ -539,6 +539,22 @@
     "more": "+{{count}} más"
   },
 
+  "preview": {
+    "updated": "Actualizado {{date}}",
+    "tasksDone": "{{completed}}/{{total}} completadas"
+  },
+
+  "activitySidebar": {
+    "title": "Actividad del proyecto",
+    "activity": "Actividad",
+    "expand": "Expandir barra de actividad",
+    "collapse": "Contraer barra de actividad",
+    "loading": "Cargando actividad\u2026",
+    "noComments": "Aún no hay comentarios.",
+    "commentedOn": "comentó en",
+    "loadMore": "Cargar más"
+  },
+
   "ganttView": {
     "title": "Línea de tiempo",
     "subtitle": "Planifica las fechas de inicio y vencimiento en las próximas semanas.",

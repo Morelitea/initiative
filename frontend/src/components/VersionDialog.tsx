@@ -158,6 +158,7 @@ export const VersionDialog = ({
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{t("version.currentVersion")}</span>
+                {/* eslint-disable-next-line i18next/no-literal-string */}
                 <span className="font-mono font-medium">v{currentVersion}</span>
               </div>
               {isLoadingVersion ? (
@@ -168,6 +169,7 @@ export const VersionDialog = ({
               ) : latestVersion ? (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">{t("version.latestVersion")}</span>
+                  {/* eslint-disable-next-line i18next/no-literal-string */}
                   <span className={cn("font-mono font-medium", hasUpdate && "text-primary")}>
                     v{latestVersion}
                   </span>
@@ -187,6 +189,7 @@ export const VersionDialog = ({
                 <span>{t("version.upToDate")}</span>
               </div>
             )}
+            {/* eslint-disable i18next/no-literal-string */}
             {hasUpdate && (
               <p className="text-muted-foreground text-sm">
                 {t("version.newVersionOnDockerHub")}{" "}
@@ -200,6 +203,7 @@ export const VersionDialog = ({
                 </a>
               </p>
             )}
+            {/* eslint-enable i18next/no-literal-string */}
           </div>
         )}
 
@@ -244,6 +248,7 @@ export const VersionDialog = ({
                                       <ul className="mt-1 ml-4 space-y-1">
                                         {item.children.map((child, childIdx) => (
                                           <li key={childIdx} className="flex gap-2">
+                                            {/* eslint-disable-next-line i18next/no-literal-string */}
                                             <span className="text-muted-foreground shrink-0">
                                               ◦
                                             </span>

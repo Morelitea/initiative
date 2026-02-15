@@ -154,7 +154,7 @@ export const SettingsPlatformUsersPage = () => {
   if (!isAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
-        You need {adminLabel} permissions to view this page.
+        {t("platformUsers.permissionRequired", { adminLabel })}
       </p>
     );
   }

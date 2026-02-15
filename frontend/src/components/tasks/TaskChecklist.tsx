@@ -424,7 +424,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
             disabled={!canEdit || createSubtask.isPending}
           />
           <Button type="button" onClick={handleAdd} disabled={!canEdit || createSubtask.isPending}>
-            Add
+            {t("checklist.addButton")}
           </Button>
         </div>
         {!canEdit ? (

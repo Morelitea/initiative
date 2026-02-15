@@ -465,6 +465,7 @@ export const AppSidebar = () => {
                   isLoadingVersion={isLoadingVersion}
                 >
                   <button className="flex cursor-pointer items-center gap-1.5">
+                    {/* eslint-disable-next-line i18next/no-literal-string */}
                     <span className="text-muted-foreground hover:text-foreground text-xs transition-colors">
                       v{currentVersion}
                     </span>

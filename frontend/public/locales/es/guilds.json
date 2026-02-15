@@ -121,6 +121,15 @@
     "removeConfirmLabel": "Eliminar",
     "failedToUpdateRole": "No se pudo actualizar el rol"
   },
+  "noGuild": {
+    "title": "Sin membresía de gremio",
+    "description": "Aún no eres miembro de ningún gremio. Pide a un administrador de gremio un enlace de invitación o crea un nuevo gremio para comenzar.",
+    "guildNamePlaceholder": "Nombre del gremio",
+    "create": "Crear",
+    "inviteCodePlaceholder": "Código de invitación",
+    "redeem": "Canjear",
+    "logOut": "Cerrar sesión"
+  },
   "notifications": {
     "title": "Notificaciones",
     "markAllRead": "Marcar todo como leído",
