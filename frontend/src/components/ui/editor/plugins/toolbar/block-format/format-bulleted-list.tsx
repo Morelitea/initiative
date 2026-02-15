@@ -3,12 +3,13 @@ import { $setBlocksType } from "@lexical/selection";
 import { $createParagraphNode, $getSelection, $isRangeSelection } from "lexical";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
-import { blockTypeToBlockName } from "@/components/ui/editor/plugins/toolbar/block-format/block-format-data";
+import { useBlockTypeToBlockName } from "@/components/ui/editor/plugins/toolbar/block-format/block-format-data";
 import { SelectItem } from "@/components/ui/select";
 
 const BLOCK_FORMAT_VALUE = "bullet";
 
 export function FormatBulletedList() {
+  const blockTypeToBlockName = useBlockTypeToBlockName();
   const { activeEditor, blockType } = useToolbarContext();
 
   const formatParagraph = () => {

@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, memo } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   DndContext,
@@ -401,18 +401,22 @@ const ProjectTasksTableViewComponent = ({
             const disableDnd = sorting.length > 0 || grouping.length > 0;
             return disableDnd ? (
               <div className="text-muted-foreground">
-                {t("table.manualSortDisabled")}{" "}
-                <Button
-                  variant="link"
-                  className="text-foreground px-0 text-base"
-                  onClick={() => {
-                    table.resetSorting();
-                    table.resetGrouping();
+                <Trans
+                  i18nKey="table.manualSortDisabled"
+                  ns="projects"
+                  components={{
+                    1: (
+                      <Button
+                        variant="link"
+                        className="text-foreground px-0 text-base"
+                        onClick={() => {
+                          table.resetSorting();
+                          table.resetGrouping();
+                        }}
+                      />
+                    ),
                   }}
-                >
-                  {t("table.resetSortingAndGrouping")}
-                </Button>{" "}
-                {t("table.toReorder")}
+                />
               </div>
             ) : null;
           }}

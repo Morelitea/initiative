@@ -471,9 +471,7 @@
     "filterPlaceholder": "Filter tasks...",
     "reorderTask": "Reorder task",
     "noTasks": "No tasks yet.",
-    "manualSortDisabled": "Manual sorting disabled,",
-    "resetSortingAndGrouping": "reset column sorting and row grouping",
-    "toReorder": "to reorder."
+    "manualSortDisabled": "Manual sorting disabled, <1>reset column sorting and row grouping</1> to reorder."
   },
 
   "kanban": {

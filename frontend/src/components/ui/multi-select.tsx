@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,11 +30,14 @@ export const MultiSelect = ({
   selectedValues,
   options,
   onChange,
-  placeholder = "Select...",
-  emptyMessage = "No options available",
+  placeholder,
+  emptyMessage,
   disabled = false,
   className,
 }: MultiSelectProps) => {
+  const { t } = useTranslation("common");
+  const resolvedPlaceholder = placeholder ?? t("selectEllipsis");
+  const resolvedEmptyMessage = emptyMessage ?? t("noOptionsAvailable");
   const toggleValue = (value: string) => {
     if (selectedValues.includes(value)) {
       onChange(selectedValues.filter((v) => v !== value));
@@ -52,20 +56,20 @@ export const MultiSelect = ({
 
   const displayValue = useMemo(() => {
     if (selectedValues.length === 0) {
-      return placeholder;
+      return resolvedPlaceholder;
     }
     if (selectedValues.length === options.length) {
-      return "All selected";
+      return t("allSelected");
     }
     if (selectedValues.length === 1) {
       const option = options.find((o) => o.value === selectedValues[0]);
-      return option?.label ?? placeholder;
+      return option?.label ?? resolvedPlaceholder;
     }
-    return `${selectedValues.length} selected`;
-  }, [selectedValues, options, placeholder]);
+    return t("countSelected", { count: selectedValues.length });
+  }, [selectedValues, options, resolvedPlaceholder, t]);
 
   if (options.length === 0) {
-    return <p className="text-muted-foreground text-sm">{emptyMessage}</p>;
+    return <p className="text-muted-foreground text-sm">{resolvedEmptyMessage}</p>;
   }
 
   return (
@@ -90,7 +94,7 @@ export const MultiSelect = ({
             disabled={selectedValues.length === options.length}
             className="h-8 w-full justify-start px-2 font-normal"
           >
-            Select all
+            {t("selectAll")}
           </Button>
           <Button
             type="button"
@@ -100,7 +104,7 @@ export const MultiSelect = ({
             disabled={selectedValues.length === 0}
             className="h-8 w-full justify-start px-2 font-normal"
           >
-            Clear all
+            {t("clearAll")}
           </Button>
         </div>
         {options.map((option) => {

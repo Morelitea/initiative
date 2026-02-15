@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
@@ -61,33 +62,40 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const TEXT_COLORS = [
-  { label: "Default", value: "" },
-  { label: "Black", value: "#000000" },
-  { label: "Gray", value: "#6b7280" },
-  { label: "Red", value: "#ef4444" },
-  { label: "Orange", value: "#f97316" },
-  { label: "Yellow", value: "#eab308" },
-  { label: "Green", value: "#22c55e" },
-  { label: "Blue", value: "#3b82f6" },
-  { label: "Purple", value: "#a855f7" },
-  { label: "Pink", value: "#ec4899" },
-];
-
-const BG_COLORS = [
-  { label: "None", value: "" },
-  { label: "Gray", value: "#f3f4f6" },
-  { label: "Red", value: "#fee2e2" },
-  { label: "Orange", value: "#ffedd5" },
-  { label: "Yellow", value: "#fef9c3" },
-  { label: "Green", value: "#dcfce7" },
-  { label: "Blue", value: "#dbeafe" },
-  { label: "Purple", value: "#f3e8ff" },
-  { label: "Pink", value: "#fce7f3" },
-];
-
 export function ToolbarOverflowMenu() {
   const { activeEditor, showModal } = useToolbarContext();
+  const { t } = useTranslation("documents");
+
+  const TEXT_COLORS = useMemo(
+    () => [
+      { label: t("editor.colorDefault"), value: "" },
+      { label: t("editor.colorBlack"), value: "#000000" },
+      { label: t("editor.colorGray"), value: "#6b7280" },
+      { label: t("editor.colorRed"), value: "#ef4444" },
+      { label: t("editor.colorOrange"), value: "#f97316" },
+      { label: t("editor.colorYellow"), value: "#eab308" },
+      { label: t("editor.colorGreen"), value: "#22c55e" },
+      { label: t("editor.colorBlue"), value: "#3b82f6" },
+      { label: t("editor.colorPurple"), value: "#a855f7" },
+      { label: t("editor.colorPink"), value: "#ec4899" },
+    ],
+    [t]
+  );
+
+  const BG_COLORS = useMemo(
+    () => [
+      { label: t("editor.colorNone"), value: "" },
+      { label: t("editor.colorGray"), value: "#f3f4f6" },
+      { label: t("editor.colorRed"), value: "#fee2e2" },
+      { label: t("editor.colorOrange"), value: "#ffedd5" },
+      { label: t("editor.colorYellow"), value: "#fef9c3" },
+      { label: t("editor.colorGreen"), value: "#dcfce7" },
+      { label: t("editor.colorBlue"), value: "#dbeafe" },
+      { label: t("editor.colorPurple"), value: "#f3e8ff" },
+      { label: t("editor.colorPink"), value: "#fce7f3" },
+    ],
+    [t]
+  );
 
   const clearFormatting = useCallback(() => {
     activeEditor.update(() => {
@@ -165,53 +173,53 @@ export function ToolbarOverflowMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Format</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("editor.format")}</DropdownMenuLabel>
         <DropdownMenuGroup>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
           >
             <BoldIcon className="mr-2 size-4" />
-            Bold
+            {t("editor.bold")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic")}
           >
             <ItalicIcon className="mr-2 size-4" />
-            Italic
+            {t("editor.italic")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "underline")}
           >
             <UnderlineIcon className="mr-2 size-4" />
-            Underline
+            {t("editor.underline")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "strikethrough")}
           >
             <StrikethroughIcon className="mr-2 size-4" />
-            Strikethrough
+            {t("editor.strikethrough")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")}
           >
             <CodeIcon className="mr-2 size-4" />
-            Code
+            {t("editor.inlineCode")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript")}
           >
             <SubscriptIcon className="mr-2 size-4" />
-            Subscript
+            {t("editor.subscript")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript")}
           >
             <SuperscriptIcon className="mr-2 size-4" />
-            Superscript
+            {t("editor.superscript")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={clearFormatting}>
             <RemoveFormattingIcon className="mr-2 size-4" />
-            Clear Formatting
+            {t("editor.clearFormatting")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
@@ -220,7 +228,7 @@ export function ToolbarOverflowMenu() {
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <PaletteIcon className="mr-2 size-4" />
-            Text Color
+            {t("editor.textColor")}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
@@ -240,7 +248,7 @@ export function ToolbarOverflowMenu() {
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <PaintBucketIcon className="mr-2 size-4" />
-            Background
+            {t("editor.background")}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
@@ -262,7 +270,7 @@ export function ToolbarOverflowMenu() {
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <AlignLeftIcon className="mr-2 size-4" />
-            Align
+            {t("editor.align")}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
@@ -270,25 +278,25 @@ export function ToolbarOverflowMenu() {
                 onClick={() => activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "left")}
               >
                 <AlignLeftIcon className="mr-2 size-4" />
-                Left
+                {t("editor.alignLeft")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center")}
               >
                 <AlignCenterIcon className="mr-2 size-4" />
-                Center
+                {t("editor.alignCenter")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "right")}
               >
                 <AlignRightIcon className="mr-2 size-4" />
-                Right
+                {t("editor.alignRight")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => activeEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "justify")}
               >
                 <AlignJustifyIcon className="mr-2 size-4" />
-                Justify
+                {t("editor.alignJustify")}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
@@ -299,67 +307,67 @@ export function ToolbarOverflowMenu() {
             onClick={() => activeEditor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)}
           >
             <IndentDecreaseIcon className="mr-2 size-4" />
-            Outdent
+            {t("editor.outdent")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)}
           >
             <IndentIncreaseIcon className="mr-2 size-4" />
-            Indent
+            {t("editor.indent")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel>Insert</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("editor.insert")}</DropdownMenuLabel>
         <DropdownMenuGroup>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)}
           >
             <MinusIcon className="mr-2 size-4" />
-            Horizontal Rule
+            {t("editor.horizontalRule")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() =>
-              showModal("Insert Image", (onClose) => (
+              showModal(t("editor.insertImage"), (onClose) => (
                 <InsertImageDialog activeEditor={activeEditor} onClose={onClose} />
               ))
             }
           >
             <ImageIcon className="mr-2 size-4" />
-            Image
+            {t("editor.image")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() =>
-              showModal("Insert Table", (onClose) => (
+              showModal(t("editor.insertTable"), (onClose) => (
                 <InsertTableDialog activeEditor={activeEditor} onClose={onClose} />
               ))
             }
           >
             <TableIcon className="mr-2 size-4" />
-            Table
+            {t("editor.table")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() =>
-              showModal("Insert Columns Layout", (onClose) => (
+              showModal(t("editor.insertColumnsLayout"), (onClose) => (
                 <InsertLayoutDialog activeEditor={activeEditor} onClose={onClose} />
               ))
             }
           >
             <Columns3Icon className="mr-2 size-4" />
-            Columns Layout
+            {t("editor.columnsLayout")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INSERT_EMBED_COMMAND, "youtube-video")}
           >
             <YoutubeIcon className="mr-2 size-4" />
-            YouTube Video
+            {t("editor.youtubeVideo")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INSERT_EMBED_COMMAND, "tweet")}
           >
             <TwitterIcon className="mr-2 size-4" />
-            Tweet
+            {t("editor.tweet")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,8 +62,8 @@ export const CommentInput = ({
   value,
   onChange,
   onSubmit,
-  placeholder = "Share feedback or ask a question...",
-  submitLabel = "Post Comment",
+  placeholder,
+  submitLabel,
   isSubmitting = false,
   initiativeId,
   error,
@@ -70,6 +71,9 @@ export const CommentInput = ({
   autoFocus = false,
   compact = false,
 }: CommentInputProps) => {
+  const { t } = useTranslation("documents");
+  const resolvedPlaceholder = placeholder ?? t("comments.placeholder");
+  const resolvedSubmitLabel = submitLabel ?? t("comments.postComment");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
 
@@ -192,7 +196,7 @@ export const CommentInput = ({
               setMentionTrigger(null);
             }, 200);
           }}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           rows={compact ? 2 : 4}
           disabled={isSubmitting}
           autoFocus={autoFocus}
@@ -217,7 +221,7 @@ export const CommentInput = ({
           disabled={isSubmitting || value.trim().length === 0}
           size={compact ? "sm" : "default"}
         >
-          {isSubmitting ? "Posting..." : submitLabel}
+          {isSubmitting ? t("comments.posting") : resolvedSubmitLabel}
         </Button>
       </div>
     </form>
