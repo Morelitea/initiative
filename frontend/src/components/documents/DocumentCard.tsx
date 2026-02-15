@@ -4,6 +4,7 @@ import { FileSpreadsheet, FileText, Presentation, ScrollText } from "lucide-reac
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -21,6 +22,7 @@ interface DocumentCardProps {
 
 export const DocumentCard = ({ document, className, hideInitiative }: DocumentCardProps) => {
   const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const gp = useGuildPath();
   const projectCount = document.projects.length;
   const commentCount = document.comment_count ?? 0;
@@ -100,7 +102,10 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           </div>
           <p className="text-muted-foreground text-xs">
             {t("card.updated", {
-              date: formatDistanceToNow(new Date(document.updated_at), { addSuffix: true }),
+              date: formatDistanceToNow(new Date(document.updated_at), {
+                addSuffix: true,
+                locale: dateLocale,
+              }),
             })}
           </p>
           {document.initiative && !hideInitiative ? (

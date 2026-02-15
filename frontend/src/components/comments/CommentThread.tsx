@@ -5,6 +5,7 @@ import { Pencil, Reply, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
@@ -46,6 +47,7 @@ export const CommentThread = ({
   projectNames = new Map(),
 }: CommentThreadProps) => {
   const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -104,6 +106,7 @@ export const CommentThread = ({
               <span className="whitespace-nowrap">
                 {formatDistanceToNow(new Date(comment.created_at), {
                   addSuffix: true,
+                  locale: dateLocale,
                 })}
                 {isEdited && (
                   <span className="text-muted-foreground ml-1">{t("comments.edited")}</span>

@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Statistics and reporting pages
   - Landing page with all marketing copy
   - Email templates (verification, password reset, task assignment, mentions, overdue notifications)
+- Spanish (es) locale — complete translations for all 16 frontend namespaces and backend email templates (these are AI generated translations, contributions wanted)
+- Locale-aware AI content generation (subtasks, descriptions, document summaries respond in user's language)
+- `useDateLocale` hook for date-fns locale resolution across the app
+- Locale key parity test (vitest) to catch missing/extra translation keys in CI
 
 ## [0.29.1] - 2026-02-13
 

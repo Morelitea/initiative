@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "Mis estadísticas",
+    "subtitle": "Rastrea tu productividad y métricas de finalización de tareas",
+    "guildFilterPlaceholder": "Seleccionar gremio",
+    "allGuilds": "Todos los gremios",
+    "loading": "Cargando estadísticas\u2026",
+    "error": "No se pudieron cargar las estadísticas. Inténtalo más tarde."
+  },
+  "metrics": {
+    "currentStreak": "Racha actual",
+    "consecutiveDays": "Días consecutivos de trabajo",
+    "onTimeRate": "Tasa de puntualidad",
+    "onTimeSubtitle": "Tareas completadas antes de la fecha límite",
+    "avgCompletion": "Promedio de finalización",
+    "avgCompletionSubtitle": "Desde el inicio hasta la finalización",
+    "backlogTrend": "Tendencia del backlog",
+    "thisWeek": "Esta semana",
+    "days": "días",
+    "growing": "Creciendo",
+    "shrinking": "Disminuyendo"
+  },
+  "tasksCompleted": {
+    "title": "Tareas completadas",
+    "allTime": "Histórico",
+    "thisWeek": "Esta semana"
+  },
+  "velocity": {
+    "title": "Velocidad",
+    "description": "Tareas asignadas vs completadas por semana",
+    "descriptionLong": "Tareas asignadas vs completadas por semana (últimas 12 semanas)",
+    "noData": "No hay datos de velocidad disponibles",
+    "assigned": "Asignadas",
+    "completed": "Completadas"
+  },
+  "guildBreakdown": {
+    "title": "Tareas por gremio",
+    "description": "Desglose de tareas completadas por gremio",
+    "noData": "No hay datos de gremio disponibles"
+  },
+  "heatmap": {
+    "title": "Mapa de actividad",
+    "description": "Actividad de tareas durante el último año",
+    "noData": "No hay datos de actividad disponibles",
+    "less": "Menos",
+    "more": "Más",
+    "activity_one": "{{count}} actividad",
+    "activity_other": "{{count}} actividades"
+  }
+}

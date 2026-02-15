@@ -42,7 +42,8 @@ async def generate_subtasks(
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
 
-    prompt = _build_subtasks_prompt(task, initiative_name, project_name)
+    locale = getattr(user, "locale", None) or "en"
+    prompt = _build_subtasks_prompt(task, initiative_name, project_name, locale=locale)
 
     if resolved.provider == AIProvider.openai:
         return await _generate_openai_subtasks(
@@ -94,7 +95,8 @@ async def generate_description(
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
 
-    prompt = _build_description_prompt(task, initiative_name, project_name)
+    locale = getattr(user, "locale", None) or "en"
+    prompt = _build_description_prompt(task, initiative_name, project_name, locale=locale)
 
     if resolved.provider == AIProvider.openai:
         return await _generate_openai_description(
@@ -149,7 +151,8 @@ async def generate_document_summary(
     if not markdown_content.strip():
         raise AIGenerationError("Document has no content to summarize")
 
-    prompt = _build_summary_prompt(document_title, markdown_content)
+    locale = getattr(user, "locale", None) or "en"
+    prompt = _build_summary_prompt(document_title, markdown_content, locale=locale)
 
     if resolved.provider == AIProvider.openai:
         return await _generate_openai_summary(
@@ -180,8 +183,26 @@ async def generate_document_summary(
         raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
 
 
-def _build_summary_prompt(title: str, content: str) -> str:
+def _locale_instruction(locale: str) -> str:
+    """Return a prompt instruction for the target language, empty for English."""
+    if locale == "en":
+        return ""
+    _LOCALE_NAMES = {
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "zh": "Chinese",
+    }
+    lang = _LOCALE_NAMES.get(locale, locale)
+    return f"Write your response in {lang}.\n"
+
+
+def _build_summary_prompt(title: str, content: str, *, locale: str = "en") -> str:
     """Build prompt for document summarization."""
+    lang_instruction = _locale_instruction(locale)
     return f"""Summarize this document in 2-4 paragraphs, focusing on the key points.
 
 Document Title: {title}
@@ -190,7 +211,7 @@ Document Content:
 {content}
 
 Write a clear, concise summary that captures the main ideas and important details.
-Return ONLY the summary text, no other commentary."""
+{lang_instruction}Return ONLY the summary text, no other commentary."""
 
 
 async def _generate_openai_summary(
@@ -366,6 +387,8 @@ def _build_subtasks_prompt(
     task: Task,
     initiative_name: str | None = None,
     project_name: str | None = None,
+    *,
+    locale: str = "en",
 ) -> str:
     """Build prompt for subtask generation."""
     context_parts = []
@@ -375,6 +398,7 @@ def _build_subtasks_prompt(
         context_parts.append(f"Project: {project_name}")
     context_section = "\n".join(context_parts) + "\n" if context_parts else ""
 
+    lang_instruction = _locale_instruction(locale)
     description_part = f"\nDescription: {task.description}" if task.description else ""
     return f"""Generate actionable subtasks for this task.
 
@@ -384,13 +408,15 @@ Return 3-7 specific, actionable subtasks as a JSON array of strings.
 Each subtask should be a clear action item that contributes to completing the main task.
 Keep each subtask concise (under 100 characters).
 Do not include numbering or bullet points in the subtask text.
-Return ONLY the JSON array, no other text."""
+{lang_instruction}Return ONLY the JSON array, no other text."""
 
 
 def _build_description_prompt(
     task: Task,
     initiative_name: str | None = None,
     project_name: str | None = None,
+    *,
+    locale: str = "en",
 ) -> str:
     """Build prompt for description generation."""
     context_parts = []
@@ -404,13 +430,14 @@ def _build_description_prompt(
     if task.description:
         existing_description = f"\n\nExisting description (enhance this): {task.description}"
 
+    lang_instruction = _locale_instruction(locale)
     return f"""Write a clear task description.
 
 {context_section}Title: {task.title}{existing_description}
 
 Write 2-4 sentences explaining what needs to be done, the expected outcome, and any key considerations.
 Be specific and actionable. Use markdown formatting if helpful.
-Return ONLY the description text, no other commentary."""
+{lang_instruction}Return ONLY the description text, no other commentary."""
 
 
 def _parse_subtasks_response(text: str) -> list[str]:

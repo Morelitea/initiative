@@ -1,7 +1,8 @@
 import { memo, useMemo } from "react";
-import { formatDistance, formatDate, isPast } from "date-fns";
+import { formatDistance, isPast } from "date-fns";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDateLocale } from "@/hooks/useDateLocale";
 
 type DateCellProps = {
   date: string | null | undefined;
@@ -13,15 +14,27 @@ type DateCellProps = {
  * Memoized date cell to avoid re-computing formatDistance on every render
  */
 export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) => {
+  const dateLocale = useDateLocale();
   const dateObj = useMemo(() => (date ? new Date(date) : null), [date]);
   const isPastDate = useMemo(() => (dateObj ? isPast(dateObj) : false), [dateObj]);
   const relativeDate = useMemo(
-    () => (dateObj ? formatDistance(dateObj, new Date(), { addSuffix: true }) : null),
-    [dateObj]
+    () =>
+      dateObj ? formatDistance(dateObj, new Date(), { addSuffix: true, locale: dateLocale }) : null,
+    [dateObj, dateLocale]
   );
   const formattedDate = useMemo(
-    () => (dateObj ? formatDate(dateObj, "PPPP 'at' pp") : null),
-    [dateObj]
+    () =>
+      dateObj
+        ? dateObj.toLocaleString(dateLocale.code, {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        : null,
+    [dateObj, dateLocale]
   );
 
   if (!relativeDate) {

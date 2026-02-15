@@ -59,10 +59,12 @@ import type { Comment, DocumentProjectLink, DocumentRead, TagSummary } from "@/t
 import { uploadAttachment } from "@/api/attachments";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const navigate = useNavigate();
@@ -578,7 +580,10 @@ export const DocumentDetailPage = () => {
           ) : null}
           <span>
             {t("detail.updated", {
-              date: formatDistanceToNow(new Date(document.updated_at), { addSuffix: true }),
+              date: formatDistanceToNow(new Date(document.updated_at), {
+                addSuffix: true,
+                locale: dateLocale,
+              }),
             })}
           </span>
           {document.is_template ? <Badge variant="outline">{t("detail.template")}</Badge> : null}
@@ -809,6 +814,7 @@ export const DocumentDetailPage = () => {
                         {t("detail.attached", {
                           date: formatDistanceToNow(new Date(link.attached_at), {
                             addSuffix: true,
+                            locale: dateLocale,
                           }),
                         })}
                       </p>

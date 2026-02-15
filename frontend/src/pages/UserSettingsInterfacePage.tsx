@@ -25,7 +25,11 @@ const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.saturday", value: 6 },
 ];
 
-const LANGUAGE_OPTIONS = [{ label: "English", value: "en" }];
+const LANGUAGE_OPTIONS = [
+  { label: "English", value: "en" },
+  { label: "Español", value: "es" },
+  { label: "[Pseudo]", value: "pseudo" },
+];
 
 interface UserSettingsInterfacePageProps {
   user: User;

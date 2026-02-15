@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
 import { apiClient } from "@/api/client";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -46,6 +47,7 @@ export const ProjectDocumentsSection = ({
   canAttach,
 }: ProjectDocumentsSectionProps) => {
   const { t } = useTranslation("projects");
+  const dateLocale = useDateLocale();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -290,7 +292,9 @@ export const ProjectDocumentsSection = ({
                       </div>
                       <div className="text-muted-foreground text-xs">
                         {t("documents.attachedAgo", {
-                          time: formatDistanceToNow(new Date(doc.attached_at)),
+                          time: formatDistanceToNow(new Date(doc.attached_at), {
+                            locale: dateLocale,
+                          }),
                         })}
                       </div>
                     </div>

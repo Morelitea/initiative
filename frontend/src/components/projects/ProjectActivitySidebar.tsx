@@ -5,6 +5,7 @@ import { ChevronRight, MessageSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import type { ProjectActivityEntry, ProjectActivityResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ interface ProjectActivitySidebarProps {
 
 export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
   const { activeGuildId } = useGuilds();
+  const dateLocale = useDateLocale();
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
@@ -118,6 +120,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                         <span>
                           {formatDistanceToNow(new Date(entry.created_at), {
                             addSuffix: true,
+                            locale: dateLocale,
                           })}
                         </span>
                       </div>

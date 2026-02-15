@@ -93,7 +93,7 @@ export const TaskRecurrenceSelector = ({
   disabled = false,
   referenceDate,
 }: TaskRecurrenceSelectorProps) => {
-  const { t, i18n } = useTranslation("projects");
+  const { t, i18n } = useTranslation(["projects", "dates"]);
 
   const detectedPreset = detectRecurrencePreset(recurrence);
   const [forceCustomMode, setForceCustomMode] = useState(detectedPreset === "custom");
@@ -278,16 +278,14 @@ export const TaskRecurrenceSelector = ({
         const orderB = WEEKDAYS.findIndex((w) => w.value === b);
         return orderA - orderB;
       });
-      const labels = sorted.map(
-        (day) => WEEKDAYS.find((config) => config.value === day)?.label ?? day
-      );
+      const labels = sorted.map((day) => t(`dates:weekdays.${day}`));
       const formatter = new Intl.ListFormat(i18n.language, {
         style: "long",
         type: "conjunction",
       });
       return formatter.format(labels);
     },
-    [i18n.language]
+    [i18n.language, t]
   );
 
   const summary = useMemo(() => {
@@ -323,8 +321,7 @@ export const TaskRecurrenceSelector = ({
                   day: rule.day_of_month,
                 });
         } else if (rule.weekday_position && rule.weekday) {
-          const weekdayLabel =
-            WEEKDAYS.find((item) => item.value === rule.weekday)?.label ?? rule.weekday;
+          const weekdayLabel = rule.weekday ? t(`dates:weekdays.${rule.weekday}`) : rule.weekday;
           const positionLabel = rule.weekday_position;
           base =
             interval === 1
@@ -445,7 +442,7 @@ export const TaskRecurrenceSelector = ({
                         disabled ? "opacity-70" : ""
                       )}
                     >
-                      {weekday.short}
+                      {t(`dates:weekdaysShort.${weekday.value}`)}
                     </button>
                   );
                 })}
@@ -556,7 +553,7 @@ export const TaskRecurrenceSelector = ({
                       <SelectContent>
                         {WEEKDAYS.map((weekday) => (
                           <SelectItem key={weekday.value} value={weekday.value}>
-                            {weekday.label}
+                            {t(`dates:weekdays.${weekday.value}`)}
                           </SelectItem>
                         ))}
                       </SelectContent>

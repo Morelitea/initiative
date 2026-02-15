@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-tests:
-    name: Backend Tests & Lint
+    name: Backend Lint & Tests
     runs-on: ubuntu-latest
     services:
       postgres:
