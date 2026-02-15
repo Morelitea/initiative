@@ -1,3 +1,5 @@
+import type { TranslateFn } from "@/lib/recurrence";
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 type TaskDateStatusKey = "0_overdue" | "1_today" | "2_this_week" | "3_this_month" | "4_later";
@@ -74,8 +76,6 @@ export const getTaskDateStatus = (
 
   return "4_later";
 };
-
-import type { TranslateFn } from "@/lib/recurrence";
 
 export const getTaskDateStatusLabel = (value: string | null | undefined, t: TranslateFn) => {
   const key = (value ?? "4_later") as TaskDateStatusKey;
