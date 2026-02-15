@@ -43,19 +43,19 @@ export function ElementFormatToolbarPlugin() {
     () => ({
       left: {
         icon: <AlignLeftIcon className="size-4" />,
-        name: t("editor.leftAlign"),
+        name: t("editor.alignLeft"),
       },
       center: {
         icon: <AlignCenterIcon className="size-4" />,
-        name: t("editor.centerAlign"),
+        name: t("editor.alignCenter"),
       },
       right: {
         icon: <AlignRightIcon className="size-4" />,
-        name: t("editor.rightAlign"),
+        name: t("editor.alignRight"),
       },
       justify: {
         icon: <AlignJustifyIcon className="size-4" />,
-        name: t("editor.justifyAlign"),
+        name: t("editor.alignJustify"),
       },
     }),
     [t]
