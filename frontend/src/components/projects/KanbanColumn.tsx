@@ -204,7 +204,7 @@ const KanbanTaskCard = ({
   onTaskClick,
   canOpenTask,
 }: KanbanTaskCardProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "dates"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({

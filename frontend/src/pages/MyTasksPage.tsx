@@ -94,7 +94,7 @@ const SORT_FIELD_MAP: Record<string, string> = {
 };
 
 export const MyTasksPage = () => {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "dates"]);
   const { guilds, activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
   const router = useRouter();
