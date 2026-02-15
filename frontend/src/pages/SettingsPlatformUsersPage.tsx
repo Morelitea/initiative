@@ -339,7 +339,9 @@ export const SettingsPlatformUsersPage = () => {
         open={resetPasswordConfirm !== null}
         onOpenChange={(open) => !open && setResetPasswordConfirm(null)}
         title={t("platformUsers.resetPassword")}
-        description={`This will send a password reset email to ${resetPasswordConfirm?.email ?? "this user"}.`}
+        description={t("platformUsers.resetDescription", {
+          email: resetPasswordConfirm?.email ?? "this user",
+        })}
         confirmLabel={t("common:send")}
         onConfirm={confirmResetPassword}
         isLoading={resetPassword.isPending}

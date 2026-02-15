@@ -479,6 +479,7 @@
     "demoteToUser": "Demote to user",
     "demoteDescription": "This will remove platform admin permissions from {{email}}. They will no longer be able to access platform settings.",
     "resetPassword": "Reset password",
+    "resetDescription": "This will send a password reset email to {{email}}.",
     "reactivate": "Reactivate",
     "deleteUser": "Delete user",
     "promoteSuccess": "User promoted to admin",
