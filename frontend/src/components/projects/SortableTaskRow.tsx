@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/select";
 import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
 import { truncateText } from "@/lib/text";
-import { summarizeRecurrence, type TranslateFn } from "@/lib/recurrence";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";

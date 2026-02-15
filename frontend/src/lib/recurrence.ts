@@ -5,9 +5,7 @@ import type {
   TaskWeekPosition,
   TaskWeekday,
 } from "@/types/api";
-
-/** Loose translation function signature compatible with any i18next namespace. */
-export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+import type { TranslateFn } from "@/types/i18n";
 
 export type RecurrencePreset =
   | "none"

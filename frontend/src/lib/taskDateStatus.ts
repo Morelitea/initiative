@@ -1,4 +1,4 @@
-import type { TranslateFn } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 

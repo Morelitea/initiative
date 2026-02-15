@@ -28,7 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SortIcon } from "@/components/SortIcon";
-import { summarizeRecurrence, type TranslateFn } from "@/lib/recurrence";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";

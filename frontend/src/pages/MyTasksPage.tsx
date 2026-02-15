@@ -8,7 +8,8 @@ import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { getItem, setItem } from "@/lib/storage";
-import { summarizeRecurrence, type TranslateFn } from "@/lib/recurrence";
+import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
