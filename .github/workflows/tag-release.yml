@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout repository
@@ -32,3 +33,12 @@ jobs:
           git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
           git push origin "${{ steps.version.outputs.tag }}"
           echo "Created and pushed tag ${{ steps.version.outputs.tag }}"
+
+      - name: Trigger Build and Release workflow
+        run: |
+          gh workflow run "Build and Release" \
+            --ref "${{ steps.version.outputs.tag }}" \
+            -f version="${{ steps.version.outputs.version }}"
+          echo "Triggered Build and Release for ${{ steps.version.outputs.tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
