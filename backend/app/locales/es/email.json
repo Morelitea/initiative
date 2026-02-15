@@ -1,0 +1,70 @@
+{
+  "layout": {
+    "footerDisclaimer": "Este mensaje fue enviado por Initiative. Si no lo esperabas, puedes ignorar este email.",
+    "updateNotifications": "Actualizar configuración de notificaciones"
+  },
+  "test": {
+    "subject": "Prueba de configuración SMTP",
+    "title": "Email de prueba SMTP",
+    "body": "Este es un email de prueba que confirma que la configuración SMTP está correcta."
+  },
+  "verification": {
+    "subject": "Verifica tu cuenta de Initiative",
+    "title": "Verifica tu email",
+    "greeting": "Hola {{name}},",
+    "body": "Confirma tu email para terminar de configurar tu cuenta de Initiative.",
+    "buttonLabel": "Verificar email",
+    "fallbackText": "Si el botón no funciona, copia y pega este enlace en tu navegador:",
+    "textBody": "Confirma tu cuenta de Initiative visitando {{link}}"
+  },
+  "passwordReset": {
+    "subject": "Restablece tu contraseña de Initiative",
+    "title": "Restablece tu contraseña",
+    "greeting": "Hola {{name}},",
+    "body": "Recibimos una solicitud para restablecer tu contraseña de Initiative.",
+    "buttonLabel": "Restablecer contraseña",
+    "fallbackText": "Si no solicitaste esto, puedes ignorar este email. El enlace expira pronto.",
+    "textBody": "Restablece tu contraseña de Initiative visitando {{link}}"
+  },
+  "initiativeAdded": {
+    "subject": "Agregado a la iniciativa {{initiativeName}}",
+    "title": "Te uniste a una nueva iniciativa",
+    "greeting": "Hola {{name}},",
+    "body": "Has sido agregado a la iniciativa <strong>{{initiativeName}}</strong>.",
+    "buttonLabel": "Ver iniciativas",
+    "textBody": "Has sido agregado a la iniciativa {{initiativeName}}. Visita {{link}} para verla."
+  },
+  "projectAdded": {
+    "subject": "Nuevo proyecto en {{initiativeName}}",
+    "title": "Nuevo proyecto en tu iniciativa",
+    "greeting": "Hola {{name}},",
+    "body": "Un nuevo proyecto, <strong>{{projectName}}</strong>, fue agregado a la iniciativa <strong>{{initiativeName}}</strong>.",
+    "buttonLabel": "Abrir proyecto",
+    "textBody": "Un nuevo proyecto, {{projectName}}, fue agregado a la iniciativa {{initiativeName}}. Vélo en {{link}}."
+  },
+  "taskAssignment": {
+    "subject": "Nuevas tareas asignadas a ti",
+    "title": "Resumen de asignación de tareas",
+    "greeting": "Hola {{name}},",
+    "body": "Aquí está tu resumen por hora de tareas asignadas a ti:",
+    "assignedBy": "asignado por {{name}}",
+    "inProject": "en {{projectName}}",
+    "footer": "Visita Initiative para revisar las tareas.",
+    "textBody": "Aquí está tu resumen por hora de tareas asignadas a ti:"
+  },
+  "mention": {
+    "greeting": "Hola {{name}},",
+    "buttonLabel": "Ver"
+  },
+  "overdue": {
+    "subject": "Recordatorio de tareas vencidas",
+    "title": "Recordatorio de tareas vencidas",
+    "greeting": "Hola {{name}},",
+    "body_one": "Tienes {{count}} tarea vencida:",
+    "body_other": "Tienes {{count}} tareas vencidas:",
+    "taskDetail": "proyecto: {{projectName}}, vencida el {{dueDate}}",
+    "footer": "Visita Initiative para ponerte al día.",
+    "textBody_one": "Tienes {{count}} tarea vencida:",
+    "textBody_other": "Tienes {{count}} tareas vencidas:"
+  }
+}

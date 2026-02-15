@@ -40,6 +40,7 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -63,6 +64,7 @@ interface PermissionRow {
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const router = useRouter();
@@ -690,7 +692,10 @@ export const DocumentSettingsPage = () => {
           <p className="font-medium">{document.title}</p>
           <p>
             {t("detail.updated", {
-              date: formatDistanceToNow(new Date(document.updated_at), { addSuffix: true }),
+              date: formatDistanceToNow(new Date(document.updated_at), {
+                addSuffix: true,
+                locale: dateLocale,
+              }),
             })}
           </p>
           {document.initiative ? (

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
 import type { GuildInviteRead, GuildRole, UserGuildMember } from "@/types/api";
@@ -38,6 +39,7 @@ const inviteLinkForCode = (code: string) => {
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
   const { t } = useTranslation("guilds");
+  const dateLocale = useDateLocale();
 
   const { activeGuild } = useGuilds();
   // Guild admin check is based on guild membership role only (independent from platform role)
@@ -353,7 +355,10 @@ export const SettingsUsersPage = () => {
               const link = inviteLinkForCode(invite.code);
               const expires =
                 invite.expires_at != null
-                  ? formatDistanceToNow(new Date(invite.expires_at), { addSuffix: true })
+                  ? formatDistanceToNow(new Date(invite.expires_at), {
+                      addSuffix: true,
+                      locale: dateLocale,
+                    })
                   : "Never";
               return (
                 <div

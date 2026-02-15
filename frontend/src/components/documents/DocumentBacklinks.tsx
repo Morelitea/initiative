@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 
 import { getDocumentBacklinks } from "@/api/documents";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -16,6 +17,7 @@ interface DocumentBacklinksProps {
 
 export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
   const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const [isOpen, setIsOpen] = useState(true);
   const gp = useGuildPath();
 
@@ -74,7 +76,10 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
                   <div className="flex-1 truncate">
                     <span className="text-sm group-hover:underline">{backlink.title}</span>
                     <span className="text-muted-foreground ml-2 text-xs">
-                      {formatDistanceToNow(new Date(backlink.updated_at), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(backlink.updated_at), {
+                        addSuffix: true,
+                        locale: dateLocale,
+                      })}
                     </span>
                   </div>
                 </Link>

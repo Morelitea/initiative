@@ -555,5 +555,29 @@
       "everyYear": "Every year on {{month}} {{day}}",
       "everyNYears": "Every {{count}} years on {{month}} {{day}}"
     }
+  },
+
+  "calendarView": {
+    "subtitle": "See task start and due dates at a glance.",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "start": "Start",
+    "due": "Due",
+    "more": "+{{count}} more"
+  },
+
+  "ganttView": {
+    "title": "Timeline",
+    "subtitle": "Plan start and due dates over the next few weeks.",
+    "window": "Window",
+    "days": "{{count}} days",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "previousWeeks": "Show previous weeks",
+    "nextWeeks": "Show next weeks",
+    "taskColumn": "Task",
+    "noTasks": "No tasks to display.",
+    "outsideRange": "Outside current range"
   }
 }

@@ -46,6 +46,7 @@ import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialo
 import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { BulkEditAccessDialog } from "@/components/documents/BulkEditAccessDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
   useMyInitiativePermissions,
@@ -197,6 +198,7 @@ export const DocumentsView = ({
   canCreate,
 }: DocumentsViewProps) => {
   const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -715,7 +717,7 @@ export const DocumentsView = ({
           return (
             <div className="min-w-[100px] sm:min-w-0">
               <span className="text-muted-foreground">
-                {formatDistanceToNow(updatedAt, { addSuffix: true })}
+                {formatDistanceToNow(updatedAt, { addSuffix: true, locale: dateLocale })}
               </span>
             </div>
           );
@@ -787,7 +789,7 @@ export const DocumentsView = ({
         },
       },
     ],
-    [t]
+    [t, dateLocale]
   );
 
   const deleteDocuments = useMutation({

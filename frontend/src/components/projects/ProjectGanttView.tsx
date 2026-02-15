@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { addDays, differenceInCalendarDays, format, parseISO, startOfWeek } from "date-fns";
+import { useTranslation } from "react-i18next";
+import { addDays, differenceInCalendarDays, parseISO, startOfWeek } from "date-fns";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import type { Task } from "@/types/api";
@@ -58,6 +59,7 @@ const normalizeRanges = (tasks: Task[]): NormalizedRange[] =>
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 
 export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGanttViewProps) => {
+  const { t, i18n } = useTranslation("projects");
   const { user } = useAuth();
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
   const [visibleStart, setVisibleStart] = useState(() => startOfWeek(new Date(), { weekStartsOn }));
@@ -83,10 +85,8 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
     <div className="bg-card space-y-4 rounded-xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
         <div>
-          <h3 className="text-lg font-semibold">Timeline</h3>
-          <p className="text-muted-foreground text-sm">
-            Plan start and due dates over the next few weeks.
-          </p>
+          <h3 className="text-lg font-semibold">{t("ganttView.title")}</h3>
+          <p className="text-muted-foreground text-sm">{t("ganttView.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select
@@ -94,12 +94,14 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
             onValueChange={(value) => setDaysVisible(Number(value))}
           >
             <SelectTrigger className="w-28 text-xs">
-              <SelectValue placeholder="Window">{daysVisible} days</SelectValue>
+              <SelectValue placeholder={t("ganttView.window")}>
+                {t("ganttView.days", { count: daysVisible })}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {WINDOW_OPTIONS.map((option) => (
                 <SelectItem key={option} value={String(option)}>
-                  {option} days
+                  {t("ganttView.days", { count: option })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -111,7 +113,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
             onClick={() => handleShift("back")}
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="sr-only">Show previous weeks</span>
+            <span className="sr-only">{t("ganttView.previousWeeks")}</span>
           </Button>
           <Button
             type="button"
@@ -120,7 +122,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
             onClick={() => handleShift("forward")}
           >
             <ArrowRight className="h-4 w-4" />
-            <span className="sr-only">Show next weeks</span>
+            <span className="sr-only">{t("ganttView.nextWeeks")}</span>
           </Button>
         </div>
       </div>
@@ -135,7 +137,9 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
               gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
             }}
           >
-            <div className="border-border bg-card border-r px-3 py-2">Task</div>
+            <div className="border-border bg-card border-r px-3 py-2">
+              {t("ganttView.taskColumn")}
+            </div>
             <div
               className="bg-background/80 grid"
               style={{
@@ -147,15 +151,19 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                   key={day.toISOString()}
                   className="border-border border-l px-2 py-2 text-center"
                 >
-                  <div>{format(day, "MMM d")}</div>
-                  <div className="text-muted-foreground text-[10px]">{format(day, "EEE")}</div>
+                  <div>
+                    {day.toLocaleDateString(i18n.language, { month: "short", day: "numeric" })}
+                  </div>
+                  <div className="text-muted-foreground text-[10px]">
+                    {day.toLocaleDateString(i18n.language, { weekday: "short" })}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
           <div className="divide-y border-t text-xs sm:text-sm">
             {rows.length === 0 ? (
-              <p className="text-muted-foreground px-3 py-6 text-sm">No tasks to display.</p>
+              <p className="text-muted-foreground px-3 py-6 text-sm">{t("ganttView.noTasks")}</p>
             ) : (
               rows.map(({ task, start, end }) => {
                 const startOffset = differenceInCalendarDays(start, visibleStart);
@@ -178,7 +186,8 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                     <div className="border-border bg-card flex flex-col justify-center border-r px-3 py-3">
                       <p className="font-medium">{task.title}</p>
                       <p className="text-muted-foreground text-[11px] sm:text-xs">
-                        {start.toLocaleDateString()} → {end.toLocaleDateString()}
+                        {start.toLocaleDateString(i18n.language)} →{" "}
+                        {end.toLocaleDateString(i18n.language)}
                       </p>
                     </div>
                     <div
@@ -227,7 +236,7 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
                           className="text-muted-foreground px-3 py-3 text-xs"
                           style={{ gridColumn: `1 / ${daysVisible + 1}` }}
                         >
-                          Outside current range
+                          {t("ganttView.outsideRange")}
                         </p>
                       )}
                     </div>

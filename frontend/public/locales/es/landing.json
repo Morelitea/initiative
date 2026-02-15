@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "signIn": "Iniciar sesión",
+    "getStarted": "Comenzar"
+  },
+  "hero": {
+    "tagline": "Hecho para gamers, por gamers",
+    "preTitle": "¿Estás listo para",
+    "titleLine1": "TIRAR POR",
+    "titleLine2": "INICIATIVA",
+    "titleAria": "Tirar por iniciativa",
+    "subtitle": "Una app de gestión de proyectos basada en gremios, diseñada para grupos de juego. Crea tu propio gremio, invita a tu grupo y conquisten misiones juntos.",
+    "ctaStart": "Comienza tu aventura",
+    "ctaSignIn": "Inicia sesión en tu gremio",
+    "scroll": "Desplazar",
+    "loading": "Cargando..."
+  },
+  "heroScreenshot": {
+    "dashboard": "Panel de Initiative"
+  },
+  "stats": {
+    "initiatives": "Iniciativas",
+    "initiativesValue": "Ilimitadas",
+    "partyMembers": "Miembros del grupo",
+    "partyMembersValue": "Sin límites",
+    "openSource": "Código abierto",
+    "openSourceValue": "Para siempre",
+    "selfHosted": "Autoalojado",
+    "selfHostedValue": "Tus datos"
+  },
+  "features": {
+    "sectionLabel": "Arsenal",
+    "title": "Todo lo que tu grupo necesita",
+    "description": "Cada gremio obtiene un espacio de trabajo privado con proyectos, tareas y documentos. Ya sea que estés dirigiendo una campaña, organizando noches de raid o gestionando una comunidad de juego, mantén todo en un solo lugar.",
+    "campaignTitle": "Gestión de campañas",
+    "campaignDescription": "Organiza tus campañas de TTRPG con facilidad. Rastrea historias, NPCs y ganchos de trama a lo largo de múltiples sesiones.",
+    "partyTitle": "Coordinación del grupo",
+    "partyDescription": "Mantén a tu grupo de juego sincronizado. Asigna tareas, programa sesiones y asegúrate de que todos conozcan su rol.",
+    "worldTitle": "Construcción de mundos",
+    "worldDescription": "Documenta tu lore, mapas y detalles del mundo. Construye escenarios ricos que tus jugadores amarán explorar.",
+    "questTitle": "Seguimiento de misiones",
+    "questDescription": "Nunca pierdas el rastro de las misiones secundarias. Gestiona objetivos, recompensas y progresión de la historia en un solo lugar.",
+    "sessionTitle": "Notas de sesión",
+    "sessionDescription": "Documentos colaborativos para resúmenes de sesión, material para jugadores y conocimiento compartido del grupo.",
+    "eventTitle": "Planificación de eventos",
+    "eventDescription": "Coordina noches de juego, horarios de raid y eventos del gremio. Todos se mantienen en la misma página."
+  },
+  "gallery": {
+    "sectionLabel": "Míralo en acción",
+    "title": "Diseñado para tu flujo de trabajo",
+    "projectAlt": "Vista de gestión de proyectos",
+    "projectCaption": "Organiza proyectos con tableros, listas y vistas personalizadas",
+    "documentAlt": "Colaboración en documentos",
+    "documentCaption": "Colabora en documentos con todo tu gremio"
+  },
+  "useCases": {
+    "sectionLabel": "Tu misión te espera",
+    "title": "Tu gremio, a tu manera",
+    "description": "Crea un gremio privado para tu grupo. Invita miembros, organízalos en iniciativas y gestionen proyectos juntos. Todos se mantienen sincronizados y tus datos son tuyos.",
+    "ttrpgName": "Grupos de TTRPG",
+    "ttrpgDesc": "Gestiona campañas, rastrea misiones y comparte notas de sesión con tu grupo de aventureros.",
+    "mmoName": "Gremios de MMO",
+    "mmoDesc": "Coordina horarios de raid, distribución de botín y eventos del gremio.",
+    "esportsName": "Equipos de Esports",
+    "esportsDesc": "Rastrea horarios de práctica, preparación de torneos y objetivos del equipo.",
+    "communityName": "Comunidades de juego",
+    "communityDesc": "Organiza eventos, gestiona proyectos y mantén a tu comunidad participando.",
+    "cta": "Crea tu gremio"
+  },
+  "cta": {
+    "title": "¿Listo para <1>subir de nivel</1>?",
+    "titleReady": "¿Listo para",
+    "titleHighlight": "subir de nivel",
+    "description": "Únete a los grupos de juego que ya usan Initiative para mantenerse organizados y divertirse más juntos.",
+    "button": "Comienza gratis"
+  },
+  "footer": {
+    "copyright": "\u00a9 {{year}} Initiative. Tira alto, mantente organizado."
+  },
+  "screenshot": {
+    "placeholder": "Captura de pantalla"
+  }
+}

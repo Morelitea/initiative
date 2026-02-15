@@ -15,6 +15,15 @@
     "saturday": "Saturday",
     "sunday": "Sunday"
   },
+  "weekdaysShort": {
+    "monday": "Mon",
+    "tuesday": "Tue",
+    "wednesday": "Wed",
+    "thursday": "Thu",
+    "friday": "Fri",
+    "saturday": "Sat",
+    "sunday": "Sun"
+  },
   "months": {
     "1": "January",
     "2": "February",
