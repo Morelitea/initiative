@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Smartphone, Trash2 } from "lucide-react";
 
@@ -358,11 +358,12 @@ export const UserSettingsSecurityPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("security.revokeDialogTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("security.revokeDialogDescriptionPrefix")}{" "}
-              <span className="font-medium">
-                {revokeTarget?.device_name ?? t("security.unknownDevice")}
-              </span>
-              . {t("security.revokeDialogDescriptionSuffix")}
+              <Trans
+                i18nKey="security.revokeDialogDescription"
+                ns="settings"
+                values={{ deviceName: revokeTarget?.device_name ?? t("security.unknownDevice") }}
+                components={{ strong: <span className="font-medium" /> }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

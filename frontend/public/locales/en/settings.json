@@ -71,8 +71,6 @@
     "revoke": "Revoke",
     "revokeDialogTitle": "Revoke device access?",
     "revokeDialogDescription": "This will log out <strong>{{deviceName}}</strong>. They will need to log in again to access your account.",
-    "revokeDialogDescriptionPrefix": "This will log out",
-    "revokeDialogDescriptionSuffix": "They will need to log in again to access your account.",
     "revokeDialogCancel": "Cancel",
     "revokeDialogConfirm": "Revoke access",
     "revoking": "Revoking\u2026",
