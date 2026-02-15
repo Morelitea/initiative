@@ -5,10 +5,11 @@ import { $isRangeSelection, $isRootOrShadowRoot, BaseSelection } from "lexical";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { useUpdateToolbarHandler } from "@/components/ui/editor/editor-hooks/use-update-toolbar";
-import { blockTypeToBlockName } from "@/components/ui/editor/plugins/toolbar/block-format/block-format-data";
+import { useBlockTypeToBlockName } from "@/components/ui/editor/plugins/toolbar/block-format/block-format-data";
 import { Select, SelectContent, SelectGroup, SelectTrigger } from "@/components/ui/select";
 
 export function BlockFormatDropDown({ children }: { children: React.ReactNode }) {
+  const blockTypeToBlockName = useBlockTypeToBlockName();
   const { activeEditor, blockType, setBlockType } = useToolbarContext();
 
   function $updateToolbar(selection: BaseSelection) {

@@ -529,7 +529,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={isUnderline ? "secondary" : "ghost"}
-            aria-label="Underline"
+            aria-label={t("editor.underline")}
             onClick={toggleUnderline}
           >
             <span className="font-semibold underline">U</span>
@@ -538,7 +538,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={isCodeBlock ? "secondary" : "ghost"}
-            aria-label="Code block"
+            aria-label={t("editor.codeBlock")}
             onClick={toggleCodeBlock}
           >
             <Code2 className="h-4 w-4" />
@@ -547,7 +547,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={listType === "bullet" ? "secondary" : "ghost"}
-            aria-label="Bulleted list"
+            aria-label={t("editor.bulletedList")}
             onClick={() => toggleList("bullet")}
           >
             <List className="h-4 w-4" />
@@ -556,7 +556,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={listType === "number" ? "secondary" : "ghost"}
-            aria-label="Numbered list"
+            aria-label={t("editor.numberedList")}
             onClick={() => toggleList("number")}
           >
             <ListOrdered className="h-4 w-4" />
@@ -565,7 +565,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={listType === "check" ? "secondary" : "ghost"}
-            aria-label="Checklist"
+            aria-label={t("editor.checklist")}
             onClick={() => toggleList("check")}
           >
             <ListChecks className="h-4 w-4" />
@@ -574,7 +574,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant="ghost"
-            aria-label="Indent"
+            aria-label={t("editor.indent")}
             onClick={indentSelection}
           >
             <IndentIncrease className="h-4 w-4" />
@@ -583,7 +583,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant="ghost"
-            aria-label="Outdent"
+            aria-label={t("editor.outdent")}
             onClick={outdentSelection}
           >
             <IndentDecrease className="h-4 w-4" />
@@ -592,7 +592,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant="ghost"
-            aria-label="Insert link"
+            aria-label={t("editor.insertLink")}
             onClick={insertLink}
           >
             <LinkIcon className="h-4 w-4" />
@@ -717,7 +717,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant="ghost"
-            aria-label="Undo"
+            aria-label={t("editor.undo")}
             disabled={!canUndo}
             onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
           >
@@ -727,7 +727,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant="ghost"
-            aria-label="Redo"
+            aria-label={t("editor.redo")}
             disabled={!canRedo}
             onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
           >
@@ -745,7 +745,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           type="button"
           size="icon"
           variant="ghost"
-          aria-label="Undo"
+          aria-label={t("editor.undo")}
           disabled={!canUndo}
           onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
         >
@@ -755,7 +755,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           type="button"
           size="icon"
           variant="ghost"
-          aria-label="Redo"
+          aria-label={t("editor.redo")}
           disabled={!canRedo}
           onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
         >
@@ -790,7 +790,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={isBold ? "secondary" : "ghost"}
-        aria-label="Bold"
+        aria-label={t("editor.bold")}
         onClick={toggleBold}
       >
         <Bold className="h-4 w-4" />
@@ -799,7 +799,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={isItalic ? "secondary" : "ghost"}
-        aria-label="Italic"
+        aria-label={t("editor.italic")}
         onClick={toggleItalic}
       >
         <Italic className="h-4 w-4" />
@@ -808,7 +808,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={isUnderline ? "secondary" : "ghost"}
-        aria-label="Underline"
+        aria-label={t("editor.underline")}
         onClick={toggleUnderline}
       >
         <span className="font-semibold underline">U</span>
@@ -817,7 +817,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={isCodeBlock ? "secondary" : "ghost"}
-        aria-label="Code block"
+        aria-label={t("editor.codeBlock")}
         onClick={toggleCodeBlock}
       >
         <Code2 className="h-4 w-4" />
@@ -826,7 +826,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={listType === "bullet" ? "secondary" : "ghost"}
-        aria-label="Bulleted list"
+        aria-label={t("editor.bulletedList")}
         onClick={() => toggleList("bullet")}
       >
         <List className="h-4 w-4" />
@@ -835,7 +835,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={listType === "number" ? "secondary" : "ghost"}
-        aria-label="Numbered list"
+        aria-label={t("editor.numberedList")}
         onClick={() => toggleList("number")}
       >
         <ListOrdered className="h-4 w-4" />
@@ -844,7 +844,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant={listType === "check" ? "secondary" : "ghost"}
-        aria-label="Checklist"
+        aria-label={t("editor.checklist")}
         onClick={() => toggleList("check")}
       >
         <ListChecks className="h-4 w-4" />
@@ -853,7 +853,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant="ghost"
-        aria-label="Indent"
+        aria-label={t("editor.indent")}
         onClick={indentSelection}
       >
         <IndentIncrease className="h-4 w-4" />
@@ -862,7 +862,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant="ghost"
-        aria-label="Outdent"
+        aria-label={t("editor.outdent")}
         onClick={outdentSelection}
       >
         <IndentDecrease className="h-4 w-4" />
@@ -871,7 +871,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         type="button"
         size="icon"
         variant="ghost"
-        aria-label="Insert link"
+        aria-label={t("editor.insertLink")}
         onClick={insertLink}
       >
         <LinkIcon className="h-4 w-4" />
@@ -1031,7 +1031,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={isBold ? "secondary" : "ghost"}
-            aria-label="Bold"
+            aria-label={t("editor.bold")}
             onClick={toggleBold}
           >
             <Bold className="h-4 w-4" />
@@ -1040,7 +1040,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             type="button"
             size="icon"
             variant={isItalic ? "secondary" : "ghost"}
-            aria-label="Italic"
+            aria-label={t("editor.italic")}
             onClick={toggleItalic}
           >
             <Italic className="h-4 w-4" />

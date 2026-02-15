@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { TableIcon } from "lucide-react";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
@@ -6,12 +7,13 @@ import { SelectItem } from "@/components/ui/select";
 
 export function InsertTable() {
   const { activeEditor, showModal } = useToolbarContext();
+  const { t } = useTranslation("documents");
 
   return (
     <SelectItem
       value="table"
       onPointerUp={() =>
-        showModal("Insert Table", (onClose) => (
+        showModal(t("editor.insertTable"), (onClose) => (
           <InsertTableDialog activeEditor={activeEditor} onClose={onClose} />
         ))
       }
@@ -19,7 +21,7 @@ export function InsertTable() {
     >
       <div className="flex items-center gap-1">
         <TableIcon className="size-4" />
-        <span>Table</span>
+        <span>{t("editor.table")}</span>
       </div>
     </SelectItem>
   );

@@ -2,6 +2,7 @@
  * Status badge component showing collaboration state and active collaborators.
  */
 
+import { useTranslation } from "react-i18next";
 import { Circle, CloudOff, RefreshCw, Users, Wifi, WifiOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,8 @@ export function CollaborationStatusBadge({
   isSynced = true,
   className,
 }: CollaborationStatusBadgeProps) {
+  const { t } = useTranslation("documents");
+
   // Don't show anything if not enabled
   if (connectionStatus === "disconnected" && collaborators.length === 0) {
     return null;
@@ -36,31 +39,31 @@ export function CollaborationStatusBadge({
   const statusConfig = {
     connecting: {
       icon: Wifi,
-      label: "Connecting...",
+      label: t("collab.connecting"),
       color: "text-yellow-500",
       bgColor: "bg-yellow-100 dark:bg-yellow-900/20",
     },
     syncing: {
       icon: RefreshCw,
-      label: "Syncing...",
+      label: t("collab.syncing"),
       color: "text-blue-500",
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
     },
     connected: {
       icon: Users,
-      label: "Online",
+      label: t("collab.online"),
       color: "text-green-500",
       bgColor: "bg-green-100 dark:bg-green-900/20",
     },
     disconnected: {
       icon: WifiOff,
-      label: "Offline",
+      label: t("collab.offline"),
       color: "text-muted-foreground",
       bgColor: "bg-muted",
     },
     error: {
       icon: CloudOff,
-      label: "Connection error",
+      label: t("collab.connectionError"),
       color: "text-red-500",
       bgColor: "bg-red-100 dark:bg-red-900/20",
     },
@@ -118,26 +121,24 @@ export function CollaborationStatusBadge({
             </div>
             {collaborators.length > 0 && (
               <div className="space-y-1">
-                <p className="text-xs opacity-70">Active collaborators:</p>
+                <p className="text-xs opacity-70">{t("collab.activeCollaborators")}</p>
                 <ul className="space-y-1">
                   {collaborators.map((c) => (
                     <li key={c.user_id} className="flex items-center gap-2 text-sm">
                       <span className="font-medium">{c.name}</span>
-                      {!c.can_write && <span className="text-xs opacity-70">(viewing)</span>}
+                      {!c.can_write && (
+                        <span className="text-xs opacity-70">{t("collab.viewing")}</span>
+                      )}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
             {connectionStatus === "connected" && collaborators.length === 0 && (
-              <p className="text-xs opacity-70">
-                No other collaborators. Changes sync in real-time when others join.
-              </p>
+              <p className="text-xs opacity-70">{t("collab.noCollaborators")}</p>
             )}
             {connectionStatus === "error" && (
-              <p className="text-xs text-red-500">
-                Failed to connect. Changes will be saved locally.
-              </p>
+              <p className="text-xs text-red-500">{t("collab.failedToConnect")}</p>
             )}
           </div>
         </TooltipContent>
@@ -165,6 +166,7 @@ const AVATAR_COLORS = [
 ];
 
 function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
+  const { t } = useTranslation("documents");
   const colorClass = AVATAR_COLORS[collaborator.user_id % AVATAR_COLORS.length];
   const initials = collaborator.name
     .split(" ")
@@ -189,7 +191,9 @@ function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
         </TooltipTrigger>
         <TooltipContent className="bg-popover text-popover-foreground">
           <span>{collaborator.name}</span>
-          {!collaborator.can_write && <span className="ml-1 opacity-70">(viewing)</span>}
+          {!collaborator.can_write && (
+            <span className="ml-1 opacity-70">{t("collab.viewing")}</span>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -203,6 +207,8 @@ export function CollaborationStatusCompact({
   connectionStatus,
   collaborators,
 }: Pick<CollaborationStatusBadgeProps, "connectionStatus" | "collaborators">) {
+  const { t } = useTranslation("documents");
+
   if (connectionStatus === "disconnected") {
     return null;
   }
@@ -227,8 +233,8 @@ export function CollaborationStatusCompact({
         </TooltipTrigger>
         <TooltipContent className="bg-popover text-popover-foreground">
           {isConnected
-            ? `${collaborators.length} collaborator${collaborators.length !== 1 ? "s" : ""}`
-            : "Connecting..."}
+            ? t("collab.collaborators", { count: collaborators.length })
+            : t("collab.connecting")}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
