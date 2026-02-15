@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Full internationalization (i18n) infrastructure with react-i18next and namespace-based translation loading
+  - 16 translation namespaces covering all app areas: auth, nav, projects, tasks, documents, settings, guilds, initiatives, tags, stats, import, notifications, landing, errors, dates, common
+  - Language selector in user interface settings (infrastructure ready for additional languages)
+  - User `locale` preference stored in database with Alembic migration
+  - Backend email i18n with JSON-based template loader and `{{variable}}` interpolation
+  - Backend error code constants (`messages.py`) mapped to frontend-localized messages via `errors.json`
+- All user-facing strings externalized across the entire application:
+  - Auth flow (login, register, password reset, email verification)
+  - Navigation, sidebar, and guild switcher
+  - Project CRUD, settings, permissions, and kanban/table/timeline views
+  - Task editing, assignments, recurrence, priorities, and status management
+  - Document editor toolbar, comments, mentions, and emoji picker
+  - Initiative and guild management, member tables, and invite flows
+  - User settings (profile, security, notifications, interface, import/export)
+  - Platform admin pages (users, settings, OIDC configuration)
+  - Statistics and reporting pages
+  - Landing page with all marketing copy
+  - Email templates (verification, password reset, task assignment, mentions, overdue notifications)
+
 ## [0.29.1] - 2026-02-13
 
 ### Fixed

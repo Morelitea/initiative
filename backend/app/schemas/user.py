@@ -39,6 +39,7 @@ class UserUpdate(BaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
+    locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
 
 
 class UserPublic(BaseModel):
@@ -91,6 +92,7 @@ class UserRead(UserBase):
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
     color_theme: str = "kobold"
+    locale: str = "en"
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
@@ -134,6 +136,7 @@ class UserSelfUpdate(BaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
+    locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
 
 
 class ProjectBasic(BaseModel):

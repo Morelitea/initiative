@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import EmojiPickerBase, { EmojiClickData, Theme, EmojiStyle } from "emoji-picker-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 
@@ -16,8 +17,9 @@ export const EmojiPicker = ({
   value,
   onChange,
   disabled = false,
-  placeholder = "Pick an emoji",
+  placeholder,
 }: EmojiPickerProps) => {
+  const { t } = useTranslation("common");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +54,7 @@ export const EmojiPicker = ({
         {value ? (
           <span className="text-xl leading-none">{value}</span>
         ) : (
-          <span className="text-sm">{placeholder}</span>
+          <span className="text-sm">{placeholder ?? t("pickEmoji")}</span>
         )}
       </Button>
       {value ? (
@@ -64,7 +66,7 @@ export const EmojiPicker = ({
           onClick={() => onChange(null)}
           disabled={disabled}
         >
-          Clear
+          {t("clear")}
         </Button>
       ) : null}
       {open ? (

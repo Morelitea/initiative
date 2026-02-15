@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { Markdown } from "@/components/Markdown";
@@ -20,6 +21,7 @@ import { guildPath } from "@/lib/guildUrl";
 import { Project } from "@/types/api";
 
 export const TemplatesPage = () => {
+  const { t } = useTranslation("projects");
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
 
@@ -51,11 +53,11 @@ export const TemplatesPage = () => {
   });
 
   if (templatesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading templates…</p>;
+    return <p className="text-muted-foreground text-sm">{t("templates.loading")}</p>;
   }
 
   if (templatesQuery.isError) {
-    return <p className="text-destructive text-sm">Unable to load templates.</p>;
+    return <p className="text-destructive text-sm">{t("templates.loadError")}</p>;
   }
 
   const projects = templatesQuery.data ?? [];
@@ -63,19 +65,15 @@ export const TemplatesPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Project templates</h1>
-        <p className="text-muted-foreground">
-          Standardize best practices and quickly spin up new initiatives using reusable templates.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("tabs.templates")}</h1>
+        <p className="text-muted-foreground">{t("templates.description")}</p>
       </div>
 
       {projects.length === 0 ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>No templates available</CardTitle>
-            <CardDescription>
-              Create a template from any project in the project settings page.
-            </CardDescription>
+            <CardTitle>{t("templates.noTemplates")}</CardTitle>
+            <CardDescription>{t("templates.noTemplatesDescription")}</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -89,12 +87,18 @@ export const TemplatesPage = () => {
                 ) : null}
               </CardHeader>
               <CardContent className="text-muted-foreground space-y-2 text-sm">
-                {project.initiative ? <p>Initiative: {project.initiative.name}</p> : null}
-                <p>Last updated: {new Date(project.updated_at).toLocaleString()}</p>
+                {project.initiative ? (
+                  <p>{t("templates.initiativeLabel", { name: project.initiative.name })}</p>
+                ) : null}
+                <p>
+                  {t("templates.lastUpdated", {
+                    date: new Date(project.updated_at).toLocaleString(),
+                  })}
+                </p>
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3">
                 <Button asChild variant="link" className="px-0">
-                  <Link to={gp(`/projects/${project.id}`)}>View template</Link>
+                  <Link to={gp(`/projects/${project.id}`)}>{t("templates.viewTemplate")}</Link>
                 </Button>
                 {canManageProjects ? (
                   <Button
@@ -103,7 +107,7 @@ export const TemplatesPage = () => {
                     onClick={() => deactivateTemplate.mutate(project.id)}
                     disabled={deactivateTemplate.isPending}
                   >
-                    Stop using as template
+                    {t("templates.stopUsingAsTemplate")}
                   </Button>
                 ) : null}
               </CardFooter>

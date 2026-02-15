@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { CheckSquare, FileText, FolderKanban, User } from "lucide-react";
 
 import { apiClient } from "@/api/client";
@@ -41,19 +42,6 @@ const getIcon = (type: MentionEntityType) => {
   }
 };
 
-const getTypeLabel = (type: MentionEntityType) => {
-  switch (type) {
-    case "user":
-      return "Users";
-    case "task":
-      return "Tasks";
-    case "doc":
-      return "Documents";
-    case "project":
-      return "Projects";
-  }
-};
-
 export const MentionPopover = ({
   type,
   query,
@@ -61,8 +49,19 @@ export const MentionPopover = ({
   onSelect,
   onClose,
 }: MentionPopoverProps) => {
+  const { t } = useTranslation("documents");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  const typeLabels: Record<MentionEntityType, string> = useMemo(
+    () => ({
+      user: t("comments.typeUsers"),
+      task: t("comments.typeTasks"),
+      doc: t("comments.typeDocs"),
+      project: t("comments.typeProjects"),
+    }),
+    [t]
+  );
 
   const { data: suggestions = [], isLoading } = useQuery({
     queryKey: ["mentionSuggestions", type, initiativeId, query],
@@ -137,7 +136,7 @@ export const MentionPopover = ({
         ref={popoverRef}
         className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 rounded-md border p-2 shadow-md"
       >
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
       </div>
     );
   }
@@ -148,7 +147,9 @@ export const MentionPopover = ({
         ref={popoverRef}
         className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 rounded-md border p-2 shadow-md"
       >
-        <p className="text-muted-foreground text-sm">No {getTypeLabel(type).toLowerCase()} found</p>
+        <p className="text-muted-foreground text-sm">
+          {t("comments.noResults", { type: typeLabels[type].toLowerCase() })}
+        </p>
       </div>
     );
   }
@@ -159,7 +160,7 @@ export const MentionPopover = ({
       className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 overflow-hidden rounded-md border shadow-md"
     >
       <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
-        {getTypeLabel(type)}
+        {typeLabels[type]}
       </div>
       <div className="max-h-48 overflow-y-auto">
         {suggestions.map((suggestion, index) => (

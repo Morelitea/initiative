@@ -184,6 +184,8 @@
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
     "weekStartsOnDescription": "Choose which day to show first on calendars and date pickers.",
+    "language": "Language",
+    "languageDescription": "Choose your preferred language for the interface.",
     "updateSuccess": "Interface preferences updated",
     "updateError": "Unable to update interface preferences"
   },

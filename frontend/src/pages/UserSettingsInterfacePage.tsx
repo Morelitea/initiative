@@ -25,6 +25,8 @@ const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.saturday", value: 6 },
 ];
 
+const LANGUAGE_OPTIONS = [{ label: "English", value: "en" }];
+
 interface UserSettingsInterfacePageProps {
   user: User;
   refreshUser: () => Promise<void>;
@@ -34,13 +36,15 @@ export const UserSettingsInterfacePage = ({
   user,
   refreshUser,
 }: UserSettingsInterfacePageProps) => {
-  const { t } = useTranslation(["settings", "dates"]);
+  const { t, i18n } = useTranslation(["settings", "dates"]);
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
+  const [locale, setLocale] = useState(user.locale ?? "en");
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
     setColorTheme(user.color_theme ?? "kobold");
+    setLocale(user.locale ?? "en");
   }, [user]);
 
   const updateInterfacePrefs = useMutation({
@@ -54,6 +58,11 @@ export const UserSettingsInterfacePage = ({
       if (variables.color_theme !== undefined) {
         setColorTheme(String(variables.color_theme));
       }
+      if (variables.locale !== undefined) {
+        const newLocale = String(variables.locale);
+        setLocale(newLocale);
+        void i18n.changeLanguage(newLocale);
+      }
       await refreshUser();
       toast.success(t("interface.updateSuccess"));
     },
@@ -61,6 +70,7 @@ export const UserSettingsInterfacePage = ({
       toast.error(t("interface.updateError"));
       setWeekStartsOn(user.week_starts_on ?? 0);
       setColorTheme(user.color_theme ?? "kobold");
+      setLocale(user.locale ?? "en");
     },
   });
 
@@ -71,6 +81,33 @@ export const UserSettingsInterfacePage = ({
         <CardDescription>{t("interface.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">{t("interface.language")}</p>
+            <p className="text-muted-foreground text-sm">{t("interface.languageDescription")}</p>
+          </div>
+          <Select
+            value={locale}
+            onValueChange={(next) => {
+              setLocale(next);
+              updateInterfacePrefs.mutate({ locale: next });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>
+                {LANGUAGE_OPTIONS.find((l) => l.value === locale)?.label ?? "English"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <SelectItem key={lang.value} value={lang.value}>
+                  {lang.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-medium">{t("interface.colorTheme")}</p>

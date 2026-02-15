@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 import { HelpCircle, MessageSquarePlus } from "lucide-react";
 
 import { apiClient } from "@/api/client";
@@ -67,11 +68,12 @@ export const CommentSection = ({
   onCommentCreated,
   onCommentDeleted,
   onCommentUpdated,
-  title = "Comments",
+  title,
   isLoading = false,
   canModerate = false,
   initiativeId,
 }: CommentSectionProps) => {
+  const { t } = useTranslation("documents");
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export const CommentSection = ({
           return;
         }
       }
-      setError("Unable to post comment right now.");
+      setError(t("comments.errorCreate"));
     },
   });
 
@@ -117,7 +119,7 @@ export const CommentSection = ({
           return;
         }
       }
-      setDeleteError("Unable to delete comment right now.");
+      setDeleteError(t("comments.errorDelete"));
     },
   });
 
@@ -144,7 +146,7 @@ export const CommentSection = ({
           return;
         }
       }
-      setEditError("Unable to update comment right now.");
+      setEditError(t("comments.errorUpdate"));
     },
   });
 
@@ -182,7 +184,7 @@ export const CommentSection = ({
   const handleSubmit = (commentContent: string) => {
     const normalized = commentContent.trim();
     if (!normalized) {
-      setError("Content is required.");
+      setError(t("comments.contentRequired"));
       return;
     }
     createComment.mutate(buildPayload(normalized));
@@ -215,7 +217,7 @@ export const CommentSection = ({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageSquarePlus className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-            <h3>{title}</h3>
+            <h3>{title ?? t("comments.title")}</h3>
           </div>
           <HoverCard>
             <HoverCardTrigger asChild>
@@ -224,19 +226,23 @@ export const CommentSection = ({
               </button>
             </HoverCardTrigger>
             <HoverCardContent side="left" align="start" className="w-56">
-              <p className="text-sm font-medium">Mention syntax</p>
+              <p className="text-sm font-medium">{t("comments.mentionSyntax")}</p>
               <ul className="mt-2 space-y-1.5 text-sm">
                 <li>
-                  <code className="bg-muted rounded px-1 text-xs">@</code> mention a user
+                  <code className="bg-muted rounded px-1 text-xs">@</code>{" "}
+                  {t("comments.mentionUser")}
                 </li>
                 <li>
-                  <code className="bg-muted rounded px-1 text-xs">#task:</code> link a task
+                  <code className="bg-muted rounded px-1 text-xs">#task:</code>{" "}
+                  {t("comments.mentionTask")}
                 </li>
                 <li>
-                  <code className="bg-muted rounded px-1 text-xs">#doc:</code> link a document
+                  <code className="bg-muted rounded px-1 text-xs">#doc:</code>{" "}
+                  {t("comments.mentionDoc")}
                 </li>
                 <li>
-                  <code className="bg-muted rounded px-1 text-xs">#project:</code> link a project
+                  <code className="bg-muted rounded px-1 text-xs">#project:</code>{" "}
+                  {t("comments.mentionProject")}
                 </li>
               </ul>
             </HoverCardContent>
@@ -257,7 +263,7 @@ export const CommentSection = ({
 
         <div className="mt-4 space-y-3">
           {isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading comments...</p>
+            <p className="text-muted-foreground text-sm">{t("comments.loading")}</p>
           ) : hasComments ? (
             commentTree.map((comment) => (
               <CommentThread
@@ -278,9 +284,7 @@ export const CommentSection = ({
               />
             ))
           ) : (
-            <p className="text-muted-foreground text-sm">
-              No comments yet. Be the first to contribute.
-            </p>
+            <p className="text-muted-foreground text-sm">{t("comments.empty")}</p>
           )}
           {deleteError && !deleteComment.variables && (
             <p className="text-destructive text-sm">{deleteError}</p>
