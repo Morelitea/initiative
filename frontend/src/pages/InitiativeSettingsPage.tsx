@@ -85,7 +85,7 @@ export const InitiativeSettingsPage = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { t } = useTranslation("initiatives");
+  const { t } = useTranslation(["initiatives", "common"]);
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();

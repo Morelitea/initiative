@@ -50,7 +50,7 @@ export function TagPicker({
   className,
   variant = "default",
 }: TagPickerProps) {
-  const { t } = useTranslation("tags");
+  const { t } = useTranslation(["tags", "common"]);
   const resolvedPlaceholder = placeholder ?? t("picker.defaultPlaceholder");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");

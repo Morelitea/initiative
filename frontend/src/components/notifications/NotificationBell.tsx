@@ -234,7 +234,12 @@ export const NotificationBell = () => {
                 onClick={() => void handleNotificationClick(notification)}
               >
                 <div className="flex-1">
-                  <p className="text-foreground text-sm">{notificationText(notification, t)}</p>
+                  <p className="text-foreground text-sm">
+                    {notificationText(
+                      notification,
+                      t as (key: string, options?: Record<string, unknown>) => string
+                    )}
+                  </p>
                   <p className="text-muted-foreground mt-1 text-xs">
                     {new Date(notification.created_at).toLocaleString()}
                   </p>

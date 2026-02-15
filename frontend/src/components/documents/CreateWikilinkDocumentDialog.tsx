@@ -48,7 +48,7 @@ export function CreateWikilinkDocumentDialog({
   canCreate,
   onCreated,
 }: CreateWikilinkDocumentDialogProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const { activeGuildId } = useGuilds();
   const { user } = useAuth();

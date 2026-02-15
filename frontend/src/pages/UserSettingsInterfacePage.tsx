@@ -157,15 +157,15 @@ export const UserSettingsInterfacePage = ({
             <SelectTrigger className="sm:w-52">
               <SelectValue>
                 {t(
-                  WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.labelKey ??
-                    "dates:weekdays.sunday"
+                  (WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.labelKey ??
+                    "dates:weekdays.sunday") as never
                 )}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {WEEK_START_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={String(option.value)}>
-                  {t(option.labelKey)}
+                  {t(option.labelKey as never)}
                 </SelectItem>
               ))}
             </SelectContent>

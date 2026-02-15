@@ -116,7 +116,9 @@ export const UserSettingsImportPage = () => {
                       </span>
                     )}
                   </div>
-                  <p className="text-muted-foreground text-sm">{t(platform.descriptionKey)}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {t(platform.descriptionKey as never)}
+                  </p>
                 </div>
               </button>
             ))}

@@ -93,7 +93,7 @@ export const TaskEditPage = () => {
   const router = useRouter();
   useAuth();
   const { activeGuild } = useGuilds();
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "common"]);
   const gp = useGuildPath();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -660,7 +660,7 @@ export const TaskEditPage = () => {
                     <SelectContent>
                       {priorityOrder.map((value) => (
                         <SelectItem key={value} value={value}>
-                          {t(`priority.${value}`)}
+                          {t(`priority.${value}` as never)}
                         </SelectItem>
                       ))}
                     </SelectContent>

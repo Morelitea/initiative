@@ -197,7 +197,7 @@ export const DocumentsView = ({
   fixedTagIds,
   canCreate,
 }: DocumentsViewProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const dateLocale = useDateLocale();
   const router = useRouter();
   const queryClient = useQueryClient();

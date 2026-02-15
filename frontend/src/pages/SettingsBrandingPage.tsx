@@ -182,7 +182,7 @@ export const SettingsBrandingPage = () => {
             <form className="space-y-6" onSubmit={handleRoleSubmit}>
               {ROLE_FIELDS.map((field) => (
                 <div key={field.key} className="space-y-2">
-                  <Label htmlFor={`role-label-${field.key}`}>{t(field.labelKey)}</Label>
+                  <Label htmlFor={`role-label-${field.key}`}>{t(field.labelKey as never)}</Label>
                   <Input
                     id={`role-label-${field.key}`}
                     value={roleFormState[field.key]}
@@ -190,7 +190,7 @@ export const SettingsBrandingPage = () => {
                     maxLength={64}
                     required
                   />
-                  <p className="text-muted-foreground text-xs">{t(field.helperKey)}</p>
+                  <p className="text-muted-foreground text-xs">{t(field.helperKey as never)}</p>
                 </div>
               ))}
               <div className="flex flex-col gap-2">

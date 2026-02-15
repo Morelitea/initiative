@@ -26,7 +26,7 @@ interface PlatformAdminCountResponse {
 }
 
 export const SettingsPlatformUsersPage = () => {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);

@@ -189,7 +189,7 @@ export function AutoEmbedPlugin(): JSX.Element {
   const { t } = useTranslation("documents");
 
   const getContentName = (config: CustomEmbedConfig) =>
-    config.contentNameKey ? t(config.contentNameKey) : config.contentName;
+    config.contentNameKey ? t(config.contentNameKey as never) : config.contentName;
 
   const openEmbedModal = (embedConfig: CustomEmbedConfig) => {
     showModal(t("editor.embedContent", { contentName: getContentName(embedConfig) }), (onClose) => (

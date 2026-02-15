@@ -76,7 +76,7 @@ export const ProjectTaskStatusesManager = ({
   projectId,
   canManage,
 }: ProjectTaskStatusesManagerProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
 
   const categoryOptions = useMemo(
     () =>

@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SortIcon } from "@/components/SortIcon";
-import { summarizeRecurrence } from "@/lib/recurrence";
+import { summarizeRecurrence, type TranslateFn } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
@@ -177,7 +177,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ getValue }) => (
           <span className="text-base font-medium">
-            {getTaskDateStatusLabel(getValue<string>(), t)}
+            {getTaskDateStatusLabel(getValue<string>(), t as TranslateFn)}
           </span>
         ),
         enableHiding: true,
@@ -503,7 +503,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
         referenceDate: task.start_date || task.due_date,
         strategy: task.recurrence_strategy,
       },
-      t
+      t as TranslateFn
     );
     return summary ? truncateText(summary, 100) : null;
   }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy, t]);

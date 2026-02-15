@@ -25,7 +25,7 @@ interface LeaveGuildDialogProps {
 }
 
 export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialogProps) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation(["guilds", "common"]);
   const { guilds, refreshGuilds, switchGuild, activeGuildId } = useGuilds();
   const [loading, setLoading] = useState(true);
   const [leaving, setLeaving] = useState(false);

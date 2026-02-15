@@ -11,7 +11,7 @@ export function EmbedsPickerPlugin({ embed }: { embed: "tweet" | "youtube-video"
   const { t } = useTranslation("documents");
   const embedConfig = EmbedConfigs.find((config) => config.type === embed) as CustomEmbedConfig;
   const contentName = embedConfig.contentNameKey
-    ? t(embedConfig.contentNameKey)
+    ? t(embedConfig.contentNameKey as never)
     : embedConfig.contentName;
 
   return new ComponentPickerOption(t("editor.embedContent", { contentName }), {

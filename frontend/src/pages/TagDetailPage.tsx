@@ -33,7 +33,7 @@ import { ProjectsView } from "@/pages/ProjectsPage";
 import { DocumentsView } from "@/pages/DocumentsPage";
 
 export const TagDetailPage = () => {
-  const { t } = useTranslation("tags");
+  const { t } = useTranslation(["tags", "common"]);
   const { tagId: tagIdParam } = useParams({ strict: false }) as { tagId: string };
   const parsedTagId = Number(tagIdParam);
   const hasValidTagId = Number.isFinite(parsedTagId) && parsedTagId > 0;

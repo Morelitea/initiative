@@ -26,7 +26,7 @@ interface GuildContextMenuProps {
 
 export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => {
   const router = useRouter();
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation(["guilds", "nav"]);
   const { switchGuild, activeGuildId } = useGuilds();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 

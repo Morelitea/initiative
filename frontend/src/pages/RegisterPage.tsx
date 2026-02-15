@@ -24,7 +24,7 @@ interface RegisterPageProps {
 }
 
 export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["auth", "common"]);
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { register, login } = useAuth();

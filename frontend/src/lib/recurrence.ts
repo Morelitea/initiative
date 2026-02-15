@@ -1,5 +1,3 @@
-import type { TFunction } from "i18next";
-
 import type {
   TaskRecurrence,
   TaskRecurrenceFrequency,
@@ -7,6 +5,9 @@ import type {
   TaskWeekPosition,
   TaskWeekday,
 } from "@/types/api";
+
+/** Loose translation function signature compatible with any i18next namespace. */
+export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 export type RecurrencePreset =
   | "none"
@@ -203,7 +204,7 @@ export const detectRecurrencePreset = (rule: TaskRecurrence | null): RecurrenceP
   return "custom";
 };
 
-const formatWeekdayList = (weekdays: TaskWeekday[], t?: TFunction) => {
+const formatWeekdayList = (weekdays: TaskWeekday[], t?: TranslateFn) => {
   if (!weekdays.length) {
     return "";
   }
@@ -223,7 +224,7 @@ const formatWeekdayList = (weekdays: TaskWeekday[], t?: TFunction) => {
   }
 };
 
-const formatEnding = (rule: TaskRecurrence, t?: TFunction) => {
+const formatEnding = (rule: TaskRecurrence, t?: TranslateFn) => {
   if (rule.ends === "on_date" && rule.end_date) {
     // Parse date-only string as local date to avoid timezone issues
     const match = rule.end_date.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -243,7 +244,7 @@ const formatEnding = (rule: TaskRecurrence, t?: TFunction) => {
   return "";
 };
 
-const describeMonthlyDetail = (rule: TaskRecurrence, t?: TFunction) => {
+const describeMonthlyDetail = (rule: TaskRecurrence, t?: TranslateFn) => {
   if (rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number") {
     return t
       ? t("dates:recurrenceSummary.onDay", { day: rule.day_of_month })
@@ -269,7 +270,7 @@ const describeMonthlyDetail = (rule: TaskRecurrence, t?: TFunction) => {
 export const summarizeRecurrence = (
   rule: TaskRecurrence | null,
   options?: { referenceDate?: string | null; strategy?: TaskRecurrenceStrategy },
-  t?: TFunction
+  t?: TranslateFn
 ): string => {
   if (!rule) {
     return t ? t("dates:recurrenceSummary.doesNotRepeat") : "Does not repeat";
