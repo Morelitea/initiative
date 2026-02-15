@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useRouter, useParams } from "@tanstack/react-router";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +7,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath, extractSubPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
+  const { t } = useTranslation("settings");
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.role === "admin";
   const location = useLocation();
@@ -20,21 +22,21 @@ export const GuildSettingsLayout = () => {
     () => [
       {
         value: "guild",
-        label: "Guild",
+        label: t("guildLayout.tabs.guild"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings") : "/settings",
       },
       {
         value: "ai",
-        label: "AI",
+        label: t("guildLayout.tabs.ai"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/ai") : "/settings/ai",
       },
       {
         value: "users",
-        label: "Users",
+        label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
     ],
-    [urlGuildId]
+    [urlGuildId, t]
   );
 
   const canViewSettings = isGuildAdmin;
@@ -43,10 +45,8 @@ export const GuildSettingsLayout = () => {
   if (!canViewSettings) {
     return (
       <div className="space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight">Guild settings</h1>
-        <p className="text-muted-foreground text-sm">
-          You need additional permissions to view this page.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("guildLayout.title")}</h1>
+        <p className="text-muted-foreground text-sm">{t("guildLayout.permissionDenied")}</p>
       </div>
     );
   }
@@ -75,8 +75,8 @@ export const GuildSettingsLayout = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Guild settings</h1>
-        <p className="text-muted-foreground">Manage workspace membership and guild details.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("guildLayout.title")}</h1>
+        <p className="text-muted-foreground">{t("guildLayout.subtitle")}</p>
       </div>
       <Tabs
         value={activeTab}

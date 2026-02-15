@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { useTranslation } from "react-i18next";
 import { Pencil, Reply, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
@@ -44,6 +46,8 @@ export const CommentThread = ({
   docTitles = new Map(),
   projectNames = new Map(),
 }: CommentThreadProps) => {
+  const { t } = useTranslation(["documents", "common"]);
+  const dateLocale = useDateLocale();
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -102,8 +106,11 @@ export const CommentThread = ({
               <span className="whitespace-nowrap">
                 {formatDistanceToNow(new Date(comment.created_at), {
                   addSuffix: true,
+                  locale: dateLocale,
                 })}
-                {isEdited && <span className="text-muted-foreground ml-1">(edited)</span>}
+                {isEdited && (
+                  <span className="text-muted-foreground ml-1">{t("comments.edited")}</span>
+                )}
               </span>
               {!isEditing && (
                 <div className="ml-auto flex items-center gap-1">
@@ -115,7 +122,7 @@ export const CommentThread = ({
                     onClick={() => setIsReplying(!isReplying)}
                   >
                     <Reply className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">Reply</span>
+                    <span className="sr-only sm:not-sr-only sm:ml-1">{t("comments.reply")}</span>
                   </Button>
                   {canEdit && (
                     <Button
@@ -126,7 +133,7 @@ export const CommentThread = ({
                       onClick={() => setIsEditing(true)}
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="sr-only sm:not-sr-only sm:ml-1">Edit</span>
+                      <span className="sr-only sm:not-sr-only sm:ml-1">{t("common:edit")}</span>
                     </Button>
                   )}
                   {canDelete && (
@@ -139,7 +146,7 @@ export const CommentThread = ({
                       onClick={() => onDelete(comment.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="sr-only">Delete</span>
+                      <span className="sr-only">{t("comments.deleteComment")}</span>
                     </Button>
                   )}
                 </div>
@@ -152,15 +159,15 @@ export const CommentThread = ({
                     value={editContent}
                     onChange={setEditContent}
                     onSubmit={handleEditSubmit}
-                    placeholder="Edit your comment..."
-                    submitLabel="Save"
+                    placeholder={t("comments.editPlaceholder")}
+                    submitLabel={t("common:save")}
                     isSubmitting={isSubmitting}
                     initiativeId={initiativeId}
                     autoFocus
                     compact
                   />
                   <Button type="button" variant="ghost" size="sm" onClick={handleEditCancel}>
-                    Cancel
+                    {t("common:cancel")}
                   </Button>
                 </div>
               ) : (
@@ -178,8 +185,8 @@ export const CommentThread = ({
             value={replyContent}
             onChange={setReplyContent}
             onSubmit={handleReplySubmit}
-            placeholder="Write a reply..."
-            submitLabel="Reply"
+            placeholder={t("comments.replyPlaceholder")}
+            submitLabel={t("comments.reply")}
             isSubmitting={isSubmitting}
             initiativeId={initiativeId}
             autoFocus
@@ -195,7 +202,7 @@ export const CommentThread = ({
               setReplyContent("");
             }}
           >
-            Cancel
+            {t("common:cancel")}
           </Button>
         </div>
       )}

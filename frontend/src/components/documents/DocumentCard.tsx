@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { FileSpreadsheet, FileText, Presentation, ScrollText } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -19,6 +21,8 @@ interface DocumentCardProps {
 }
 
 export const DocumentCard = ({ document, className, hideInitiative }: DocumentCardProps) => {
+  const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const gp = useGuildPath();
   const projectCount = document.projects.length;
   const commentCount = document.comment_count ?? 0;
@@ -75,13 +79,9 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           {isFileDocument && fileTypeLabel ? (
             <Badge variant="secondary">{fileTypeLabel}</Badge>
           ) : null}
-          {document.is_template ? <Badge variant="outline">Template</Badge> : null}
-          <Badge variant="secondary">
-            {projectCount} project{projectCount === 1 ? "" : "s"}
-          </Badge>
-          <Badge variant="secondary">
-            {commentCount} comment{commentCount === 1 ? "" : "s"}
-          </Badge>
+          {document.is_template ? <Badge variant="outline">{t("card.template")}</Badge> : null}
+          <Badge variant="secondary">{t("card.projects", { count: projectCount })}</Badge>
+          <Badge variant="secondary">{t("card.comments", { count: commentCount })}</Badge>
         </div>
       </div>
       <div className="flex h-full flex-col gap-3 p-4">
@@ -101,7 +101,12 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             </TooltipProvider>
           </div>
           <p className="text-muted-foreground text-xs">
-            Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
+            {t("card.updated", {
+              date: formatDistanceToNow(new Date(document.updated_at), {
+                addSuffix: true,
+                locale: dateLocale,
+              }),
+            })}
           </p>
           {document.initiative && !hideInitiative ? (
             <Link

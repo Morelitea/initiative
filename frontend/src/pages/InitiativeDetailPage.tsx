@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Loader2, Settings } from "lucide-react";
 
 import { apiClient } from "@/api/client";
@@ -28,6 +29,7 @@ export const InitiativeDetailPage = () => {
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
+  const { t } = useTranslation("initiatives");
   const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
@@ -102,7 +104,7 @@ export const InitiativeDetailPage = () => {
     return (
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading initiative...
+        {t("detail.loadingInitiative")}
       </div>
     );
   }
@@ -111,13 +113,11 @@ export const InitiativeDetailPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives">&larr; Back to My Initiatives</Link>
+          <Link to="/initiatives">{t("detail.backToInitiatives")}</Link>
         </Button>
         <div className="rounded-lg border p-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Initiative not found</h1>
-          <p className="text-muted-foreground">
-            The initiative you&apos;re looking for doesn&apos;t exist or you no longer have access.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("detail.notFound")}</h1>
+          <p className="text-muted-foreground">{t("detail.notFoundDescription")}</p>
         </div>
       </div>
     );
@@ -128,17 +128,14 @@ export const InitiativeDetailPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives">&larr; Back to My Initiatives</Link>
+          <Link to="/initiatives">{t("detail.backToInitiatives")}</Link>
         </Button>
         <div className="rounded-lg border p-6">
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
             <h1 className="text-3xl font-semibold tracking-tight">{initiative.name}</h1>
           </div>
-          <p className="text-muted-foreground mt-4">
-            You do not have access to any features in this initiative. Contact an initiative manager
-            for assistance.
-          </p>
+          <p className="text-muted-foreground mt-4">{t("detail.noAccess")}</p>
         </div>
       </div>
     );
@@ -149,24 +146,24 @@ export const InitiativeDetailPage = () => {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-4">
           <Button variant="link" size="sm" asChild className="px-0">
-            <Link to="/initiatives">&larr; Back to My Initiatives</Link>
+            <Link to="/initiatives">{t("detail.backToInitiatives")}</Link>
           </Button>
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
             <h1 className="text-3xl font-semibold tracking-tight">{initiative.name}</h1>
-            {initiative.is_default ? <Badge variant="outline">Default</Badge> : null}
+            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
             {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
           </div>
           {initiative.description ? (
             <Markdown content={initiative.description} className="text-muted-foreground" />
           ) : (
-            <p className="text-muted-foreground text-sm">No description yet.</p>
+            <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
           )}
           <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
+            <span>{t("detail.member", { count: memberCount })}</span>
             <span>
-              {memberCount} {memberCount === 1 ? "member" : "members"}
+              {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
             </span>
-            <span>Updated {new Date(initiative.updated_at).toLocaleDateString()}</span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -177,7 +174,7 @@ export const InitiativeDetailPage = () => {
                 params={{ initiativeId: String(initiative.id) }}
               >
                 <Settings className="mr-2 h-4 w-4" />
-                Initiative settings
+                {t("detail.initiativeSettings")}
               </Link>
             </Button>
           ) : null}
@@ -193,8 +190,8 @@ export const InitiativeDetailPage = () => {
             docsEnabled && projectsEnabled ? "grid-cols-2" : "grid-cols-1"
           }`}
         >
-          {docsEnabled && <TabsTrigger value="documents">Documents</TabsTrigger>}
-          {projectsEnabled && <TabsTrigger value="projects">Projects</TabsTrigger>}
+          {docsEnabled && <TabsTrigger value="documents">{t("detail.documents")}</TabsTrigger>}
+          {projectsEnabled && <TabsTrigger value="projects">{t("detail.projects")}</TabsTrigger>}
         </TabsList>
         {docsEnabled && (
           <TabsContent value="documents" className="mt-6">

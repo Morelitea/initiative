@@ -13,6 +13,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
+from app.core.messages import DocumentMessages, InitiativeMessages
 from app.db.session import reapply_rls_context
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
@@ -82,7 +83,7 @@ async def _get_initiative_or_404(
     result = await session.exec(stmt)
     initiative = result.one_or_none()
     if not initiative:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND)
     return initiative
 
 
@@ -98,7 +99,7 @@ async def _get_document_or_404(
         guild_id=guild_id,
     )
     if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
     return document
 
 
@@ -129,7 +130,7 @@ async def _require_initiative_access(
         user_id=user.id,
     )
     if not membership:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative membership required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.INITIATIVE_MEMBERSHIP_REQUIRED)
 
     # Check specific permission if requested
     if permission_key is not None:
@@ -142,7 +143,7 @@ async def _require_initiative_access(
         if not has_perm:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission required: {permission_key.value}",
+                detail=DocumentMessages.PERMISSION_REQUIRED,
             )
         return
 
@@ -154,7 +155,7 @@ async def _require_initiative_access(
             user=user,
         )
         if not is_manager:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Initiative manager role required")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.MANAGER_REQUIRED)
 
 
 def _role_permission_level_from_document(document: Document, user_id: int) -> DocumentPermissionLevel | None:
@@ -244,7 +245,7 @@ def _require_document_write_access(
     effective = _effective_doc_permission_level(user_level, role_level)
     if effective and effective in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner):
         return
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Document write access required")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.WRITE_ACCESS_REQUIRED)
 
 
 def _get_loaded_permissions(document: Document) -> list[DocumentPermission]:
@@ -285,15 +286,15 @@ def _require_document_access(
         if effective != DocumentPermissionLevel.owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Document owner permission required",
+                detail=DocumentMessages.OWNER_REQUIRED,
             )
         return
 
     if effective is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this document")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.NO_ACCESS)
 
     if access == "write" and effective == DocumentPermissionLevel.read:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.WRITE_ACCESS_REQUIRED)
 
 
 def _get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
@@ -600,7 +601,7 @@ async def _check_duplicate_title(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A document with this title already exists in this initiative",
+            detail=DocumentMessages.TITLE_ALREADY_EXISTS,
         )
 
 
@@ -625,7 +626,7 @@ async def create_document(
     )
     title = document_in.title.strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
 
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
@@ -697,7 +698,7 @@ async def upload_document_file(
     )
     title = title.strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
 
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
@@ -821,7 +822,7 @@ async def update_document(
     if "title" in update_data:
         title = (update_data["title"] or "").strip()
         if not title:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
         # Check for duplicate title in initiative (exclude current document)
         await _check_duplicate_title(
             session,
@@ -888,7 +889,7 @@ async def duplicate_document(
     payload = payload or DocumentDuplicateRequest()
     title = (payload.title or f"{document.title} (Copy)").strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
 
     duplicated = await documents_service.duplicate_document(
         session,
@@ -934,7 +935,7 @@ async def copy_document(
     )
     title = (payload.title or document.title).strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document title is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
 
     duplicated = await documents_service.duplicate_document(
         session,
@@ -966,7 +967,7 @@ async def add_document_member(
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
     _require_document_access(document, current_user, access="write")
     if member_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER)
 
     # Verify user is an initiative member
     initiative_membership = await initiatives_service.get_initiative_membership(
@@ -975,13 +976,13 @@ async def add_document_member(
         user_id=member_in.user_id,
     )
     if not initiative_membership:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User must be an initiative member")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.USER_MUST_BE_MEMBER)
 
     # Check if user already has a permission
     existing = _get_document_permission(document, member_in.user_id)
     if existing:
         if existing.level == DocumentPermissionLevel.owner:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_MODIFY_OWNER)
         existing.level = member_in.level
         session.add(existing)
         await session.commit()
@@ -1014,7 +1015,7 @@ async def add_document_members_bulk(
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
     _require_document_access(document, current_user, access="write")
     if bulk_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER)
 
     if not bulk_in.user_ids:
         return []
@@ -1107,13 +1108,13 @@ async def update_document_member(
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
     _require_document_access(document, current_user, access="write")
     if update_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER)
 
     permission = _get_document_permission(document, user_id)
     if not permission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Permission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.PERMISSION_NOT_FOUND)
     if permission.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot modify owner's permission")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_MODIFY_OWNER)
 
     permission.level = update_in.level
     session.add(permission)
@@ -1138,7 +1139,7 @@ async def remove_document_member(
     if not permission:
         return
     if permission.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the document owner")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_REMOVE_OWNER)
     await session.delete(permission)
     await session.commit()
 
@@ -1219,7 +1220,7 @@ async def generate_summary(
     if document.document_type == DocumentType.file:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="AI summarization is only available for native documents, not file uploads",
+            detail=DocumentMessages.AI_NATIVE_ONLY,
         )
 
     try:
@@ -1263,7 +1264,7 @@ async def set_document_tags(
         if invalid_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid tag IDs: {sorted(invalid_ids)}",
+                detail=DocumentMessages.INVALID_TAG_IDS,
             )
 
     # Remove existing tags
@@ -1319,14 +1320,14 @@ async def add_document_role_permission(
     _require_document_access(document, current_user, access="write")
 
     if role_perm_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE)
 
     # Validate the role belongs to the same initiative as the document
     stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_perm_in.initiative_role_id)
     result = await session.exec(stmt)
     role = result.one_or_none()
     if not role or role.initiative_id != document.initiative_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role must belong to the document's initiative")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.ROLE_WRONG_INITIATIVE)
 
     # Check if already exists
     existing_stmt = select(DocumentRolePermission).where(
@@ -1382,7 +1383,7 @@ async def update_document_role_permission(
     _require_document_access(document, current_user, access="write")
 
     if update_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot assign owner permission to a role")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE)
 
     stmt = select(DocumentRolePermission).where(
         DocumentRolePermission.document_id == document_id,
@@ -1391,7 +1392,7 @@ async def update_document_role_permission(
     result = await session.exec(stmt)
     role_perm = result.one_or_none()
     if not role_perm:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role permission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.ROLE_PERMISSION_NOT_FOUND)
 
     role_perm.level = update_in.level
     session.add(role_perm)

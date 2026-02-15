@@ -1,0 +1,46 @@
+{
+  "detail": {
+    "notFound": "Etiqueta no encontrada",
+    "taggedItems_one": "{{count}} elemento etiquetado",
+    "taggedItems_other": "{{count}} elementos etiquetados",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar etiqueta?",
+    "deleteDescription": "Esto eliminará la etiqueta \"{{name}}\" de todas las tareas, proyectos y documentos. Esta acción no se puede deshacer.",
+    "deleted": "Etiqueta eliminada",
+    "saving": "Guardando\u2026",
+    "save": "Guardar",
+    "tasksTab": "Tareas ({{count}})",
+    "projectsTab": "Proyectos ({{count}})",
+    "documentsTab": "Documentos ({{count}})"
+  },
+  "picker": {
+    "defaultPlaceholder": "Agregar etiquetas...",
+    "createHeading": "Crear nueva etiqueta",
+    "namePlaceholder": "Nombre de la etiqueta",
+    "creating": "Creando\u2026",
+    "create": "Crear",
+    "searchPlaceholder": "Buscar o crear etiquetas...",
+    "loading": "Cargando\u2026",
+    "existingTags": "Etiquetas existentes",
+    "noTagsFound": "No se encontraron etiquetas.",
+    "createTag": "Crear \"{{name}}\"",
+    "selected": "{{count}} seleccionadas"
+  },
+  "tree": {
+    "notTagged": "Sin etiquetar",
+    "collapse": "Contraer",
+    "expand": "Expandir"
+  },
+  "badge": {
+    "remove": "Quitar etiqueta {{name}}"
+  },
+  "updated": "Etiqueta actualizada.",
+  "deleted": "Etiqueta eliminada.",
+  "createError": "No se pudo crear la etiqueta.",
+  "updateError": "No se pudo actualizar la etiqueta.",
+  "deleteError": "No se pudo eliminar la etiqueta.",
+  "taskTagsError": "No se pudieron actualizar las etiquetas de la tarea.",
+  "projectTagsError": "No se pudieron actualizar las etiquetas del proyecto.",
+  "documentTagsError": "No se pudieron actualizar las etiquetas del documento."
+}

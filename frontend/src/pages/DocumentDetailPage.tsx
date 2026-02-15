@@ -14,6 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL, apiClient } from "@/api/client";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
@@ -58,9 +59,12 @@ import type { Comment, DocumentProjectLink, DocumentRead, TagSummary } from "@/t
 import { uploadAttachment } from "@/api/attachments";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 
 export const DocumentDetailPage = () => {
+  const { t } = useTranslation("documents");
+  const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const navigate = useNavigate();
@@ -99,8 +103,8 @@ export const DocumentDetailPage = () => {
     enabled: collaborationEnabled && Number.isFinite(parsedId),
     onError: (error) => {
       // Show toast and fall back to autosave mode on collaboration error
-      toast.error("Collaboration connection failed", {
-        description: error.message || "Switching to offline editing mode",
+      toast.error(t("detail.collaborationFailed"), {
+        description: error.message || t("detail.collaborationFailedDescription"),
       });
       setCollaborationEnabled(false);
     },
@@ -317,7 +321,7 @@ export const DocumentDetailPage = () => {
     },
     onSuccess: (updated) => {
       if (!isAutosaveRef.current) {
-        toast.success("Document saved");
+        toast.success(t("detail.saved"));
       }
       isAutosaveRef.current = false;
       queryClient.setQueryData(["documents", parsedId], updated);
@@ -333,7 +337,7 @@ export const DocumentDetailPage = () => {
     },
     onError: (error) => {
       isAutosaveRef.current = false;
-      const message = error instanceof Error ? error.message : "Unable to save document.";
+      const message = error instanceof Error ? error.message : t("detail.saveError");
       toast.error(message);
     },
   });
@@ -457,17 +461,17 @@ export const DocumentDetailPage = () => {
       return;
     }
     if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file.");
+      toast.error(t("detail.imageFileRequired"));
       return;
     }
     setIsUploadingFeaturedImage(true);
     try {
       const response = await uploadAttachment(file);
       setFeaturedImageUrl(response.url);
-      toast.success("Image uploaded. Save the document to apply changes.");
+      toast.success(t("detail.imageUploaded"));
     } catch (error) {
       console.error(error);
-      toast.error("Failed to upload image.");
+      toast.error(t("detail.imageUploadError"));
     } finally {
       setIsUploadingFeaturedImage(false);
     }
@@ -486,27 +490,27 @@ export const DocumentDetailPage = () => {
       // Immediately save tag changes to the server
       setDocumentTagsMutation.mutate({
         documentId: parsedId,
-        tagIds: newTags.map((t) => t.id),
+        tagIds: newTags.map((tg) => tg.id),
       });
     },
     [parsedId, setDocumentTagsMutation]
   );
 
   if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">Invalid document id.</p>;
+    return <p className="text-destructive">{t("detail.invalidId")}</p>;
   }
 
   if (documentQuery.isLoading) {
     return (
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading document…
+        {t("detail.loading")}
       </div>
     );
   }
 
   if (documentQuery.isError || !document) {
-    return <p className="text-destructive">Document not found.</p>;
+    return <p className="text-destructive">{t("detail.notFound")}</p>;
   }
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
@@ -541,7 +545,7 @@ export const DocumentDetailPage = () => {
                 className="inline-flex items-center gap-2"
               >
                 <Settings className="h-4 w-4" />
-                Document settings
+                {t("detail.settings")}
               </Link>
             </Button>
           )}
@@ -549,10 +553,10 @@ export const DocumentDetailPage = () => {
             variant={sidePanel.isOpen ? "secondary" : "outline"}
             size="sm"
             onClick={sidePanel.toggle}
-            title={sidePanel.isOpen ? "Close panel" : "Open panel"}
+            title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
           >
             <PanelRight className="h-4 w-4" />
-            <span className="sr-only">Toggle side panel</span>
+            <span className="sr-only">{t("detail.togglePanel")}</span>
           </Button>
         </div>
       </div>
@@ -560,7 +564,7 @@ export const DocumentDetailPage = () => {
         <Input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="Document title"
+          placeholder={t("detail.titlePlaceholder")}
           className="text-2xl font-semibold"
           disabled={!canEditDocument}
         />
@@ -575,20 +579,25 @@ export const DocumentDetailPage = () => {
             </Link>
           ) : null}
           <span>
-            Updated {formatDistanceToNow(new Date(document.updated_at), { addSuffix: true })}
+            {t("detail.updated", {
+              date: formatDistanceToNow(new Date(document.updated_at), {
+                addSuffix: true,
+                locale: dateLocale,
+              }),
+            })}
           </span>
-          {document.is_template ? <Badge variant="outline">Template</Badge> : null}
+          {document.is_template ? <Badge variant="outline">{t("detail.template")}</Badge> : null}
         </div>
       </div>
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Metadata</CardTitle>
+            <CardTitle>{t("detail.metadataTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Featured image */}
             <div className="space-y-2">
-              <Label>Featured image</Label>
+              <Label>{t("detail.featuredImage")}</Label>
               <div className="flex flex-col gap-4 md:flex-row md:items-center">
                 <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
                   {featuredImageUrl ? (
@@ -622,12 +631,12 @@ export const DocumentDetailPage = () => {
                         {isUploadingFeaturedImage ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Uploading…
+                            {t("detail.uploading")}
                           </>
                         ) : (
                           <>
                             <ImagePlus className="mr-2 h-4 w-4" />
-                            Upload featured image
+                            {t("detail.uploadImage")}
                           </>
                         )}
                       </Button>
@@ -639,27 +648,24 @@ export const DocumentDetailPage = () => {
                           disabled={isUploadingFeaturedImage}
                         >
                           <X className="mr-2 h-4 w-4" />
-                          Remove image
+                          {t("detail.removeImage")}
                         </Button>
                       ) : null}
                     </div>
                   ) : null}
-                  <p className="text-muted-foreground text-xs">
-                    Uploads are stored locally under <code>/uploads</code>. Remember to save changes
-                    to keep your new image.
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t("detail.uploadHelpText")}</p>
                 </div>
               </div>
             </div>
 
             {/* Tags */}
             <div className="space-y-2">
-              <Label>Tags</Label>
+              <Label>{t("detail.tagsLabel")}</Label>
               <TagPicker
                 selectedTags={tags}
                 onChange={handleTagsChange}
                 disabled={!canEditDocument}
-                placeholder="Add tags..."
+                placeholder={t("detail.tagsPlaceholder")}
               />
             </div>
           </CardContent>
@@ -729,7 +735,7 @@ export const DocumentDetailPage = () => {
                   {/* When collaboration is active, changes sync in real-time */}
                   {collaboration.isCollaborating ? (
                     <span className="text-muted-foreground text-sm">
-                      Changes sync automatically with collaborators
+                      {t("detail.collaborationDescription")}
                     </span>
                   ) : (
                     <>
@@ -741,10 +747,10 @@ export const DocumentDetailPage = () => {
                         {saveDocument.isPending ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving…
+                            {t("detail.saving")}
                           </>
                         ) : (
-                          "Save changes"
+                          t("detail.saveChanges")
                         )}
                       </Button>
                       <div className="flex items-center gap-2">
@@ -754,12 +760,12 @@ export const DocumentDetailPage = () => {
                           onCheckedChange={(checked) => setAutosaveEnabled(checked === true)}
                         />
                         <Label htmlFor="autosave" className="cursor-pointer text-sm">
-                          Autosave
+                          {t("detail.autosave")}
                         </Label>
                       </div>
                       {!isDirty ? (
                         <span className="text-muted-foreground self-center text-sm">
-                          All changes saved
+                          {t("detail.allChangesSaved")}
                         </span>
                       ) : null}
                     </>
@@ -772,14 +778,12 @@ export const DocumentDetailPage = () => {
                       onCheckedChange={(checked) => setCollaborationEnabled(checked === true)}
                     />
                     <Label htmlFor="collaboration" className="cursor-pointer text-sm">
-                      Live collaboration
+                      {t("detail.liveCollaboration")}
                     </Label>
                   </div>
                 </>
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  You only have read access to this document.
-                </p>
+                <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
               )}
             </div>
           </>
@@ -787,14 +791,11 @@ export const DocumentDetailPage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Attached projects</CardTitle>
+            <CardTitle>{t("detail.attachedProjects")}</CardTitle>
           </CardHeader>
           <CardContent>
             {attachedProjects.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                This document is not attached to any projects yet. Attach it from a project detail
-                page.
-              </p>
+              <p className="text-muted-foreground text-sm">{t("detail.noAttachedProjects")}</p>
             ) : (
               <div className="space-y-2">
                 {attachedProjects.map((link) => (
@@ -807,11 +808,15 @@ export const DocumentDetailPage = () => {
                         to={gp(`/projects/${link.project_id}`)}
                         className="font-medium hover:underline"
                       >
-                        {link.project_name ?? `Project #${link.project_id}`}
+                        {link.project_name ?? t("detail.projectFallback", { id: link.project_id })}
                       </Link>
                       <p className="text-muted-foreground text-xs">
-                        Attached{" "}
-                        {formatDistanceToNow(new Date(link.attached_at), { addSuffix: true })}
+                        {t("detail.attached", {
+                          date: formatDistanceToNow(new Date(link.attached_at), {
+                            addSuffix: true,
+                            locale: dateLocale,
+                          }),
+                        })}
                       </p>
                     </div>
                   </div>
@@ -840,7 +845,7 @@ export const DocumentDetailPage = () => {
         commentsContent={
           <>
             {commentsQuery.isError && (
-              <p className="text-destructive mb-4 text-sm">Unable to load comments right now.</p>
+              <p className="text-destructive mb-4 text-sm">{t("detail.commentsLoadError")}</p>
             )}
             <CommentSection
               entityType="document"

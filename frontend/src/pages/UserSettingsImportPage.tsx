@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Upload } from "lucide-react";
 
 import asanaIcon from "@/assets/asana.png";
@@ -14,7 +15,7 @@ import { VikunjaImportDialog } from "@/components/import/VikunjaImportDialog";
 interface ImportPlatform {
   id: string;
   name: string;
-  description: string;
+  descriptionKey: string;
   icon: string;
   available: boolean;
 }
@@ -23,41 +24,42 @@ const IMPORT_PLATFORMS: ImportPlatform[] = [
   {
     id: "todoist",
     name: "Todoist",
-    description: "Import tasks from Todoist CSV export",
+    descriptionKey: "page.platforms.todoist",
     icon: todoistIcon,
     available: true,
   },
   {
     id: "ticktick",
     name: "TickTick",
-    description: "Import tasks from TickTick CSV export",
+    descriptionKey: "page.platforms.ticktick",
     icon: ticktickIcon,
     available: true,
   },
   {
     id: "vikunja",
     name: "Vikunja",
-    description: "Import projects and tasks from Vikunja JSON export",
+    descriptionKey: "page.platforms.vikunja",
     icon: vikunjaIcon,
     available: true,
   },
   {
     id: "trello",
     name: "Trello",
-    description: "Import boards and cards from Trello JSON export",
+    descriptionKey: "page.platforms.trello",
     icon: trelloIcon,
     available: false,
   },
   {
     id: "asana",
     name: "Asana",
-    description: "Import projects and tasks from Asana CSV export",
+    descriptionKey: "page.platforms.asana",
     icon: asanaIcon,
     available: false,
   },
 ];
 
 export const UserSettingsImportPage = () => {
+  const { t } = useTranslation("import");
   const [ticktickDialogOpen, setTicktickDialogOpen] = useState(false);
   const [todoistDialogOpen, setTodoistDialogOpen] = useState(false);
   const [vikunjaDialogOpen, setVikunjaDialogOpen] = useState(false);
@@ -86,12 +88,9 @@ export const UserSettingsImportPage = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
-            Import tasks
+            {t("page.title")}
           </CardTitle>
-          <CardDescription>
-            Import your tasks and projects from other platforms. Select a platform below to get
-            started.
-          </CardDescription>
+          <CardDescription>{t("page.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -113,11 +112,13 @@ export const UserSettingsImportPage = () => {
                     <h3 className="font-medium">{platform.name}</h3>
                     {!platform.available && (
                       <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                        Coming soon
+                        {t("page.comingSoon")}
                       </span>
                     )}
                   </div>
-                  <p className="text-muted-foreground text-sm">{platform.description}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {t(platform.descriptionKey as never)}
+                  </p>
                 </div>
               </button>
             ))}

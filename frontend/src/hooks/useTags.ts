@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -44,6 +45,7 @@ export const useTag = (tagId: number | null) => {
 };
 
 export const useCreateTag = () => {
+  const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
   const { activeGuildId } = useGuilds();
 
@@ -56,13 +58,14 @@ export const useCreateTag = () => {
       void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to create tag.";
+      const message = error instanceof Error ? error.message : t("createError");
       toast.error(message);
     },
   });
 };
 
 export const useUpdateTag = () => {
+  const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
   const { activeGuildId } = useGuilds();
 
@@ -72,17 +75,18 @@ export const useUpdateTag = () => {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Tag updated.");
+      toast.success(t("updated"));
       void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to update tag.";
+      const message = error instanceof Error ? error.message : t("updateError");
       toast.error(message);
     },
   });
 };
 
 export const useDeleteTag = () => {
+  const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
   const { activeGuildId } = useGuilds();
 
@@ -91,19 +95,20 @@ export const useDeleteTag = () => {
       await apiClient.delete(`/tags/${tagId}`);
     },
     onSuccess: () => {
-      toast.success("Tag deleted.");
+      toast.success(t("deleted"));
       void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
       // Also invalidate tasks since they may have had this tag
       void queryClient.invalidateQueries({ queryKey: [TASKS_KEY] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to delete tag.";
+      const message = error instanceof Error ? error.message : t("deleteError");
       toast.error(message);
     },
   });
 };
 
 export const useSetTaskTags = () => {
+  const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -124,7 +129,7 @@ export const useSetTaskTags = () => {
       });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to update task tags.";
+      const message = error instanceof Error ? error.message : t("taskTagsError");
       toast.error(message);
     },
   });
@@ -144,6 +149,7 @@ export const useTagEntities = (tagId: number | null) => {
 };
 
 export const useSetProjectTags = () => {
+  const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -158,13 +164,14 @@ export const useSetProjectTags = () => {
       void queryClient.invalidateQueries({ queryKey: ["project", data.id] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to update project tags.";
+      const message = error instanceof Error ? error.message : t("projectTagsError");
       toast.error(message);
     },
   });
 };
 
 export const useSetDocumentTags = () => {
+  const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -179,7 +186,7 @@ export const useSetDocumentTags = () => {
       void queryClient.invalidateQueries({ queryKey: ["document", data.id] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to update document tags.";
+      const message = error instanceof Error ? error.message : t("documentTagsError");
       toast.error(message);
     },
   });

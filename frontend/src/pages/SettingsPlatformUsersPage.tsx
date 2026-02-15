@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
@@ -25,6 +26,7 @@ interface PlatformAdminCountResponse {
 }
 
 export const SettingsPlatformUsersPage = () => {
+  const { t } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
   const { data: roleLabels } = useRoleLabels();
   const adminLabel = getRoleLabel("admin", roleLabels);
@@ -68,15 +70,14 @@ export const SettingsPlatformUsersPage = () => {
       await apiClient.post(`/admin/users/${userId}/reset-password`, {});
     },
     onSuccess: (_data, userId) => {
-      const targetUser = usersQuery.data?.find((u) => u.id === userId);
-      const userEmail = targetUser?.email || "user";
-      toast.success(`Password reset email sent to ${userEmail}`);
+      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
+      toast.success(t("platformUsers.resetSuccess", { email: userEmail }));
       setResettingUserId(null);
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to send password reset email";
+        t("platformUsers.resetError");
       toast.error(message);
       setResettingUserId(null);
     },
@@ -87,15 +88,14 @@ export const SettingsPlatformUsersPage = () => {
       await apiClient.post(`/admin/users/${userId}/reactivate`, {});
     },
     onSuccess: (_data, userId) => {
-      const targetUser = usersQuery.data?.find((u) => u.id === userId);
-      const userEmail = targetUser?.email || "user";
-      toast.success(`User ${userEmail} has been reactivated`);
+      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
+      toast.success(t("platformUsers.reactivateSuccess", { email: userEmail }));
       void usersQuery.refetch();
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to reactivate user";
+        t("platformUsers.reactivateError");
       toast.error(message);
     },
   });
@@ -119,13 +119,17 @@ export const SettingsPlatformUsersPage = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PLATFORM_USERS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ADMIN_COUNT_QUERY_KEY });
-      toast.success("Platform role updated");
+      toast.success(
+        roleChangeConfirm?.newRole === "admin"
+          ? t("platformUsers.promoteSuccess")
+          : t("platformUsers.demoteSuccess")
+      );
       setRoleChangeConfirm(null);
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to update platform role";
+        t("platformUsers.roleChangeError");
       toast.error(message);
     },
   });
@@ -150,23 +154,23 @@ export const SettingsPlatformUsersPage = () => {
   if (!isAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
-        You need {adminLabel} permissions to view this page.
+        {t("platformUsers.permissionRequired", { adminLabel })}
       </p>
     );
   }
 
   if (usersQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading users…</p>;
+    return <p className="text-muted-foreground text-sm">{t("platformUsers.loading")}</p>;
   }
 
   if (usersQuery.isError || !usersQuery.data) {
-    return <p className="text-destructive text-sm">Unable to load users.</p>;
+    return <p className="text-destructive text-sm">{t("platformUsers.loadError")}</p>;
   }
 
   const userColumns: ColumnDef<User>[] = [
     {
       id: "name",
-      header: "Name",
+      header: t("platformUsers.columnName"),
       cell: ({ row }) => {
         const platformUser = row.original;
         const displayName = platformUser.full_name?.trim() || "—";
@@ -184,7 +188,7 @@ export const SettingsPlatformUsersPage = () => {
         return (
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              Email
+              {t("platformUsers.columnEmail")}
               <SortIcon isSorted={isSorted} />
             </Button>
           </div>
@@ -198,7 +202,7 @@ export const SettingsPlatformUsersPage = () => {
     },
     {
       id: "platform_role",
-      header: "Platform Role",
+      header: t("platformUsers.columnRole"),
       cell: ({ row }) => {
         const platformUser = row.original;
         const isPlatformAdmin = platformUser.role === "admin";
@@ -219,7 +223,7 @@ export const SettingsPlatformUsersPage = () => {
     },
     {
       id: "status",
-      header: "Status",
+      header: t("platformUsers.columnStatus"),
       cell: ({ row }) => {
         const platformUser = row.original;
         return (
@@ -230,14 +234,14 @@ export const SettingsPlatformUsersPage = () => {
                 : "text-muted-foreground text-sm"
             }
           >
-            {platformUser.is_active ? "Active" : "Deactivated"}
+            {platformUser.is_active ? t("platformUsers.active") : t("platformUsers.inactive")}
           </span>
         );
       },
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t("platformUsers.columnActions"),
       cell: ({ row }) => {
         const platformUser = row.original;
         const isResetting = resettingUserId === platformUser.id;
@@ -254,10 +258,10 @@ export const SettingsPlatformUsersPage = () => {
                 size="sm"
                 onClick={() => handleDemote(platformUser.id, platformUser.email)}
                 disabled={isLastAdmin || updatePlatformRole.isPending}
-                title={isLastAdmin ? "Cannot demote the last platform admin" : undefined}
+                title={isLastAdmin ? t("platformUsers.cannotDemoteLastAdmin") : undefined}
               >
                 <ShieldOff className="h-4 w-4" />
-                Demote
+                {t("platformUsers.demoteToUser")}
               </Button>
             )}
             {!isPlatformAdmin && (
@@ -269,7 +273,7 @@ export const SettingsPlatformUsersPage = () => {
                 disabled={updatePlatformRole.isPending}
               >
                 <Shield className="h-4 w-4" />
-                Promote
+                {t("platformUsers.promoteToAdmin")}
               </Button>
             )}
             {!platformUser.is_active ? (
@@ -281,7 +285,7 @@ export const SettingsPlatformUsersPage = () => {
                 disabled={reactivateUser.isPending}
               >
                 <UserCheck className="h-4 w-4" />
-                Reactivate
+                {t("platformUsers.reactivate")}
               </Button>
             ) : (
               <Button
@@ -292,7 +296,7 @@ export const SettingsPlatformUsersPage = () => {
                 disabled={isResetting || resetPassword.isPending}
               >
                 <Mail className="h-4 w-4" />
-                {isResetting ? "Sending..." : "Reset password"}
+                {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </Button>
             )}
             {!isSelf && (
@@ -304,7 +308,7 @@ export const SettingsPlatformUsersPage = () => {
                 className="text-destructive hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
-                Delete
+                {t("platformUsers.deleteUser")}
               </Button>
             )}
           </div>
@@ -317,10 +321,8 @@ export const SettingsPlatformUsersPage = () => {
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Platform users</CardTitle>
-          <CardDescription>
-            View all users across all guilds and send password reset emails.
-          </CardDescription>
+          <CardTitle>{t("platformUsers.title")}</CardTitle>
+          <CardDescription>{t("platformUsers.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <DataTable
@@ -328,7 +330,7 @@ export const SettingsPlatformUsersPage = () => {
             data={usersQuery.data}
             enableFilterInput
             filterInputColumnKey="email"
-            filterInputPlaceholder="Filter by email..."
+            filterInputPlaceholder={t("platformUsers.filterPlaceholder")}
             enableResetSorting
             enablePagination
           />
@@ -338,9 +340,11 @@ export const SettingsPlatformUsersPage = () => {
       <ConfirmDialog
         open={resetPasswordConfirm !== null}
         onOpenChange={(open) => !open && setResetPasswordConfirm(null)}
-        title="Send password reset email?"
-        description={`This will send a password reset email to ${resetPasswordConfirm?.email ?? "this user"}.`}
-        confirmLabel="Send"
+        title={t("platformUsers.resetPassword")}
+        description={t("platformUsers.resetDescription", {
+          email: resetPasswordConfirm?.email ?? "this user",
+        })}
+        confirmLabel={t("common:send")}
         onConfirm={confirmResetPassword}
         isLoading={resetPassword.isPending}
       />
@@ -350,15 +354,23 @@ export const SettingsPlatformUsersPage = () => {
         onOpenChange={(open) => !open && setRoleChangeConfirm(null)}
         title={
           roleChangeConfirm?.newRole === "admin"
-            ? "Promote to platform admin?"
-            : "Demote from platform admin?"
+            ? t("platformUsers.promoteToAdmin")
+            : t("platformUsers.demoteToUser")
         }
         description={
           roleChangeConfirm?.newRole === "admin"
-            ? `This will give ${roleChangeConfirm?.email ?? "this user"} platform admin permissions, allowing them to manage platform settings, users, and configurations.`
-            : `This will remove platform admin permissions from ${roleChangeConfirm?.email ?? "this user"}. They will no longer be able to access platform settings.`
+            ? t("platformUsers.promoteDescription", {
+                email: roleChangeConfirm?.email ?? "this user",
+              })
+            : t("platformUsers.demoteDescription", {
+                email: roleChangeConfirm?.email ?? "this user",
+              })
         }
-        confirmLabel={roleChangeConfirm?.newRole === "admin" ? "Promote" : "Demote"}
+        confirmLabel={
+          roleChangeConfirm?.newRole === "admin"
+            ? t("platformUsers.promoteToAdmin")
+            : t("platformUsers.demoteToUser")
+        }
         onConfirm={confirmRoleChange}
         isLoading={updatePlatformRole.isPending}
       />

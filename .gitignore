@@ -3,7 +3,8 @@
 .env
 .env.*
 !.env.example
-.vscode/
+.vscode/settings.json
+.vscode/.dev_seed_ids.json
 .idea/
 *.log
 uploads/

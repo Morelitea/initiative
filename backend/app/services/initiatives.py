@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import InitiativeMessages
 from app.models.initiative import (
     Initiative,
     InitiativeMember,
@@ -282,7 +283,7 @@ async def assert_initiative_manager(
 ) -> None:
     if await is_initiative_manager(session, initiative_id=initiative_id, user=user):
         return
-    raise PermissionError("Initiative manager role required")
+    raise PermissionError(InitiativeMessages.MANAGER_REQUIRED)
 
 
 async def check_initiative_permission(
@@ -368,7 +369,7 @@ async def ensure_managers_remain(
     result = await session.exec(stmt)
     managers = [membership for membership in result.all() if membership.user_id not in excluded]
     if not managers:
-        raise ValueError("Initiative must have at least one project manager")
+        raise ValueError(InitiativeMessages.MUST_HAVE_PM)
 
 
 async def initiatives_requiring_new_pm(
@@ -601,14 +602,14 @@ async def delete_role(
 ) -> None:
     """Delete a custom role. Cannot delete built-in roles."""
     if role.is_builtin:
-        raise ValueError("Cannot delete built-in roles")
+        raise ValueError(InitiativeMessages.CANNOT_DELETE_BUILTIN)
 
     # Check if any members use this role
     stmt = select(func.count()).where(InitiativeMember.role_id == role.id)
     result = await session.exec(stmt)
     member_count = result.one()
     if member_count > 0:
-        raise ValueError(f"Cannot delete role: {member_count} members are assigned to it")
+        raise ValueError(InitiativeMessages.ROLE_HAS_MEMBERS)
 
     await session.delete(role)
     await session.flush()

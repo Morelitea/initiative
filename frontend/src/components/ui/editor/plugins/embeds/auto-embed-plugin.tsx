@@ -1,4 +1,5 @@
 import { JSX, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AutoEmbedOption,
   EmbedConfig,
@@ -24,6 +25,9 @@ export interface CustomEmbedConfig extends EmbedConfig {
   // Human readable name of the embeded content e.g. Tweet or Google Map.
   contentName: string;
 
+  // i18n key for the content name (e.g. "editor.youtubeVideo").
+  contentNameKey?: string;
+
   // Icon for display.
   icon?: JSX.Element;
 
@@ -39,6 +43,7 @@ export interface CustomEmbedConfig extends EmbedConfig {
 
 export const YoutubeEmbedConfig: CustomEmbedConfig = {
   contentName: "Youtube Video",
+  contentNameKey: "editor.youtubeVideo",
 
   exampleUrl: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
 
@@ -73,6 +78,7 @@ export const YoutubeEmbedConfig: CustomEmbedConfig = {
 export const TwitterEmbedConfig: CustomEmbedConfig = {
   // e.g. Tweet or Google Map.
   contentName: "Tweet",
+  contentNameKey: "editor.tweet",
 
   exampleUrl: "https://twitter.com/jack/status/20",
 
@@ -123,6 +129,7 @@ export function AutoEmbedDialog({
   embedConfig: CustomEmbedConfig;
   onClose: () => void;
 }): JSX.Element {
+  const { t } = useTranslation("documents");
   const [text, setText] = useState("");
   const [editor] = useLexicalComposerContext();
   const [embedResult, setEmbedResult] = useState<EmbedMatchResult | null>(null);
@@ -169,7 +176,7 @@ export function AutoEmbedDialog({
             onClick={onClick}
             data-test-id={`${embedConfig.type}-embed-modal-submit-btn`}
           >
-            Embed
+            {t("editor.embed")}
           </Button>
         </DialogFooter>
       </div>
@@ -179,9 +186,13 @@ export function AutoEmbedDialog({
 
 export function AutoEmbedPlugin(): JSX.Element {
   const [modal, showModal] = useEditorModal();
+  const { t } = useTranslation("documents");
+
+  const getContentName = (config: CustomEmbedConfig) =>
+    config.contentNameKey ? t(config.contentNameKey as never) : config.contentName;
 
   const openEmbedModal = (embedConfig: CustomEmbedConfig) => {
-    showModal(`Embed ${embedConfig.contentName}`, (onClose) => (
+    showModal(t("editor.embedContent", { contentName: getContentName(embedConfig) }), (onClose) => (
       <AutoEmbedDialog embedConfig={embedConfig} onClose={onClose} />
     ));
   };
@@ -192,12 +203,15 @@ export function AutoEmbedPlugin(): JSX.Element {
     dismissFn: () => void
   ) => {
     return [
-      new AutoEmbedOption("Dismiss", {
+      new AutoEmbedOption(t("editor.dismiss"), {
         onSelect: dismissFn,
       }),
-      new AutoEmbedOption(`Embed ${activeEmbedConfig.contentName}`, {
-        onSelect: embedFn,
-      }),
+      new AutoEmbedOption(
+        t("editor.embedContent", { contentName: getContentName(activeEmbedConfig) }),
+        {
+          onSelect: embedFn,
+        }
+      ),
     ];
   };
 

@@ -1,0 +1,70 @@
+{
+  "status": {
+    "overdue": "Vencida",
+    "today": "Hoy",
+    "thisWeek": "Esta semana",
+    "thisMonth": "Este mes",
+    "later": "Más tarde"
+  },
+  "weekdays": {
+    "monday": "Lunes",
+    "tuesday": "Martes",
+    "wednesday": "Miércoles",
+    "thursday": "Jueves",
+    "friday": "Viernes",
+    "saturday": "Sábado",
+    "sunday": "Domingo"
+  },
+  "weekdaysShort": {
+    "monday": "Lun",
+    "tuesday": "Mar",
+    "wednesday": "Mié",
+    "thursday": "Jue",
+    "friday": "Vie",
+    "saturday": "Sáb",
+    "sunday": "Dom"
+  },
+  "months": {
+    "1": "Enero",
+    "2": "Febrero",
+    "3": "Marzo",
+    "4": "Abril",
+    "5": "Mayo",
+    "6": "Junio",
+    "7": "Julio",
+    "8": "Agosto",
+    "9": "Septiembre",
+    "10": "Octubre",
+    "11": "Noviembre",
+    "12": "Diciembre"
+  },
+  "positions": {
+    "first": "primer",
+    "second": "segundo",
+    "third": "tercer",
+    "fourth": "cuarto",
+    "last": "último"
+  },
+  "recurrenceSummary": {
+    "doesNotRepeat": "No se repite",
+    "repeats": "Se repite {{schedule}}",
+    "everySingular": "cada {{unit}}",
+    "everyPlural": "cada {{count}} {{unit}}",
+    "day": "día",
+    "days": "días",
+    "week": "semana",
+    "weeks": "semanas",
+    "month": "mes",
+    "months": "meses",
+    "year": "año",
+    "years": "años",
+    "onWeekdays": "los {{weekdays}}",
+    "onDay": "el día {{day}}",
+    "onPositionWeekday": "el {{position}} {{weekday}}",
+    "detailOfMonth": "{{detail}} de {{month}}",
+    "inMonth": "en {{month}}",
+    "afterCompletion": "después de completar",
+    "untilDate": "hasta {{date}}",
+    "forOccurrences": "por {{count}} ocurrencias"
+  }
+}

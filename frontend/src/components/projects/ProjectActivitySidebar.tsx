@@ -3,8 +3,10 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronRight, MessageSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import type { ProjectActivityEntry, ProjectActivityResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,8 @@ interface ProjectActivitySidebarProps {
 
 export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
   const { activeGuildId } = useGuilds();
+  const { t } = useTranslation(["projects", "common"]);
+  const dateLocale = useDateLocale();
   const [collapsed, setCollapsed] = useState(true);
   const isEnabled = Boolean(projectId && !collapsed);
 
@@ -71,7 +75,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
           {!collapsed && (
             <div className="flex items-center gap-2">
               <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-              <p className="text-sm font-semibold">Project activity</p>
+              <p className="text-sm font-semibold">{t("activitySidebar.title")}</p>
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -88,19 +92,21 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               )}
               <span className="sr-only">
-                {collapsed ? "Expand activity sidebar" : "Collapse activity sidebar"}
+                {collapsed ? t("activitySidebar.expand") : t("activitySidebar.collapse")}
               </span>
             </Button>
           </div>
         </div>
         {collapsed ? (
-          <div className="text-muted-foreground flex-1 px-2 py-4 text-center text-xs">Activity</div>
+          <div className="text-muted-foreground flex-1 px-2 py-4 text-center text-xs">
+            {t("activitySidebar.activity")}
+          </div>
         ) : (
           <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {activityQuery.isLoading ? (
-              <p className="text-muted-foreground text-sm">Loading activity…</p>
+              <p className="text-muted-foreground text-sm">{t("activitySidebar.loading")}</p>
             ) : entries.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No comments yet.</p>
+              <p className="text-muted-foreground text-sm">{t("activitySidebar.noComments")}</p>
             ) : (
               <ul className="space-y-3">
                 {entries.map((entry) => {
@@ -118,11 +124,12 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                         <span>
                           {formatDistanceToNow(new Date(entry.created_at), {
                             addSuffix: true,
+                            locale: dateLocale,
                           })}
                         </span>
                       </div>
                       <p className="text-foreground text-sm">
-                        commented on{" "}
+                        {t("activitySidebar.commentedOn")}{" "}
                         <Link
                           to={gp(`/tasks/${entry.task_id}`)}
                           className="font-medium hover:underline"
@@ -146,7 +153,9 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
                 onClick={() => activityQuery.fetchNextPage()}
                 disabled={activityQuery.isFetchingNextPage}
               >
-                {activityQuery.isFetchingNextPage ? "Loading…" : "Load more"}
+                {activityQuery.isFetchingNextPage
+                  ? t("common:loading")
+                  : t("activitySidebar.loadMore")}
               </Button>
             ) : null}
           </div>

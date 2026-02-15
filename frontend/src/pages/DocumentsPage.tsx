@@ -21,6 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { getItem, setItem } from "@/lib/storage";
@@ -45,6 +46,7 @@ import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialo
 import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { BulkEditAccessDialog } from "@/components/documents/BulkEditAccessDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
   useMyInitiativePermissions,
@@ -114,115 +116,6 @@ const DocumentTagsCell = ({ tags }: { tags: TagSummary[] }) => {
   );
 };
 
-const documentColumns: ColumnDef<DocumentSummary>[] = [
-  {
-    accessorKey: "title",
-    header: ({ column }) => {
-      const isSorted = column.getIsSorted();
-      return (
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-            Title
-            <SortIcon isSorted={isSorted} />
-          </Button>
-        </div>
-      );
-    },
-    cell: ({ row }) => <DocumentTitleCell document={row.original} />,
-    enableSorting: true,
-    sortingFn: "alphanumeric",
-    enableHiding: false,
-  },
-  {
-    id: "last updated",
-    accessorKey: "updated_at",
-    header: ({ column }) => {
-      const isSorted = column.getIsSorted();
-      return (
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-            Last updated
-            <SortIcon isSorted={isSorted} />
-          </Button>
-        </div>
-      );
-    },
-    cell: ({ row }) => {
-      const updatedAt = new Date(row.original.updated_at);
-      return (
-        <div className="min-w-[100px] sm:min-w-0">
-          <span className="text-muted-foreground">
-            {formatDistanceToNow(updatedAt, { addSuffix: true })}
-          </span>
-        </div>
-      );
-    },
-    sortingFn: dateSortingFn,
-  },
-  {
-    accessorKey: "projects",
-    header: "Projects",
-    cell: ({ row }) => {
-      const count = row.original.projects.length;
-      return <span>{count}</span>;
-    },
-  },
-  {
-    id: "tags",
-    header: "Tags",
-    cell: ({ row }) => <DocumentTagsCell tags={row.original.tags ?? []} />,
-    size: 150,
-  },
-  {
-    id: "owner",
-    header: "Owner",
-    cell: ({ row }) => {
-      const ownerPermission = (row.original.permissions ?? []).find((p) => p.level === "owner");
-      if (!ownerPermission) {
-        return <span className="text-muted-foreground">—</span>;
-      }
-      const ownerMember = row.original.initiative?.members?.find(
-        (m) => m.user.id === ownerPermission.user_id
-      );
-      const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
-      return <span>{ownerName || `User ${ownerPermission.user_id}`}</span>;
-    },
-  },
-  {
-    id: "type",
-    accessorKey: "is_template",
-    header: "Type",
-    cell: ({ row }) => {
-      const doc = row.original;
-      const isFile = doc.document_type === "file";
-      const fileTypeLabel = isFile
-        ? getFileTypeLabel(doc.file_content_type, doc.original_filename)
-        : null;
-
-      return (
-        <div className="flex items-center gap-2">
-          {isFile ? (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              {fileTypeLabel === "Excel" ? (
-                <FileSpreadsheet className="h-3 w-3" />
-              ) : fileTypeLabel === "PowerPoint" ? (
-                <Presentation className="h-3 w-3" />
-              ) : (
-                <FileText className="h-3 w-3" />
-              )}
-              {fileTypeLabel}
-            </Badge>
-          ) : doc.is_template ? (
-            <Badge variant="outline">Template</Badge>
-          ) : (
-            <span className="text-muted-foreground">Document</span>
-          )}
-        </div>
-      );
-    },
-  },
-];
-
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 interface PaginationBarProps {
@@ -243,50 +136,55 @@ const PaginationBar = ({
   onPageChange,
   onPageSizeChange,
   onPrefetchPage,
-}: PaginationBarProps) => (
-  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div className="flex items-center gap-2">
-      <span className="text-muted-foreground text-sm">Per page:</span>
-      <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
-        <SelectTrigger className="h-8 w-20">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="end">
-          {PAGE_SIZE_OPTIONS.map((opt) => (
-            <SelectItem key={opt} value={String(opt)}>
-              {opt}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <span className="text-muted-foreground text-sm">
-        {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount}
-      </span>
+}: PaginationBarProps) => {
+  const { t } = useTranslation("documents");
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, totalCount);
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground text-sm">{t("page.perPage")}</span>
+        <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
+          <SelectTrigger className="h-8 w-20">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {PAGE_SIZE_OPTIONS.map((opt) => (
+              <SelectItem key={opt} value={String(opt)}>
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground text-sm">
+          {t("page.rangeOf", { start, end, total: totalCount })}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 self-end sm:self-auto">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange((p) => Math.max(1, p - 1))}
+          disabled={page <= 1}
+          onMouseEnter={() => onPrefetchPage(page - 1)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {t("page.previous")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange((p) => p + 1)}
+          disabled={!hasNext}
+          onMouseEnter={() => hasNext && onPrefetchPage(page + 1)}
+        >
+          {t("page.next")}
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
-    <div className="flex items-center gap-2 self-end sm:self-auto">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange((p) => Math.max(1, p - 1))}
-        disabled={page <= 1}
-        onMouseEnter={() => onPrefetchPage(page - 1)}
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Previous
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange((p) => p + 1)}
-        disabled={!hasNext}
-        onMouseEnter={() => hasNext && onPrefetchPage(page + 1)}
-      >
-        Next
-        <ChevronRight className="h-4 w-4" />
-      </Button>
-    </div>
-  </div>
-);
+  );
+};
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
@@ -299,6 +197,8 @@ export const DocumentsView = ({
   fixedTagIds,
   canCreate,
 }: DocumentsViewProps) => {
+  const { t } = useTranslation(["documents", "common"]);
+  const dateLocale = useDateLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -418,12 +318,12 @@ export const DocumentsView = ({
 
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTagsForFilter = useMemo(() => {
-    const tagMap = new Map(allTags.map((t) => [t.id, t]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is Tag => t !== undefined);
+    const tagMap = new Map(allTags.map((tg) => [tg.id, tg]));
+    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is Tag => tg !== undefined);
   }, [allTags, tagFilters]);
 
   const handleTagFiltersChange = (newTags: TagSummary[]) => {
-    setTagFilters(newTags.map((t) => t.id));
+    setTagFilters(newTags.map((tg) => tg.id));
   };
 
   const handleTreeTagToggle = (fullPath: string, ctrlKey: boolean) => {
@@ -777,19 +677,133 @@ export const DocumentsView = ({
     }
   };
 
+  // Column definitions with translations (must be inside component for hook access)
+  const documentColumns: ColumnDef<DocumentSummary>[] = useMemo(
+    () => [
+      {
+        accessorKey: "title",
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                {t("columns.title")}
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ row }) => <DocumentTitleCell document={row.original} />,
+        enableSorting: true,
+        sortingFn: "alphanumeric",
+        enableHiding: false,
+      },
+      {
+        id: "last updated",
+        accessorKey: "updated_at",
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                {t("columns.lastUpdated")}
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ row }) => {
+          const updatedAt = new Date(row.original.updated_at);
+          return (
+            <div className="min-w-[100px] sm:min-w-0">
+              <span className="text-muted-foreground">
+                {formatDistanceToNow(updatedAt, { addSuffix: true, locale: dateLocale })}
+              </span>
+            </div>
+          );
+        },
+        sortingFn: dateSortingFn,
+      },
+      {
+        accessorKey: "projects",
+        header: t("columns.projects"),
+        cell: ({ row }) => {
+          const count = row.original.projects.length;
+          return <span>{count}</span>;
+        },
+      },
+      {
+        id: "tags",
+        header: t("columns.tags"),
+        cell: ({ row }) => <DocumentTagsCell tags={row.original.tags ?? []} />,
+        size: 150,
+      },
+      {
+        id: "owner",
+        header: t("columns.owner"),
+        cell: ({ row }) => {
+          const ownerPermission = (row.original.permissions ?? []).find((p) => p.level === "owner");
+          if (!ownerPermission) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          const ownerMember = row.original.initiative?.members?.find(
+            (m) => m.user.id === ownerPermission.user_id
+          );
+          const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
+          return (
+            <span>{ownerName || t("bulk.userFallback", { id: ownerPermission.user_id })}</span>
+          );
+        },
+      },
+      {
+        id: "type",
+        accessorKey: "is_template",
+        header: t("columns.type"),
+        cell: ({ row }) => {
+          const doc = row.original;
+          const isFile = doc.document_type === "file";
+          const fileTypeLabel = isFile
+            ? getFileTypeLabel(doc.file_content_type, doc.original_filename)
+            : null;
+
+          return (
+            <div className="flex items-center gap-2">
+              {isFile ? (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  {fileTypeLabel === "Excel" ? (
+                    <FileSpreadsheet className="h-3 w-3" />
+                  ) : fileTypeLabel === "PowerPoint" ? (
+                    <Presentation className="h-3 w-3" />
+                  ) : (
+                    <FileText className="h-3 w-3" />
+                  )}
+                  {fileTypeLabel}
+                </Badge>
+              ) : doc.is_template ? (
+                <Badge variant="outline">{t("type.template")}</Badge>
+              ) : (
+                <span className="text-muted-foreground">{t("type.document")}</span>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [t, dateLocale]
+  );
+
   const deleteDocuments = useMutation({
     mutationFn: async (documentIds: number[]) => {
       await Promise.all(documentIds.map((id) => apiClient.delete(`/documents/${id}`)));
     },
     onSuccess: (_data, documentIds) => {
       const count = documentIds.length;
-      toast.success(`${count} document${count === 1 ? "" : "s"} deleted`);
+      toast.success(t("bulk.deleted", { count }));
       setSelectedDocuments([]);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to delete documents right now.";
+      const message = error instanceof Error ? error.message : t("bulk.deleteError");
       toast.error(message);
     },
   });
@@ -809,13 +823,12 @@ export const DocumentsView = ({
     },
     onSuccess: (data) => {
       const count = data.length;
-      toast.success(`${count} document${count === 1 ? "" : "s"} duplicated`);
+      toast.success(t("bulk.duplicated", { count }));
       setSelectedDocuments([]);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to duplicate documents right now.";
+      const message = error instanceof Error ? error.message : t("bulk.duplicateError");
       toast.error(message);
     },
   });
@@ -877,17 +890,15 @@ export const DocumentsView = ({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-baseline gap-4">
-              <h1 className="text-3xl font-semibold tracking-tight">Documents</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">{t("page.title")}</h1>
               {canCreateDocuments ? (
                 <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  New document
+                  {t("page.newDocument")}
                 </Button>
               ) : null}
             </div>
-            <p className="text-muted-foreground text-sm">
-              Keep initiative knowledge organized and attach docs to projects.
-            </p>
+            <p className="text-muted-foreground text-sm">{t("page.subtitle")}</p>
           </div>
           <Tabs
             value={viewMode}
@@ -897,15 +908,15 @@ export const DocumentsView = ({
             <TabsList className="grid grid-cols-3">
               <TabsTrigger value="tags" className="inline-flex items-center gap-2">
                 <Tags className="h-4 w-4" />
-                Tags
+                {t("page.viewTags")}
               </TabsTrigger>
               <TabsTrigger value="grid" className="inline-flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4" />
-                Grid
+                {t("page.viewGrid")}
               </TabsTrigger>
               <TabsTrigger value="list" className="inline-flex items-center gap-2">
                 <Table className="h-4 w-4" />
-                List
+                {t("page.viewList")}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -917,7 +928,7 @@ export const DocumentsView = ({
           {canCreateDocuments && (
             <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4" />
-              New document
+              {t("page.newDocument")}
             </Button>
           )}
           <Tabs
@@ -928,15 +939,15 @@ export const DocumentsView = ({
             <TabsList className="grid grid-cols-3">
               <TabsTrigger value="tags" className="inline-flex items-center gap-2">
                 <Tags className="h-4 w-4" />
-                Tags
+                {t("page.viewTags")}
               </TabsTrigger>
               <TabsTrigger value="grid" className="inline-flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4" />
-                Grid
+                {t("page.viewGrid")}
               </TabsTrigger>
               <TabsTrigger value="list" className="inline-flex items-center gap-2">
                 <Table className="h-4 w-4" />
-                List
+                {t("page.viewList")}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -947,11 +958,11 @@ export const DocumentsView = ({
         <div className="flex items-center justify-between sm:hidden">
           <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
             <Filter className="h-4 w-4" />
-            Filters
+            {t("page.filters")}
           </div>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 px-3">
-              {filtersOpen ? "Hide" : "Show"} filters
+              {filtersOpen ? t("page.hideFilters") : t("page.showFilters")}
               <ChevronDown
                 className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
               />
@@ -965,12 +976,12 @@ export const DocumentsView = ({
                 htmlFor="document-search"
                 className="text-muted-foreground block text-xs font-medium"
               >
-                Search
+                {t("page.searchLabel")}
               </Label>
               <Input
                 id="document-search"
                 type="search"
-                placeholder="Search documents"
+                placeholder={t("page.searchPlaceholder")}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
@@ -978,10 +989,10 @@ export const DocumentsView = ({
             {lockedInitiativeId ? (
               <div className="w-full space-y-2 sm:w-60">
                 <Label className="text-muted-foreground block text-xs font-medium">
-                  Initiative
+                  {t("page.initiativeLabel")}
                 </Label>
                 <p className="text-sm font-medium">
-                  {lockedInitiative?.name ?? "Selected initiative"}
+                  {lockedInitiative?.name ?? t("page.selectedInitiative")}
                 </p>
               </div>
             ) : (
@@ -990,7 +1001,7 @@ export const DocumentsView = ({
                   htmlFor="document-initiative-filter"
                   className="text-muted-foreground block text-xs font-medium"
                 >
-                  Initiative
+                  {t("page.initiativeLabel")}
                 </Label>
                 <Select
                   value={initiativeFilter}
@@ -998,10 +1009,12 @@ export const DocumentsView = ({
                   disabled={initiativesQuery.isLoading}
                 >
                   <SelectTrigger id="document-initiative-filter">
-                    <SelectValue placeholder="All initiatives" />
+                    <SelectValue placeholder={t("page.allInitiatives")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>All initiatives</SelectItem>
+                    <SelectItem value={INITIATIVE_FILTER_ALL}>
+                      {t("page.allInitiatives")}
+                    </SelectItem>
                     {viewableInitiatives.map((initiative) => (
                       <SelectItem key={initiative.id} value={String(initiative.id)}>
                         {initiative.name}
@@ -1017,12 +1030,12 @@ export const DocumentsView = ({
                   htmlFor="document-tag-filter"
                   className="text-muted-foreground block text-xs font-medium"
                 >
-                  Filter by tag
+                  {t("page.filterByTag")}
                 </Label>
                 <TagPicker
                   selectedTags={selectedTagsForFilter}
                   onChange={handleTagFiltersChange}
-                  placeholder="All tags"
+                  placeholder={t("page.allTags")}
                   variant="filter"
                 />
               </div>
@@ -1034,20 +1047,17 @@ export const DocumentsView = ({
       {!canViewDocs ? (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardHeader>
-            <CardTitle className="text-destructive">Access Restricted</CardTitle>
-            <CardDescription>
-              You don&apos;t have permission to view documents in this initiative. Contact an
-              administrator if you believe this is an error.
-            </CardDescription>
+            <CardTitle className="text-destructive">{t("page.accessRestrictedTitle")}</CardTitle>
+            <CardDescription>{t("page.accessRestrictedDescription")}</CardDescription>
           </CardHeader>
         </Card>
       ) : documentsQuery.isLoading ? (
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading documents…
+          {t("page.loading")}
         </div>
       ) : documentsQuery.isError ? (
-        <p className="text-destructive text-sm">Unable to load documents right now.</p>
+        <p className="text-destructive text-sm">{t("page.loadError")}</p>
       ) : totalCount > 0 ? (
         viewMode === "tags" ? (
           <div className="flex flex-col gap-4 md:flex-row">
@@ -1060,7 +1070,7 @@ export const DocumentsView = ({
                 >
                   <span className="flex items-center gap-2">
                     <Tags className="h-4 w-4" />
-                    Browse by tag
+                    {t("page.browseByTag")}
                     {treeSelectedPaths.size > 0 && (
                       <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                         {treeSelectedPaths.size}
@@ -1116,7 +1126,7 @@ export const DocumentsView = ({
                 </>
               ) : (
                 <div className="text-muted-foreground py-8 text-center text-sm">
-                  No documents match the selected tags.
+                  {t("page.noMatchingTags")}
                 </div>
               )}
             </div>
@@ -1145,8 +1155,7 @@ export const DocumentsView = ({
             {selectedDocuments.length > 0 && (
               <div className="border-primary bg-primary/5 flex items-center justify-between rounded-md border p-4">
                 <div className="text-sm font-medium">
-                  {selectedDocuments.length} document{selectedDocuments.length === 1 ? "" : "s"}{" "}
-                  selected
+                  {t("bulk.selected", { count: selectedDocuments.length })}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -1154,12 +1163,10 @@ export const DocumentsView = ({
                     size="sm"
                     onClick={() => setBulkEditTagsOpen(true)}
                     disabled={!canEditSelectedDocuments}
-                    title={
-                      canEditSelectedDocuments ? undefined : "You need edit access to modify tags"
-                    }
+                    title={canEditSelectedDocuments ? undefined : t("bulk.needEditAccessTags")}
                   >
                     <Tags className="h-4 w-4" />
-                    Edit Tags
+                    {t("bulk.editTags")}
                   </Button>
                   <Button
                     variant="outline"
@@ -1167,13 +1174,11 @@ export const DocumentsView = ({
                     onClick={() => setBulkEditAccessOpen(true)}
                     disabled={!canEditSelectedDocuments}
                     title={
-                      canEditSelectedDocuments
-                        ? undefined
-                        : "You need edit access to modify permissions"
+                      canEditSelectedDocuments ? undefined : t("bulk.needEditAccessPermissions")
                     }
                   >
                     <Shield className="h-4 w-4" />
-                    Edit Access
+                    {t("bulk.editAccess")}
                   </Button>
                   <Button
                     variant="outline"
@@ -1183,20 +1188,18 @@ export const DocumentsView = ({
                     }}
                     disabled={duplicateDocuments.isPending || !canDuplicateSelectedDocuments}
                     title={
-                      canDuplicateSelectedDocuments
-                        ? undefined
-                        : "You need edit access to duplicate documents"
+                      canDuplicateSelectedDocuments ? undefined : t("bulk.needEditAccessDuplicate")
                     }
                   >
                     {duplicateDocuments.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Duplicating…
+                        {t("bulk.duplicating")}
                       </>
                     ) : (
                       <>
                         <Copy className="h-4 w-4" />
-                        Duplicate
+                        {t("bulk.duplicate")}
                       </>
                     )}
                   </Button>
@@ -1204,30 +1207,22 @@ export const DocumentsView = ({
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      if (
-                        confirm(
-                          `Delete ${selectedDocuments.length} document${selectedDocuments.length === 1 ? "" : "s"}?`
-                        )
-                      ) {
+                      if (confirm(t("bulk.deleteConfirm", { count: selectedDocuments.length }))) {
                         deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
                       }
                     }}
                     disabled={deleteDocuments.isPending || !canDeleteSelectedDocuments}
-                    title={
-                      canDeleteSelectedDocuments
-                        ? undefined
-                        : "You can only delete documents you own"
-                    }
+                    title={canDeleteSelectedDocuments ? undefined : t("bulk.needOwnerAccess")}
                   >
                     {deleteDocuments.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Deleting…
+                        {t("bulk.deleting")}
                       </>
                     ) : (
                       <>
                         <Trash2 className="h-4 w-4" />
-                        Delete
+                        {t("common:delete")}
                       </>
                     )}
                   </Button>
@@ -1239,7 +1234,7 @@ export const DocumentsView = ({
               data={documents}
               enableFilterInput
               filterInputColumnKey="title"
-              filterInputPlaceholder="Filter by title..."
+              filterInputPlaceholder={t("page.filterPlaceholder")}
               enableColumnVisibilityDropdown
               enablePagination
               manualPagination
@@ -1266,14 +1261,12 @@ export const DocumentsView = ({
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>No documents yet</CardTitle>
-            <CardDescription>
-              Create your first initiative document to share briefs, decisions, or guides.
-            </CardDescription>
+            <CardTitle>{t("page.noDocumentsTitle")}</CardTitle>
+            <CardDescription>{t("page.noDocumentsDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={() => setCreateDialogOpen(true)} disabled={!canCreateDocuments}>
-              Start writing
+              {t("page.startWriting")}
             </Button>
           </CardContent>
         </Card>
@@ -1313,7 +1306,7 @@ export const DocumentsView = ({
           onClick={() => setCreateDialogOpen(true)}
         >
           <Plus className="h-4 w-4" />
-          New document
+          {t("page.newDocument")}
         </Button>
       ) : null}
     </div>

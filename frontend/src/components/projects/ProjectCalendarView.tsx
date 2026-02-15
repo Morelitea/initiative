@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   addMonths,
   eachDayOfInterval,
@@ -29,7 +30,15 @@ type CalendarEntry = {
   type: "start" | "due";
 };
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
 
 const formatDateKey = (value: string) => {
   const date = parseISO(value);
@@ -44,6 +53,7 @@ export const ProjectCalendarView = ({
   canOpenTask,
   onTaskClick,
 }: ProjectCalendarViewProps) => {
+  const { t, i18n } = useTranslation(["projects", "dates"]);
   const { user } = useAuth();
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
@@ -55,8 +65,9 @@ export const ProjectCalendarView = ({
   }, [visibleMonth, weekStartsOn]);
 
   const weekdayLabels = useMemo(() => {
-    return WEEKDAY_LABELS.slice(weekStartsOn).concat(WEEKDAY_LABELS.slice(0, weekStartsOn));
-  }, [weekStartsOn]);
+    const labels = WEEKDAY_KEYS.map((key) => t(`dates:weekdaysShort.${key}`));
+    return labels.slice(weekStartsOn).concat(labels.slice(0, weekStartsOn));
+  }, [weekStartsOn, t]);
 
   const entriesByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -91,10 +102,10 @@ export const ProjectCalendarView = ({
         <div className="flex items-center gap-2">
           <Calendar className="text-muted-foreground h-5 w-5" />
           <div>
-            <p className="text-lg font-semibold">{format(visibleMonth, "MMMM yyyy")}</p>
-            <p className="text-muted-foreground text-sm">
-              See task start and due dates at a glance.
+            <p className="text-lg font-semibold capitalize">
+              {visibleMonth.toLocaleDateString(i18n.language, { month: "long", year: "numeric" })}
             </p>
+            <p className="text-muted-foreground text-sm">{t("calendarView.subtitle")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -105,7 +116,7 @@ export const ProjectCalendarView = ({
             onClick={() => handleMonthChange("prev")}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            <span className="sr-only">Previous month</span>
+            <span className="sr-only">{t("calendarView.previousMonth")}</span>
           </Button>
           <Button
             type="button"
@@ -114,7 +125,7 @@ export const ProjectCalendarView = ({
             onClick={() => handleMonthChange("next")}
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            <span className="sr-only">Next month</span>
+            <span className="sr-only">{t("calendarView.nextMonth")}</span>
           </Button>
         </div>
       </div>
@@ -144,7 +155,7 @@ export const ProjectCalendarView = ({
                     <span className="text-sm font-medium sm:text-base">{format(day, "d")}</span>
                     {isToday(day) ? (
                       <span className="text-primary text-[10px] font-semibold uppercase">
-                        Today
+                        {t("calendarView.today")}
                       </span>
                     ) : null}
                   </div>
@@ -171,13 +182,13 @@ export const ProjectCalendarView = ({
                         <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                         <span className="truncate">{entry.task.title}</span>
                         <span className="hidden shrink-0 text-[10px] uppercase lg:inline">
-                          {entry.type === "start" ? "Start" : "Due"}
+                          {entry.type === "start" ? t("calendarView.start") : t("calendarView.due")}
                         </span>
                       </button>
                     ))}
                     {entries.length > 3 ? (
                       <p className="text-muted-foreground text-[10px]">
-                        +{entries.length - 3} more
+                        {t("calendarView.more", { count: entries.length - 3 })}
                       </p>
                     ) : null}
                   </div>

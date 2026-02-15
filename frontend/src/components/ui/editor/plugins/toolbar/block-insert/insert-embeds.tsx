@@ -1,4 +1,5 @@
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
+import { useTranslation } from "react-i18next";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { EmbedConfigs } from "@/components/ui/editor/plugins/embeds/auto-embed-plugin";
@@ -6,6 +7,7 @@ import { SelectItem } from "@/components/ui/select";
 
 export function InsertEmbeds() {
   const { activeEditor } = useToolbarContext();
+  const { t } = useTranslation("documents");
   return EmbedConfigs.map((embedConfig) => (
     <SelectItem
       key={embedConfig.type}
@@ -17,7 +19,11 @@ export function InsertEmbeds() {
     >
       <div className="flex items-center gap-1">
         {embedConfig.icon}
-        <span>{embedConfig.contentName}</span>
+        <span>
+          {embedConfig.contentNameKey
+            ? t(embedConfig.contentNameKey as never)
+            : embedConfig.contentName}
+        </span>
       </div>
     </SelectItem>
   ));

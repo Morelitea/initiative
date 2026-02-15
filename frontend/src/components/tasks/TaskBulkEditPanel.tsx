@@ -21,7 +21,7 @@ export const TaskBulkEditPanel = ({
   onDelete,
   isArchiving,
 }: TaskBulkEditPanelProps) => {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "common"]);
   return (
     <div className="border-primary bg-primary/5 flex items-center justify-between rounded-md border p-4">
       <div className="text-sm font-medium">

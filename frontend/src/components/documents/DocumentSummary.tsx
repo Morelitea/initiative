@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Check, Copy, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ interface DocumentSummaryProps {
 }
 
 export const DocumentSummary = ({ documentId, summary, onSummaryChange }: DocumentSummaryProps) => {
+  const { t } = useTranslation("documents");
   const { isEnabled, isLoading: isLoadingAI } = useAIEnabled();
   const [copied, setCopied] = useState(false);
 
@@ -48,7 +50,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
       const detail = error.response?.data?.detail;
       if (typeof detail === "string") return detail;
     }
-    return "Failed to generate summary. Please try again.";
+    return t("summary.generateError");
   };
 
   // Loading AI settings
@@ -65,9 +67,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
     return (
       <div className="space-y-2 py-4 text-center">
         <Sparkles className="text-muted-foreground mx-auto h-8 w-8" />
-        <p className="text-muted-foreground text-sm">
-          AI features are not enabled. Configure AI settings to generate document summaries.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("summary.aiNotEnabled")}</p>
       </div>
     );
   }
@@ -77,12 +77,10 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
     return (
       <div className="space-y-4 py-4 text-center">
         <Sparkles className="text-muted-foreground mx-auto h-8 w-8" />
-        <p className="text-muted-foreground text-sm">
-          Generate an AI-powered summary of this document.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("summary.generateDescription")}</p>
         <Button onClick={() => generateSummary.mutate()} disabled={generateSummary.isPending}>
           <Sparkles className="mr-2 h-4 w-4" />
-          Generate Summary
+          {t("summary.generateButton")}
         </Button>
         {generateSummary.isError && <p className="text-destructive text-sm">{getErrorMessage()}</p>}
       </div>
@@ -94,7 +92,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
     return (
       <div className="space-y-4 py-8 text-center">
         <Loader2 className="text-muted-foreground mx-auto h-8 w-8 animate-spin" />
-        <p className="text-muted-foreground text-sm">Generating summary...</p>
+        <p className="text-muted-foreground text-sm">{t("summary.generating")}</p>
       </div>
     );
   }
@@ -103,14 +101,14 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium">AI Summary</h4>
+        <h4 className="text-sm font-medium">{t("summary.title")}</h4>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             onClick={handleCopy}
-            title="Copy summary"
+            title={t("summary.copy")}
           >
             {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
           </Button>
@@ -120,7 +118,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
             className="h-8 w-8"
             onClick={() => generateSummary.mutate()}
             disabled={generateSummary.isPending}
-            title="Regenerate summary"
+            title={t("summary.regenerate")}
           >
             <RefreshCw className="h-4 w-4" />
           </Button>

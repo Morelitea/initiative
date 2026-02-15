@@ -4,21 +4,23 @@ from app.models.app_setting import AppSetting
 from app.models.guild import Guild, GuildMembership, GuildInvite
 from app.models.guild_setting import GuildSetting
 from app.models.project import Project, ProjectPermission, ProjectRolePermission
-from app.models.task import Task, TaskAssignee, Subtask
+from app.models.task import Task, TaskAssignee, TaskStatus, Subtask
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.models.api_key import AdminApiKey
 from app.models.project_activity import ProjectFavorite, RecentProjectView
 from app.models.comment import Comment
-from app.models.document import Document, DocumentRolePermission
+from app.models.document import Document, DocumentPermission, DocumentRolePermission, ProjectDocument, DocumentLink
 from app.models.notification import Notification
 from app.models.oidc_claim_mapping import OIDCClaimMapping
+from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 
 __all__ = [
     "User",
     "Project",
     "Task",
     "TaskAssignee",
+    "TaskStatus",
     "Subtask",
     "ProjectPermission",
     "AppSetting",
@@ -33,8 +35,15 @@ __all__ = [
     "RecentProjectView",
     "Comment",
     "Document",
+    "DocumentPermission",
     "DocumentRolePermission",
+    "ProjectDocument",
+    "DocumentLink",
     "ProjectRolePermission",
     "Notification",
     "OIDCClaimMapping",
+    "Tag",
+    "TaskTag",
+    "ProjectTag",
+    "DocumentTag",
 ]

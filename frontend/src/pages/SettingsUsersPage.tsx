@@ -1,9 +1,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -16,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { queryClient } from "@/lib/queryClient";
 import type { GuildInviteRead, GuildRole, UserGuildMember } from "@/types/api";
@@ -35,6 +38,8 @@ const inviteLinkForCode = (code: string) => {
 
 export const SettingsUsersPage = () => {
   const { user } = useAuth();
+  const { t } = useTranslation("guilds");
+  const dateLocale = useDateLocale();
 
   const { activeGuild } = useGuilds();
   // Guild admin check is based on guild membership role only (independent from platform role)
@@ -67,11 +72,11 @@ export const SettingsUsersPage = () => {
       setInvites(response.data);
     } catch (error) {
       console.error("Failed to load invites", error);
-      setInvitesError("Unable to load invites.");
+      setInvitesError(t("users.unableToLoadInvites"));
     } finally {
       setInvitesLoading(false);
     }
-  }, [activeGuildId]);
+  }, [activeGuildId, t]);
 
   useEffect(() => {
     if (isGuildAdmin) {
@@ -107,9 +112,7 @@ export const SettingsUsersPage = () => {
       void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to update role";
+      const message = getErrorMessage(error, "guilds:users.failedToUpdateRole");
       toast.error(message);
     },
   });
@@ -142,24 +145,22 @@ export const SettingsUsersPage = () => {
 
   if (!isGuildAdmin) {
     return (
-      <p className="text-muted-foreground text-sm">
-        You need {adminLabel} permissions to view this page.
-      </p>
+      <p className="text-muted-foreground text-sm">{t("users.adminRequired", { adminLabel })}</p>
     );
   }
 
   if (usersQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading settings…</p>;
+    return <p className="text-muted-foreground text-sm">{t("users.loadingSettings")}</p>;
   }
 
   if (usersQuery.isError || !usersQuery.data) {
-    return <p className="text-destructive text-sm">Unable to load settings.</p>;
+    return <p className="text-destructive text-sm">{t("users.unableToLoadSettings")}</p>;
   }
 
   const userColumns: ColumnDef<UserGuildMember>[] = [
     {
       id: "user",
-      header: "User",
+      header: t("users.userColumn"),
       cell: ({ row }) => {
         const guildMember = row.original;
         const displayName = guildMember.full_name?.trim() || "—";
@@ -172,7 +173,7 @@ export const SettingsUsersPage = () => {
     },
     {
       accessorKey: "email",
-      header: "Email",
+      header: t("users.emailColumn"),
       cell: ({ row }) => {
         const guildMember = row.original;
         return <p className="text-muted-foreground text-sm">{guildMember.email}</p>;
@@ -180,7 +181,7 @@ export const SettingsUsersPage = () => {
     },
     {
       accessorKey: "guild_role",
-      header: "Guild Role",
+      header: t("users.guildRoleColumn"),
       cell: ({ row }) => {
         const guildMember = row.original;
         const isSelf = guildMember.id === user?.id;
@@ -209,20 +210,20 @@ export const SettingsUsersPage = () => {
     },
     {
       accessorKey: "oidc_managed",
-      header: "Source",
+      header: t("users.sourceColumn"),
       cell: ({ row }) => {
         return row.original.oidc_managed ? (
           <span className="bg-muted text-muted-foreground inline-flex items-center rounded-md px-2 py-1 text-sm font-medium">
-            OIDC
+            {t("users.sourceOidc")}
           </span>
         ) : (
-          <span className="text-muted-foreground text-sm">Manual</span>
+          <span className="text-muted-foreground text-sm">{t("users.sourceManual")}</span>
         );
       },
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t("users.actionsColumn"),
       cell: ({ row }) => {
         const guildMember = row.original;
         const isSelf = guildMember.id === user?.id;
@@ -235,7 +236,7 @@ export const SettingsUsersPage = () => {
                 onClick={() => approveUser.mutate(guildMember.id)}
                 disabled={approveUser.isPending}
               >
-                Reactivate
+                {t("users.reactivate")}
               </Button>
             ) : null}
             <Button
@@ -244,7 +245,7 @@ export const SettingsUsersPage = () => {
               onClick={() => handleDeleteUser(guildMember.id, guildMember.email)}
               disabled={deleteUser.isPending || isSelf}
             >
-              Remove from guild
+              {t("users.removeFromGuild")}
             </Button>
           </div>
         );
@@ -272,7 +273,7 @@ export const SettingsUsersPage = () => {
       await loadInvites();
     } catch (error) {
       console.error(error);
-      setInvitesError("Unable to create invite.");
+      setInvitesError(t("users.unableToCreateInvite"));
     } finally {
       setInviteSubmitting(false);
     }
@@ -287,14 +288,14 @@ export const SettingsUsersPage = () => {
       await loadInvites();
     } catch (error) {
       console.error(error);
-      setInvitesError("Unable to delete invite.");
+      setInvitesError(t("users.unableToDeleteInvite"));
     }
   };
 
   const copyInviteLink = async (code: string) => {
     try {
       await navigator.clipboard.writeText(inviteLinkForCode(code));
-      toast.success("Invite link copied to clipboard.");
+      toast.success(t("users.inviteLinkCopied"));
     } catch (error) {
       console.error(error);
     }
@@ -305,18 +306,18 @@ export const SettingsUsersPage = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Guild invites</CardTitle>
-            <p className="text-muted-foreground text-sm">Generate links to invite new members.</p>
+            <CardTitle>{t("users.invitesTitle")}</CardTitle>
+            <p className="text-muted-foreground text-sm">{t("users.invitesDescription")}</p>
           </div>
           <Button variant="ghost" size="icon" onClick={() => loadInvites()}>
             <RefreshCcw className="h-4 w-4" />
-            <span className="sr-only">Refresh invites</span>
+            <span className="sr-only">{t("users.refreshInvites")}</span>
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <form className="grid gap-4 md:grid-cols-3" onSubmit={createInvite}>
             <div className="space-y-2">
-              <Label htmlFor="invite-uses">Max uses</Label>
+              <Label htmlFor="invite-uses">{t("users.maxUsesLabel")}</Label>
               <Input
                 id="invite-uses"
                 type="number"
@@ -326,7 +327,7 @@ export const SettingsUsersPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-days">Expires in (days)</Label>
+              <Label htmlFor="invite-days">{t("users.expiresDaysLabel")}</Label>
               <Input
                 id="invite-days"
                 type="number"
@@ -337,25 +338,28 @@ export const SettingsUsersPage = () => {
             </div>
             <div className="flex items-end">
               <Button type="submit" disabled={inviteSubmitting}>
-                {inviteSubmitting ? "Creating…" : "Generate invite"}
+                {inviteSubmitting ? t("users.generatingInvite") : t("users.generateInvite")}
               </Button>
             </div>
           </form>
           <div className="bg-border h-px" />
           {invitesLoading ? (
-            <p className="text-muted-foreground text-sm">Loading invites…</p>
+            <p className="text-muted-foreground text-sm">{t("users.loadingInvites")}</p>
           ) : null}
           {invitesError ? <p className="text-destructive text-sm">{invitesError}</p> : null}
           {!invitesLoading && !inviteRows.length ? (
-            <p className="text-muted-foreground text-sm">No active invites.</p>
+            <p className="text-muted-foreground text-sm">{t("users.noActiveInvites")}</p>
           ) : null}
           <div className="space-y-3">
             {inviteRows.map((invite) => {
               const link = inviteLinkForCode(invite.code);
               const expires =
                 invite.expires_at != null
-                  ? formatDistanceToNow(new Date(invite.expires_at), { addSuffix: true })
-                  : "Never";
+                  ? formatDistanceToNow(new Date(invite.expires_at), {
+                      addSuffix: true,
+                      locale: dateLocale,
+                    })
+                  : t("users.neverExpires");
               return (
                 <div
                   key={invite.id}
@@ -364,7 +368,11 @@ export const SettingsUsersPage = () => {
                   <div>
                     <p className="font-medium">{link}</p>
                     <p className="text-muted-foreground">
-                      Uses: {invite.uses}/{invite.max_uses ?? "∞"} · Expires: {expires}
+                      {t("users.usesFormat", {
+                        uses: invite.uses,
+                        max: invite.max_uses ?? "\u221e",
+                        expires,
+                      })}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -374,11 +382,11 @@ export const SettingsUsersPage = () => {
                       onClick={() => copyInviteLink(invite.code)}
                     >
                       <Copy className="h-4 w-4" />
-                      <span className="sr-only">Copy invite link</span>
+                      <span className="sr-only">{t("users.copyInviteLink")}</span>
                     </Button>
                     <Button variant="outline" size="icon" onClick={() => deleteInvite(invite.id)}>
                       <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete invite</span>
+                      <span className="sr-only">{t("users.deleteInviteLink")}</span>
                     </Button>
                   </div>
                 </div>
@@ -389,8 +397,8 @@ export const SettingsUsersPage = () => {
       </Card>
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Guild users</CardTitle>
-          <CardDescription>Update roles or remove accounts.</CardDescription>
+          <CardTitle>{t("users.usersTitle")}</CardTitle>
+          <CardDescription>{t("users.usersDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <DataTable
@@ -398,7 +406,7 @@ export const SettingsUsersPage = () => {
             data={usersQuery.data}
             enableFilterInput
             filterInputColumnKey="email"
-            filterInputPlaceholder="Filter by email..."
+            filterInputPlaceholder={t("users.filterByEmail")}
             enableResetSorting
             enablePagination
           />
@@ -408,9 +416,11 @@ export const SettingsUsersPage = () => {
       <ConfirmDialog
         open={deleteUserConfirm !== null}
         onOpenChange={(open) => !open && setDeleteUserConfirm(null)}
-        title="Remove user from guild?"
-        description={`This will remove ${deleteUserConfirm?.email ?? "this user"} from the guild. This cannot be undone.`}
-        confirmLabel="Remove"
+        title={t("users.removeUserTitle")}
+        description={t("users.removeUserDescription", {
+          email: deleteUserConfirm?.email ?? "this user",
+        })}
+        confirmLabel={t("users.removeConfirmLabel")}
         onConfirm={confirmDeleteUser}
         isLoading={deleteUser.isPending}
         destructive

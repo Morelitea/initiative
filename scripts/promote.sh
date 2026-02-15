@@ -255,8 +255,7 @@ stamp_changelog() {
 preview_changelog() {
     local version="$1"
     echo -e "${CYAN}Changelog preview for $version:${NC}"
-    awk '/^## \[Unreleased\]/{found=1; next} /^## \[/{found=0} found{print}' CHANGELOG.md \
-        | head -20
+    awk '/^## \[Unreleased\]/{found=1; next} /^## \[/{found=0} found && NR<=20{print}' CHANGELOG.md
     echo ""
 }
 
@@ -271,7 +270,7 @@ show_commits() {
     fi
 
     echo -e "${BOLD}Commits to promote ($count):${NC}"
-    git log --oneline --no-decorate "$base".."$head" | head -30
+    git log --oneline --no-decorate -30 "$base".."$head"
     if [[ "$count" -gt 30 ]]; then
         dim "  ... and $((count - 30)) more"
     fi
@@ -316,7 +315,7 @@ do_promote() {
 - No version bump (code promotion only)
 
 ## Commits
-$(git log --oneline origin/main..HEAD | head -20)
+$(git log --oneline -20 origin/main..HEAD)
 EOF
 )")
 

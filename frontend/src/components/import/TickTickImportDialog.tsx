@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
@@ -82,6 +83,7 @@ const suggestStatusForColumn = (
 };
 
 export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialogProps) => {
+  const { t } = useTranslation("import");
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [csvContent, setCsvContent] = useState("");
@@ -156,13 +158,13 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
     onSuccess: (data) => {
       setParseResult(data);
       if (data.lists.length === 0) {
-        toast.error("No lists with tasks found in the export");
+        toast.error(t("ticktick.noListsFound"));
       } else {
         setStep("select-list");
       }
     },
     onError: () => {
-      toast.error("Failed to parse CSV file");
+      toast.error(t("ticktick.parseFailed"));
     },
   });
 
@@ -186,7 +188,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
       queryClient.invalidateQueries({ queryKey: ["project", selectedTargetProjectId] });
     },
     onError: () => {
-      toast.error("Import failed");
+      toast.error(t("common.importFailed"));
     },
   });
 
@@ -235,40 +237,40 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Import from TickTick</DialogTitle>
+          <DialogTitle>{t("ticktick.title")}</DialogTitle>
           <DialogDescription>
-            {step === "upload" && "Upload your TickTick CSV export file or paste the content."}
-            {step === "select-list" && "Select which list to import from and where to import to."}
-            {step === "configure" && "Map TickTick columns to project statuses."}
-            {step === "result" && "Import complete."}
+            {step === "upload" && t("ticktick.stepUploadDescription")}
+            {step === "select-list" && t("ticktick.stepSelectListDescription")}
+            {step === "configure" && t("ticktick.stepConfigureDescription")}
+            {step === "result" && t("common.resultTitle")}
           </DialogDescription>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="space-y-4">
             <div>
-              <Label>Upload CSV file</Label>
+              <Label>{t("ticktick.uploadFileLabel")}</Label>
               <div className="mt-2">
                 <label className="border-muted hover:bg-accent flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors">
                   <Upload className="text-muted-foreground mb-2 h-8 w-8" />
                   <span className="text-muted-foreground text-sm">
-                    Click to upload or drag and drop
+                    {t("common.uploadDragDrop")}
                   </span>
                   <span className="text-muted-foreground mt-1 text-xs">
-                    Export from TickTick Settings → Backup
+                    {t("ticktick.uploadHint")}
                   </span>
                   <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                 </label>
               </div>
             </div>
 
-            <div className="text-muted-foreground text-center text-sm">or</div>
+            <div className="text-muted-foreground text-center text-sm">{t("common.or")}</div>
 
             <div>
-              <Label htmlFor="csv-content">Paste CSV content</Label>
+              <Label htmlFor="csv-content">{t("ticktick.pasteLabel")}</Label>
               <Textarea
                 id="csv-content"
-                placeholder="Paste your TickTick CSV export here..."
+                placeholder={t("ticktick.csvPlaceholder")}
                 value={csvContent}
                 onChange={(e) => setCsvContent(e.target.value)}
                 className="mt-2 h-32 font-mono text-xs"
@@ -280,13 +282,13 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
                 onClick={handlePasteContent}
                 disabled={!csvContent.trim() || parseMutation.isPending}
               >
-                {parseMutation.isPending ? "Parsing..." : "Parse content"}
+                {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
               </Button>
             </div>
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             </div>
           </div>
@@ -297,28 +299,33 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
             <div className="bg-muted rounded-lg p-4">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                <span className="font-medium">Export parsed successfully</span>
+                <span className="font-medium">{t("ticktick.exportParsed")}</span>
               </div>
               <p className="text-muted-foreground mt-1 text-sm">
-                Found {parseResult.lists.length} list
-                {parseResult.lists.length === 1 ? "" : "s"} with {parseResult.total_tasks} total
-                tasks
+                {t("ticktick.totalTasks", {
+                  listCount: parseResult.lists.length,
+                  listLabel: t("ticktick.listsDetected", { count: parseResult.lists.length })
+                    .split(" ")
+                    .slice(1)
+                    .join(" "),
+                  taskCount: parseResult.total_tasks,
+                })}
               </p>
             </div>
 
             <div>
-              <Label>Import from TickTick list</Label>
+              <Label>{t("ticktick.importFromList")}</Label>
               <Select
                 value={selectedSourceListName ?? ""}
                 onValueChange={(value) => setSelectedSourceListName(value)}
               >
                 <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select a TickTick list" />
+                  <SelectValue placeholder={t("ticktick.selectListPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {parseResult.lists.map((list) => (
                     <SelectItem key={list.name} value={list.name}>
-                      {list.name} ({list.task_count} tasks)
+                      {list.name} ({t("ticktick.tasksCount", { count: list.task_count })})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -326,13 +333,13 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
             </div>
 
             <div>
-              <Label>Import to Initiative project</Label>
+              <Label>{t("common.importToInitiativeProject")}</Label>
               <Select
                 value={selectedTargetProjectId?.toString() ?? ""}
                 onValueChange={(value) => setSelectedTargetProjectId(Number(value))}
               >
                 <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select a project" />
+                  <SelectValue placeholder={t("common.selectProject")} />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {activeProjects.map((project) => (
@@ -347,13 +354,13 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStep("upload")}>
-                Back
+                {t("common.back")}
               </Button>
               <Button
                 onClick={handleSelectSourceList}
                 disabled={!selectedSourceListName || !selectedTargetProjectId}
               >
-                Next
+                {t("common.next")}
               </Button>
             </div>
           </div>
@@ -362,10 +369,8 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
         {step === "configure" && selectedSourceList && (
           <div className="space-y-4">
             <div>
-              <Label>Map columns to statuses</Label>
-              <p className="text-muted-foreground text-sm">
-                Choose which project status each TickTick column should map to.
-              </p>
+              <Label>{t("ticktick.mapColumnsLabel")}</Label>
+              <p className="text-muted-foreground text-sm">{t("ticktick.mapColumnsDescription")}</p>
             </div>
 
             <div className="space-y-3">
@@ -374,7 +379,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{column.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {column.task_count} task{column.task_count === 1 ? "" : "s"}
+                      {t("ticktick.taskCount", { count: column.task_count })}
                     </p>
                   </div>
                   <Select
@@ -387,7 +392,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
                     }
                   >
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t("common.selectStatus")} />
                     </SelectTrigger>
                     <SelectContent>
                       {statuses.map((status) => (
@@ -403,7 +408,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStep("select-list")}>
-                Back
+                {t("common.back")}
               </Button>
               <Button
                 onClick={handleImport}
@@ -412,7 +417,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
                   Object.keys(columnMapping).length !== selectedSourceList.columns.length
                 }
               >
-                {importMutation.isPending ? "Importing..." : "Import"}
+                {importMutation.isPending ? t("common.importing") : t("common.import")}
               </Button>
             </div>
           </div>
@@ -433,22 +438,22 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
               <div>
                 <p className="font-medium">
                   {importResult.tasks_failed === 0
-                    ? "Import successful!"
-                    : "Import completed with warnings"}
+                    ? t("common.importSuccessful")
+                    : t("common.importWarnings")}
                 </p>
                 <p className="text-muted-foreground text-sm">
-                  {importResult.tasks_created} task{importResult.tasks_created === 1 ? "" : "s"}{" "}
-                  created
+                  {t("common.tasksCreated", { count: importResult.tasks_created })}
                   {importResult.subtasks_created > 0 &&
-                    `, ${importResult.subtasks_created} subtask${importResult.subtasks_created === 1 ? "" : "s"}`}
-                  {importResult.tasks_failed > 0 && `, ${importResult.tasks_failed} failed`}
+                    `, ${t("common.subtasksCount", { count: importResult.subtasks_created })}`}
+                  {importResult.tasks_failed > 0 &&
+                    `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
                 </p>
               </div>
             </div>
 
             {importResult.errors.length > 0 && (
               <div className="bg-muted max-h-40 overflow-y-auto rounded-lg p-3">
-                <p className="mb-2 text-sm font-medium">Errors:</p>
+                <p className="mb-2 text-sm font-medium">{t("common.errors")}</p>
                 <ul className="text-muted-foreground space-y-1 text-xs">
                   {importResult.errors.map((error, index) => (
                     <li key={index}>{error}</li>
@@ -458,7 +463,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
             )}
 
             <div className="flex justify-end">
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
+              <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -47,6 +48,7 @@ export function CreateWikilinkDocumentDialog({
   canCreate,
   onCreated,
 }: CreateWikilinkDocumentDialogProps) {
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const { activeGuildId } = useGuilds();
   const { user } = useAuth();
@@ -101,7 +103,7 @@ export function CreateWikilinkDocumentDialog({
       }
     },
     onSuccess: (document) => {
-      toast.success("Document created");
+      toast.success(t("wikilink.created"));
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
@@ -111,7 +113,7 @@ export function CreateWikilinkDocumentDialog({
       onCreated?.(document.id);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to create document.";
+      const message = error instanceof Error ? error.message : t("wikilink.createError");
       // Check for axios error response
       const axiosError = error as { response?: { data?: { detail?: string } } };
       const detail = axiosError.response?.data?.detail;
@@ -123,25 +125,17 @@ export function CreateWikilinkDocumentDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Create document</AlertDialogTitle>
+          <AlertDialogTitle>{t("wikilink.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            {canCreate ? (
-              <>
-                The document &ldquo;{title}&rdquo; doesn&apos;t exist yet. Would you like to create
-                it?
-              </>
-            ) : (
-              <>
-                The document &ldquo;{title}&rdquo; doesn&apos;t exist. You don&apos;t have
-                permission to create documents in this initiative.
-              </>
-            )}
+            {canCreate
+              ? t("wikilink.descriptionCanCreate", { title })
+              : t("wikilink.descriptionNoPermission", { title })}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         {canCreate && (
           <div className="space-y-2 py-2">
-            <Label htmlFor="wikilink-template">Template (optional)</Label>
+            <Label htmlFor="wikilink-template">{t("wikilink.templateLabel")}</Label>
             <Select
               value={selectedTemplateId || undefined}
               onValueChange={setSelectedTemplateId}
@@ -151,15 +145,15 @@ export function CreateWikilinkDocumentDialog({
                 <SelectValue
                   placeholder={
                     templateDocumentsQuery.isLoading
-                      ? "Loading templates…"
+                      ? t("wikilink.loadingTemplates")
                       : manageableTemplates.length > 0
-                        ? "Blank document"
-                        : "No templates available"
+                        ? t("wikilink.blankDocument")
+                        : t("wikilink.noTemplates")
                   }
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="blank">Blank document</SelectItem>
+                <SelectItem value="blank">{t("wikilink.blankDocument")}</SelectItem>
                 {manageableTemplates.map((template) => (
                   <SelectItem key={template.id} value={String(template.id)}>
                     {template.title}
@@ -171,16 +165,16 @@ export function CreateWikilinkDocumentDialog({
         )}
 
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
           {canCreate && (
             <Button onClick={() => createDocument.mutate()} disabled={createDocument.isPending}>
               {createDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {t("wikilink.creating")}
                 </>
               ) : (
-                "Create document"
+                t("wikilink.createDocument")
               )}
             </Button>
           )}

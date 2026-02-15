@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.config import settings
+from app.core.messages import GuildMessages
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User, UserRole
@@ -55,9 +56,9 @@ async def _ensure_guild_admin(
     await set_rls_context(session, user_id=user_id, is_superadmin=is_superadmin)
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id)
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ACCESS_DENIED)
     if membership.role != GuildRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild admin role required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ADMIN_REQUIRED)
     return membership
 
 
@@ -128,10 +129,10 @@ async def create_guild(
     """Create a new guild. Uses admin session because the guild doesn't exist
     yet — no guild context or membership exists for RLS to match against."""
     if settings.DISABLE_GUILD_CREATION and current_user.role != UserRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Guild creation is disabled")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_CREATION_DISABLED)
     name = guild_in.name.strip()
     if not name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Guild name is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=GuildMessages.GUILD_NAME_REQUIRED)
 
     guild = await guilds_service.create_guild(
         session,
@@ -145,7 +146,7 @@ async def create_guild(
     await reapply_rls_context(session)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create guild membership")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED)
     return _serialize_guild(guild, membership)
 
 
@@ -252,7 +253,7 @@ async def accept_invite(
     await reapply_rls_context(session)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Guild membership missing")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=GuildMessages.GUILD_MEMBERSHIP_MISSING)
     return _serialize_guild(guild, membership)
 
 
@@ -276,12 +277,12 @@ async def update_guild_membership(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot change your own guild role",
+            detail=GuildMessages.CANNOT_CHANGE_OWN_ROLE,
         )
 
     target_membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id, for_update=True)
     if target_membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in guild")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.USER_NOT_FOUND_IN_GUILD)
 
     # Check if demoting the last guild admin (FOR UPDATE already acquired above)
     if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
@@ -289,7 +290,7 @@ async def update_guild_membership(
         if await is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot demote the last guild admin",
+                detail=GuildMessages.CANNOT_DEMOTE_LAST_ADMIN,
             )
 
     target_membership.role = payload.role
@@ -312,7 +313,7 @@ async def check_leave_eligibility(
     """
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this guild")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
 
     from app.services.users import is_last_admin_of_guild
 
@@ -346,24 +347,23 @@ async def leave_guild(
     """
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this guild")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
 
     from app.services.users import is_last_admin_of_guild
 
     if await is_last_admin_of_guild(session, guild_id, current_user.id, for_update=True):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot leave guild: you are the last admin. Promote another user to admin first.",
+            detail=GuildMessages.CANNOT_LEAVE_LAST_ADMIN,
         )
 
     sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
         session, current_user.id, guild_id=guild_id
     )
     if sole_pm_initiatives:
-        names = ", ".join(initiative.name for initiative in sole_pm_initiatives)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot leave guild: you are the sole project manager of: {names}. Promote another member first.",
+            detail=GuildMessages.CANNOT_LEAVE_SOLE_PM,
         )
 
     await guilds_service.remove_user_from_guild(session, guild_id=guild_id, user_id=current_user.id)

@@ -22,7 +22,7 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { RegisterPage } from "./RegisterPage";
 
 export const LoginPage = () => {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["auth", "common"]);
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { invite_code?: string };
   const { login } = useAuth();

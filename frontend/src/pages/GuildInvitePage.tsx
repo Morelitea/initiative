@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link, useParams } from "@tanstack/react-router";
-import type { AxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { useAuth } from "@/hooks/useAuth";
 import type { GuildInviteStatus } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ export const GuildInvitePage = () => {
     [normalizedCode]
   );
   const { user, refreshUser } = useAuth();
+  const { t } = useTranslation(["guilds", "common"]);
   const [status, setStatus] = useState<GuildInviteStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export const GuildInvitePage = () => {
     if (!normalizedCode) {
       setStatus(null);
       setLoading(false);
-      setError("Invite code is missing");
+      setError(t("invite.codeMissing"));
       return;
     }
     setLoading(true);
@@ -44,14 +46,14 @@ export const GuildInvitePage = () => {
         }
         setStatus(response.data);
         if (!response.data.is_valid) {
-          setError(response.data.reason ?? "Invite is no longer valid.");
+          setError(response.data.reason ?? t("invite.noLongerValid"));
         }
       })
       .catch(() => {
         if (ignore) {
           return;
         }
-        setError("Unable to load invite details. Please try again later.");
+        setError(t("invite.unableToLoad"));
       })
       .finally(() => {
         if (!ignore) {
@@ -61,7 +63,7 @@ export const GuildInvitePage = () => {
     return () => {
       ignore = true;
     };
-  }, [normalizedCode]);
+  }, [normalizedCode, t]);
 
   const handleAccept = async () => {
     if (!normalizedCode || !user) {
@@ -74,16 +76,16 @@ export const GuildInvitePage = () => {
       setAccepted(true);
       await refreshUser();
     } catch (err) {
-      const axiosError = err as AxiosError<{ detail?: string }>;
-      const detail = axiosError.response?.data?.detail;
-      setAcceptError(detail ?? "Unable to accept invite right now.");
+      setAcceptError(getErrorMessage(err, "guilds:invite.unableToAccept"));
     } finally {
       setAccepting(false);
     }
   };
 
   const inviteValid = Boolean(status?.is_valid);
-  const inviteTitle = inviteValid ? `Join ${status?.guild_name ?? "this guild"}` : "Guild invite";
+  const inviteTitle = inviteValid
+    ? t("invite.title", { guildName: status?.guild_name ?? "this guild" })
+    : t("invite.titleDefault");
 
   const isDark = document.documentElement.classList.contains("dark");
 
@@ -99,71 +101,69 @@ export const GuildInvitePage = () => {
       <div className="bg-muted/60 flex min-h-screen flex-col items-center justify-center gap-3 px-4 py-12">
         <div className="text-primary flex items-center gap-3 text-3xl font-semibold tracking-tight">
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
-          initiative
+          {t("common:appName")}
         </div>
         <Card className="w-full max-w-lg shadow-lg">
           <CardHeader>
             <CardTitle>{inviteTitle}</CardTitle>
             <CardDescription>
               {loading
-                ? "Checking invite details…"
+                ? t("invite.checking")
                 : inviteValid
-                  ? "Accept to join this guild."
-                  : (error ?? "This invite could not be validated.")}
+                  ? t("invite.acceptDescription")
+                  : (error ?? t("invite.couldNotValidate"))}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
               <p className="text-muted-foreground flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading invite…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("invite.loading")}
               </p>
             ) : (
               <>
                 <div className="bg-muted/40 rounded border p-4 text-sm">
                   <p>
-                    <span className="font-medium">Invite code:</span> {normalizedCode || "—"}
+                    <span className="font-medium">{t("invite.inviteCodeLabel")}</span>{" "}
+                    {normalizedCode || "—"}
                   </p>
                   <p>
-                    <span className="font-medium">Guild:</span> {status?.guild_name ?? "Unknown"}
+                    <span className="font-medium">{t("invite.guildLabel")}</span>{" "}
+                    {status?.guild_name ?? t("invite.unknown")}
                   </p>
                   {status?.expires_at ? (
                     <p>
-                      <span className="font-medium">Expires:</span>{" "}
+                      <span className="font-medium">{t("invite.expiresLabel")}</span>{" "}
                       {new Date(status.expires_at).toLocaleString()}
                     </p>
                   ) : null}
                   {status?.max_uses ? (
                     <p>
-                      <span className="font-medium">Uses:</span> {status.uses ?? 0} /{" "}
-                      {status.max_uses}
+                      <span className="font-medium">{t("invite.usesLabel")}</span>{" "}
+                      {status.uses ?? 0} / {status.max_uses}
                     </p>
                   ) : null}
                 </div>
                 {inviteValid ? (
                   <div className="text-muted-foreground space-y-2 text-sm">
-                    <p>If you already have an account, sign in and accept the invite.</p>
+                    <p>{t("invite.alreadyHaveAccount")}</p>
                     <p>
-                      Need an account?{" "}
+                      {t("invite.needAccount")}{" "}
                       <Link
                         className="text-primary underline-offset-4 hover:underline"
                         to={registerLink}
                       >
-                        Register using this invite
+                        {t("invite.registerWithInvite")}
                       </Link>
                       .
                     </p>
                   </div>
                 ) : null}
                 {acceptError ? <p className="text-destructive text-sm">{acceptError}</p> : null}
-                {accepted ? (
-                  <p className="text-primary text-sm">
-                    Invite accepted! You now have access to this guild.
-                  </p>
-                ) : null}
+                {accepted ? <p className="text-primary text-sm">{t("invite.accepted")}</p> : null}
                 <div className="flex flex-col gap-2">
                   {accepted ? (
                     <Button asChild className="w-full">
-                      <Link to="/">Continue to Initiative</Link>
+                      <Link to="/">{t("invite.continueToApp")}</Link>
                     </Button>
                   ) : (
                     <Button
@@ -171,7 +171,7 @@ export const GuildInvitePage = () => {
                       disabled={!user || !inviteValid || accepting || accepted}
                       className="w-full"
                     >
-                      {accepting ? "Accepting…" : "Accept invite"}
+                      {accepting ? t("invite.accepting") : t("invite.acceptInvite")}
                     </Button>
                   )}
 
@@ -181,7 +181,7 @@ export const GuildInvitePage = () => {
                       to="/login"
                       search={normalizedCode ? { invite_code: normalizedCode } : undefined}
                     >
-                      Sign in to accept
+                      {t("invite.signInToAccept")}
                     </Link>
                   ) : null}
                 </div>

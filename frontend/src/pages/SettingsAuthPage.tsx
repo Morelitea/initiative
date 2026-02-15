@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/api/client";
@@ -29,6 +30,7 @@ interface OidcSettings {
 }
 
 export const SettingsAuthPage = () => {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "admin";
   const [clientSecret, setClientSecret] = useState("");
@@ -75,25 +77,17 @@ export const SettingsAuthPage = () => {
 
   if (oidcQuery.isLoading) {
     if (!isPlatformAdmin) {
-      return (
-        <p className="text-muted-foreground text-sm">
-          Only platform admins can manage authentication settings.
-        </p>
-      );
+      return <p className="text-muted-foreground text-sm">{t("auth.adminOnly")}</p>;
     }
-    return <p className="text-muted-foreground text-sm">Loading auth settings…</p>;
+    return <p className="text-muted-foreground text-sm">{t("auth.loading")}</p>;
   }
 
   if (!isPlatformAdmin) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Only platform admins can manage authentication settings.
-      </p>
-    );
+    return <p className="text-muted-foreground text-sm">{t("auth.adminOnly")}</p>;
   }
 
   if (oidcQuery.isError || !oidcQuery.data) {
-    return <p className="text-destructive text-sm">Unable to load auth settings.</p>;
+    return <p className="text-destructive text-sm">{t("auth.loadError")}</p>;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -112,8 +106,8 @@ export const SettingsAuthPage = () => {
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>OIDC authentication</CardTitle>
-          <CardDescription>Configure single sign-on for your workspace.</CardDescription>
+          <CardTitle>{t("auth.title")}</CardTitle>
+          <CardDescription>{t("auth.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -123,11 +117,9 @@ export const SettingsAuthPage = () => {
                   htmlFor="oidc-enabled"
                   className="flex items-center gap-2 text-base font-medium"
                 >
-                  Enabled
+                  {t("auth.enabledLabel")}
                 </Label>
-                <p className="text-muted-foreground text-sm">
-                  Allow users to authenticate via your OIDC provider.
-                </p>
+                <p className="text-muted-foreground text-sm">{t("auth.enabledHelp")}</p>
               </div>
               <Switch
                 id="oidc-enabled"
@@ -138,7 +130,7 @@ export const SettingsAuthPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="issuer">Issuer</Label>
+              <Label htmlFor="issuer">{t("auth.issuerLabel")}</Label>
               <Input
                 id="issuer"
                 type="url"
@@ -146,11 +138,11 @@ export const SettingsAuthPage = () => {
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, issuer: event.target.value }))
                 }
-                placeholder="https://accounts.example.com"
+                placeholder={t("auth.issuerPlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="client-id">Client ID</Label>
+              <Label htmlFor="client-id">{t("auth.clientIdLabel")}</Label>
               <Input
                 id="client-id"
                 value={formState.client_id}
@@ -160,58 +152,56 @@ export const SettingsAuthPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="client-secret">Client secret</Label>
+              <Label htmlFor="client-secret">{t("auth.clientSecretLabel")}</Label>
               <Input
                 id="client-secret"
                 type="password"
                 value={clientSecret}
                 onChange={(event) => setClientSecret(event.target.value)}
-                placeholder="••••••••"
+                placeholder={t("auth.clientSecretPlaceholder")}
               />
-              <p className="text-muted-foreground text-xs">
-                Leave blank to keep the existing secret.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("auth.clientSecretHelp")}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="provider-name">Provider name</Label>
+              <Label htmlFor="provider-name">{t("auth.providerNameLabel")}</Label>
               <Input
                 id="provider-name"
                 value={formState.provider_name}
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, provider_name: event.target.value }))
                 }
-                placeholder="Single Sign-On"
+                placeholder={t("auth.providerNamePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="scopes">Scopes</Label>
+              <Label htmlFor="scopes">{t("auth.scopesLabel")}</Label>
               <Input
                 id="scopes"
                 value={formState.scopes}
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, scopes: event.target.value }))
                 }
-                placeholder="openid profile email offline_access"
+                placeholder={t("auth.scopesPlaceholder")}
               />
             </div>
             <Button type="submit" disabled={updateOidcSettings.isPending}>
-              {updateOidcSettings.isPending ? "Saving…" : "Save auth settings"}
+              {updateOidcSettings.isPending ? t("auth.saving") : t("auth.save")}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="text-muted-foreground flex flex-col gap-2 text-sm">
           <div>
-            Authorization callback:{" "}
+            {t("auth.callbackUrl")}{" "}
             <code className="bg-muted rounded px-1 py-0.5">{oidcQuery.data.redirect_uri}</code>
           </div>
           <div>
-            Post-login redirect:{" "}
+            {t("auth.postLoginRedirect")}{" "}
             <code className="bg-muted rounded px-1 py-0.5">
               {oidcQuery.data.post_login_redirect}
             </code>
           </div>
           <div>
-            Mobile app callback:{" "}
+            {t("auth.mobileCallback")}{" "}
             <code className="bg-muted rounded px-1 py-0.5">
               {oidcQuery.data.mobile_redirect_uri}
             </code>

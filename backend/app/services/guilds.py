@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import GuildMessages
 from app.models.guild import Guild, GuildInvite, GuildMembership, GuildRole
 from app.models.guild_setting import GuildSetting
 from app.models.initiative import Initiative, InitiativeMember
@@ -49,7 +50,7 @@ async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise ValueError("Guild not found")
+        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
     return guild
 
 
@@ -364,9 +365,9 @@ async def redeem_invite_for_user(
 ) -> Guild:
     invite = await get_invite_by_code(session, code=code)
     if not invite:
-        raise GuildInviteError("Invite code not found")
+        raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
     if not invite_is_active(invite):
-        raise GuildInviteError("Invite has expired or has already been used")
+        raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
 
     await ensure_membership(
         session,
@@ -387,17 +388,17 @@ async def describe_invite_code(
 ) -> tuple[GuildInvite | None, Guild | None, bool, str | None]:
     invite = await get_invite_by_code(session, code=code)
     if not invite:
-        return None, None, False, "Invite code not found"
+        return None, None, False, GuildMessages.INVITE_NOT_FOUND
     guild = await get_guild(session, guild_id=invite.guild_id)
     if invite_is_active(invite):
         return invite, guild, True, None
 
-    reason = "Invite is no longer valid"
+    reason = GuildMessages.INVITE_INVALID
     now = datetime.now(timezone.utc)
     if invite.expires_at and invite.expires_at < now:
-        reason = "Invite has expired"
+        reason = GuildMessages.INVITE_EXPIRED
     elif invite.max_uses is not None and invite.uses >= invite.max_uses:
-        reason = "Invite has already been used"
+        reason = GuildMessages.INVITE_USED
     return invite, guild, False, reason
 
 

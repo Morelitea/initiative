@@ -7,6 +7,7 @@ from app.schemas.notification import (
     NotificationListResponse,
     NotificationRead,
 )
+from app.core.messages import NotificationMessages
 from app.services import user_notifications as notifications_service
 
 router = APIRouter()
@@ -47,7 +48,7 @@ async def mark_notification_read(
         notification_id=notification_id,
     )
     if not notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=NotificationMessages.NOT_FOUND)
     return notification
 
 

@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, memo } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   DndContext,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { SortIcon } from "@/components/SortIcon";
 import { summarizeRecurrence } from "@/lib/recurrence";
+import type { TranslateFn } from "@/types/i18n";
 import { truncateText } from "@/lib/text";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
@@ -177,7 +178,7 @@ const ProjectTasksTableViewComponent = ({
         },
         cell: ({ getValue }) => (
           <span className="text-base font-medium">
-            {getTaskDateStatusLabel(getValue<string>(), t)}
+            {getTaskDateStatusLabel(getValue<string>(), t as TranslateFn)}
           </span>
         ),
         enableHiding: true,
@@ -401,18 +402,22 @@ const ProjectTasksTableViewComponent = ({
             const disableDnd = sorting.length > 0 || grouping.length > 0;
             return disableDnd ? (
               <div className="text-muted-foreground">
-                {t("table.manualSortDisabled")}{" "}
-                <Button
-                  variant="link"
-                  className="text-foreground px-0 text-base"
-                  onClick={() => {
-                    table.resetSorting();
-                    table.resetGrouping();
+                <Trans
+                  i18nKey="table.manualSortDisabled"
+                  ns="projects"
+                  components={{
+                    1: (
+                      <Button
+                        variant="link"
+                        className="text-foreground px-0 text-base"
+                        onClick={() => {
+                          table.resetSorting();
+                          table.resetGrouping();
+                        }}
+                      />
+                    ),
                   }}
-                >
-                  {t("table.resetSortingAndGrouping")}
-                </Button>{" "}
-                {t("table.toReorder")}
+                />
               </div>
             ) : null;
           }}
@@ -499,7 +504,7 @@ const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
         referenceDate: task.start_date || task.due_date,
         strategy: task.recurrence_strategy,
       },
-      t
+      t as TranslateFn
     );
     return summary ? truncateText(summary, 100) : null;
   }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy, t]);

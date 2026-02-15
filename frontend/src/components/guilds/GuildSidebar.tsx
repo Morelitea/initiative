@@ -22,6 +22,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { useTranslation } from "react-i18next";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, isGuildScopedPath, guildPath } from "@/lib/guildUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -47,6 +48,7 @@ import { GuildContextMenu } from "./GuildContextMenu";
 
 const CreateGuildButton = () => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
+  const { t } = useTranslation("guilds");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -70,7 +72,7 @@ const CreateGuildButton = () => {
       setDescription("");
     } catch (err) {
       console.error(err);
-      const message = err instanceof Error ? err.message : "Unable to create guild";
+      const message = err instanceof Error ? err.message : t("unableToCreateGuild");
       setError(message);
       toast.error(message);
     } finally {
@@ -88,48 +90,46 @@ const CreateGuildButton = () => {
               variant="secondary"
               size="icon"
               className="border-muted-foreground/40 text-muted-foreground hover:bg-muted h-12 w-12 rounded-2xl border border-dashed bg-transparent"
-              aria-label="Create guild"
+              aria-label={t("createGuild")}
             >
               <Plus className="h-5 w-5" />
             </Button>
           </DialogTrigger>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12}>
-          <p>Create Guild</p>
+          <p>{t("createGuild")}</p>
         </TooltipContent>
       </Tooltip>
       <DialogContent className="bg-card max-h-screen overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create a new guild</DialogTitle>
-          <DialogDescription>
-            Guilds group initiatives and projects. You can invite teammates after creation.
-          </DialogDescription>
+          <DialogTitle>{t("createGuildTitle")}</DialogTitle>
+          <DialogDescription>{t("createGuildDescription")}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="guild-name">Guild name</Label>
+            <Label htmlFor="guild-name">{t("guildNameLabel")}</Label>
             <Input
               id="guild-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Product Engineering"
+              placeholder={t("guildNamePlaceholder")}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="guild-description">Description</Label>
+            <Label htmlFor="guild-description">{t("descriptionLabel")}</Label>
             <Textarea
               id="guild-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Optional summary"
+              placeholder={t("descriptionPlaceholder")}
               rows={3}
             />
           </div>
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating…" : "Create guild"}
+              {submitting ? t("creating") : t("createGuildSubmit")}
             </Button>
           </DialogFooter>
         </form>
@@ -180,6 +180,7 @@ const SortableGuildButton = ({
   isActive: boolean;
   onSelect: (guildId: number) => void;
 }) => {
+  const { t } = useTranslation("guilds");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: guild.id,
   });
@@ -204,7 +205,7 @@ const SortableGuildButton = ({
                 ? "border-primary/60 bg-primary/10 text-primary"
                 : "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent"
             )}
-            aria-label={`Switch to ${guild.name}`}
+            aria-label={t("switchTo", { name: guild.name })}
             style={style}
             {...attributes}
             {...listeners}
@@ -222,6 +223,7 @@ const SortableGuildButton = ({
 
 export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
+  const { t } = useTranslation(["guilds", "nav"]);
   const router = useRouter();
   const location = useLocation();
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
@@ -326,11 +328,12 @@ export const GuildSidebar = () => {
           <TooltipTrigger asChild>
             <Link to="/" className="flex flex-col items-center">
               <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
+              {/* eslint-disable-next-line i18next/no-literal-string */}
               <span className="text-primary text-s text-center">initiative</span>
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={12}>
-            <p>My Tasks</p>
+            <p>{t("nav:myTasks")}</p>
           </TooltipContent>
         </Tooltip>
         <div className="flex flex-col items-center gap-3 overflow-y-auto border-t pt-3">

@@ -141,7 +141,7 @@ async def test_delete_nonexistent_api_key(client: AsyncClient, session: AsyncSes
     response = await client.delete("/api/v1/users/me/api-keys/99999", headers=headers)
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "USER_API_KEY_NOT_FOUND"
 
 
 @pytest.mark.integration

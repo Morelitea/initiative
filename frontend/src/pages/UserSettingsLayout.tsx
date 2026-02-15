@@ -1,20 +1,22 @@
 import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 
 const userSettingsTabs = [
-  { value: "profile", label: "Profile", path: "/profile" },
-  { value: "interface", label: "Interface", path: "/profile/interface" },
-  { value: "notifications", label: "Notifications", path: "/profile/notifications" },
-  { value: "ai", label: "AI", path: "/profile/ai" },
-  { value: "import", label: "Import", path: "/profile/import" },
-  { value: "security", label: "Security", path: "/profile/security" },
-  { value: "danger", label: "Danger Zone", path: "/profile/danger" },
+  { value: "profile", labelKey: "layout.tabs.profile", path: "/profile" },
+  { value: "interface", labelKey: "layout.tabs.interface", path: "/profile/interface" },
+  { value: "notifications", labelKey: "layout.tabs.notifications", path: "/profile/notifications" },
+  { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },
+  { value: "import", labelKey: "layout.tabs.import", path: "/profile/import" },
+  { value: "security", labelKey: "layout.tabs.security", path: "/profile/security" },
+  { value: "danger", labelKey: "layout.tabs.danger", path: "/profile/danger" },
 ] as const;
 
 export const UserSettingsLayout = () => {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const location = useLocation();
   const router = useRouter();
@@ -22,9 +24,9 @@ export const UserSettingsLayout = () => {
   if (!user) {
     return (
       <div className="space-y-4">
-        <p className="text-destructive">You need to be logged in to manage your profile.</p>
+        <p className="text-destructive">{t("layout.loginRequired")}</p>
         <Button asChild variant="link" className="px-0">
-          <Link to="/login">Go to login</Link>
+          <Link to="/login">{t("layout.goToLogin")}</Link>
         </Button>
       </div>
     );
@@ -40,10 +42,8 @@ export const UserSettingsLayout = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">User settings</h1>
-        <p className="text-muted-foreground text-sm">
-          Manage your profile, interface preferences, and notifications.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("layout.title")}</h1>
+        <p className="text-muted-foreground text-sm">{t("layout.subtitle")}</p>
       </div>
       <Tabs
         value={activeTab}
@@ -58,7 +58,7 @@ export const UserSettingsLayout = () => {
           <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
             {userSettingsTabs.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
-                {tab.label}
+                {t(tab.labelKey)}
               </TabsTrigger>
             ))}
           </TabsList>

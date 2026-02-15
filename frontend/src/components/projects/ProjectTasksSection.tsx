@@ -877,7 +877,7 @@ export const ProjectTasksSection = ({
                   {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
                     <SelectItem key={value} value={value}>
                       <Icon className="mr-2 inline h-4 w-4" />
-                      {t(labelKey)}
+                      {t(labelKey as never)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -888,7 +888,7 @@ export const ProjectTasksSection = ({
                 {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
                   <TabsTrigger key={value} value={value} className="gap-2">
                     <Icon className="h-4 w-4" />
-                    {t(labelKey)}
+                    {t(labelKey as never)}
                   </TabsTrigger>
                 ))}
               </TabsList>

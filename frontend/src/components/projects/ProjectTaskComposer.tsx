@@ -83,7 +83,7 @@ export const ProjectTaskComposer = ({
   onCancel,
   autoFocusTitle = false,
 }: ProjectTaskComposerProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {

@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2, Plus, Presentation, Upload, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -53,6 +54,7 @@ export const CreateDocumentDialog = ({
   onSuccess,
   initiatives = [],
 }: CreateDocumentDialogProps) => {
+  const { t } = useTranslation("documents");
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -146,8 +148,8 @@ export const CreateDocumentDialog = ({
   const createDocument = useMutation({
     mutationFn: async () => {
       const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) throw new Error("Document title is required");
-      if (!effectiveInitiativeId) throw new Error("Please select an initiative");
+      if (!trimmedTitle) throw new Error(t("create.titleRequired"));
+      if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
 
       let newDocument: DocumentRead;
 
@@ -174,7 +176,7 @@ export const CreateDocumentDialog = ({
       return newDocument;
     },
     onSuccess: (document) => {
-      toast.success(projectId ? "Document created and attached." : "Document created.");
+      toast.success(projectId ? t("create.createdAttached") : t("create.created"));
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
@@ -189,17 +191,17 @@ export const CreateDocumentDialog = ({
       onSuccess?.(document);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to create document.";
+      const message = error instanceof Error ? error.message : t("create.createError");
       toast.error(message);
     },
   });
 
   const uploadDocument = useMutation({
     mutationFn: async () => {
-      if (!selectedFile) throw new Error("Please select a file to upload");
+      if (!selectedFile) throw new Error(t("create.fileRequired"));
       const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) throw new Error("Document title is required");
-      if (!effectiveInitiativeId) throw new Error("Please select an initiative");
+      if (!trimmedTitle) throw new Error(t("create.titleRequired"));
+      if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
 
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -220,7 +222,7 @@ export const CreateDocumentDialog = ({
       return newDocument;
     },
     onSuccess: (document) => {
-      toast.success(projectId ? "Document uploaded and attached." : "Document uploaded.");
+      toast.success(projectId ? t("create.uploadedAttached") : t("create.uploaded"));
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
@@ -235,7 +237,7 @@ export const CreateDocumentDialog = ({
       onSuccess?.(document);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to upload document.";
+      const message = error instanceof Error ? error.message : t("create.uploadError");
       toast.error(message);
     },
   });
@@ -245,7 +247,7 @@ export const CreateDocumentDialog = ({
     if (file) {
       const maxSize = 50 * 1024 * 1024;
       if (file.size > maxSize) {
-        toast.error("File is too large. Maximum size is 50 MB.");
+        toast.error(t("create.fileTooLarge"));
         e.target.value = "";
         return;
       }
@@ -266,11 +268,9 @@ export const CreateDocumentDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border shadow-2xl">
         <DialogHeader>
-          <DialogTitle>New document</DialogTitle>
+          <DialogTitle>{t("create.title")}</DialogTitle>
           <DialogDescription>
-            {projectId
-              ? "Create a new document and automatically attach it to this project."
-              : "Documents live inside an initiative and can be attached to projects later."}
+            {projectId ? t("create.descriptionAttach") : t("create.descriptionStandalone")}
           </DialogDescription>
         </DialogHeader>
 
@@ -281,37 +281,39 @@ export const CreateDocumentDialog = ({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="new" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
-              New document
+              {t("create.tabNew")}
             </TabsTrigger>
             <TabsTrigger value="upload" className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
-              Upload file
+              {t("create.tabUpload")}
             </TabsTrigger>
           </TabsList>
 
           {/* Shared fields: Title and Initiative */}
           <div className="mt-4 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="create-doc-title">Title</Label>
+              <Label htmlFor="create-doc-title">{t("create.titleLabel")}</Label>
               <Input
                 id="create-doc-title"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder={
-                  createDialogTab === "upload" ? "Document title" : "Product launch brief"
+                  createDialogTab === "upload"
+                    ? t("create.titlePlaceholderStandalone")
+                    : t("create.titlePlaceholderAttach")
                 }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="create-doc-initiative">Initiative</Label>
+              <Label htmlFor="create-doc-initiative">{t("create.initiativeLabel")}</Label>
               {initiativeId ? (
                 <div className="rounded-md border px-3 py-2 text-sm">
-                  {lockedInitiative?.name ?? "Selected initiative"}
+                  {lockedInitiative?.name ?? t("create.selectInitiative")}
                 </div>
               ) : (
                 <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
                   <SelectTrigger id="create-doc-initiative">
-                    <SelectValue placeholder="Select initiative" />
+                    <SelectValue placeholder={t("create.selectInitiative")} />
                   </SelectTrigger>
                   <SelectContent>
                     {initiatives.map((initiative) => (
@@ -329,7 +331,7 @@ export const CreateDocumentDialog = ({
           <TabsContent value="new" className="mt-4 space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="create-doc-template">Start from template</Label>
+                <Label htmlFor="create-doc-template">{t("create.templateLabel")}</Label>
                 {selectedTemplateId && (
                   <Button
                     type="button"
@@ -339,7 +341,7 @@ export const CreateDocumentDialog = ({
                     onClick={() => setSelectedTemplateId("")}
                   >
                     <X className="mr-1 h-3 w-3" />
-                    Clear
+                    {t("create.clear")}
                   </Button>
                 )}
               </div>
@@ -356,10 +358,10 @@ export const CreateDocumentDialog = ({
                   <SelectValue
                     placeholder={
                       templateDocumentsQuery.isLoading
-                        ? "Loading templates…"
+                        ? t("create.loadingTemplates")
                         : manageableTemplates.length > 0
-                          ? "Select template (optional)"
-                          : "No templates available"
+                          ? t("create.selectTemplate")
+                          : t("create.noTemplates")
                     }
                   />
                 </SelectTrigger>
@@ -374,16 +376,14 @@ export const CreateDocumentDialog = ({
             </div>
             <div className="bg-muted/40 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium">Save as template</p>
-                <p className="text-muted-foreground text-xs">
-                  Template documents are best duplicated or copied into other initiatives.
-                </p>
+                <p className="text-sm font-medium">{t("create.saveAsTemplate")}</p>
+                <p className="text-muted-foreground text-xs">{t("create.templateDescription")}</p>
               </div>
               <Switch
                 id="create-doc-is-template"
                 checked={isTemplateDocument}
                 onCheckedChange={setIsTemplateDocument}
-                aria-label="Toggle template status"
+                aria-label={t("create.templateToggle")}
               />
             </div>
           </TabsContent>
@@ -391,7 +391,7 @@ export const CreateDocumentDialog = ({
           {/* Upload file tab content */}
           <TabsContent value="upload" className="mt-4 space-y-4">
             <div className="space-y-2">
-              <Label>File</Label>
+              <Label>{t("create.fileLabel")}</Label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -439,12 +439,10 @@ export const CreateDocumentDialog = ({
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className="mr-2 h-4 w-4" />
-                  Choose file
+                  {t("create.chooseFile")}
                 </Button>
               )}
-              <p className="text-muted-foreground text-xs">
-                Supported: PDF, Word, Excel, PowerPoint, TXT, HTML (max 50 MB)
-              </p>
+              <p className="text-muted-foreground text-xs">{t("create.fileHelp")}</p>
             </div>
           </TabsContent>
         </Tabs>
@@ -455,10 +453,10 @@ export const CreateDocumentDialog = ({
               {createDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating…
+                  {t("create.creating")}
                 </>
               ) : (
-                "Create document"
+                t("create.createDocument")
               )}
             </Button>
           ) : (
@@ -470,10 +468,10 @@ export const CreateDocumentDialog = ({
               {uploadDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading…
+                  {t("create.uploadingFile")}
                 </>
               ) : (
-                "Upload document"
+                t("create.uploadDocument")
               )}
             </Button>
           )}

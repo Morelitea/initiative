@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
@@ -84,6 +85,7 @@ export const InitiativeSettingsPage = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const { t } = useTranslation(["initiatives", "common"]);
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
@@ -186,12 +188,11 @@ export const InitiativeSettingsPage = () => {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Initiative updated.");
+      toast.success(t("settings.updated"));
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to update initiative right now.";
+      const message = error instanceof Error ? error.message : t("settings.updateError");
       toast.error(message);
     },
   });
@@ -201,13 +202,12 @@ export const InitiativeSettingsPage = () => {
       await apiClient.delete(`/initiatives/${initiativeId}`);
     },
     onSuccess: () => {
-      toast.success("Initiative deleted.");
+      toast.success(t("settings.deleted"));
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
       router.navigate({ to: gp("/initiatives") });
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to delete initiative right now.";
+      const message = error instanceof Error ? error.message : t("settings.deleteError");
       toast.error(message);
     },
   });
@@ -221,12 +221,12 @@ export const InitiativeSettingsPage = () => {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Member added.");
+      toast.success(t("settings.memberAdded"));
       setSelectedUserId("");
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to add member right now.";
+      const message = error instanceof Error ? error.message : t("settings.addMemberError");
       toast.error(message);
     },
   });
@@ -236,11 +236,11 @@ export const InitiativeSettingsPage = () => {
       await apiClient.delete(`/initiatives/${initiativeId}/members/${userId}`);
     },
     onSuccess: () => {
-      toast.success("Member removed.");
+      toast.success(t("settings.memberRemoved"));
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to remove member right now.";
+      const message = error instanceof Error ? error.message : t("settings.removeMemberError");
       toast.error(message);
     },
   });
@@ -255,11 +255,11 @@ export const InitiativeSettingsPage = () => {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Role updated.");
+      toast.success(t("settings.roleUpdated"));
       void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
     },
     onError: () => {
-      toast.error("Unable to update role right now.");
+      toast.error(t("settings.roleUpdateError"));
     },
   });
 
@@ -267,7 +267,7 @@ export const InitiativeSettingsPage = () => {
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      toast.error("Name is required.");
+      toast.error(t("settings.nameRequired"));
       return;
     }
     updateInitiative.mutate({
@@ -307,7 +307,7 @@ export const InitiativeSettingsPage = () => {
     const name = newRoleName.trim().toLowerCase().replace(/\s+/g, "_");
     const displayName = newRoleDisplayName.trim();
     if (!name || !displayName) {
-      toast.error("Name and display name are required.");
+      toast.error(t("settings.roleNameRequired"));
       return;
     }
     createRoleMutation.mutate(
@@ -375,12 +375,12 @@ export const InitiativeSettingsPage = () => {
               <span className="font-medium text-nowrap">{role.display_name}</span>
               {role.is_builtin && (
                 <Badge variant="secondary" className="text-xs text-nowrap">
-                  Built-in
+                  {t("settings.builtIn")}
                 </Badge>
               )}
               {role.is_manager && (
                 <Badge variant="outline" className="text-xs">
-                  Manager
+                  {t("settings.manager")}
                 </Badge>
               )}
             </div>
@@ -414,7 +414,7 @@ export const InitiativeSettingsPage = () => {
       ),
       {
         id: "member_count",
-        header: () => <div className="text-center">Members</div>,
+        header: () => <div className="text-center">{t("settings.membersCount")}</div>,
         cell: ({ row }) => (
           <div className="flex justify-center">
             <Badge variant="outline">{row.original.member_count}</Badge>
@@ -457,6 +457,7 @@ export const InitiativeSettingsPage = () => {
         : []),
     ],
     [
+      t,
       canManageMembers,
       updateRoleMutation.isPending,
       deleteRoleMutation.isPending,
@@ -480,7 +481,7 @@ export const InitiativeSettingsPage = () => {
       {
         id: "name",
         accessorKey: "user.full_name",
-        header: "Name",
+        header: t("settings.nameColumn"),
         cell: ({ row }) => {
           const member = row.original;
           return <span className="font-medium">{member.user.full_name?.trim() || "—"}</span>;
@@ -489,7 +490,7 @@ export const InitiativeSettingsPage = () => {
       {
         id: "email",
         accessorKey: "user.email",
-        header: "Email",
+        header: t("settings.emailColumn"),
         cell: ({ row }) => {
           const member = row.original;
           return <span className="text-muted-foreground">{member.user.email}</span>;
@@ -497,7 +498,7 @@ export const InitiativeSettingsPage = () => {
       },
       {
         accessorKey: "role",
-        header: "Role",
+        header: t("settings.roleColumn"),
         cell: ({ row }) => {
           const member = row.original;
           if (!canManageMembers || !rolesQuery.data) {
@@ -530,14 +531,14 @@ export const InitiativeSettingsPage = () => {
       },
       {
         accessorKey: "oidc_managed",
-        header: "Source",
+        header: t("settings.sourceColumn"),
         cell: ({ row }) => {
           return row.original.oidc_managed ? (
             <span className="bg-muted text-muted-foreground inline-flex items-center rounded-md px-2 py-1 text-sm font-medium">
-              OIDC
+              {t("settings.sourceOidc")}
             </span>
           ) : (
-            <span className="text-muted-foreground text-sm">Manual</span>
+            <span className="text-muted-foreground text-sm">{t("settings.sourceManual")}</span>
           );
         },
       },
@@ -557,13 +558,14 @@ export const InitiativeSettingsPage = () => {
               disabled={removeMember.isPending}
               className="text-destructive"
             >
-              Remove
+              {t("settings.removeMember")}
             </Button>
           );
         },
       },
     ];
   }, [
+    t,
     canManageMembers,
     rolesQuery.data,
     removeMember,
@@ -580,7 +582,7 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading initiative...
+        {t("settings.loadingInitiative")}
       </div>
     );
   }
@@ -589,13 +591,11 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={gp("/initiatives")}>&larr; Back to My Initiatives</Link>
+          <Link to={gp("/initiatives")}>{t("settings.backToInitiatives")}</Link>
         </Button>
         <div className="rounded-lg border p-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Initiative not found</h1>
-          <p className="text-muted-foreground">
-            The initiative you&apos;re looking for doesn&apos;t exist or you no longer have access.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("settings.notFound")}</h1>
+          <p className="text-muted-foreground">{t("settings.notFoundDescription")}</p>
         </div>
       </div>
     );
@@ -605,14 +605,12 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={gp(`/initiatives/${initiative.id}`)}>&larr; Back to initiative</Link>
+          <Link to={gp(`/initiatives/${initiative.id}`)}>{t("settings.backToInitiative")}</Link>
         </Button>
         <Card>
           <CardHeader>
-            <CardTitle>Permission required</CardTitle>
-            <CardDescription>
-              Only guild admins and initiative project managers can manage initiative settings.
-            </CardDescription>
+            <CardTitle>{t("settings.permissionRequired")}</CardTitle>
+            <CardDescription>{t("settings.permissionRequiredDescription")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -630,35 +628,33 @@ export const InitiativeSettingsPage = () => {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Settings</BreadcrumbPage>
+            <BreadcrumbPage>{t("settings.breadcrumbSettings")}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Initiative settings</h1>
-        <p className="text-muted-foreground text-sm">
-          Update details, manage members and roles, and control dangerous actions.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("settings.title")}</h1>
+        <p className="text-muted-foreground text-sm">{t("settings.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList className="w-full max-w-xl justify-start">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="danger">Danger zone</TabsTrigger>
+          <TabsTrigger value="details">{t("settings.detailsTab")}</TabsTrigger>
+          <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
+          <TabsTrigger value="roles">{t("settings.rolesTab")}</TabsTrigger>
+          <TabsTrigger value="danger">{t("settings.dangerTab")}</TabsTrigger>
         </TabsList>
         <TabsContent value="details">
           <Card>
             <CardHeader>
-              <CardTitle>Initiative details</CardTitle>
-              <CardDescription>Rename, describe, or recolor this initiative.</CardDescription>
+              <CardTitle>{t("settings.detailsTitle")}</CardTitle>
+              <CardDescription>{t("settings.detailsDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSaveDetails}>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="initiative-name">Name</Label>
+                    <Label htmlFor="initiative-name">{t("settings.nameLabel")}</Label>
                     <Input
                       id="initiative-name"
                       value={name}
@@ -668,7 +664,7 @@ export const InitiativeSettingsPage = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="initiative-color">Color</Label>
+                    <Label htmlFor="initiative-color">{t("settings.colorLabel")}</Label>
                     <ColorPickerPopover
                       id="initiative-color"
                       value={color}
@@ -679,13 +675,13 @@ export const InitiativeSettingsPage = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="initiative-description">Description</Label>
+                  <Label htmlFor="initiative-description">{t("settings.descriptionLabel")}</Label>
                   <Textarea
                     id="initiative-description"
                     rows={4}
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Add context for your guild."
+                    placeholder={t("settings.descriptionPlaceholder")}
                     disabled={!canManageMembers || updateInitiative.isPending}
                   />
                 </div>
@@ -694,15 +690,15 @@ export const InitiativeSettingsPage = () => {
                     {updateInitiative.isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
+                        {t("settings.saving")}
                       </>
                     ) : (
-                      "Save changes"
+                      t("settings.saveChanges")
                     )}
                   </Button>
                 ) : (
                   <p className="text-muted-foreground text-sm">
-                    Only guild admins or initiative project managers can edit details.
+                    {t("settings.editPermissionNote")}
                   </p>
                 )}
               </form>
@@ -713,10 +709,8 @@ export const InitiativeSettingsPage = () => {
         <TabsContent value="members">
           <Card>
             <CardHeader>
-              <CardTitle>Members</CardTitle>
-              <CardDescription>
-                Initiative project managers and guild admins can manage membership.
-              </CardDescription>
+              <CardTitle>{t("settings.membersTitle")}</CardTitle>
+              <CardDescription>{t("settings.membersDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <DataTable
@@ -724,7 +718,7 @@ export const InitiativeSettingsPage = () => {
                 data={initiative.members}
                 enableFilterInput
                 filterInputColumnKey="name"
-                filterInputPlaceholder="Filter by name"
+                filterInputPlaceholder={t("settings.filterByName")}
                 enablePagination
               />
               {canManageMembers ? (
@@ -739,17 +733,17 @@ export const InitiativeSettingsPage = () => {
                       onValueChange={setSelectedUserId}
                       placeholder={
                         usersQuery.isLoading
-                          ? "Loading members..."
+                          ? t("settings.loadingMembers")
                           : availableUsers.length > 0
-                            ? "Select user"
-                            : "Everyone has been added"
+                            ? t("settings.selectUser")
+                            : t("settings.everyoneAdded")
                       }
                       disabled={usersQuery.isLoading || availableUsers.length === 0}
                     />
                     {rolesQuery.data && (
                       <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                         <SelectTrigger className="w-44">
-                          <SelectValue placeholder="Select role" />
+                          <SelectValue placeholder={t("settings.selectRole")} />
                         </SelectTrigger>
                         <SelectContent>
                           {rolesQuery.data.map((role) => (
@@ -775,17 +769,15 @@ export const InitiativeSettingsPage = () => {
                       {addMember.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Adding...
+                          {t("settings.adding")}
                         </>
                       ) : (
-                        "Add member"
+                        t("settings.addMember")
                       )}
                     </Button>
                   </div>
                   {usersQuery.isError ? (
-                    <p className="text-destructive text-xs">
-                      Unable to load potential members right now.
-                    </p>
+                    <p className="text-destructive text-xs">{t("settings.unableToLoadMembers")}</p>
                   ) : null}
                 </>
               ) : null}
@@ -796,17 +788,14 @@ export const InitiativeSettingsPage = () => {
         <TabsContent value="roles">
           <Card>
             <CardHeader>
-              <CardTitle>Role permissions</CardTitle>
-              <CardDescription>
-                Configure what each role can do within this initiative. Project Manager permissions
-                are locked to prevent accidental lockouts.
-              </CardDescription>
+              <CardTitle>{t("settings.rolesTitle")}</CardTitle>
+              <CardDescription>{t("settings.rolesDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {rolesQuery.isLoading ? (
                 <div className="text-muted-foreground flex items-center gap-2 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading roles...
+                  {t("settings.loadingRoles")}
                 </div>
               ) : rolesQuery.data ? (
                 <DataTable columns={roleColumns} data={rolesQuery.data} />
@@ -819,7 +808,7 @@ export const InitiativeSettingsPage = () => {
                   disabled={createRoleMutation.isPending}
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Add custom role
+                  {t("settings.addCustomRole")}
                 </Button>
               )}
             </CardContent>
@@ -829,10 +818,8 @@ export const InitiativeSettingsPage = () => {
         <TabsContent value="danger">
           <Card className="border-destructive/40">
             <CardHeader>
-              <CardTitle className="text-destructive">Danger zone</CardTitle>
-              <CardDescription>
-                Deleting an initiative removes all of its projects, tasks, and documents.
-              </CardDescription>
+              <CardTitle className="text-destructive">{t("settings.dangerTitle")}</CardTitle>
+              <CardDescription>{t("settings.dangerDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {canDeleteInitiative ? (
@@ -845,24 +832,22 @@ export const InitiativeSettingsPage = () => {
                   {deleteInitiative.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Deleting...
+                      {t("settings.deletingInitiative")}
                     </>
                   ) : (
                     <>
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Delete initiative
+                      {t("settings.deleteInitiative")}
                     </>
                   )}
                 </Button>
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  Contact a guild admin ({adminLabel}) to delete this initiative.
+                  {t("settings.contactAdmin", { adminLabel })}
                 </p>
               )}
               {initiative.is_default ? (
-                <p className="text-muted-foreground text-xs">
-                  The default initiative cannot be deleted.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("settings.defaultCannotDelete")}</p>
               ) : null}
             </CardContent>
           </Card>
@@ -879,15 +864,14 @@ export const InitiativeSettingsPage = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete initiative?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Deleting <strong>{initiative?.name}</strong> will permanently remove all projects,
-              tasks, and documents within it. This cannot be undone.
+              {t("settings.deleteConfirmDescription", { name: initiative?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="delete-confirm-input">
-              Type <strong>{initiative?.name}</strong> to confirm:
+              {t("settings.deleteConfirmLabel", { name: initiative?.name })}
             </Label>
             <Input
               id="delete-confirm-input"
@@ -898,13 +882,15 @@ export const InitiativeSettingsPage = () => {
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteInitiative.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteInitiative.isPending}>
+              {t("common:cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteInitiative}
               disabled={!canConfirmDelete || deleteInitiative.isPending}
               className="bg-destructive hover:bg-destructive/90 text-white"
             >
-              {deleteInitiative.isPending ? "Deleting..." : "Delete"}
+              {deleteInitiative.isPending ? t("settings.deletingInitiative") : t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -920,14 +906,12 @@ export const InitiativeSettingsPage = () => {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create custom role</DialogTitle>
-            <DialogDescription>
-              Add a new role with custom permissions for this initiative.
-            </DialogDescription>
+            <DialogTitle>{t("settings.createRoleTitle")}</DialogTitle>
+            <DialogDescription>{t("settings.createRoleDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="new-role-display-name">Display name</Label>
+              <Label htmlFor="new-role-display-name">{t("settings.roleDisplayNameLabel")}</Label>
               <Input
                 id="new-role-display-name"
                 value={newRoleDisplayName}
@@ -944,11 +928,11 @@ export const InitiativeSettingsPage = () => {
                     );
                   }
                 }}
-                placeholder="e.g., Viewer"
+                placeholder={t("settings.roleDisplayNamePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-role-name">Internal name</Label>
+              <Label htmlFor="new-role-name">{t("settings.roleInternalNameLabel")}</Label>
               <Input
                 id="new-role-name"
                 value={newRoleName}
@@ -964,16 +948,14 @@ export const InitiativeSettingsPage = () => {
                     roleNameTouchedRef.current = true;
                   }
                 }}
-                placeholder="e.g., viewer"
+                placeholder={t("settings.roleInternalNamePlaceholder")}
               />
-              <p className="text-muted-foreground text-xs">
-                Lowercase, no spaces. Used internally for identification.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("settings.roleInternalNameHint")}</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewRoleDialog(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               onClick={handleCreateRole}
@@ -984,10 +966,10 @@ export const InitiativeSettingsPage = () => {
               {createRoleMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {t("settings.creatingRole")}
                 </>
               ) : (
-                "Create role"
+                t("settings.createRole")
               )}
             </Button>
           </DialogFooter>
@@ -998,20 +980,21 @@ export const InitiativeSettingsPage = () => {
       <AlertDialog open={!!roleToDelete} onOpenChange={(open) => !open && setRoleToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete role?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.deleteRoleTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the role &quot;{roleToDelete?.display_name}&quot;?
-              This action cannot be undone.
+              {t("settings.deleteRoleDescription", { roleName: roleToDelete?.display_name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteRoleMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteRoleMutation.isPending}>
+              {t("common:cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteRole}
               disabled={deleteRoleMutation.isPending}
               className="bg-destructive hover:bg-destructive/90 text-white"
             >
-              {deleteRoleMutation.isPending ? "Deleting..." : "Delete"}
+              {deleteRoleMutation.isPending ? t("settings.deletingRole") : t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1021,25 +1004,25 @@ export const InitiativeSettingsPage = () => {
       <Dialog open={!!roleToRename} onOpenChange={(open) => !open && setRoleToRename(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename role</DialogTitle>
+            <DialogTitle>{t("settings.renameRoleTitle")}</DialogTitle>
             <DialogDescription>
-              Change the display name for the &quot;{roleToRename?.display_name}&quot; role.
+              {t("settings.renameRoleDescription", { roleName: roleToRename?.display_name })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="rename-role-display-name">Display name</Label>
+              <Label htmlFor="rename-role-display-name">{t("settings.roleDisplayNameLabel")}</Label>
               <Input
                 id="rename-role-display-name"
                 value={renameDisplayName}
                 onChange={(e) => setRenameDisplayName(e.target.value)}
-                placeholder="e.g., Viewer"
+                placeholder={t("settings.roleDisplayNamePlaceholder")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleToRename(null)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               onClick={confirmRenameRole}
@@ -1048,10 +1031,10 @@ export const InitiativeSettingsPage = () => {
               {updateRoleMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  {t("settings.savingRole")}
                 </>
               ) : (
-                "Save"
+                t("common:save")
               )}
             </Button>
           </DialogFooter>
@@ -1065,21 +1048,20 @@ export const InitiativeSettingsPage = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove member?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.removeMemberTitle")}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="block">
-                Are you sure you want to remove{" "}
-                <strong>{memberToRemove?.user.full_name || memberToRemove?.user.email}</strong> from
-                this initiative?
+                {t("settings.removeMemberDescription", {
+                  name: memberToRemove?.user.full_name || memberToRemove?.user.email,
+                })}
               </span>
-              <span className="text-destructive block">
-                This will also remove their explicit access to all projects and documents in this
-                initiative.
-              </span>
+              <span className="text-destructive block">{t("settings.removeMemberWarning")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={removeMember.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={removeMember.isPending}>
+              {t("common:cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (memberToRemove) {
@@ -1091,7 +1073,7 @@ export const InitiativeSettingsPage = () => {
               disabled={removeMember.isPending}
               className="bg-destructive hover:bg-destructive/90 text-white"
             >
-              {removeMember.isPending ? "Removing..." : "Remove"}
+              {removeMember.isPending ? t("settings.removing") : t("settings.removeMember")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Loader2, Download, CheckCircle2, ExternalLink } from "lucide-react";
 import {
   Dialog,
@@ -47,6 +48,8 @@ export const VersionDialog = ({
   onClose,
   newVersion,
 }: VersionDialogProps) => {
+  const { t } = useTranslation("guilds");
+
   // In update mode, show the new version's changelog only
   // In info mode, show last 5 versions
   const versionToShow = mode === "update" && newVersion ? newVersion : undefined;
@@ -133,12 +136,12 @@ export const VersionDialog = ({
     <DialogContent className="flex h-[80vh] max-w-2xl flex-col gap-0">
       <DialogHeader className="shrink-0">
         <DialogTitle>
-          {mode === "update" ? "New Version Available" : "Version Information"}
+          {mode === "update" ? t("version.newVersionAvailable") : t("version.versionInformation")}
         </DialogTitle>
         <DialogDescription>
           {mode === "update"
-            ? `Version ${newVersion} is now available. Reload to update.`
-            : "Current version and changelog"}
+            ? t("version.newVersionDescription", { version: newVersion })
+            : t("version.currentVersionAndChangelog")}
         </DialogDescription>
       </DialogHeader>
 
@@ -149,42 +152,47 @@ export const VersionDialog = ({
             {hasUpdate && (
               <div className="text-primary flex items-center gap-1.5 text-sm font-medium">
                 <Download className="h-4 w-4" />
-                <span>Update available</span>
+                <span>{t("version.updateAvailable")}</span>
               </div>
             )}
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Current version:</span>
+                <span className="text-muted-foreground">{t("version.currentVersion")}</span>
+                {/* eslint-disable-next-line i18next/no-literal-string */}
                 <span className="font-mono font-medium">v{currentVersion}</span>
               </div>
               {isLoadingVersion ? (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Latest version:</span>
-                  <span className="text-muted-foreground">Loading...</span>
+                  <span className="text-muted-foreground">{t("version.latestVersion")}</span>
+                  <span className="text-muted-foreground">{t("version.latestVersionLoading")}</span>
                 </div>
               ) : latestVersion ? (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Latest version:</span>
+                  <span className="text-muted-foreground">{t("version.latestVersion")}</span>
+                  {/* eslint-disable-next-line i18next/no-literal-string */}
                   <span className={cn("font-mono font-medium", hasUpdate && "text-primary")}>
                     v{latestVersion}
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Latest version:</span>
-                  <span className="text-muted-foreground text-xs">Unavailable</span>
+                  <span className="text-muted-foreground">{t("version.latestVersion")}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t("version.latestVersionUnavailable")}
+                  </span>
                 </div>
               )}
             </div>
             {!hasUpdate && latestVersion && (
               <div className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
                 <CheckCircle2 className="h-4 w-4" />
-                <span>Up to date</span>
+                <span>{t("version.upToDate")}</span>
               </div>
             )}
+            {/* eslint-disable i18next/no-literal-string */}
             {hasUpdate && (
               <p className="text-muted-foreground text-sm">
-                A new version is available on{" "}
+                {t("version.newVersionOnDockerHub")}{" "}
                 <a
                   href="https://hub.docker.com/r/morelitea/initiative"
                   target="_blank"
@@ -195,12 +203,13 @@ export const VersionDialog = ({
                 </a>
               </p>
             )}
+            {/* eslint-enable i18next/no-literal-string */}
           </div>
         )}
 
         {/* Changelog Section */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <h3 className="mb-3 shrink-0 text-lg font-semibold">Changelog</h3>
+          <h3 className="mb-3 shrink-0 text-lg font-semibold">{t("version.changelog")}</h3>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
@@ -214,7 +223,9 @@ export const VersionDialog = ({
                     <div key={entry.version} className={entryIdx > 0 ? "border-t pt-6" : ""}>
                       <div className="mb-4 border-b pb-2">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-base font-semibold">Version {entry.version}</h4>
+                          <h4 className="text-base font-semibold">
+                            {t("version.version", { version: entry.version })}
+                          </h4>
                           <Badge variant="outline" className="text-xs">
                             {entry.date}
                           </Badge>
@@ -237,6 +248,7 @@ export const VersionDialog = ({
                                       <ul className="mt-1 ml-4 space-y-1">
                                         {item.children.map((child, childIdx) => (
                                           <li key={childIdx} className="flex gap-2">
+                                            {/* eslint-disable-next-line i18next/no-literal-string */}
                                             <span className="text-muted-foreground shrink-0">
                                               ◦
                                             </span>
@@ -253,7 +265,7 @@ export const VersionDialog = ({
                         </div>
                       ) : (
                         <p className="text-muted-foreground text-sm">
-                          No detailed changes available.
+                          {t("version.noDetailedChanges")}
                         </p>
                       )}
                     </div>
@@ -262,7 +274,7 @@ export const VersionDialog = ({
               </div>
             </ScrollArea>
           ) : (
-            <p className="text-muted-foreground text-sm">No changelog available.</p>
+            <p className="text-muted-foreground text-sm">{t("version.noChangelog")}</p>
           )}
           {/* View all changes link - only in info mode */}
           {mode === "info" && (
@@ -274,7 +286,7 @@ export const VersionDialog = ({
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2"
                 >
-                  View all changes
+                  {t("version.viewAllChanges")}
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
@@ -293,15 +305,15 @@ export const VersionDialog = ({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1"
             >
-              View all changes
+              {t("version.viewAllChanges")}
               <ExternalLink className="h-3 w-3" />
             </a>
           </Button>
           <div className="flex-1" />
           <Button variant="outline" onClick={onClose}>
-            Later
+            {t("version.later")}
           </Button>
-          <Button onClick={handleReload}>Reload Now</Button>
+          <Button onClick={handleReload}>{t("version.reloadNow")}</Button>
         </DialogFooter>
       )}
     </DialogContent>

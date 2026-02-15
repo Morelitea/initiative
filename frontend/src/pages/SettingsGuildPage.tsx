@@ -1,7 +1,8 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import type { AxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 
 import { useGuilds } from "@/hooks/useGuilds";
+import { getErrorMessage } from "@/lib/errorMessage";
 import type { Guild } from "@/types/api";
 import { apiClient } from "@/api/client";
 import {
@@ -22,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export const SettingsGuildPage = () => {
   const { activeGuild, refreshGuilds, updateGuildInState } = useGuilds();
+  const { t } = useTranslation(["guilds", "common"]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -52,12 +54,12 @@ export const SettingsGuildPage = () => {
       return;
     }
     if (!file.type.startsWith("image/")) {
-      setIconError("Please choose an image file.");
+      setIconError(t("settings.iconErrorNotImage"));
       return;
     }
     const maxBytes = 512 * 1024;
     if (file.size > maxBytes) {
-      setIconError("Icon must be 512 KB or smaller.");
+      setIconError(t("settings.iconErrorTooLarge"));
       return;
     }
     const reader = new FileReader();
@@ -66,11 +68,11 @@ export const SettingsGuildPage = () => {
         setIconBase64(reader.result);
         setIconError(null);
       } else {
-        setIconError("Unable to read the selected file.");
+        setIconError(t("settings.iconErrorReadFailed"));
       }
     };
     reader.onerror = () => {
-      setIconError("Unable to read the selected file.");
+      setIconError(t("settings.iconErrorReadFailed"));
     };
     reader.readAsDataURL(file);
   };
@@ -91,12 +93,10 @@ export const SettingsGuildPage = () => {
       });
       updateGuildInState(response.data);
       await refreshGuilds();
-      setSaveMessage("Guild updated successfully.");
+      setSaveMessage(t("settings.updatedSuccessfully"));
     } catch (err) {
       console.error(err);
-      const axiosError = err as AxiosError<{ detail?: string }>;
-      const detail = axiosError.response?.data?.detail;
-      setSaveError(detail ?? "Unable to update guild.");
+      setSaveError(getErrorMessage(err, "guilds:settings.unableToUpdate"));
     } finally {
       setSaving(false);
     }
@@ -116,7 +116,7 @@ export const SettingsGuildPage = () => {
       window.location.replace("/");
     } catch (error) {
       console.error(error);
-      setSaveError("Unable to delete guild.");
+      setSaveError(t("settings.unableToDelete"));
     } finally {
       setDeleting(false);
     }
@@ -127,8 +127,8 @@ export const SettingsGuildPage = () => {
   if (!activeGuild) {
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">Guild Settings</h2>
-        <p className="text-muted-foreground text-sm">No active guild selected.</p>
+        <h2 className="text-2xl font-semibold">{t("settings.title")}</h2>
+        <p className="text-muted-foreground text-sm">{t("settings.noActiveGuild")}</p>
       </div>
     );
   }
@@ -137,12 +137,12 @@ export const SettingsGuildPage = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Guild details</CardTitle>
+          <CardTitle>{t("settings.detailsTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSave}>
             <div className="space-y-2">
-              <Label htmlFor="guild-name">Name</Label>
+              <Label htmlFor="guild-name">{t("settings.nameLabel")}</Label>
               <Input
                 id="guild-name"
                 value={name}
@@ -151,7 +151,7 @@ export const SettingsGuildPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="guild-description">Description</Label>
+              <Label htmlFor="guild-description">{t("settings.descriptionLabel")}</Label>
               <Textarea
                 id="guild-description"
                 value={description}
@@ -160,12 +160,12 @@ export const SettingsGuildPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="guild-icon">Icon</Label>
+              <Label htmlFor="guild-icon">{t("settings.iconLabel")}</Label>
               {iconBase64 ? (
                 <div className="flex items-center gap-4">
                   <img
                     src={iconBase64}
-                    alt="Guild icon preview"
+                    alt={t("settings.iconPreviewAlt")}
                     className="h-16 w-16 rounded-lg border object-cover"
                   />
                   <Button
@@ -176,13 +176,11 @@ export const SettingsGuildPage = () => {
                       setIconError(null);
                     }}
                   >
-                    Remove icon
+                    {t("settings.removeIcon")}
                   </Button>
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  Upload a square PNG or JPG up to 512 KB.
-                </p>
+                <p className="text-muted-foreground text-sm">{t("settings.iconHint")}</p>
               )}
               <Input
                 id="guild-icon"
@@ -195,17 +193,15 @@ export const SettingsGuildPage = () => {
             {saveError ? <p className="text-destructive text-sm">{saveError}</p> : null}
             {saveMessage ? <p className="text-primary text-sm">{saveMessage}</p> : null}
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? t("settings.saving") : t("settings.saveChanges")}
             </Button>
           </form>
         </CardContent>
       </Card>
       <Card className="border-destructive/40 bg-destructive/5">
         <CardHeader>
-          <CardTitle>Danger zone</CardTitle>
-          <CardDescription>
-            Removing a guild permanently deletes all initiatives, projects, and tasks.
-          </CardDescription>
+          <CardTitle>{t("settings.dangerZone")}</CardTitle>
+          <CardDescription>{t("settings.dangerDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <Button
@@ -216,7 +212,7 @@ export const SettingsGuildPage = () => {
             }}
             disabled={deleting}
           >
-            {deleting ? "Deleting…" : "Delete guild"}
+            {deleting ? t("settings.deleting") : t("settings.deleteGuild")}
           </Button>
         </CardContent>
       </Card>
@@ -230,15 +226,14 @@ export const SettingsGuildPage = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete guild?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Deleting <strong>{activeGuild?.name}</strong> will permanently remove all initiatives,
-              projects, tasks, and documents within it. This cannot be undone.
+              {t("settings.deleteConfirmDescription", { name: activeGuild?.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="delete-guild-confirm-input">
-              Type <strong>{activeGuild?.name}</strong> to confirm:
+              {t("settings.deleteConfirmLabel", { name: activeGuild?.name })}
             </Label>
             <Input
               id="delete-guild-confirm-input"
@@ -249,13 +244,13 @@ export const SettingsGuildPage = () => {
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void confirmDeleteGuild()}
               disabled={!canConfirmDelete || deleting}
               className="bg-destructive hover:bg-destructive/90 text-white"
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? t("settings.deleting") : t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

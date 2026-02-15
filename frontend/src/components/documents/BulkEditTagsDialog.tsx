@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -30,6 +31,7 @@ export function BulkEditTagsDialog({
   documents,
   onSuccess,
 }: BulkEditTagsDialogProps) {
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [tagsToAdd, setTagsToAdd] = useState<TagSummary[]>([]);
@@ -81,18 +83,18 @@ export function BulkEditTagsDialog({
             return apiClient.put(`/documents/${doc.id}/tags`, { tag_ids: uniqueIds });
           })
         );
-        const count = documents.length;
-        toast.success(`Tags added to ${count} document${count === 1 ? "" : "s"}`);
+        toast.success(t("bulkTags.tagsAdded", { count: documents.length }));
       } else {
-        const removeIds = new Set(tagsToRemove.map((t) => t.id));
+        const removeIds = new Set(tagsToRemove.map((tag) => tag.id));
         await Promise.all(
           documents.map((doc) => {
-            const filtered = (doc.tags ?? []).filter((t) => !removeIds.has(t.id)).map((t) => t.id);
+            const filtered = (doc.tags ?? [])
+              .filter((tag) => !removeIds.has(tag.id))
+              .map((tag) => tag.id);
             return apiClient.put(`/documents/${doc.id}/tags`, { tag_ids: filtered });
           })
         );
-        const count = documents.length;
-        toast.success(`Tags removed from ${count} document${count === 1 ? "" : "s"}`);
+        toast.success(t("bulkTags.tagsRemoved", { count: documents.length }));
       }
 
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -100,12 +102,22 @@ export function BulkEditTagsDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to update tags right now.";
+      const message = error instanceof Error ? error.message : t("bulkTags.updateError");
       toast.error(message);
     } finally {
       setIsPending(false);
     }
-  }, [mode, tagsToAdd, tagsToRemove, documents, queryClient, resetState, onOpenChange, onSuccess]);
+  }, [
+    mode,
+    tagsToAdd,
+    tagsToRemove,
+    documents,
+    queryClient,
+    resetState,
+    onOpenChange,
+    onSuccess,
+    t,
+  ]);
 
   const canApply = mode === "add" ? tagsToAdd.length > 0 : tagsToRemove.length > 0;
 
@@ -113,20 +125,21 @@ export function BulkEditTagsDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Tags</DialogTitle>
+          <DialogTitle>{t("bulkTags.title")}</DialogTitle>
           <DialogDescription>
-            {mode === "add" ? "Add" : "Remove"} tags {mode === "add" ? "to" : "from"}{" "}
-            {documents.length} selected document{documents.length === 1 ? "" : "s"}.
+            {mode === "add"
+              ? t("bulkTags.descriptionAdd", { count: documents.length })
+              : t("bulkTags.descriptionRemove", { count: documents.length })}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as "add" | "remove")}>
           <TabsList className="w-full">
             <TabsTrigger value="add" className="flex-1">
-              Add
+              {t("bulkTags.tabAdd")}
             </TabsTrigger>
             <TabsTrigger value="remove" className="flex-1">
-              Remove
+              {t("bulkTags.tabRemove")}
             </TabsTrigger>
           </TabsList>
 
@@ -134,20 +147,20 @@ export function BulkEditTagsDialog({
             <TagPicker
               selectedTags={tagsToAdd}
               onChange={setTagsToAdd}
-              placeholder="Select tags to add..."
+              placeholder={t("bulkTags.addPlaceholder")}
             />
           </TabsContent>
 
           <TabsContent value="remove" className="mt-4">
             {existingTags.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No tags on the selected documents.</p>
+              <p className="text-muted-foreground text-sm">{t("bulkTags.noTags")}</p>
             ) : (
               <TagPicker
                 selectedTags={tagsToRemove}
                 onChange={(tags) =>
-                  setTagsToRemove(tags.filter((t) => existingTags.some((e) => e.id === t.id)))
+                  setTagsToRemove(tags.filter((tag) => existingTags.some((e) => e.id === tag.id)))
                 }
-                placeholder="Select tags to remove..."
+                placeholder={t("bulkTags.removePlaceholder")}
               />
             )}
           </TabsContent>
@@ -155,16 +168,16 @@ export function BulkEditTagsDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button onClick={() => void handleApply()} disabled={isPending || !canApply}>
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Applying…
+                {t("bulkTags.applying")}
               </>
             ) : (
-              "Apply"
+              t("bulkTags.apply")
             )}
           </Button>
         </DialogFooter>

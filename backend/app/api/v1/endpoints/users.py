@@ -17,10 +17,10 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.core.security import get_password_hash, verify_password
-from app.db.session import get_admin_session
+from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.user import (
     UserCreate,
     UserGuildMember,
@@ -38,6 +38,7 @@ from app.schemas.api_key import (
     ApiKeyListResponse,
 )
 from app.schemas.stats import UserStatsResponse
+from app.core.messages import AuthMessages, UserMessages
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
@@ -63,7 +64,7 @@ def _normalize_timezone(value: str | None) -> str | None:
     try:
         ZoneInfo(cleaned)
     except ZoneInfoNotFoundError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.INVALID_TIMEZONE)
     return cleaned
 
 
@@ -74,7 +75,7 @@ def _normalize_notification_time(value: str | None) -> str | None:
     if not cleaned:
         return None
     if not TIME_PATTERN.match(cleaned):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid time format")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.INVALID_TIME_FORMAT)
     return cleaned
 
 
@@ -86,12 +87,12 @@ def _normalize_week_starts_on(value: int | str | None) -> int | None:
     except (TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Week start must be between 0 (Sunday) and 6 (Saturday)",
+            detail=UserMessages.INVALID_WEEK_START,
         )
     if number < 0 or number > 6:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Week start must be between 0 (Sunday) and 6 (Saturday)",
+            detail=UserMessages.INVALID_WEEK_START,
         )
     return number
 
@@ -152,14 +153,22 @@ async def list_users(
 async def create_user(
     user_in: UserCreate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     normalized_email = user_in.email.lower().strip()
     statement = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(statement)
     if result.one_or_none():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.EMAIL_ALREADY_REGISTERED)
 
     guild_id = guild_context.guild_id
 
@@ -180,6 +189,7 @@ async def create_user(
         role=GuildRole.member,
     )
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -249,10 +259,13 @@ async def update_users_me(
                 await notifications_service.clear_task_assignment_queue_for_user(session, current_user.id)
     if "color_theme" in update_data:
         current_user.color_theme = update_data["color_theme"]
+    if "locale" in update_data:
+        current_user.locale = update_data["locale"]
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(current_user)
     await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
@@ -263,9 +276,17 @@ async def update_user(
     user_id: int,
     user_in: UserUpdate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     stmt = (
         select(User)
         .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -277,14 +298,14 @@ async def update_user(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
 
     update_data = user_in.dict(exclude_unset=True)
     # Platform role changes are not allowed via this endpoint - use /admin/users/{id}/platform-role
     if "role" in update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Platform role changes must use the /admin/users/{id}/platform-role endpoint",
+            detail=UserMessages.PLATFORM_ROLE_WRONG_ENDPOINT,
         )
     if (password := update_data.pop("password", None)):
         user.hashed_password = get_password_hash(password)
@@ -319,6 +340,7 @@ async def update_user(
 
     session.add(user)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -328,9 +350,17 @@ async def update_user(
 async def approve_user(
     user_id: int,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     stmt = (
         select(User)
         .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -342,13 +372,14 @@ async def approve_user(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
 
     if not user.is_active:
         user.is_active = True
         user.updated_at = datetime.now(timezone.utc)
         session.add(user)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -391,21 +422,21 @@ async def delete_own_account(
     if await users_service.is_last_platform_admin(session, current_user.id, for_update=True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot delete the last platform admin account",
+            detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
         )
 
     # Verify password
     if not verify_password(request.password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid password",
+            detail=UserMessages.INVALID_PASSWORD,
         )
 
     # Check confirmation text
     if request.confirmation_text != "DELETE MY ACCOUNT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Confirmation text must be 'DELETE MY ACCOUNT'",
+            detail=UserMessages.CONFIRMATION_MISMATCH,
         )
 
     # Check deletion eligibility (includes last admin and sole PM checks)
@@ -433,7 +464,7 @@ async def delete_own_account(
             if not request.project_transfers:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="You must specify transfer recipients for all owned projects",
+                    detail=UserMessages.PROJECT_TRANSFERS_REQUIRED,
                 )
 
             owned_project_ids = {project.id for project in owned_projects}
@@ -494,7 +525,7 @@ async def delete_my_api_key(
     """Delete an API key for the current user."""
     deleted = await api_keys_service.delete_api_key(session, user=current_user, api_key_id=api_key_id)
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=UserMessages.API_KEY_NOT_FOUND)
 
 
 
@@ -505,11 +536,19 @@ async def delete_user(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_admin.role == UserRole.admin),
+    )
+
     # Use FOR UPDATE to prevent race condition when checking last admin
     if await users_service.is_last_platform_admin(session, user_id, for_update=True):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the last platform admin")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.CANNOT_REMOVE_LAST_ADMIN)
     if user_id == current_admin.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.CANNOT_DELETE_SELF)
 
     stmt = (
         select(GuildMembership)
@@ -521,7 +560,7 @@ async def delete_user(
     result = await session.exec(stmt)
     membership = result.one_or_none()
     if not membership:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not part of this guild")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=UserMessages.NOT_IN_GUILD)
 
     try:
         await initiatives_service.ensure_user_not_sole_pm(

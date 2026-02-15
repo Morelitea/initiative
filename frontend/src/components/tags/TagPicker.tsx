@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, Plus, Tag as TagIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -44,11 +45,13 @@ interface TagPickerProps {
 export function TagPicker({
   selectedTags,
   onChange,
-  placeholder = "Add tags...",
+  placeholder,
   disabled = false,
   className,
   variant = "default",
 }: TagPickerProps) {
+  const { t } = useTranslation(["tags", "common"]);
+  const resolvedPlaceholder = placeholder ?? t("picker.defaultPlaceholder");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -124,10 +127,10 @@ export function TagPicker({
 
   // Display text for filter variant
   const filterDisplayValue = useMemo(() => {
-    if (selectedTags.length === 0) return placeholder;
+    if (selectedTags.length === 0) return resolvedPlaceholder;
     if (selectedTags.length === 1) return selectedTags[0].name;
-    return `${selectedTags.length} selected`;
-  }, [selectedTags, placeholder]);
+    return t("picker.selected", { count: selectedTags.length });
+  }, [selectedTags, resolvedPlaceholder, t]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -172,7 +175,7 @@ export function TagPicker({
                 ))}
               </div>
             ) : (
-              <span>{placeholder}</span>
+              <span>{resolvedPlaceholder}</span>
             )}
           </Button>
         )}
@@ -180,9 +183,9 @@ export function TagPicker({
       <PopoverContent className="w-72 p-0" align="start">
         {isCreating ? (
           <div className="space-y-3 p-3">
-            <div className="text-sm font-medium">Create new tag</div>
+            <div className="text-sm font-medium">{t("picker.createHeading")}</div>
             <Input
-              placeholder="Tag name"
+              placeholder={t("picker.namePlaceholder")}
               value={newTagName}
               onChange={(e) => setNewTagName(e.target.value)}
               onKeyDown={(e) => {
@@ -208,23 +211,25 @@ export function TagPicker({
                 onClick={() => void handleCreateTag()}
                 disabled={!newTagName.trim() || createTagMutation.isPending}
               >
-                {createTagMutation.isPending ? "Creating..." : "Create"}
+                {createTagMutation.isPending ? t("picker.creating") : t("picker.create")}
               </Button>
               <Button size="sm" variant="outline" onClick={cancelCreating}>
-                Cancel
+                {t("common:cancel")}
               </Button>
             </div>
           </div>
         ) : (
           <Command shouldFilter={false}>
             <CommandInput
-              placeholder="Search or create tags..."
+              placeholder={t("picker.searchPlaceholder")}
               value={search}
               onValueChange={setSearch}
             />
             <CommandList>
               {isLoading ? (
-                <div className="text-muted-foreground py-6 text-center text-sm">Loading...</div>
+                <div className="text-muted-foreground py-6 text-center text-sm">
+                  {t("picker.loading")}
+                </div>
               ) : (
                 <>
                   {canCreateNew && (
@@ -236,17 +241,19 @@ export function TagPicker({
                         className="cursor-pointer"
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        Create &quot;{search.trim()}&quot;
+                        {t("picker.createTag", { name: search.trim() })}
                       </CommandItem>
                     </CommandGroup>
                   )}
                   {canCreateNew && filteredTags.length > 0 && <CommandSeparator />}
                   <CommandGroup
-                    heading={canCreateNew && filteredTags.length > 0 ? "Existing tags" : undefined}
+                    heading={
+                      canCreateNew && filteredTags.length > 0 ? t("picker.existingTags") : undefined
+                    }
                   >
                     {filteredTags.length === 0 && !canCreateNew ? (
                       <div className="text-muted-foreground py-6 text-center text-sm">
-                        No tags found.
+                        {t("picker.noTagsFound")}
                       </div>
                     ) : (
                       filteredTags.map((tag) => {

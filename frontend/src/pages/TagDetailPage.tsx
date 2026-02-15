@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Navigate, useParams, useRouter } from "@tanstack/react-router";
 import {
@@ -32,6 +33,7 @@ import { ProjectsView } from "@/pages/ProjectsPage";
 import { DocumentsView } from "@/pages/DocumentsPage";
 
 export const TagDetailPage = () => {
+  const { t } = useTranslation(["tags", "common"]);
   const { tagId: tagIdParam } = useParams({ strict: false }) as { tagId: string };
   const parsedTagId = Number(tagIdParam);
   const hasValidTagId = Number.isFinite(parsedTagId) && parsedTagId > 0;
@@ -70,7 +72,7 @@ export const TagDetailPage = () => {
   if (tagError || !tag) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <p className="text-muted-foreground">Tag not found</p>
+        <p className="text-muted-foreground">{t("detail.notFound")}</p>
       </div>
     );
   }
@@ -107,7 +109,7 @@ export const TagDetailPage = () => {
   const handleDelete = async () => {
     try {
       await deleteTagMutation.mutateAsync(tag.id);
-      toast.success("Tag deleted");
+      toast.success(t("detail.deleted"));
       router.navigate({ to: "/" });
     } catch {
       // Error handled by mutation
@@ -140,17 +142,17 @@ export const TagDetailPage = () => {
                   onClick={() => void handleSaveEdit()}
                   disabled={!editName.trim() || updateTagMutation.isPending}
                 >
-                  {updateTagMutation.isPending ? "Saving..." : "Save"}
+                  {updateTagMutation.isPending ? t("detail.saving") : t("detail.save")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
-                  Cancel
+                  {t("common:cancel")}
                 </Button>
               </div>
             ) : (
               <>
                 <h1 className="text-3xl font-semibold tracking-tight">{tag.name}</h1>
                 <p className="text-muted-foreground text-sm">
-                  {totalCount} tagged item{totalCount === 1 ? "" : "s"}
+                  {t("detail.taggedItems", { count: totalCount })}
                 </p>
               </>
             )}
@@ -161,30 +163,29 @@ export const TagDetailPage = () => {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleStartEdit}>
               <Settings className="mr-1 h-4 w-4" />
-              Edit
+              {t("detail.edit")}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
                   <Trash2 className="mr-1 h-4 w-4" />
-                  Delete
+                  {t("detail.delete")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete tag?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("detail.deleteTitle")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will remove the tag &quot;{tag.name}&quot; from all tasks, projects, and
-                    documents. This action cannot be undone.
+                    {t("detail.deleteDescription", { name: tag.name })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => void handleDelete()}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    Delete
+                    {t("detail.delete")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -198,15 +199,15 @@ export const TagDetailPage = () => {
         <TabsList>
           <TabsTrigger value="tasks" className="inline-flex items-center gap-2">
             <SquareCheckBig className="h-4 w-4" />
-            Tasks ({taskCount})
+            {t("detail.tasksTab", { count: taskCount })}
           </TabsTrigger>
           <TabsTrigger value="projects" className="inline-flex items-center gap-2">
             <ListTodo className="h-4 w-4" />
-            Projects ({projectCount})
+            {t("detail.projectsTab", { count: projectCount })}
           </TabsTrigger>
           <TabsTrigger value="documents" className="inline-flex items-center gap-2">
             <ScrollText className="h-4 w-4" />
-            Documents ({documentCount})
+            {t("detail.documentsTab", { count: documentCount })}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="tasks">

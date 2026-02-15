@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
   Shield,
@@ -14,6 +14,8 @@ import {
   Target,
   Crown,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -26,60 +28,26 @@ import projectScreenshot from "@/assets/screenshots/project.png";
 import documentScreenshot from "@/assets/screenshots/document.png";
 
 // ---------------------------------------------------------------------------
-// Data
+// Types
 // ---------------------------------------------------------------------------
 
-const features = [
-  {
-    icon: Swords,
-    title: "Campaign Management",
-    description:
-      "Organize your TTRPG campaigns with ease. Track storylines, NPCs, and plot hooks across multiple sessions.",
-    direction: "left" as const,
-  },
-  {
-    icon: Users,
-    title: "Party Coordination",
-    description:
-      "Keep your gaming group in sync. Assign tasks, schedule sessions, and make sure everyone knows their role.",
-    direction: "right" as const,
-  },
-  {
-    icon: Map,
-    title: "World Building",
-    description:
-      "Document your lore, maps, and world details. Build rich settings your players will love to explore.",
-    direction: "left" as const,
-  },
-  {
-    icon: ListTodo,
-    title: "Quest Tracking",
-    description:
-      "Never lose track of side quests again. Manage objectives, rewards, and story progression in one place.",
-    direction: "right" as const,
-  },
-  {
-    icon: FileText,
-    title: "Session Notes",
-    description:
-      "Collaborative documents for session recaps, player handouts, and shared party knowledge.",
-    direction: "left" as const,
-  },
-  {
-    icon: Calendar,
-    title: "Event Planning",
-    description:
-      "Coordinate game nights, raid schedules, and guild events. Everyone stays on the same page.",
-    direction: "right" as const,
-  },
-];
+interface FeatureData {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  direction: "left" | "right";
+}
 
-const stats = [
-  { icon: Target, label: "Initiatives", value: "Unlimited" },
-  { icon: Users, label: "Party Members", value: "No Limits" },
-  { icon: Zap, label: "Open Source", value: "Forever" },
-  { icon: Crown, label: "Self-Hosted", value: "Your Data" },
-];
+interface StatData {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}
+
+interface UseCaseData {
+  name: string;
+  desc: string;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers: starfield generation
@@ -240,12 +208,14 @@ const ScreenshotFrame = ({
   isDark,
   className = "",
   onClick,
+  placeholderText,
 }: {
   src?: string;
   alt: string;
   isDark: boolean;
   className?: string;
   onClick?: () => void;
+  placeholderText?: string;
 }) => (
   <div
     className={`overflow-hidden rounded-xl border shadow-2xl ${src && onClick ? "cursor-pointer" : ""} ${className}`}
@@ -290,7 +260,8 @@ const ScreenshotFrame = ({
           color: isDark ? "rgba(200, 200, 220, 0.4)" : "rgba(80, 60, 120, 0.3)",
         }}
       >
-        initiativepm.app
+        {/* eslint-disable-next-line i18next/no-literal-string */}
+        <span>initiativepm.app</span>
       </div>
     </div>
     {/* Screenshot area */}
@@ -310,7 +281,7 @@ const ScreenshotFrame = ({
           className="text-sm tracking-widest uppercase"
           style={{ color: isDark ? "rgba(140, 130, 255, 0.25)" : "rgba(100, 80, 200, 0.15)" }}
         >
-          Screenshot
+          {placeholderText ?? "Screenshot"}
         </span>
       </div>
     )}
@@ -380,7 +351,8 @@ const ScreenshotLightbox = ({
               color: isDark ? "rgba(200, 200, 220, 0.4)" : "rgba(80, 60, 120, 0.3)",
             }}
           >
-            initiativepm.app
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            <span>initiativepm.app</span>
           </div>
         </div>
         <img
@@ -405,6 +377,7 @@ const ScreenshotLightbox = ({
 // ---------------------------------------------------------------------------
 
 export const LandingCinematic = () => {
+  const { t } = useTranslation("landing");
   const { token, loading } = useAuth();
   const { resolvedTheme } = useTheme();
   const router = useRouter();
@@ -414,6 +387,69 @@ export const LandingCinematic = () => {
   const [lightboxSrc, setLightboxSrc] = useState<{ src: string; alt: string } | null>(null);
 
   const isDark = resolvedTheme === "dark";
+
+  // Translated data arrays
+  const features: FeatureData[] = useMemo(
+    () => [
+      {
+        icon: Swords,
+        title: t("features.campaignTitle"),
+        description: t("features.campaignDescription"),
+        direction: "left" as const,
+      },
+      {
+        icon: Users,
+        title: t("features.partyTitle"),
+        description: t("features.partyDescription"),
+        direction: "right" as const,
+      },
+      {
+        icon: Map,
+        title: t("features.worldTitle"),
+        description: t("features.worldDescription"),
+        direction: "left" as const,
+      },
+      {
+        icon: ListTodo,
+        title: t("features.questTitle"),
+        description: t("features.questDescription"),
+        direction: "right" as const,
+      },
+      {
+        icon: FileText,
+        title: t("features.sessionTitle"),
+        description: t("features.sessionDescription"),
+        direction: "left" as const,
+      },
+      {
+        icon: Calendar,
+        title: t("features.eventTitle"),
+        description: t("features.eventDescription"),
+        direction: "right" as const,
+      },
+    ],
+    [t]
+  );
+
+  const stats: StatData[] = useMemo(
+    () => [
+      { icon: Target, label: t("stats.initiatives"), value: t("stats.initiativesValue") },
+      { icon: Users, label: t("stats.partyMembers"), value: t("stats.partyMembersValue") },
+      { icon: Zap, label: t("stats.openSource"), value: t("stats.openSourceValue") },
+      { icon: Crown, label: t("stats.selfHosted"), value: t("stats.selfHostedValue") },
+    ],
+    [t]
+  );
+
+  const useCases: UseCaseData[] = useMemo(
+    () => [
+      { name: t("useCases.ttrpgName"), desc: t("useCases.ttrpgDesc") },
+      { name: t("useCases.mmoName"), desc: t("useCases.mmoDesc") },
+      { name: t("useCases.esportsName"), desc: t("useCases.esportsDesc") },
+      { name: t("useCases.communityName"), desc: t("useCases.communityDesc") },
+    ],
+    [t]
+  );
 
   // Auth redirect
   useEffect(() => {
@@ -465,7 +501,9 @@ export const LandingCinematic = () => {
       <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <LogoIcon className="h-12 w-12 animate-pulse" />
-          <p className="text-muted-foreground text-sm tracking-widest uppercase">Loading...</p>
+          <p className="text-muted-foreground text-sm tracking-widest uppercase">
+            {t("hero.loading")}
+          </p>
         </div>
       </div>
     );
@@ -546,16 +584,17 @@ export const LandingCinematic = () => {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="text-primary flex items-center gap-2.5 text-xl font-bold tracking-tight">
             <LogoIcon className="h-8 w-8" aria-hidden="true" />
+            {/* eslint-disable-next-line i18next/no-literal-string */}
             <span>initiative</span>
           </div>
           <div className="flex items-center gap-3">
             <ModeToggle />
             <Button variant="ghost" className="text-foreground/80 hover:text-foreground" asChild>
-              <Link to="/login">Sign in</Link>
+              <Link to="/login">{t("nav.signIn")}</Link>
             </Button>
             {publicRegistrationEnabled !== false && (
               <Button asChild>
-                <Link to="/register">Get started</Link>
+                <Link to="/register">{t("nav.getStarted")}</Link>
               </Button>
             )}
           </div>
@@ -670,24 +709,24 @@ export const LandingCinematic = () => {
             }}
           >
             <Sparkles className="text-primary h-4 w-4 animate-pulse" />
-            <span className="text-primary">Built for gamers, by gamers</span>
+            <span className="text-primary">{t("hero.tagline")}</span>
           </div>
 
           {/* Main title -- massive cinematic typography */}
-          <h1 className="mb-4 select-none" aria-label="Roll for Initiative">
+          <h1 className="mb-4 select-none" aria-label={t("hero.titleAria")}>
             <span
               className={`text-muted-foreground/40 block text-lg font-medium tracking-[0.3em] uppercase transition-all delay-200 duration-1000 md:text-xl ${
                 heroReveal.isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
               }`}
             >
-              Are you ready to
+              {t("hero.preTitle")}
             </span>
             <span
               className={`text-foreground mt-2 block text-6xl font-black tracking-tight transition-all delay-500 duration-1000 sm:text-7xl md:text-8xl lg:text-9xl ${
                 heroReveal.isVisible ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0"
               }`}
             >
-              ROLL FOR
+              {t("hero.titleLine1")}
             </span>
             <span className="relative inline-block">
               <span
@@ -695,7 +734,7 @@ export const LandingCinematic = () => {
                   heroReveal.isVisible ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0"
                 }`}
               >
-                INITIATIVE
+                {t("hero.titleLine2")}
               </span>
               {/* Underline reveal */}
               <span
@@ -715,8 +754,7 @@ export const LandingCinematic = () => {
               heroReveal.isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
             }`}
           >
-            A guild-based project management app built for gaming groups. Create your own guild,
-            invite your party, and conquer quests together.
+            {t("hero.subtitle")}
           </p>
 
           {/* CTA buttons */}
@@ -733,7 +771,7 @@ export const LandingCinematic = () => {
               >
                 <Link to="/register">
                   <Shield className="mr-2 h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
-                  Start your adventure
+                  {t("hero.ctaStart")}
                 </Link>
               </Button>
             )}
@@ -743,7 +781,7 @@ export const LandingCinematic = () => {
               className="h-12 px-8 text-base font-semibold transition-all duration-300 hover:scale-105"
               asChild
             >
-              <Link to="/login">Sign in to your guild</Link>
+              <Link to="/login">{t("hero.ctaSignIn")}</Link>
             </Button>
           </div>
         </div>
@@ -756,7 +794,7 @@ export const LandingCinematic = () => {
         >
           <div className="flex flex-col items-center gap-2">
             <span className="text-muted-foreground/50 text-xs tracking-[0.2em] uppercase">
-              Scroll
+              {t("hero.scroll")}
             </span>
             <ChevronDown className="text-muted-foreground/50 h-5 w-5 animate-bounce" />
           </div>
@@ -779,9 +817,15 @@ export const LandingCinematic = () => {
         >
           <ScreenshotFrame
             src={myTasksScreenshot}
-            alt="Initiative dashboard"
+            alt={t("heroScreenshot.dashboard")}
             isDark={isDark}
-            onClick={() => setLightboxSrc({ src: myTasksScreenshot, alt: "Initiative dashboard" })}
+            placeholderText={t("screenshot.placeholder")}
+            onClick={() =>
+              setLightboxSrc({
+                src: myTasksScreenshot,
+                alt: t("heroScreenshot.dashboard"),
+              })
+            }
           />
         </div>
       </section>
@@ -855,15 +899,13 @@ export const LandingCinematic = () => {
             }`}
           >
             <span className="text-primary mb-4 block text-sm font-semibold tracking-[0.2em] uppercase">
-              Arsenal
+              {t("features.sectionLabel")}
             </span>
             <h2 className="text-foreground mb-6 text-4xl font-bold tracking-tight md:text-5xl">
-              Everything your party needs
+              {t("features.title")}
             </h2>
             <p className="text-muted-foreground mx-auto max-w-2xl text-lg">
-              Each guild gets a private workspace with projects, tasks, and documents. Whether you
-              are running a campaign, organizing raid nights, or managing a gaming community -- keep
-              everything in one place.
+              {t("features.description")}
             </p>
           </div>
 
@@ -902,10 +944,10 @@ export const LandingCinematic = () => {
             }`}
           >
             <span className="text-primary mb-4 block text-sm font-semibold tracking-[0.2em] uppercase">
-              See it in action
+              {t("gallery.sectionLabel")}
             </span>
             <h2 className="text-foreground text-3xl font-bold tracking-tight md:text-4xl">
-              Built for your workflow
+              {t("gallery.title")}
             </h2>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
@@ -917,14 +959,18 @@ export const LandingCinematic = () => {
             >
               <ScreenshotFrame
                 src={projectScreenshot}
-                alt="Project management view"
+                alt={t("gallery.projectAlt")}
                 isDark={isDark}
+                placeholderText={t("screenshot.placeholder")}
                 onClick={() =>
-                  setLightboxSrc({ src: projectScreenshot, alt: "Project management view" })
+                  setLightboxSrc({
+                    src: projectScreenshot,
+                    alt: t("gallery.projectAlt"),
+                  })
                 }
               />
               <p className="text-muted-foreground mt-3 text-center text-sm">
-                Organize projects with boards, lists, and custom views
+                {t("gallery.projectCaption")}
               </p>
             </div>
             <div
@@ -935,14 +981,18 @@ export const LandingCinematic = () => {
             >
               <ScreenshotFrame
                 src={documentScreenshot}
-                alt="Document collaboration"
+                alt={t("gallery.documentAlt")}
                 isDark={isDark}
+                placeholderText={t("screenshot.placeholder")}
                 onClick={() =>
-                  setLightboxSrc({ src: documentScreenshot, alt: "Document collaboration" })
+                  setLightboxSrc({
+                    src: documentScreenshot,
+                    alt: t("gallery.documentAlt"),
+                  })
                 }
               />
               <p className="text-muted-foreground mt-3 text-center text-sm">
-                Collaborate on documents with your entire guild
+                {t("gallery.documentCaption")}
               </p>
             </div>
           </div>
@@ -975,36 +1025,18 @@ export const LandingCinematic = () => {
           >
             <div className="text-center">
               <span className="text-primary mb-4 block text-sm font-semibold tracking-[0.2em] uppercase">
-                Your Quest Awaits
+                {t("useCases.sectionLabel")}
               </span>
               <h2 className="text-foreground mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-                Your guild, your way
+                {t("useCases.title")}
               </h2>
               <p className="text-muted-foreground mx-auto mb-10 max-w-2xl">
-                Create a private guild for your group. Invite members, organize into initiatives,
-                and manage projects together. Everyone stays in sync, and your data stays yours.
+                {t("useCases.description")}
               </p>
             </div>
 
             <div className="space-y-4">
-              {[
-                {
-                  name: "TTRPG Groups",
-                  desc: "Manage campaigns, track quests, and share session notes with your adventuring party.",
-                },
-                {
-                  name: "MMO Guilds",
-                  desc: "Coordinate raid schedules, loot distribution, and guild events.",
-                },
-                {
-                  name: "Esports Teams",
-                  desc: "Track practice schedules, tournament prep, and team objectives.",
-                },
-                {
-                  name: "Gaming Communities",
-                  desc: "Organize events, manage projects, and keep your community engaged.",
-                },
-              ].map((useCase, i) => (
+              {useCases.map((useCase, i) => (
                 <div
                   key={useCase.name}
                   className={`group rounded-xl border p-5 transition-all duration-700 hover:scale-[1.01] ${
@@ -1035,7 +1067,7 @@ export const LandingCinematic = () => {
                   className="hover:shadow-primary/20 h-12 px-8 text-base font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg"
                   asChild
                 >
-                  <Link to="/register">Create your guild</Link>
+                  <Link to="/register">{t("useCases.cta")}</Link>
                 </Button>
               </div>
             )}
@@ -1083,11 +1115,11 @@ export const LandingCinematic = () => {
               }`}
             >
               <h2 className="text-foreground mb-6 text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl">
-                Ready to <span className="text-primary">level up</span>?
+                {t("cta.titleReady")}{" "}
+                <span className="text-primary">{t("cta.titleHighlight")}</span>?
               </h2>
               <p className="text-muted-foreground mx-auto mb-10 max-w-xl text-lg md:text-xl">
-                Join gaming groups already using Initiative to stay organized and have more fun
-                together.
+                {t("cta.description")}
               </p>
 
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -1097,7 +1129,7 @@ export const LandingCinematic = () => {
                   asChild
                 >
                   <Link to="/register">
-                    Get started for free
+                    {t("cta.button")}
                     <Sparkles className="ml-2 h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
                   </Link>
                 </Button>
@@ -1120,10 +1152,11 @@ export const LandingCinematic = () => {
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="text-primary flex items-center gap-2 font-semibold">
               <LogoIcon className="h-6 w-6" aria-hidden="true" />
-              initiative
+              {/* eslint-disable-next-line i18next/no-literal-string */}
+              <span>initiative</span>
             </div>
             <p className="text-muted-foreground text-sm">
-              &copy; {new Date().getFullYear()} Initiative. Roll high, stay organized.
+              {t("footer.copyright", { year: new Date().getFullYear() })}
             </p>
           </div>
         </div>
@@ -1147,7 +1180,7 @@ export const LandingCinematic = () => {
 // ---------------------------------------------------------------------------
 
 interface FeatureCardProps {
-  feature: (typeof features)[number];
+  feature: FeatureData;
   index: number;
   parentVisible: boolean;
   isDark: boolean;

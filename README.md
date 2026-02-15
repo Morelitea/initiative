@@ -210,11 +210,19 @@ If you're upgrading an existing deployment, add `DATABASE_URL_APP` and `DATABASE
 
 ---
 
-## Manual Development Setup
+## Development Setup
 
-For local development without Docker:
+### Quick Start (VS Code)
 
-### Prerequisites
+The fastest way to get running: open the project in VS Code, then run **Tasks: Run Task** → **`dev:setup`** from the Command Palette (`Ctrl+Shift+P`). This starts Postgres, runs migrations, seeds test data, and launches both servers. See [CONTRIBUTING.md](./CONTRIBUTING.md#one-click-dev-environment-recommended) for details.
+
+Login: `admin@example.com` / `changeme`
+
+### Manual Setup
+
+For local development without Docker (or without VS Code):
+
+#### Prerequisites
 
 - Python 3.11+
 - Node.js 18+

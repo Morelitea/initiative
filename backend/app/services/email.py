@@ -12,6 +12,7 @@ from typing import Sequence
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
+from app.core.email_i18n import email_t
 from app.models.app_setting import AppSetting
 from app.models.user import User
 from app.services import app_settings as app_settings_service
@@ -72,7 +73,9 @@ BRAND_LOGO_SVG = """
 """.strip()
 
 
-def _build_html_layout(title: str, body: str, accent_color: str) -> str:
+def _build_html_layout(title: str, body: str, accent_color: str, locale: str = "en") -> str:
+    footer_disclaimer = email_t("layout.footerDisclaimer", locale=locale)
+    update_link_text = email_t("layout.updateNotifications", locale=locale)
     return f"""\
 <html>
   <body style="font-family:'Outfit','Inter','Segoe UI',Arial,sans-serif;color:#0f172a;background-color:#f3f4f6;padding:24px;">
@@ -95,10 +98,10 @@ def _build_html_layout(title: str, body: str, accent_color: str) -> str:
       <h2 style="margin-top:0;font-size:22px;color:#0f172a;">{title}</h2>
       <div style="font-size:15px;line-height:1.5;color:#334155;">{body}</div>
       <p style="font-size:12px;color:#94a3b8;margin-top:32px;">
-        This message was sent by Initiative. If you weren't expecting it, you can ignore this email.
+        {footer_disclaimer}
       </p>
       <p>
-        <a href="{app_config.APP_URL}/profile/notifications">Update notification settings</a>.
+        <a href="{app_config.APP_URL}/profile/notifications">{update_link_text}</a>.
       </p>
     </div>
   </body>
@@ -158,6 +161,22 @@ def _send_via_client(client: smtplib.SMTP, config: SMTPConfig, message: EmailMes
     client.send_message(message)
 
 
+def _user_locale(user: User) -> str:
+    return getattr(user, "locale", None) or "en"
+
+
+def _display_name(user: User) -> str:
+    return user.full_name or user.email
+
+
+def _cta_button(label: str, link: str, accent: str) -> str:
+    return (
+        f'<a href="{link}" style="background-color:{accent};color:#ffffff;'
+        f'padding:12px 18px;border-radius:8px;text-decoration:none;'
+        f'font-weight:600;display:inline-block;">{label}</a>'
+    )
+
+
 async def send_email(
     session: AsyncSession,
     *,
@@ -190,17 +209,19 @@ async def send_email(
 
 async def send_test_email(session: AsyncSession, recipient: str) -> None:
     settings_obj, accent = await _email_context(session)
+    locale = "en"
     html_body = _build_html_layout(
-        "SMTP test email",
-        "<p>This is a test email confirming SMTP settings are configured correctly.</p>",
+        email_t("test.title", locale=locale),
+        f"<p>{email_t('test.body', locale=locale)}</p>",
         accent,
+        locale=locale,
     )
     await send_email(
         session,
         recipients=[recipient],
-        subject="SMTP configuration test",
+        subject=email_t("test.subject", locale=locale),
         html_body=html_body,
-        text_body="This is a test email confirming SMTP settings are configured correctly.",
+        text_body=email_t("test.body", locale=locale),
         settings_obj=settings_obj,
     )
 
@@ -214,21 +235,24 @@ def _frontend_url(path: str) -> str:
 
 async def send_verification_email(session: AsyncSession, user: User, token: str) -> None:
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
     link = _frontend_url(f"/verify-email?token={token}")
+    button = _cta_button(email_t("verification.buttonLabel", locale=locale), link, accent)
     body = f"""
-    <p>Hi {user.full_name or user.email},</p>
-    <p>Confirm your email to finish setting up your Initiative account.</p>
-    <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Verify email</a>
-    </p>
-    <p>If the button doesn't work, copy and paste this link into your browser:<br/><code>{link}</code></p>
+    <p>{email_t("verification.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("verification.body", locale=locale)}</p>
+    <p style="margin:24px 0;">{button}</p>
+    <p>{email_t("verification.fallbackText", locale=locale)}<br/><code>{link}</code></p>
     """
-    html_body = _build_html_layout("Verify your email", body, accent)
-    text_body = f"Confirm your Initiative account by visiting {link}"
+    html_body = _build_html_layout(
+        email_t("verification.title", locale=locale), body, accent, locale=locale
+    )
+    text_body = email_t("verification.textBody", locale=locale, link=link)
     await send_email(
         session,
         recipients=[user.email],
-        subject="Verify your Initiative account",
+        subject=email_t("verification.subject", locale=locale),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -237,21 +261,24 @@ async def send_verification_email(session: AsyncSession, user: User, token: str)
 
 async def send_password_reset_email(session: AsyncSession, user: User, token: str) -> None:
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
     link = _frontend_url(f"/reset-password?token={token}")
+    button = _cta_button(email_t("passwordReset.buttonLabel", locale=locale), link, accent)
     body = f"""
-    <p>Hello {user.full_name or user.email},</p>
-    <p>We received a request to reset your Initiative password.</p>
-    <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Reset password</a>
-    </p>
-    <p>If you didn't request this, you can ignore this email. The link expires soon.</p>
+    <p>{email_t("passwordReset.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("passwordReset.body", locale=locale)}</p>
+    <p style="margin:24px 0;">{button}</p>
+    <p>{email_t("passwordReset.fallbackText", locale=locale)}</p>
     """
-    html_body = _build_html_layout("Reset your password", body, accent)
-    text_body = f"Reset your Initiative password by visiting {link}"
+    html_body = _build_html_layout(
+        email_t("passwordReset.title", locale=locale), body, accent, locale=locale
+    )
+    text_body = email_t("passwordReset.textBody", locale=locale, link=link)
     await send_email(
         session,
         recipients=[user.email],
-        subject="Reset your Initiative password",
+        subject=email_t("passwordReset.subject", locale=locale),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -260,20 +287,25 @@ async def send_password_reset_email(session: AsyncSession, user: User, token: st
 
 async def send_initiative_added_email(session: AsyncSession, user: User, initiative_name: str) -> None:
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
     link = _frontend_url("/initiatives")
+    button = _cta_button(email_t("initiativeAdded.buttonLabel", locale=locale), link, accent)
     body = f"""
-    <p>Hi {user.full_name or user.email},</p>
-    <p>You have been added to the <strong>{initiative_name}</strong> initiative.</p>
-    <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">View initiatives</a>
-    </p>
+    <p>{email_t("initiativeAdded.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("initiativeAdded.body", locale=locale, initiativeName=initiative_name)}</p>
+    <p style="margin:24px 0;">{button}</p>
     """
-    html_body = _build_html_layout("You joined a new initiative", body, accent)
-    text_body = f"You have been added to the {initiative_name} initiative. Visit {link} to view it."
+    html_body = _build_html_layout(
+        email_t("initiativeAdded.title", locale=locale), body, accent, locale=locale
+    )
+    text_body = email_t(
+        "initiativeAdded.textBody", locale=locale, initiativeName=initiative_name, link=link
+    )
     await send_email(
         session,
         recipients=[user.email],
-        subject=f"Added to initiative {initiative_name}",
+        subject=email_t("initiativeAdded.subject", locale=locale, initiativeName=initiative_name),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -289,22 +321,29 @@ async def send_project_added_to_initiative_email(
     project_id: int,
 ) -> None:
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
     link = _frontend_url(f"/projects/{project_id}")
+    button = _cta_button(email_t("projectAdded.buttonLabel", locale=locale), link, accent)
     body = f"""
-    <p>Hi {user.full_name or user.email},</p>
-    <p>A new project, <strong>{project_name}</strong>, was added to the <strong>{initiative_name}</strong> initiative.</p>
-    <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Open project</a>
-    </p>
+    <p>{email_t("projectAdded.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("projectAdded.body", locale=locale, projectName=project_name, initiativeName=initiative_name)}</p>
+    <p style="margin:24px 0;">{button}</p>
     """
-    html_body = _build_html_layout("New project in your initiative", body, accent)
-    text_body = (
-        f"A new project, {project_name}, was added to the {initiative_name} initiative. View it at {link}."
+    html_body = _build_html_layout(
+        email_t("projectAdded.title", locale=locale), body, accent, locale=locale
+    )
+    text_body = email_t(
+        "projectAdded.textBody",
+        locale=locale,
+        projectName=project_name,
+        initiativeName=initiative_name,
+        link=link,
     )
     await send_email(
         session,
         recipients=[user.email],
-        subject=f"New project in {initiative_name}",
+        subject=email_t("projectAdded.subject", locale=locale, initiativeName=initiative_name),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -319,45 +358,54 @@ async def send_task_assignment_digest_email(
     if not assignments:
         return
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+
     def assignment_html(item: dict) -> str:
         title = item.get("task_title") or "Task"
         project_name = item.get("project_name") or "a project"
         assigned_by = item.get("assigned_by_name")
         link = item.get("link")
         title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
-        assigned_fragment = f" (assigned by {assigned_by})" if assigned_by else ""
-        return f"<li>{title_markup} in {project_name}{assigned_fragment}</li>"
+        assigned_fragment = (
+            f" ({email_t('taskAssignment.assignedBy', locale=locale, name=assigned_by)})"
+            if assigned_by
+            else ""
+        )
+        return f"<li>{title_markup} {email_t('taskAssignment.inProject', locale=locale, projectName=project_name)}{assigned_fragment}</li>"
 
     def assignment_text(item: dict) -> str:
         title = item.get("task_title") or "Task"
         project_name = item.get("project_name") or "a project"
         assigned_by = item.get("assigned_by_name")
         link = item.get("link")
-        line = f"- {title} in {project_name}"
+        line = f"- {title} {email_t('taskAssignment.inProject', locale=locale, projectName=project_name)}"
         if assigned_by:
-            line += f" (assigned by {assigned_by})"
+            line += f" ({email_t('taskAssignment.assignedBy', locale=locale, name=assigned_by)})"
         if link:
             line += f" -> {link}"
         return line
 
     items_html = "".join(assignment_html(item) for item in assignments)
     body = f"""
-    <p>Hi {user.full_name or user.email},</p>
-    <p>Here is your hourly summary of tasks assigned to you:</p>
+    <p>{email_t("taskAssignment.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("taskAssignment.body", locale=locale)}</p>
     <ul>{items_html}</ul>
-    <p>Visit Initiative to review the tasks.</p>
+    <p>{email_t("taskAssignment.footer", locale=locale)}</p>
     """
-    html_body = _build_html_layout("Task assignment summary", body, accent)
+    html_body = _build_html_layout(
+        email_t("taskAssignment.title", locale=locale), body, accent, locale=locale
+    )
     text_lines = [
-        "Here is your hourly summary of tasks assigned to you:",
+        email_t("taskAssignment.textBody", locale=locale),
         *(assignment_text(item) for item in assignments),
-        "Visit Initiative to review the tasks.",
+        email_t("taskAssignment.footer", locale=locale),
     ]
     text_body = "\n".join(text_lines)
     await send_email(
         session,
         recipients=[user.email],
-        subject="New tasks assigned to you",
+        subject=email_t("taskAssignment.subject", locale=locale),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -374,20 +422,21 @@ async def send_mention_email(
     link: str | None = None,
 ) -> None:
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
     if link:
+        button = _cta_button(email_t("mention.buttonLabel", locale=locale), link, accent)
         body = f"""
-    <p>Hi {user.full_name or user.email},</p>
+    <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
     <p>{body_text}</p>
-    <p style="margin:24px 0;">
-      <a href="{link}" style="background-color:{accent};color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">View</a>
-    </p>
+    <p style="margin:24px 0;">{button}</p>
     """
     else:
         body = f"""
-    <p>Hi {user.full_name or user.email},</p>
+    <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
     <p>{body_text}</p>
     """
-    html_body = _build_html_layout(headline, body, accent)
+    html_body = _build_html_layout(headline, body, accent, locale=locale)
     plain = f"{body_text}"
     if link:
         plain += f"\n\nView: {link}"
@@ -409,42 +458,50 @@ async def send_overdue_tasks_email(
     if not tasks:
         return
     settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+
     def overdue_html(item: dict) -> str:
         title = item.get("title") or "Task"
         project_name = item.get("project_name") or "a project"
         due_date = item.get("due_date") or "N/A"
         link = item.get("link")
         title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
-        return f"<li>{title_markup} (project: {project_name}, due {due_date})</li>"
+        detail = email_t("overdue.taskDetail", locale=locale, projectName=project_name, dueDate=due_date)
+        return f"<li>{title_markup} ({detail})</li>"
 
     def overdue_text(item: dict) -> str:
         title = item.get("title") or "Task"
         project_name = item.get("project_name") or "a project"
         due_date = item.get("due_date") or "N/A"
         link = item.get("link")
-        line = f"- {title} (project: {project_name}, due {due_date})"
+        detail = email_t("overdue.taskDetail", locale=locale, projectName=project_name, dueDate=due_date)
+        line = f"- {title} ({detail})"
         if link:
             line += f" -> {link}"
         return line
 
+    task_count = len(tasks)
     items_html = "".join(overdue_html(item) for item in tasks)
     body = f"""
-    <p>Hi {user.full_name or user.email},</p>
-    <p>You have {len(tasks)} overdue task(s):</p>
+    <p>{email_t("overdue.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("overdue.body", locale=locale, count=task_count)}</p>
     <ul>{items_html}</ul>
-    <p>Visit Initiative to get back on track.</p>
+    <p>{email_t("overdue.footer", locale=locale)}</p>
     """
-    html_body = _build_html_layout("Overdue tasks reminder", body, accent)
+    html_body = _build_html_layout(
+        email_t("overdue.title", locale=locale), body, accent, locale=locale
+    )
     text_lines = [
-        f"You have {len(tasks)} overdue task(s):",
+        email_t("overdue.textBody", locale=locale, count=task_count),
         *(overdue_text(item) for item in tasks),
-        "Visit Initiative to get back on track.",
+        email_t("overdue.footer", locale=locale),
     ]
     text_body = "\n".join(text_lines)
     await send_email(
         session,
         recipients=[user.email],
-        subject="Overdue tasks reminder",
+        subject=email_t("overdue.subject", locale=locale),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,

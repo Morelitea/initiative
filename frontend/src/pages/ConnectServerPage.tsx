@@ -10,7 +10,7 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { useServer } from "@/hooks/useServer";
 
 export const ConnectServerPage = () => {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["auth", "common"]);
   const router = useRouter();
   const { setServerUrl, testServerConnection } = useServer();
   const [serverUrlInput, setServerUrlInput] = useState("");

@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.api.deps import get_current_active_user
+from app.core.messages import AttachmentMessages
 from app.core.config import settings
 from app.models.user import User
 from app.schemas.attachment import AttachmentUploadResponse
@@ -31,21 +32,21 @@ async def upload_attachment(
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only image uploads are supported",
+            detail=AttachmentMessages.IMAGE_ONLY,
         )
 
     contents = await file.read()
     if not contents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file is empty",
+            detail=AttachmentMessages.FILE_EMPTY,
         )
 
     detected_format = imghdr.what(None, contents)
     if detected_format is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unable to validate image contents",
+            detail=AttachmentMessages.INVALID_IMAGE,
         )
 
     original_suffix = Path(file.filename or "").suffix.lower()

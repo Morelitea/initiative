@@ -66,7 +66,8 @@
     "viewTemplate": "View template",
     "stopUsingAsTemplate": "Stop using as template",
     "noTemplates": "No templates available",
-    "noTemplatesDescription": "Create a template from any project in project settings."
+    "noTemplatesDescription": "Create a template from any project in project settings.",
+    "description": "Standardize best practices and quickly spin up new initiatives using reusable templates."
   },
 
   "archived": {
@@ -470,9 +471,7 @@
     "filterPlaceholder": "Filter tasks...",
     "reorderTask": "Reorder task",
     "noTasks": "No tasks yet.",
-    "manualSortDisabled": "Manual sorting disabled,",
-    "resetSortingAndGrouping": "reset column sorting and row grouping",
-    "toReorder": "to reorder."
+    "manualSortDisabled": "Manual sorting disabled, <1>reset column sorting and row grouping</1> to reorder."
   },
 
   "kanban": {
@@ -556,5 +555,45 @@
       "everyYear": "Every year on {{month}} {{day}}",
       "everyNYears": "Every {{count}} years on {{month}} {{day}}"
     }
+  },
+
+  "calendarView": {
+    "subtitle": "See task start and due dates at a glance.",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "start": "Start",
+    "due": "Due",
+    "more": "+{{count}} more"
+  },
+
+  "preview": {
+    "updated": "Updated {{date}}",
+    "tasksDone": "{{completed}}/{{total}} done"
+  },
+
+  "activitySidebar": {
+    "title": "Project activity",
+    "activity": "Activity",
+    "expand": "Expand activity sidebar",
+    "collapse": "Collapse activity sidebar",
+    "loading": "Loading activity\u2026",
+    "noComments": "No comments yet.",
+    "commentedOn": "commented on",
+    "loadMore": "Load more"
+  },
+
+  "ganttView": {
+    "title": "Timeline",
+    "subtitle": "Plan start and due dates over the next few weeks.",
+    "window": "Window",
+    "days": "{{count}} days",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "previousWeeks": "Show previous weeks",
+    "nextWeeks": "Show next weeks",
+    "taskColumn": "Task",
+    "noTasks": "No tasks to display.",
+    "outsideRange": "Outside current range"
   }
 }

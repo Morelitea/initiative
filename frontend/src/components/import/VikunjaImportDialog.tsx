@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
@@ -84,6 +85,7 @@ const suggestStatusForBucket = (
 };
 
 export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogProps) => {
+  const { t } = useTranslation("import");
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [jsonContent, setJsonContent] = useState("");
@@ -156,13 +158,13 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
     onSuccess: (data) => {
       setParseResult(data);
       if (data.projects.length === 0) {
-        toast.error("No projects with tasks found in the export");
+        toast.error(t("vikunja.noProjectsFound"));
       } else {
         setStep("select-project");
       }
     },
     onError: () => {
-      toast.error("Failed to parse JSON file");
+      toast.error(t("vikunja.parseFailed"));
     },
   });
 
@@ -186,7 +188,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
       queryClient.invalidateQueries({ queryKey: ["project", selectedTargetProjectId] });
     },
     onError: () => {
-      toast.error("Import failed");
+      toast.error(t("common.importFailed"));
     },
   });
 
@@ -235,29 +237,27 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Import from Vikunja</DialogTitle>
+          <DialogTitle>{t("vikunja.title")}</DialogTitle>
           <DialogDescription>
-            {step === "upload" &&
-              "Upload the data.json file from your Vikunja backup (unzip the backup first)."}
-            {step === "select-project" &&
-              "Select which project to import from and where to import to."}
-            {step === "configure" && "Map Vikunja buckets to project statuses."}
-            {step === "result" && "Import complete."}
+            {step === "upload" && t("vikunja.stepUploadDescription")}
+            {step === "select-project" && t("vikunja.stepSelectProjectDescription")}
+            {step === "configure" && t("vikunja.stepConfigureDescription")}
+            {step === "result" && t("common.resultTitle")}
           </DialogDescription>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="space-y-4">
             <div>
-              <Label>Upload data.json</Label>
+              <Label>{t("vikunja.uploadFileLabel")}</Label>
               <div className="mt-2">
                 <label className="border-muted hover:bg-accent flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors">
                   <Upload className="text-muted-foreground mb-2 h-8 w-8" />
                   <span className="text-muted-foreground text-sm">
-                    Click to upload or drag and drop
+                    {t("common.uploadDragDrop")}
                   </span>
                   <span className="text-muted-foreground mt-1 text-xs">
-                    Found in your unzipped Vikunja backup
+                    {t("vikunja.uploadHint")}
                   </span>
                   <input
                     type="file"
@@ -269,13 +269,13 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
               </div>
             </div>
 
-            <div className="text-muted-foreground text-center text-sm">or</div>
+            <div className="text-muted-foreground text-center text-sm">{t("common.or")}</div>
 
             <div>
-              <Label htmlFor="json-content">Paste JSON content</Label>
+              <Label htmlFor="json-content">{t("vikunja.pasteLabel")}</Label>
               <Textarea
                 id="json-content"
-                placeholder="Paste your Vikunja JSON export here..."
+                placeholder={t("vikunja.jsonPlaceholder")}
                 value={jsonContent}
                 onChange={(e) => setJsonContent(e.target.value)}
                 className="mt-2 h-32 font-mono text-xs"
@@ -287,13 +287,13 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
                 onClick={handlePasteContent}
                 disabled={!jsonContent.trim() || parseMutation.isPending}
               >
-                {parseMutation.isPending ? "Parsing..." : "Parse content"}
+                {parseMutation.isPending ? t("common.parsing") : t("common.parseContent")}
               </Button>
             </div>
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             </div>
           </div>
@@ -304,28 +304,35 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
             <div className="bg-muted rounded-lg p-4">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                <span className="font-medium">Export parsed successfully</span>
+                <span className="font-medium">{t("vikunja.exportParsed")}</span>
               </div>
               <p className="text-muted-foreground mt-1 text-sm">
-                Found {parseResult.projects.length} project
-                {parseResult.projects.length === 1 ? "" : "s"} with {parseResult.total_tasks} total
-                tasks
+                {t("vikunja.totalTasks", {
+                  projectCount: parseResult.projects.length,
+                  projectLabel: t("vikunja.projectsDetected", {
+                    count: parseResult.projects.length,
+                  })
+                    .split(" ")
+                    .slice(1)
+                    .join(" "),
+                  taskCount: parseResult.total_tasks,
+                })}
               </p>
             </div>
 
             <div>
-              <Label>Import from Vikunja project</Label>
+              <Label>{t("vikunja.importFromProject")}</Label>
               <Select
                 value={selectedSourceProjectId?.toString() ?? ""}
                 onValueChange={(value) => setSelectedSourceProjectId(Number(value))}
               >
                 <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select a Vikunja project" />
+                  <SelectValue placeholder={t("vikunja.selectSourceProjectPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {parseResult.projects.map((project) => (
                     <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.name} ({project.task_count} tasks)
+                      {project.name} ({t("vikunja.tasksCount", { count: project.task_count })})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -333,13 +340,13 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
             </div>
 
             <div>
-              <Label>Import to Initiative project</Label>
+              <Label>{t("common.importToInitiativeProject")}</Label>
               <Select
                 value={selectedTargetProjectId?.toString() ?? ""}
                 onValueChange={(value) => setSelectedTargetProjectId(Number(value))}
               >
                 <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select a project" />
+                  <SelectValue placeholder={t("common.selectProject")} />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {activeProjects.map((project) => (
@@ -354,13 +361,13 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStep("upload")}>
-                Back
+                {t("common.back")}
               </Button>
               <Button
                 onClick={handleSelectSourceProject}
                 disabled={!selectedSourceProjectId || !selectedTargetProjectId}
               >
-                Next
+                {t("common.next")}
               </Button>
             </div>
           </div>
@@ -369,10 +376,8 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
         {step === "configure" && selectedSourceProject && (
           <div className="space-y-4">
             <div>
-              <Label>Map buckets to statuses</Label>
-              <p className="text-muted-foreground text-sm">
-                Choose which project status each Vikunja bucket should map to.
-              </p>
+              <Label>{t("vikunja.mapBucketsLabel")}</Label>
+              <p className="text-muted-foreground text-sm">{t("vikunja.mapBucketsDescription")}</p>
             </div>
 
             <div className="space-y-3">
@@ -381,7 +386,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{bucket.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {bucket.task_count} task{bucket.task_count === 1 ? "" : "s"}
+                      {t("vikunja.taskCount", { count: bucket.task_count })}
                     </p>
                   </div>
                   <Select
@@ -394,7 +399,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
                     }
                   >
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder={t("common.selectStatus")} />
                     </SelectTrigger>
                     <SelectContent>
                       {statuses.map((status) => (
@@ -410,7 +415,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStep("select-project")}>
-                Back
+                {t("common.back")}
               </Button>
               <Button
                 onClick={handleImport}
@@ -419,7 +424,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
                   Object.keys(bucketMapping).length !== selectedSourceProject.buckets.length
                 }
               >
-                {importMutation.isPending ? "Importing..." : "Import"}
+                {importMutation.isPending ? t("common.importing") : t("common.import")}
               </Button>
             </div>
           </div>
@@ -440,20 +445,20 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
               <div>
                 <p className="font-medium">
                   {importResult.tasks_failed === 0
-                    ? "Import successful!"
-                    : "Import completed with warnings"}
+                    ? t("common.importSuccessful")
+                    : t("common.importWarnings")}
                 </p>
                 <p className="text-muted-foreground text-sm">
-                  {importResult.tasks_created} task{importResult.tasks_created === 1 ? "" : "s"}{" "}
-                  created
-                  {importResult.tasks_failed > 0 && `, ${importResult.tasks_failed} failed`}
+                  {t("common.tasksCreated", { count: importResult.tasks_created })}
+                  {importResult.tasks_failed > 0 &&
+                    `, ${t("common.failedCount", { count: importResult.tasks_failed })}`}
                 </p>
               </div>
             </div>
 
             {importResult.errors.length > 0 && (
               <div className="bg-muted max-h-40 overflow-y-auto rounded-lg p-3">
-                <p className="mb-2 text-sm font-medium">Errors:</p>
+                <p className="mb-2 text-sm font-medium">{t("common.errors")}</p>
                 <ul className="text-muted-foreground space-y-1 text-xs">
                   {importResult.errors.map((error, index) => (
                     <li key={index}>{error}</li>
@@ -463,7 +468,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
             )}
 
             <div className="flex justify-end">
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
+              <Button onClick={() => onOpenChange(false)}>{t("common.done")}</Button>
             </div>
           </div>
         )}

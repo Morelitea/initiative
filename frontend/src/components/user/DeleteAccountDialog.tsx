@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
@@ -64,6 +65,7 @@ export function DeleteAccountDialog({
   onSuccess,
   user,
 }: DeleteAccountDialogProps) {
+  const { t } = useTranslation("settings");
   const [step, setStep] = useState<DeletionStep>("choose-type");
   const [deletionType, setDeletionType] = useState<DeletionType>("soft");
   const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
@@ -124,14 +126,16 @@ export function DeleteAccountDialog({
     },
     onSuccess: () => {
       toast.success(
-        deletionType === "soft" ? "Account deactivated successfully" : "Account deleted permanently"
+        deletionType === "soft"
+          ? t("deleteAccount.deactivateSuccess")
+          : t("deleteAccount.deleteSuccess")
       );
       onSuccess();
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to delete account";
+        t("deleteAccount.deleteError");
       toast.error(message);
     },
   });
@@ -214,12 +218,12 @@ export function DeleteAccountDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Delete Account</DialogTitle>
+          <DialogTitle>{t("deleteAccount.title")}</DialogTitle>
           <DialogDescription>
-            {step === "choose-type" && "Choose how you want to delete your account"}
-            {step === "check-blockers" && "Checking if your account can be deleted"}
-            {step === "transfer-projects" && "Transfer project ownership"}
-            {step === "confirm" && "Confirm account deletion"}
+            {step === "choose-type" && t("deleteAccount.chooseTypeDescription")}
+            {step === "check-blockers" && t("deleteAccount.checkBlockersDescription")}
+            {step === "transfer-projects" && t("deleteAccount.transferProjectsDescription")}
+            {step === "confirm" && t("deleteAccount.confirmDeletionDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -235,11 +239,10 @@ export function DeleteAccountDialog({
                   <RadioGroupItem value="soft" id="soft" className="mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <Label htmlFor="soft" className="cursor-pointer text-base font-medium">
-                      Deactivate Account (Soft Delete)
+                      {t("deleteAccount.softDeleteLabel")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      You cannot log in, but all data is preserved. An administrator can reactivate
-                      your account later.
+                      {t("deleteAccount.softDeleteRadioDescription")}
                     </p>
                   </div>
                 </div>
@@ -251,11 +254,10 @@ export function DeleteAccountDialog({
                       htmlFor="hard"
                       className="text-destructive cursor-pointer text-base font-medium"
                     >
-                      Delete Account Permanently (Hard Delete)
+                      {t("deleteAccount.hardDeleteLabel")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      Most data will be removed from the system. Comments and documents will be kept
-                      but labeled as &ldquo;[Deleted User]&rdquo;. This action cannot be undone.
+                      {t("deleteAccount.hardDeleteRadioDescription")}
                     </p>
                   </div>
                 </div>
@@ -276,15 +278,13 @@ export function DeleteAccountDialog({
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <div className="mb-2 font-semibold">Cannot delete account:</div>
+                    <div className="mb-2 font-semibold">{t("deleteAccount.cannotDelete")}</div>
                     <ul className="list-inside list-disc space-y-1">
                       {eligibility.blockers.map((blocker, idx) => (
                         <li key={idx}>{blocker}</li>
                       ))}
                     </ul>
-                    <p className="mt-2 text-sm">
-                      Please resolve these issues before deleting your account.
-                    </p>
+                    <p className="mt-2 text-sm">{t("deleteAccount.resolveIssues")}</p>
                   </AlertDescription>
                 </Alert>
               )}
@@ -295,7 +295,7 @@ export function DeleteAccountDialog({
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        <div className="mb-2 font-semibold">Important:</div>
+                        <div className="mb-2 font-semibold">{t("deleteAccount.important")}</div>
                         <ul className="list-inside list-disc space-y-1">
                           {eligibility.warnings.map((warning, idx) => (
                             <li key={idx}>{warning}</li>
@@ -306,7 +306,7 @@ export function DeleteAccountDialog({
                   )}
 
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                    <AlertDescription>Your account is eligible for deletion.</AlertDescription>
+                    <AlertDescription>{t("deleteAccount.eligible")}</AlertDescription>
                   </Alert>
                 </>
               )}
@@ -316,9 +316,7 @@ export function DeleteAccountDialog({
           {/* Step 3: Transfer Projects */}
           {step === "transfer-projects" && eligibility && (
             <div className="space-y-4">
-              <p className="text-muted-foreground text-sm">
-                Select new owners for your projects before proceeding with account deletion.
-              </p>
+              <p className="text-muted-foreground text-sm">{t("deleteAccount.selectNewOwners")}</p>
 
               {eligibility.owned_projects.map((project) => (
                 <div key={project.id} className="space-y-2 rounded-lg border p-4">
@@ -335,7 +333,7 @@ export function DeleteAccountDialog({
                     }
                   >
                     <SelectTrigger id={`project-${project.id}`}>
-                      <SelectValue placeholder="Select new owner..." />
+                      <SelectValue placeholder={t("deleteAccount.selectNewOwnerPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
                       {initiativeMembers[project.initiative_id]?.map((member) => (
@@ -356,42 +354,39 @@ export function DeleteAccountDialog({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="mb-2 font-semibold">This action is serious:</div>
+                  <div className="mb-2 font-semibold">{t("deleteAccount.actionSerious")}</div>
                   {deletionType === "soft" ? (
-                    <p className="text-sm">
-                      Your account will be deactivated. You will not be able to log in, but all your
-                      data will be preserved. An administrator can reactivate your account.
-                    </p>
+                    <p className="text-sm">{t("deleteAccount.softConfirmDescription")}</p>
                   ) : (
-                    <p className="text-sm">
-                      Your account will be permanently deleted. Your projects will be transferred.
-                      Comments and documents will remain but will show &ldquo;[Deleted User]&rdquo;
-                      as the author. This action cannot be undone.
-                    </p>
+                    <p className="text-sm">{t("deleteAccount.hardConfirmDescription")}</p>
                   )}
                 </AlertDescription>
               </Alert>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Confirm your password</Label>
+                <Label htmlFor="password">{t("deleteAccount.confirmPasswordLabel")}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t("deleteAccount.enterPassword")}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirmation">
-                  Type <span className="font-mono font-bold">DELETE MY ACCOUNT</span> to confirm
+                  {t("deleteAccount.typeToConfirmPrefix")}{" "}
+                  <span className="font-mono font-bold">
+                    {t("deleteAccount.typeToConfirmCode")}
+                  </span>{" "}
+                  {t("deleteAccount.typeToConfirmSuffix")}
                 </Label>
                 <Input
                   id="confirmation"
                   value={confirmationText}
                   onChange={(e) => setConfirmationText(e.target.value)}
-                  placeholder="DELETE MY ACCOUNT"
+                  placeholder={t("deleteAccount.confirmationPlaceholder")}
                 />
               </div>
 
@@ -403,7 +398,7 @@ export function DeleteAccountDialog({
                     onCheckedChange={(checked) => setAgreedToConsequences(checked === true)}
                   />
                   <Label htmlFor="agree" className="cursor-pointer text-sm">
-                    I understand this action cannot be undone
+                    {t("deleteAccount.agreeConsequences")}
                   </Label>
                 </div>
               )}
@@ -419,7 +414,7 @@ export function DeleteAccountDialog({
               disabled={step === "choose-type" || deleteAccount.isPending}
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
-              Back
+              {t("deleteAccount.back")}
             </Button>
 
             <div className="flex gap-2">
@@ -428,7 +423,7 @@ export function DeleteAccountDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={deleteAccount.isPending}
               >
-                Cancel
+                {t("deleteAccount.cancel")}
               </Button>
 
               {step !== "confirm" ? (
@@ -444,10 +439,10 @@ export function DeleteAccountDialog({
                   {isCheckingEligibility ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Checking...
+                      {t("deleteAccount.checking")}
                     </>
                   ) : (
-                    "Next"
+                    t("deleteAccount.next")
                   )}
                 </Button>
               ) : (
@@ -459,10 +454,12 @@ export function DeleteAccountDialog({
                   {deleteAccount.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Deleting...
+                      {t("deleteAccount.deleting")}
                     </>
+                  ) : deletionType === "soft" ? (
+                    t("deleteAccount.deactivateAccount")
                   ) : (
-                    `${deletionType === "soft" ? "Deactivate" : "Delete"} Account`
+                    t("deleteAccount.deleteAccountButton")
                   )}
                 </Button>
               )}

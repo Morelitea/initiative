@@ -63,7 +63,7 @@ export const TaskBulkEditDialog = ({
   onApply,
   onCancel,
 }: TaskBulkEditDialogProps) => {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation(["tasks", "common"]);
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);

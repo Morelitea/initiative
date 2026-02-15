@@ -153,7 +153,7 @@ async def test_create_guild_requires_name(client: AsyncClient, session: AsyncSes
     response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
 
     assert response.status_code == 400
-    assert "name" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "GUILD_NAME_REQUIRED"
 
 
 @pytest.mark.integration
@@ -504,7 +504,7 @@ async def test_accept_expired_invite_fails(client: AsyncClient, session: AsyncSe
     response = await client.post("/api/v1/guilds/invite/accept", headers=headers, json=payload)
 
     assert response.status_code == 400
-    assert "expired" in response.json()["detail"].lower()
+    assert response.json()["detail"] == "INVITE_EXPIRED_OR_USED"
 
 
 @pytest.mark.integration

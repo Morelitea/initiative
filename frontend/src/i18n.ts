@@ -59,6 +59,7 @@ void i18n
   .init({
     fallbackLng: "en",
     defaultNS,
+    fallbackNS: "common",
     ns: ["common"],
     partialBundledLanguages: true,
     interpolation: {

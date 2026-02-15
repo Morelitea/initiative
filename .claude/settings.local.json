@@ -13,7 +13,9 @@
       "Bash(pnpm exec eslint:*)",
       "Bash(python -m ruff check:*)",
       "Bash(bd create:*)",
-      "Bash(pnpm exec tsc:*)"
+      "Bash(pnpm exec tsc:*)",
+      "Bash(timeout 300 pytest:*)",
+      "Bash(python -m pytest:*)"
     ]
   }
 }

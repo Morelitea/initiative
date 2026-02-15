@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
@@ -185,6 +186,7 @@ interface CommentContentProps {
 }
 
 export const CommentContent = ({ content }: CommentContentProps) => {
+  const { t } = useTranslation("documents");
   const { activeGuildId } = useGuilds();
   const guildId = activeGuildId;
 
@@ -228,7 +230,7 @@ export const CommentContent = ({ content }: CommentContentProps) => {
         if (part.type === "task") {
           return (
             <Link key={index} to={gp(`/tasks/${part.id}`)} className="text-primary hover:underline">
-              Task: {part.displayText}
+              {t("comments.taskPrefix", { name: part.displayText })}
             </Link>
           );
         }
@@ -240,7 +242,7 @@ export const CommentContent = ({ content }: CommentContentProps) => {
               to={gp(`/documents/${part.id}`)}
               className="text-primary hover:underline"
             >
-              Doc: {part.displayText}
+              {t("comments.docPrefix", { name: part.displayText })}
             </Link>
           );
         }
@@ -252,7 +254,7 @@ export const CommentContent = ({ content }: CommentContentProps) => {
               to={gp(`/projects/${part.id}`)}
               className="text-primary hover:underline"
             >
-              Project: {part.displayText}
+              {t("comments.projectPrefix", { name: part.displayText })}
             </Link>
           );
         }

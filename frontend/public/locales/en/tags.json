@@ -1,0 +1,50 @@
+{
+  "detail": {
+    "notFound": "Tag not found",
+    "taggedItems_one": "{{count}} tagged item",
+    "taggedItems_other": "{{count}} tagged items",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete tag?",
+    "deleteDescription": "This will remove the tag \"{{name}}\" from all tasks, projects, and documents. This action cannot be undone.",
+    "deleted": "Tag deleted",
+    "saving": "Saving\u2026",
+    "save": "Save",
+    "tasksTab": "Tasks ({{count}})",
+    "projectsTab": "Projects ({{count}})",
+    "documentsTab": "Documents ({{count}})"
+  },
+
+  "picker": {
+    "defaultPlaceholder": "Add tags...",
+    "createHeading": "Create new tag",
+    "namePlaceholder": "Tag name",
+    "creating": "Creating\u2026",
+    "create": "Create",
+    "searchPlaceholder": "Search or create tags...",
+    "loading": "Loading\u2026",
+    "existingTags": "Existing tags",
+    "noTagsFound": "No tags found.",
+    "createTag": "Create \"{{name}}\"",
+    "selected": "{{count}} selected"
+  },
+
+  "tree": {
+    "notTagged": "Not tagged",
+    "collapse": "Collapse",
+    "expand": "Expand"
+  },
+
+  "badge": {
+    "remove": "Remove {{name}} tag"
+  },
+
+  "updated": "Tag updated.",
+  "deleted": "Tag deleted.",
+  "createError": "Unable to create tag.",
+  "updateError": "Unable to update tag.",
+  "deleteError": "Unable to delete tag.",
+  "taskTagsError": "Unable to update task tags.",
+  "projectTagsError": "Unable to update project tags.",
+  "documentTagsError": "Unable to update document tags."
+}

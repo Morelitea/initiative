@@ -17,11 +17,11 @@ async def init_superuser() -> None:
         return
 
     async with AdminSessionLocal() as session:
-        primary_guild = await guilds_service.get_primary_guild(session)
-        result = await session.exec(select(User).where(User.email == settings.FIRST_SUPERUSER_EMAIL))
-        user = result.one_or_none()
-        if user:
-            async with session.begin():
+        async with session.begin():
+            primary_guild = await guilds_service.get_primary_guild(session)
+            result = await session.exec(select(User).where(User.email == settings.FIRST_SUPERUSER_EMAIL))
+            user = result.one_or_none()
+            if user:
                 await guilds_service.ensure_membership(
                     session,
                     guild_id=primary_guild.id,
@@ -29,16 +29,15 @@ async def init_superuser() -> None:
                     role=GuildRole.admin,
                 )
                 await initiatives_service.ensure_default_initiative(session, user, guild_id=primary_guild.id)
-            return
+                return
 
-        superuser = User(
-            email=settings.FIRST_SUPERUSER_EMAIL,
-            full_name=settings.FIRST_SUPERUSER_FULL_NAME,
-            hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
-            role=UserRole.admin,
-            email_verified=True,
-        )
-        async with session.begin():
+            superuser = User(
+                email=settings.FIRST_SUPERUSER_EMAIL,
+                full_name=settings.FIRST_SUPERUSER_FULL_NAME,
+                hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
+                role=UserRole.admin,
+                email_verified=True,
+            )
             session.add(superuser)
             await session.flush()
             await guilds_service.ensure_membership(
@@ -48,16 +47,13 @@ async def init_superuser() -> None:
                 role=GuildRole.admin,
             )
             await initiatives_service.ensure_default_initiative(session, superuser, guild_id=primary_guild.id)
-        await session.refresh(superuser)
 
 
 async def init() -> None:
     await run_migrations()
     await init_superuser()
     async with AdminSessionLocal() as session:
-        await app_settings_service.get_or_create_guild_settings(
-            session, default_domains=settings.AUTO_APPROVED_EMAIL_DOMAINS
-        )
+        await app_settings_service.get_or_create_guild_settings(session)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -63,6 +64,7 @@ interface MappingOptions {
 const QUERY_KEY = ["settings", "oidc-mappings"];
 
 export const OidcClaimMappingsSection = () => {
+  const { t } = useTranslation("settings");
   const queryClient = useQueryClient();
 
   const [claimPath, setClaimPath] = useState("");
@@ -104,10 +106,10 @@ export const OidcClaimMappingsSection = () => {
       await apiClient.put("/settings/oidc-mappings/claim-path", { claim_path: path || null });
     },
     onSuccess: () => {
-      toast.success("Claim path updated");
+      toast.success(t("auth.claimPathSuccess"));
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
-    onError: () => toast.error("Failed to update claim path"),
+    onError: () => toast.error(t("auth.claimPathError")),
   });
 
   const createMapping = useMutation({
@@ -116,11 +118,11 @@ export const OidcClaimMappingsSection = () => {
       return resp.data;
     },
     onSuccess: () => {
-      toast.success("Mapping created");
+      toast.success(t("auth.mappingCreateSuccess"));
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       resetForm();
     },
-    onError: () => toast.error("Failed to create mapping"),
+    onError: () => toast.error(t("auth.mappingCreateError")),
   });
 
   const updateMapping = useMutation({
@@ -129,11 +131,11 @@ export const OidcClaimMappingsSection = () => {
       return resp.data;
     },
     onSuccess: () => {
-      toast.success("Mapping updated");
+      toast.success(t("auth.mappingUpdateSuccess"));
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       resetForm();
     },
-    onError: () => toast.error("Failed to update mapping"),
+    onError: () => toast.error(t("auth.mappingUpdateError")),
   });
 
   const deleteMapping = useMutation({
@@ -141,10 +143,10 @@ export const OidcClaimMappingsSection = () => {
       await apiClient.delete(`/settings/oidc-mappings/${id}`);
     },
     onSuccess: () => {
-      toast.success("Mapping deleted");
+      toast.success(t("auth.mappingDeleteSuccess"));
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
-    onError: () => toast.error("Failed to delete mapping"),
+    onError: () => toast.error(t("auth.mappingDeleteError")),
   });
 
   const filteredInitiatives = useMemo(() => {
@@ -210,11 +212,11 @@ export const OidcClaimMappingsSection = () => {
   };
 
   if (mappingsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading OIDC mappings...</p>;
+    return <p className="text-muted-foreground text-sm">{t("auth.loadingOidcMappings")}</p>;
   }
 
   if (mappingsQuery.isError || !mappingsQuery.data) {
-    return <p className="text-destructive text-sm">Unable to load OIDC mappings.</p>;
+    return <p className="text-destructive text-sm">{t("auth.oidcMappingsLoadError")}</p>;
   }
 
   const isSaving = createMapping.isPending || updateMapping.isPending;
@@ -224,27 +226,29 @@ export const OidcClaimMappingsSection = () => {
       {/* Claim Path */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>OIDC claim path</CardTitle>
+          <CardTitle>{t("auth.claimPathCardTitle")}</CardTitle>
+          {/* eslint-disable i18next/no-literal-string */}
           <CardDescription>
-            Dot-notation path to the claim array in the OIDC token. Common paths: Keycloak:{" "}
+            {t("auth.claimPathCardDescription")} Keycloak:{" "}
             <code className="bg-muted rounded px-1">realm_access.roles</code>, Azure AD:{" "}
             <code className="bg-muted rounded px-1">groups</code>, Okta:{" "}
             <code className="bg-muted rounded px-1">groups</code>
           </CardDescription>
+          {/* eslint-enable i18next/no-literal-string */}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleClaimPathSubmit} className="flex items-end gap-3">
             <div className="flex-1 space-y-2">
-              <Label htmlFor="claim-path">Claim path</Label>
+              <Label htmlFor="claim-path">{t("auth.claimPathLabel")}</Label>
               <Input
                 id="claim-path"
                 value={claimPath}
                 onChange={(e) => setClaimPath(e.target.value)}
-                placeholder="groups"
+                placeholder={t("auth.claimPathPlaceholder")}
               />
             </div>
             <Button type="submit" disabled={updateClaimPath.isPending}>
-              {updateClaimPath.isPending ? "Saving..." : "Save"}
+              {updateClaimPath.isPending ? t("auth.claimPathSaving") : t("auth.claimPathSave")}
             </Button>
           </form>
         </CardContent>
@@ -254,14 +258,12 @@ export const OidcClaimMappingsSection = () => {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Mapping rules</CardTitle>
-            <CardDescription>
-              Map OIDC claim values to guild and initiative memberships.
-            </CardDescription>
+            <CardTitle>{t("auth.rulesTitle")}</CardTitle>
+            <CardDescription>{t("auth.rulesDescription")}</CardDescription>
           </div>
           {!formOpen && (
             <Button size="sm" onClick={() => setFormOpen(true)}>
-              Add rule
+              {t("auth.addRule")}
             </Button>
           )}
         </CardHeader>
@@ -271,16 +273,16 @@ export const OidcClaimMappingsSection = () => {
               <form onSubmit={handleMappingSubmit} className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Claim value</Label>
+                    <Label>{t("auth.mappingClaimValue")}</Label>
                     <Input
                       value={form.claim_value}
                       onChange={(e) => setForm((p) => ({ ...p, claim_value: e.target.value }))}
-                      placeholder="e.g. engineering-team"
+                      placeholder={t("auth.mappingClaimValuePlaceholder")}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Target type</Label>
+                    <Label>{t("auth.mappingTargetType")}</Label>
                     <Select
                       value={form.target_type}
                       onValueChange={(v) =>
@@ -296,13 +298,15 @@ export const OidcClaimMappingsSection = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="guild">Guild</SelectItem>
-                        <SelectItem value="initiative">Initiative</SelectItem>
+                        <SelectItem value="guild">{t("auth.mappingTargetTypeGuild")}</SelectItem>
+                        <SelectItem value="initiative">
+                          {t("auth.mappingTargetTypeInitiative")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Guild</Label>
+                    <Label>{t("auth.mappingGuild")}</Label>
                     <Select
                       value={form.guild_id}
                       onValueChange={(v) =>
@@ -315,7 +319,7 @@ export const OidcClaimMappingsSection = () => {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select guild" />
+                        <SelectValue placeholder={t("auth.mappingGuildPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         {optionsQuery.data?.guilds.map((g) => (
@@ -327,7 +331,7 @@ export const OidcClaimMappingsSection = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Guild role</Label>
+                    <Label>{t("auth.mappingGuildRole")}</Label>
                     <Select
                       value={form.guild_role}
                       onValueChange={(v) => setForm((p) => ({ ...p, guild_role: v }))}
@@ -336,15 +340,15 @@ export const OidcClaimMappingsSection = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="member">{t("auth.mappingRoleMember")}</SelectItem>
+                        <SelectItem value="admin">{t("auth.mappingRoleAdmin")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   {form.target_type === "initiative" && (
                     <>
                       <div className="space-y-2">
-                        <Label>Initiative</Label>
+                        <Label>{t("auth.mappingInitiative")}</Label>
                         <Select
                           value={form.initiative_id}
                           onValueChange={(v) =>
@@ -355,7 +359,9 @@ export const OidcClaimMappingsSection = () => {
                           <SelectTrigger>
                             <SelectValue
                               placeholder={
-                                form.guild_id ? "Select initiative" : "Select guild first"
+                                form.guild_id
+                                  ? t("auth.mappingInitiativePlaceholder")
+                                  : t("auth.mappingSelectGuildFirst")
                               }
                             />
                           </SelectTrigger>
@@ -369,7 +375,7 @@ export const OidcClaimMappingsSection = () => {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Initiative role</Label>
+                        <Label>{t("auth.mappingInitiativeRole")}</Label>
                         <Select
                           value={form.initiative_role_id}
                           onValueChange={(v) => setForm((p) => ({ ...p, initiative_role_id: v }))}
@@ -378,7 +384,9 @@ export const OidcClaimMappingsSection = () => {
                           <SelectTrigger>
                             <SelectValue
                               placeholder={
-                                form.initiative_id ? "Select role" : "Select initiative first"
+                                form.initiative_id
+                                  ? t("auth.mappingInitiativeRolePlaceholder")
+                                  : t("auth.mappingSelectInitiativeFirst")
                               }
                             />
                           </SelectTrigger>
@@ -396,10 +404,14 @@ export const OidcClaimMappingsSection = () => {
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" size="sm" disabled={isSaving}>
-                    {isSaving ? "Saving..." : editingId ? "Update" : "Add"}
+                    {isSaving
+                      ? t("auth.mappingSaving")
+                      : editingId
+                        ? t("auth.mappingUpdate")
+                        : t("auth.mappingAdd")}
                   </Button>
                   <Button type="button" variant="outline" size="sm" onClick={resetForm}>
-                    Cancel
+                    {t("auth.mappingCancel")}
                   </Button>
                 </div>
               </form>
@@ -407,21 +419,19 @@ export const OidcClaimMappingsSection = () => {
           )}
 
           {mappingsQuery.data.mappings.length === 0 ? (
-            <p className="text-muted-foreground py-4 text-center text-sm">
-              No mapping rules configured yet.
-            </p>
+            <p className="text-muted-foreground py-4 text-center text-sm">{t("auth.noRules")}</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Claim value</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Guild</TableHead>
-                    <TableHead>Guild role</TableHead>
-                    <TableHead>Initiative</TableHead>
-                    <TableHead>Initiative role</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("auth.mappingColumnClaim")}</TableHead>
+                    <TableHead>{t("auth.mappingColumnType")}</TableHead>
+                    <TableHead>{t("auth.mappingColumnGuild")}</TableHead>
+                    <TableHead>{t("auth.mappingColumnGuildRole")}</TableHead>
+                    <TableHead>{t("auth.mappingColumnInitiative")}</TableHead>
+                    <TableHead>{t("auth.mappingColumnInitiativeRole")}</TableHead>
+                    <TableHead className="text-right">{t("auth.mappingColumnActions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -453,7 +463,7 @@ export const OidcClaimMappingsSection = () => {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="sm" onClick={() => startEdit(m)}>
-                            Edit
+                            {t("auth.mappingEdit")}
                           </Button>
                           <Button
                             variant="ghost"
@@ -462,7 +472,7 @@ export const OidcClaimMappingsSection = () => {
                             onClick={() => deleteMapping.mutate(m.id)}
                             disabled={deleteMapping.isPending}
                           >
-                            Delete
+                            {t("auth.mappingDelete")}
                           </Button>
                         </div>
                       </TableCell>

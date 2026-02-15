@@ -10,6 +10,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ColumnDef,
   Row,
@@ -134,6 +135,7 @@ export function DataTable<TData, TValue>({
   manualSorting = false,
   onSortingChange: externalOnSortingChange,
 }: DataTableProps<TData, TValue>) {
+  const { t } = useTranslation("common");
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
   const initialSortingRef = useRef<SortingState>(initialSorting ? [...initialSorting] : []);
   const groupingEnabled = Boolean(groupingOptions && groupingOptions.length > 0);
@@ -197,14 +199,14 @@ export function DataTable<TData, TValue>({
             (table.getIsSomePageRowsSelected() && "indeterminate")
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
+          aria-label={t("selectAll")}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
+          aria-label={t("selectRow")}
         />
       ),
       enableSorting: false,
@@ -212,7 +214,7 @@ export function DataTable<TData, TValue>({
     };
 
     return [selectionColumn, ...columns];
-  }, [enableRowSelection, selectionModeActive, columns]);
+  }, [enableRowSelection, selectionModeActive, columns, t]);
 
   const handlePaginationChange = useMemo(() => {
     if (!enablePagination) return undefined;
@@ -403,8 +405,10 @@ export function DataTable<TData, TValue>({
         selectionModeActive &&
         table.getFilteredSelectedRowModel().rows.length > 0 && (
           <div className="text-muted-foreground text-sm">
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected
+            {t("rowsSelected", {
+              selected: table.getFilteredSelectedRowModel().rows.length,
+              total: table.getFilteredRowModel().rows.length,
+            })}
           </div>
         )}
       <div
@@ -431,7 +435,7 @@ export function DataTable<TData, TValue>({
                   }}
                   className="shrink-0"
                 >
-                  {selectionModeActive ? "Exit Selection" : "Select"}
+                  {selectionModeActive ? t("exitSelection") : t("select")}
                 </Button>
               )}
               {enableFilterInput && (
@@ -450,7 +454,7 @@ export function DataTable<TData, TValue>({
               <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">
                 {enableClearSorting && (
                   <Button variant="ghost" onClick={() => table.resetSorting()}>
-                    <span className="text-muted-foreground">Reset Sorting</span>
+                    <span className="text-muted-foreground">{t("resetSorting")}</span>
                   </Button>
                 )}
                 {groupingEnabled && hasGroupingOptions ? (
@@ -459,7 +463,7 @@ export function DataTable<TData, TValue>({
                       htmlFor={groupingSelectId}
                       className="text-muted-foreground text-sm font-medium"
                     >
-                      Group by
+                      {t("groupBy")}
                     </Label>
                     <Select
                       value={groupingSelectValue}
@@ -472,10 +476,10 @@ export function DataTable<TData, TValue>({
                       }}
                     >
                       <SelectTrigger id={groupingSelectId} className="w-40">
-                        <SelectValue placeholder="Choose grouping" />
+                        <SelectValue placeholder={t("chooseGrouping")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={GROUPING_NONE_VALUE}>None</SelectItem>
+                        <SelectItem value={GROUPING_NONE_VALUE}>{t("none")}</SelectItem>
                         {groupingChoices.map((option) => (
                           <SelectItem key={option.id} value={option.id}>
                             {option.label}
@@ -489,7 +493,7 @@ export function DataTable<TData, TValue>({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="ml-auto">
-                        Columns <ChevronDown />
+                        {t("columns")} <ChevronDown />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -518,11 +522,11 @@ export function DataTable<TData, TValue>({
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" className="md:hidden">
                     <MoreVertical className="h-4 w-4" />
-                    <span className="sr-only">Table options</span>
+                    <span className="sr-only">{t("tableOptions")}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Table Options</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("tableOptions")}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
 
                   {enableRowSelection && (
@@ -537,7 +541,7 @@ export function DataTable<TData, TValue>({
                         }}
                         className="cursor-pointer"
                       >
-                        {selectionModeActive ? "Exit Selection Mode" : "Enable Selection Mode"}
+                        {selectionModeActive ? t("exitSelectionMode") : t("enableSelectionMode")}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>
@@ -549,7 +553,7 @@ export function DataTable<TData, TValue>({
                         onSelect={() => table.resetSorting()}
                         className="cursor-pointer"
                       >
-                        Reset Sorting
+                        {t("resetSorting")}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </>
@@ -558,13 +562,13 @@ export function DataTable<TData, TValue>({
                   {groupingEnabled && hasGroupingOptions && (
                     <>
                       <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>Group by</DropdownMenuSubTrigger>
+                        <DropdownMenuSubTrigger>{t("groupBy")}</DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
                           <DropdownMenuCheckboxItem
                             checked={groupingSelectValue === GROUPING_NONE_VALUE}
                             onCheckedChange={() => setGrouping([])}
                           >
-                            None
+                            {t("none")}
                           </DropdownMenuCheckboxItem>
                           {groupingChoices.map((option) => (
                             <DropdownMenuCheckboxItem
@@ -584,7 +588,7 @@ export function DataTable<TData, TValue>({
                   {enableColumnVisibilityDropdown && (
                     <>
                       <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>Columns</DropdownMenuSubTrigger>
+                        <DropdownMenuSubTrigger>{t("columns")}</DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
                           {table
                             .getAllColumns()
@@ -700,7 +704,7 @@ export function DataTable<TData, TValue>({
                   colSpan={table.getVisibleLeafColumns().length || columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  {t("noResultsDot")}
                 </TableCell>
               </TableRow>
             )}
@@ -709,7 +713,7 @@ export function DataTable<TData, TValue>({
         {enablePagination && (
           <div className="pp4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-sm">Rows per page:</span>
+              <span className="text-muted-foreground text-sm">{t("rowsPerPage")}</span>
               <Select
                 value={String(pageSize)}
                 onValueChange={(value) => {
@@ -734,8 +738,10 @@ export function DataTable<TData, TValue>({
             <div className="flex items-center gap-2 self-end sm:self-auto">
               {manualPagination && externalPageCount !== undefined && (
                 <span className="text-muted-foreground text-sm">
-                  Page {table.getState().pagination.pageIndex + 1} of{" "}
-                  {Math.max(externalPageCount, 1)}
+                  {t("pageOf", {
+                    current: table.getState().pagination.pageIndex + 1,
+                    total: Math.max(externalPageCount, 1),
+                  })}
                 </span>
               )}
               <Button
@@ -748,7 +754,7 @@ export function DataTable<TData, TValue>({
                   if (prevIndex >= 0 && onPrefetchPage) onPrefetchPage(prevIndex);
                 }}
               >
-                Previous
+                {t("previous")}
               </Button>
               <Button
                 variant="outline"
@@ -760,7 +766,7 @@ export function DataTable<TData, TValue>({
                   if (table.getCanNextPage() && onPrefetchPage) onPrefetchPage(nextIndex);
                 }}
               >
-                Next
+                {t("next")}
               </Button>
             </div>
           </div>

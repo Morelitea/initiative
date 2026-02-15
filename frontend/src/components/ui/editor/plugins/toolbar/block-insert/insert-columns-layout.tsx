@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Columns3Icon } from "lucide-react";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
@@ -6,12 +7,13 @@ import { SelectItem } from "@/components/ui/select";
 
 export function InsertColumnsLayout() {
   const { activeEditor, showModal } = useToolbarContext();
+  const { t } = useTranslation("documents");
 
   return (
     <SelectItem
       value="columns"
       onPointerUp={() =>
-        showModal("Insert Columns Layout", (onClose) => (
+        showModal(t("editor.insertColumnsLayout"), (onClose) => (
           <InsertLayoutDialog activeEditor={activeEditor} onClose={onClose} />
         ))
       }
@@ -19,7 +21,7 @@ export function InsertColumnsLayout() {
     >
       <div className="flex items-center gap-1">
         <Columns3Icon className="size-4" />
-        <span>Columns Layout</span>
+        <span>{t("editor.columnsLayout")}</span>
       </div>
     </SelectItem>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -66,6 +67,7 @@ export function BulkEditAccessDialog({
   documents,
   onSuccess,
 }: BulkEditAccessDialogProps) {
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
   const [tab, setTab] = useState<"roles" | "users">("roles");
@@ -287,8 +289,7 @@ export function BulkEditAccessDialog({
             })
           )
         );
-        const count = documents.length;
-        toast.success(`Access granted on ${count} document${count === 1 ? "" : "s"}`);
+        toast.success(t("bulkAccess.userAccessGranted", { count: documents.length }));
       } else {
         await Promise.all(
           documents.map((doc) =>
@@ -297,8 +298,7 @@ export function BulkEditAccessDialog({
             })
           )
         );
-        const count = documents.length;
-        toast.success(`Access revoked on ${count} document${count === 1 ? "" : "s"}`);
+        toast.success(t("bulkAccess.userAccessRevoked", { count: documents.length }));
       }
 
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -306,7 +306,7 @@ export function BulkEditAccessDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to update access right now.";
+      const message = error instanceof Error ? error.message : t("bulkAccess.updateError");
       toast.error(message);
     } finally {
       setIsPending(false);
@@ -320,6 +320,7 @@ export function BulkEditAccessDialog({
     resetState,
     onOpenChange,
     onSuccess,
+    t,
   ]);
 
   const handleApplyRoles = useCallback(async () => {
@@ -356,15 +357,10 @@ export function BulkEditAccessDialog({
         }
         await Promise.all(promises);
         const affected = affectedDocIds.size;
-        const total = documents.length;
         if (affected === 0) {
-          toast.info("Selected roles are already assigned on all selected documents.");
-        } else if (affected === total) {
-          toast.success(`Role access granted on ${affected} document${affected === 1 ? "" : "s"}.`);
+          toast.info(t("bulkAccess.rolesAlreadyAssigned"));
         } else {
-          toast.success(
-            `Role access granted on ${affected} of ${total} documents (${total - affected} already assigned or in a different initiative).`
-          );
+          toast.success(t("bulkAccess.roleAccessGranted", { count: affected }));
         }
       } else {
         // For each document, revoke each selected role
@@ -382,15 +378,10 @@ export function BulkEditAccessDialog({
         }
         await Promise.all(promises);
         const affected = affectedDocIds.size;
-        const total = documents.length;
         if (affected === 0) {
-          toast.info("Selected roles were not assigned on any selected documents.");
-        } else if (affected === total) {
-          toast.success(`Role access revoked on ${affected} document${affected === 1 ? "" : "s"}.`);
+          toast.info(t("bulkAccess.rolesAlreadyAssigned"));
         } else {
-          toast.success(
-            `Role access revoked on ${affected} of ${total} documents (${total - affected} were not assigned).`
-          );
+          toast.success(t("bulkAccess.roleAccessRevoked", { count: affected }));
         }
       }
 
@@ -399,8 +390,7 @@ export function BulkEditAccessDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to update role access right now.";
+      const message = error instanceof Error ? error.message : t("bulkAccess.roleUpdateError");
       toast.error(message);
     } finally {
       setIsPending(false);
@@ -415,6 +405,7 @@ export function BulkEditAccessDialog({
     resetState,
     onOpenChange,
     onSuccess,
+    t,
   ]);
 
   const selectedUserCount = selectedUserIds.size;
@@ -424,14 +415,22 @@ export function BulkEditAccessDialog({
 
   const activeMode = tab === "roles" ? roleMode : userMode;
   const docCount = documents.length;
-  const docLabel = `${docCount} document${docCount === 1 ? "" : "s"}`;
-  const dialogDescription = `${activeMode === "grant" ? "Grant" : "Revoke"} ${tab === "roles" ? "role " : ""}access ${activeMode === "grant" ? "on" : "from"} ${docLabel}.`;
+  const dialogDescription = useMemo(() => {
+    if (tab === "roles") {
+      return activeMode === "grant"
+        ? t("bulkAccess.descriptionGrant", { count: docCount })
+        : t("bulkAccess.descriptionRevoke", { count: docCount });
+    }
+    return activeMode === "grant"
+      ? t("bulkAccess.descriptionGrantUser", { count: docCount })
+      : t("bulkAccess.descriptionRevokeUser", { count: docCount });
+  }, [tab, activeMode, docCount, t]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Access</DialogTitle>
+          <DialogTitle>{t("bulkAccess.title")}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
@@ -449,16 +448,16 @@ export function BulkEditAccessDialog({
         >
           <TabsList className="w-full">
             <TabsTrigger value="roles" className="flex-1">
-              Roles
+              {t("bulkAccess.tabRoles")}
             </TabsTrigger>
             <TabsTrigger value="users" className="flex-1">
-              Users
+              {t("bulkAccess.tabUsers")}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="roles" className="mt-4 space-y-3">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Action</label>
+              <label className="text-sm font-medium">{t("bulkAccess.actionLabel")}</label>
               <Select
                 value={roleMode}
                 onValueChange={(v) => {
@@ -472,20 +471,18 @@ export function BulkEditAccessDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="grant">Grant access</SelectItem>
-                  <SelectItem value="revoke">Revoke access</SelectItem>
+                  <SelectItem value="grant">{t("bulkAccess.grantAccess")}</SelectItem>
+                  <SelectItem value="revoke">{t("bulkAccess.revokeAccess")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {roleMode === "revoke" && revocableRoles.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No roles have been granted access on the selected documents.
-              </p>
+              <p className="text-muted-foreground text-sm">{t("bulkAccess.noRoleAccess")}</p>
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Roles</label>
+                  <label className="text-sm font-medium">{t("bulkAccess.rolesLabel")}</label>
                   <ItemMultiPicker
                     items={filteredRoles.map((r) => ({
                       id: r.id,
@@ -499,14 +496,18 @@ export function BulkEditAccessDialog({
                     search={roleSearch}
                     onSearchChange={setRoleSearch}
                     placeholder={
-                      roleMode === "grant" ? "Select roles..." : "Select roles to revoke..."
+                      roleMode === "grant"
+                        ? t("bulkAccess.selectRoles")
+                        : t("bulkAccess.selectRolesToRevoke")
                     }
-                    itemLabel="role"
+                    emptyMessage={t("bulkAccess.noRolesFound")}
+                    selectedMessage={(count) => t("bulkAccess.rolesSelected", { count })}
+                    searchPlaceholder={t("bulkAccess.searchUsers")}
                   />
                 </div>
                 {roleMode === "grant" && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Permission level</label>
+                    <label className="text-sm font-medium">{t("bulkAccess.permissionLevel")}</label>
                     <Select
                       value={roleLevel}
                       onValueChange={(v) => setRoleLevel(v as "read" | "write")}
@@ -515,8 +516,8 @@ export function BulkEditAccessDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">Can view</SelectItem>
-                        <SelectItem value="write">Can edit</SelectItem>
+                        <SelectItem value="read">{t("bulkAccess.canView")}</SelectItem>
+                        <SelectItem value="write">{t("bulkAccess.canEdit")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -527,7 +528,7 @@ export function BulkEditAccessDialog({
 
           <TabsContent value="users" className="mt-4 space-y-3">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Action</label>
+              <label className="text-sm font-medium">{t("bulkAccess.actionLabel")}</label>
               <Select
                 value={userMode}
                 onValueChange={(v) => {
@@ -541,20 +542,18 @@ export function BulkEditAccessDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="grant">Grant access</SelectItem>
-                  <SelectItem value="revoke">Revoke access</SelectItem>
+                  <SelectItem value="grant">{t("bulkAccess.grantAccess")}</SelectItem>
+                  <SelectItem value="revoke">{t("bulkAccess.revokeAccess")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {userMode === "revoke" && revocableUsers.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No non-owner permissions on the selected documents.
-              </p>
+              <p className="text-muted-foreground text-sm">{t("bulkAccess.noUserAccess")}</p>
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Users</label>
+                  <label className="text-sm font-medium">{t("bulkAccess.usersLabel")}</label>
                   <UserMultiPicker
                     users={filteredUsers}
                     selectedIds={selectedUserIds}
@@ -564,13 +563,18 @@ export function BulkEditAccessDialog({
                     search={userSearch}
                     onSearchChange={setUserSearch}
                     placeholder={
-                      userMode === "grant" ? "Select users..." : "Select users to revoke..."
+                      userMode === "grant"
+                        ? t("bulkAccess.selectUsers")
+                        : t("bulkAccess.selectUsersToRevoke")
                     }
+                    emptyMessage={t("bulkAccess.noUsersFound")}
+                    selectedMessage={(count) => t("bulkAccess.usersSelected", { count })}
+                    searchPlaceholder={t("bulkAccess.searchUsers")}
                   />
                 </div>
                 {userMode === "grant" && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Permission level</label>
+                    <label className="text-sm font-medium">{t("bulkAccess.permissionLevel")}</label>
                     <Select
                       value={level}
                       onValueChange={(v) => setLevel(v as DocumentPermissionLevel)}
@@ -579,8 +583,8 @@ export function BulkEditAccessDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">Can view</SelectItem>
-                        <SelectItem value="write">Can edit</SelectItem>
+                        <SelectItem value="read">{t("bulkAccess.canView")}</SelectItem>
+                        <SelectItem value="write">{t("bulkAccess.canEdit")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -592,7 +596,7 @@ export function BulkEditAccessDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           {tab === "roles" ? (
             <Button
@@ -603,12 +607,12 @@ export function BulkEditAccessDialog({
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Applying…
+                  {t("bulkAccess.applying")}
                 </>
               ) : roleMode === "grant" ? (
-                `Grant ${selectedRoleCount} role${selectedRoleCount === 1 ? "" : "s"}`
+                t("bulkAccess.grantRoles", { count: selectedRoleCount })
               ) : (
-                `Revoke ${selectedRoleCount} role${selectedRoleCount === 1 ? "" : "s"}`
+                t("bulkAccess.revokeRoles", { count: selectedRoleCount })
               )}
             </Button>
           ) : (
@@ -620,12 +624,12 @@ export function BulkEditAccessDialog({
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Applying…
+                  {t("bulkAccess.applying")}
                 </>
               ) : userMode === "grant" ? (
-                `Grant to ${selectedUserCount} user${selectedUserCount === 1 ? "" : "s"}`
+                t("bulkAccess.grantUsers", { count: selectedUserCount })
               ) : (
-                `Revoke from ${selectedUserCount} user${selectedUserCount === 1 ? "" : "s"}`
+                t("bulkAccess.revokeUsers", { count: selectedUserCount })
               )}
             </Button>
           )}
@@ -645,6 +649,9 @@ function UserMultiPicker({
   search,
   onSearchChange,
   placeholder,
+  emptyMessage,
+  selectedMessage,
+  searchPlaceholder,
 }: {
   users: SelectableUser[];
   selectedIds: Set<number>;
@@ -654,6 +661,9 @@ function UserMultiPicker({
   search: string;
   onSearchChange: (value: string) => void;
   placeholder: string;
+  emptyMessage: string;
+  selectedMessage: (count: number) => string;
+  searchPlaceholder: string;
 }) {
   const selectedCount = selectedIds.size;
 
@@ -670,9 +680,7 @@ function UserMultiPicker({
           )}
         >
           <span className="truncate">
-            {selectedCount === 0
-              ? placeholder
-              : `${selectedCount} user${selectedCount === 1 ? "" : "s"} selected`}
+            {selectedCount === 0 ? placeholder : selectedMessage(selectedCount)}
           </span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </button>
@@ -680,16 +688,14 @@ function UserMultiPicker({
       <PopoverContent className="w-72 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search users..."
+            placeholder={searchPlaceholder}
             value={search}
             onValueChange={onSearchChange}
           />
           <CommandList>
             <CommandGroup>
               {users.length === 0 ? (
-                <div className="text-muted-foreground py-6 text-center text-sm">
-                  No users found.
-                </div>
+                <div className="text-muted-foreground py-6 text-center text-sm">{emptyMessage}</div>
               ) : (
                 users.map((user) => {
                   const isSelected = selectedIds.has(user.id);
@@ -740,7 +746,9 @@ function ItemMultiPicker({
   search,
   onSearchChange,
   placeholder,
-  itemLabel,
+  emptyMessage,
+  selectedMessage,
+  searchPlaceholder,
 }: {
   items: { id: number; label: string; sublabel?: string }[];
   selectedIds: Set<number>;
@@ -750,7 +758,9 @@ function ItemMultiPicker({
   search: string;
   onSearchChange: (value: string) => void;
   placeholder: string;
-  itemLabel: string;
+  emptyMessage: string;
+  selectedMessage: (count: number) => string;
+  searchPlaceholder: string;
 }) {
   const selectedCount = selectedIds.size;
 
@@ -767,9 +777,7 @@ function ItemMultiPicker({
           )}
         >
           <span className="truncate">
-            {selectedCount === 0
-              ? placeholder
-              : `${selectedCount} ${itemLabel}${selectedCount === 1 ? "" : "s"} selected`}
+            {selectedCount === 0 ? placeholder : selectedMessage(selectedCount)}
           </span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </button>
@@ -777,23 +785,21 @@ function ItemMultiPicker({
       <PopoverContent className="w-72 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder={`Search ${itemLabel}s...`}
+            placeholder={searchPlaceholder}
             value={search}
             onValueChange={onSearchChange}
           />
           <CommandList>
             <CommandGroup>
               {items.length === 0 ? (
-                <div className="text-muted-foreground py-6 text-center text-sm">
-                  No {itemLabel}s found.
-                </div>
+                <div className="text-muted-foreground py-6 text-center text-sm">{emptyMessage}</div>
               ) : (
                 items.map((item) => {
                   const isSelected = selectedIds.has(item.id);
                   return (
                     <CommandItem
                       key={item.id}
-                      value={`${itemLabel}-${item.id}`}
+                      value={`item-${item.id}`}
                       onSelect={() => onToggle(item.id)}
                       className="cursor-pointer"
                     >
