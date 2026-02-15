@@ -69,8 +69,9 @@ export const SettingsPlatformUsersPage = () => {
     mutationFn: async (userId: number) => {
       await apiClient.post(`/admin/users/${userId}/reset-password`, {});
     },
-    onSuccess: () => {
-      toast.success(t("platformUsers.resetSuccess"));
+    onSuccess: (_data, userId) => {
+      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
+      toast.success(t("platformUsers.resetSuccess", { email: userEmail }));
       setResettingUserId(null);
     },
     onError: (error: unknown) => {
@@ -86,8 +87,9 @@ export const SettingsPlatformUsersPage = () => {
     mutationFn: async (userId: number) => {
       await apiClient.post(`/admin/users/${userId}/reactivate`, {});
     },
-    onSuccess: () => {
-      toast.success(t("platformUsers.reactivateSuccess"));
+    onSuccess: (_data, userId) => {
+      const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
+      toast.success(t("platformUsers.reactivateSuccess", { email: userEmail }));
       void usersQuery.refetch();
     },
     onError: (error: unknown) => {

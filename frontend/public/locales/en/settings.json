@@ -485,9 +485,9 @@
     "promoteSuccess": "User promoted to admin",
     "demoteSuccess": "User demoted to member",
     "roleChangeError": "Unable to change user role",
-    "resetSuccess": "Password reset email sent",
+    "resetSuccess": "Password reset email sent to {{email}}",
     "resetError": "Unable to send password reset",
-    "reactivateSuccess": "User reactivated",
+    "reactivateSuccess": "{{email}} has been reactivated",
     "reactivateError": "Unable to reactivate user",
     "cannotDemoteLastAdmin": "Cannot demote the last platform admin",
     "cannotChangeOwnRole": "Cannot change your own role"
