@@ -22,7 +22,9 @@ _VAR_RE = re.compile(r"\{\{(\w+)\}\}")
 
 @lru_cache(maxsize=16)
 def _load_locale(locale: str) -> dict:
-    path = _LOCALES_DIR / locale / "email.json"
+    path = (_LOCALES_DIR / locale / "email.json").resolve()
+    if not path.is_relative_to(_LOCALES_DIR.resolve()):
+        return {}
     if not path.exists():
         return {}
     with open(path, encoding="utf-8") as f:
