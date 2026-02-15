@@ -28,7 +28,6 @@ const WEEK_START_OPTIONS = [
 const LANGUAGE_OPTIONS = [
   { label: "English", value: "en" },
   { label: "Español", value: "es" },
-  { label: "[Pseudo]", value: "pseudo" },
 ];
 
 interface UserSettingsInterfacePageProps {
