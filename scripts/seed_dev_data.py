@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +27,7 @@ if str(BACKEND_DIR) not in sys.path:
 from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
+from app.core.config import settings  # noqa: E402
 from app.db.session import AdminSessionLocal  # noqa: E402
 from app.models.comment import Comment  # noqa: E402
 from app.models.document import (  # noqa: E402
@@ -84,10 +84,12 @@ def _load_state() -> dict | None:
 async def _find_superuser(session: AsyncSession) -> User:
     """Find the superuser created by init_db.
 
-    Reads FIRST_SUPERUSER_EMAIL from the environment so manual invocations
-    work even when .env uses a different email than the VS Code wrapper scripts.
+    Uses FIRST_SUPERUSER_EMAIL from pydantic settings (reads .env automatically).
     """
-    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "admin@example.com")
+    email = settings.FIRST_SUPERUSER_EMAIL
+    if not email:
+        print("ERROR: FIRST_SUPERUSER_EMAIL is not set in .env or environment.")
+        sys.exit(1)
     result = await session.exec(
         select(User).where(User.email == email)
     )
@@ -95,7 +97,6 @@ async def _find_superuser(session: AsyncSession) -> User:
     if user is None:
         print(f"ERROR: Superuser {email} not found.")
         print("  Make sure init_db has run (dev:migrate task).")
-        print("  Or set FIRST_SUPERUSER_EMAIL to match your .env config.")
         sys.exit(1)
     return user
 
@@ -661,9 +662,7 @@ async def seed() -> None:
 
     _save_state(ids)
     print("Done! TTRPG dev data seeded successfully.")
-    email = os.environ.get("FIRST_SUPERUSER_EMAIL", "admin@example.com")
-    password = os.environ.get("FIRST_SUPERUSER_PASSWORD", "changeme")
-    print(f"  Login: {email} / {password}")
+    print(f"  Login: {settings.FIRST_SUPERUSER_EMAIL} / {settings.FIRST_SUPERUSER_PASSWORD}")
 
 
 # ---------------------------------------------------------------------------
