@@ -17,10 +17,10 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.core.security import get_password_hash, verify_password
-from app.db.session import get_admin_session
+from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.user import (
     UserCreate,
     UserGuildMember,
@@ -153,9 +153,17 @@ async def list_users(
 async def create_user(
     user_in: UserCreate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     normalized_email = user_in.email.lower().strip()
     statement = select(User).where(func.lower(User.email) == normalized_email)
     result = await session.exec(statement)
@@ -181,6 +189,7 @@ async def create_user(
         role=GuildRole.member,
     )
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -254,6 +263,7 @@ async def update_users_me(
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(current_user)
     await initiatives_service.load_user_initiative_roles(session, [current_user])
     return current_user
@@ -264,9 +274,17 @@ async def update_user(
     user_id: int,
     user_in: UserUpdate,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     stmt = (
         select(User)
         .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -320,6 +338,7 @@ async def update_user(
 
     session.add(user)
     await session.commit()
+    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -329,9 +348,17 @@ async def update_user(
 async def approve_user(
     user_id: int,
     session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
     stmt = (
         select(User)
         .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -350,6 +377,7 @@ async def approve_user(
         user.updated_at = datetime.now(timezone.utc)
         session.add(user)
         await session.commit()
+        await reapply_rls_context(session)
         await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -506,6 +534,14 @@ async def delete_user(
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_admin.role == UserRole.admin),
+    )
+
     # Use FOR UPDATE to prevent race condition when checking last admin
     if await users_service.is_last_platform_admin(session, user_id, for_update=True):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.CANNOT_REMOVE_LAST_ADMIN)
