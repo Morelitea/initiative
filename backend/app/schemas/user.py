@@ -39,7 +39,7 @@ class UserUpdate(BaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
-    locale: Optional[str] = None
+    locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
 
 
 class UserPublic(BaseModel):
@@ -136,7 +136,7 @@ class UserSelfUpdate(BaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
-    locale: Optional[str] = None
+    locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
 
 
 class ProjectBasic(BaseModel):
