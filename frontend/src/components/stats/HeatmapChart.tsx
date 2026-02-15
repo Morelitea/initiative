@@ -1,4 +1,5 @@
 import { parseISO } from "date-fns";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { HeatmapDayData } from "@/types/api";
 import { cn } from "@/lib/utils";
@@ -8,16 +9,17 @@ interface HeatmapChartProps {
 }
 
 export function HeatmapChart({ data }: HeatmapChartProps) {
+  const { t } = useTranslation("stats");
   if (data.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Activity Heatmap</CardTitle>
-          <CardDescription>Task activity over the past year</CardDescription>
+          <CardTitle>{t("heatmap.title")}</CardTitle>
+          <CardDescription>{t("heatmap.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-muted-foreground flex h-[200px] items-center justify-center text-sm">
-            No activity data available
+            {t("heatmap.noData")}
           </div>
         </CardContent>
       </Card>
@@ -46,8 +48,8 @@ export function HeatmapChart({ data }: HeatmapChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Activity Heatmap</CardTitle>
-        <CardDescription>Task activity over the past year</CardDescription>
+        <CardTitle>{t("heatmap.title")}</CardTitle>
+        <CardDescription>{t("heatmap.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -68,7 +70,7 @@ export function HeatmapChart({ data }: HeatmapChartProps) {
                         "hover:ring-primary h-3 w-3 rounded-sm transition-colors hover:ring-2",
                         getIntensity(day.activity_count)
                       )}
-                      title={`${dateStr}: ${day.activity_count} ${day.activity_count === 1 ? "activity" : "activities"}`}
+                      title={`${dateStr}: ${t("heatmap.activity", { count: day.activity_count })}`}
                     />
                   );
                 })}
@@ -77,13 +79,13 @@ export function HeatmapChart({ data }: HeatmapChartProps) {
           </div>
         </div>
         <div className="text-muted-foreground mt-4 flex items-center gap-2 text-xs">
-          <span>Less</span>
+          <span>{t("heatmap.less")}</span>
           <div className="bg-muted h-3 w-3 rounded-sm" />
           <div className="h-3 w-3 rounded-sm bg-green-200 dark:bg-green-900/40" />
           <div className="h-3 w-3 rounded-sm bg-green-400 dark:bg-green-700/60" />
           <div className="h-3 w-3 rounded-sm bg-green-600 dark:bg-green-500/80" />
           <div className="h-3 w-3 rounded-sm bg-green-700 dark:bg-green-400" />
-          <span>More</span>
+          <span>{t("heatmap.more")}</span>
         </div>
       </CardContent>
     </Card>

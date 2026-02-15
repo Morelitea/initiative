@@ -25,6 +25,7 @@ from app.schemas.import_data import (
     TickTickParseResult,
     ImportResult,
 )
+from app.core.messages import ImportMessages
 from app.services import import_service
 from app.services import task_statuses as task_statuses_service
 
@@ -54,13 +55,13 @@ async def _validate_project_write_access(
 
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=ImportMessages.PROJECT_NOT_FOUND
         )
 
     if project.is_archived:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot import to archived project",
+            detail=ImportMessages.PROJECT_ARCHIVED,
         )
 
     # Pure DAC: check explicit project permission
@@ -72,7 +73,7 @@ async def _validate_project_write_access(
     if not permission:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No permission for this project",
+            detail=ImportMessages.NO_PERMISSION,
         )
 
     if permission.level not in (
@@ -81,7 +82,7 @@ async def _validate_project_write_access(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions for this project",
+            detail=ImportMessages.INSUFFICIENT_PERMISSION,
         )
 
     return project

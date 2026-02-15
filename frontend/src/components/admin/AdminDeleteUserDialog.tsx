@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 
@@ -50,6 +51,7 @@ export function AdminDeleteUserDialog({
   onSuccess,
   targetUser,
 }: AdminDeleteUserDialogProps) {
+  const { t } = useTranslation("settings");
   const [step, setStep] = useState<DeletionStep>("choose-type");
   const [deletionType, setDeletionType] = useState<DeletionType>("soft");
   const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
@@ -112,13 +114,13 @@ export function AdminDeleteUserDialog({
       await apiClient.patch(`/admin/guilds/${guildId}/members/${userId}/role`, { role: "admin" });
     },
     onSuccess: async () => {
-      toast.success("Member promoted to guild admin");
+      toast.success(t("adminDeleteUser.promoteSuccess"));
       await refreshEligibility();
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to promote member";
+        t("adminDeleteUser.promoteError");
       toast.error(message);
     },
     onSettled: () => setIsResolvingBlocker(false),
@@ -129,14 +131,14 @@ export function AdminDeleteUserDialog({
       await apiClient.delete(`/admin/guilds/${guildId}`);
     },
     onSuccess: async () => {
-      toast.success("Guild deleted");
+      toast.success(t("adminDeleteUser.deleteGuildSuccess"));
       setGuildDeleteConfirm(null);
       await refreshEligibility();
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to delete guild";
+        t("adminDeleteUser.deleteGuildError");
       toast.error(message);
     },
     onSettled: () => setIsResolvingBlocker(false),
@@ -149,13 +151,13 @@ export function AdminDeleteUserDialog({
       });
     },
     onSuccess: async () => {
-      toast.success("Member promoted to project manager");
+      toast.success(t("adminDeleteUser.promoteSuccess"));
       await refreshEligibility();
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to promote member";
+        t("adminDeleteUser.promoteError");
       toast.error(message);
     },
     onSettled: () => setIsResolvingBlocker(false),
@@ -178,7 +180,7 @@ export function AdminDeleteUserDialog({
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Failed to delete user";
+        t("adminDeleteUser.deleteError");
       toast.error(message);
     },
   });
@@ -323,13 +325,13 @@ export function AdminDeleteUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Delete User: {displayName}</DialogTitle>
+          <DialogTitle>{t("adminDeleteUser.subtitle", { email: displayName })}</DialogTitle>
           <DialogDescription>
-            {step === "choose-type" && "Choose how to delete this user's account"}
-            {step === "check-blockers" && "Checking if this user can be deleted"}
-            {step === "resolve-blockers" && "Resolve blockers before deletion"}
-            {step === "transfer-projects" && "Transfer project ownership"}
-            {step === "confirm" && "Confirm user deletion"}
+            {step === "choose-type" && t("adminDeleteUser.stepType")}
+            {step === "check-blockers" && t("adminDeleteUser.checkingEligibility")}
+            {step === "resolve-blockers" && t("adminDeleteUser.stepBlockers")}
+            {step === "transfer-projects" && t("adminDeleteUser.stepTransfer")}
+            {step === "confirm" && t("adminDeleteUser.confirmTitle")}
           </DialogDescription>
         </DialogHeader>
 
@@ -345,11 +347,10 @@ export function AdminDeleteUserDialog({
                   <RadioGroupItem value="soft" id="soft" className="mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <Label htmlFor="soft" className="cursor-pointer text-base font-medium">
-                      Deactivate Account (Soft Delete)
+                      {t("adminDeleteUser.softDeleteTitle")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      User cannot log in, but all data is preserved. You can reactivate the account
-                      later.
+                      {t("adminDeleteUser.softDeleteDescription")}
                     </p>
                   </div>
                 </div>
@@ -361,11 +362,10 @@ export function AdminDeleteUserDialog({
                       htmlFor="hard"
                       className="text-destructive cursor-pointer text-base font-medium"
                     >
-                      Delete Account Permanently (Hard Delete)
+                      {t("adminDeleteUser.hardDeleteTitle")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      Most data will be removed from the system. Comments and documents will be kept
-                      but labeled as &ldquo;[Deleted User]&rdquo;. This action cannot be undone.
+                      {t("adminDeleteUser.hardDeleteDescription")}
                     </p>
                   </div>
                 </div>
@@ -386,15 +386,13 @@ export function AdminDeleteUserDialog({
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <div className="mb-2 font-semibold">Cannot delete user:</div>
+                    <div className="mb-2 font-semibold">{t("adminDeleteUser.blockersTitle")}</div>
                     <ul className="list-inside list-disc space-y-1">
                       {eligibility.blockers.map((blocker, idx) => (
                         <li key={idx}>{blocker}</li>
                       ))}
                     </ul>
-                    <p className="mt-2 text-sm">
-                      These issues must be resolved before the user can be deleted.
-                    </p>
+                    <p className="mt-2 text-sm">{t("adminDeleteUser.blockersDescription")}</p>
                   </AlertDescription>
                 </Alert>
               )}
@@ -405,7 +403,9 @@ export function AdminDeleteUserDialog({
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        <div className="mb-2 font-semibold">Important:</div>
+                        <div className="mb-2 font-semibold">
+                          {t("adminDeleteUser.warningsTitle")}
+                        </div>
                         <ul className="list-inside list-disc space-y-1">
                           {eligibility.warnings.map((warning, idx) => (
                             <li key={idx}>{warning}</li>
@@ -416,7 +416,7 @@ export function AdminDeleteUserDialog({
                   )}
 
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                    <AlertDescription>This user is eligible for deletion.</AlertDescription>
+                    <AlertDescription>{t("adminDeleteUser.confirmDescription")}</AlertDescription>
                   </Alert>
                 </>
               )}
@@ -428,10 +428,7 @@ export function AdminDeleteUserDialog({
             <div className="space-y-6">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  The following blockers must be resolved before this user can be deleted. You can
-                  either promote another member or delete the resource.
-                </AlertDescription>
+                <AlertDescription>{t("adminDeleteUser.blockersDescription")}</AlertDescription>
               </Alert>
 
               {/* Group blockers by guild */}
@@ -478,9 +475,13 @@ export function AdminDeleteUserDialog({
                         <>
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="font-medium">Guild: {guildBlocker.guild_name}</h4>
+                              <h4 className="font-medium">
+                                {t("adminDeleteUser.guildBlockerTitle", {
+                                  guildName: guildBlocker.guild_name,
+                                })}
+                              </h4>
                               <p className="text-muted-foreground text-sm">
-                                User is the last admin of this guild
+                                {t("adminDeleteUser.guildBlockerDescription")}
                               </p>
                             </div>
                             <Button
@@ -491,13 +492,15 @@ export function AdminDeleteUserDialog({
                               disabled={isResolvingBlocker}
                             >
                               <Trash2 className="mr-1 h-4 w-4" />
-                              Delete Guild
+                              {t("adminDeleteUser.deleteGuild")}
                             </Button>
                           </div>
 
                           {guildBlocker.other_members.length > 0 ? (
                             <div className="space-y-2">
-                              <Label className="text-sm">Or promote a member to admin:</Label>
+                              <Label className="text-sm">
+                                {t("adminDeleteUser.promoteToGuildAdmin")}
+                              </Label>
                               <div className="flex items-center gap-2">
                                 <SearchableCombobox
                                   items={guildBlocker.other_members.map((member) => ({
@@ -507,8 +510,8 @@ export function AdminDeleteUserDialog({
                                   onValueChange={(value) =>
                                     handlePromoteGuildMember(guildBlocker.guild_id, parseInt(value))
                                   }
-                                  placeholder="Select member to promote..."
-                                  emptyMessage="No members found."
+                                  placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
+                                  emptyMessage={t("adminDeleteUser.noUsersAvailable")}
                                   disabled={isResolvingBlocker}
                                   className="flex-1"
                                 />
@@ -517,7 +520,7 @@ export function AdminDeleteUserDialog({
                             </div>
                           ) : (
                             <p className="text-muted-foreground text-sm italic">
-                              No other members in this guild to promote. You must delete the guild.
+                              {t("adminDeleteUser.noUsersAvailable")}
                             </p>
                           )}
                         </>
@@ -537,17 +540,19 @@ export function AdminDeleteUserDialog({
                             >
                               <div>
                                 <h4 className="font-medium">
-                                  Initiative: {initBlocker.initiative_name}
+                                  {t("adminDeleteUser.initiativeBlockerTitle", {
+                                    initiativeName: initBlocker.initiative_name,
+                                  })}
                                 </h4>
                                 <p className="text-muted-foreground text-sm">
-                                  User is the sole project manager of this initiative
+                                  {t("adminDeleteUser.initiativeBlockerDescription")}
                                 </p>
                               </div>
 
                               {initBlocker.other_members.length > 0 ? (
                                 <div className="space-y-2">
                                   <Label className="text-sm">
-                                    Promote a member to project manager:
+                                    {t("adminDeleteUser.promoteToInitiativePM")}
                                   </Label>
                                   <div className="flex items-center gap-2">
                                     <SearchableCombobox
@@ -561,8 +566,8 @@ export function AdminDeleteUserDialog({
                                           parseInt(value)
                                         )
                                       }
-                                      placeholder="Select member to promote..."
-                                      emptyMessage="No members found."
+                                      placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
+                                      emptyMessage={t("adminDeleteUser.noUsersAvailable")}
                                       disabled={isResolvingBlocker}
                                       className="flex-1"
                                     />
@@ -573,8 +578,7 @@ export function AdminDeleteUserDialog({
                                 </div>
                               ) : (
                                 <p className="text-muted-foreground text-sm italic">
-                                  No other members in this initiative. You must delete the parent
-                                  guild to remove this initiative.
+                                  {t("adminDeleteUser.noUsersAvailable")}
                                 </p>
                               )}
                             </div>
@@ -588,9 +592,7 @@ export function AdminDeleteUserDialog({
 
               {eligibility.can_delete && (
                 <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                  <AlertDescription>
-                    All blockers resolved. You can now proceed with deletion.
-                  </AlertDescription>
+                  <AlertDescription>{t("adminDeleteUser.confirmDescription")}</AlertDescription>
                 </Alert>
               )}
             </div>
@@ -600,8 +602,7 @@ export function AdminDeleteUserDialog({
           {step === "transfer-projects" && eligibility && (
             <div className="space-y-4">
               <p className="text-muted-foreground text-sm">
-                Select new owners for this user&apos;s projects before proceeding with account
-                deletion.
+                {t("adminDeleteUser.transferDescription")}
               </p>
 
               {eligibility.owned_projects.map((project) => (
@@ -621,8 +622,8 @@ export function AdminDeleteUserDialog({
                         [project.id]: parseInt(value),
                       }))
                     }
-                    placeholder="Select new owner..."
-                    emptyMessage="No members found."
+                    placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
+                    emptyMessage={t("adminDeleteUser.noUsersAvailable")}
                   />
                 </div>
               ))}
@@ -635,27 +636,21 @@ export function AdminDeleteUserDialog({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="mb-2 font-semibold">This action is serious:</div>
+                  <div className="mb-2 font-semibold">{t("adminDeleteUser.confirmTitle")}</div>
                   {deletionType === "soft" ? (
                     <p className="text-sm">
-                      {displayName}&apos;s account will be deactivated. They will not be able to log
-                      in, but their data will be preserved. You can reactivate their account later.
+                      {t("adminDeleteUser.confirmSoftDelete", { email: displayName })}
                     </p>
                   ) : (
                     <p className="text-sm">
-                      {displayName}&apos;s account will be permanently deleted. Their projects will
-                      be transferred. Comments and documents will remain but will show
-                      &ldquo;[Deleted User]&rdquo; as the author. This action cannot be undone.
+                      {t("adminDeleteUser.confirmHardDelete", { email: displayName })}
                     </p>
                   )}
                 </AlertDescription>
               </Alert>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmation">
-                  Type <span className="font-mono font-bold">{confirmationRequired}</span> to
-                  confirm
-                </Label>
+                <Label htmlFor="confirmation">{t("adminDeleteUser.confirmDescription")}</Label>
                 <Input
                   id="confirmation"
                   value={confirmationText}
@@ -672,7 +667,7 @@ export function AdminDeleteUserDialog({
                     onCheckedChange={(checked) => setAgreedToConsequences(checked === true)}
                   />
                   <Label htmlFor="agree" className="cursor-pointer text-sm">
-                    I understand this action cannot be undone
+                    {t("adminDeleteUser.confirmDescription")}
                   </Label>
                 </div>
               )}
@@ -688,7 +683,7 @@ export function AdminDeleteUserDialog({
               disabled={step === "choose-type" || deleteUser.isPending || isResolvingBlocker}
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
-              Back
+              {t("adminDeleteUser.back")}
             </Button>
 
             <div className="flex gap-2">
@@ -697,7 +692,7 @@ export function AdminDeleteUserDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={deleteUser.isPending || isResolvingBlocker}
               >
-                Cancel
+                {t("adminDeleteUser.cancel")}
               </Button>
 
               {step !== "confirm" ? (
@@ -715,10 +710,10 @@ export function AdminDeleteUserDialog({
                   {isCheckingEligibility ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Checking...
+                      {t("adminDeleteUser.loading")}
                     </>
                   ) : (
-                    "Next"
+                    t("adminDeleteUser.next")
                   )}
                 </Button>
               ) : (
@@ -730,10 +725,14 @@ export function AdminDeleteUserDialog({
                   {deleteUser.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Deleting...
+                      {deletionType === "soft"
+                        ? t("adminDeleteUser.deactivating")
+                        : t("adminDeleteUser.deleting")}
                     </>
+                  ) : deletionType === "soft" ? (
+                    t("adminDeleteUser.deactivateButton")
                   ) : (
-                    `${deletionType === "soft" ? "Deactivate" : "Delete"} User`
+                    t("adminDeleteUser.deleteButton")
                   )}
                 </Button>
               )}
@@ -746,9 +745,11 @@ export function AdminDeleteUserDialog({
       <ConfirmDialog
         open={guildDeleteConfirm !== null}
         onOpenChange={(open) => !open && setGuildDeleteConfirm(null)}
-        title="Delete Guild?"
-        description={`This will permanently delete the guild "${guildDeleteConfirm?.guild_name}" and all its initiatives, projects, and tasks. This action cannot be undone.`}
-        confirmLabel="Delete Guild"
+        title={t("adminDeleteUser.deleteGuild")}
+        description={t("adminDeleteUser.deleteGuildConfirm", {
+          guildName: guildDeleteConfirm?.guild_name,
+        })}
+        confirmLabel={t("adminDeleteUser.deleteGuild")}
         destructive
         onConfirm={() => guildDeleteConfirm && handleDeleteGuild(guildDeleteConfirm.guild_id)}
         isLoading={deleteGuild.isPending}

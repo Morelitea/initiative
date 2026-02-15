@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -24,19 +25,20 @@ interface InterfaceSettings {
   dark_accent_color: string;
 }
 
-const ROLE_FIELDS: { key: keyof RoleLabels; label: string; helper: string }[] = [
-  { key: "admin", label: "Admin label", helper: "Shown anywhere the admin role appears." },
+const ROLE_FIELDS: { key: keyof RoleLabels; labelKey: string; helperKey: string }[] = [
+  { key: "admin", labelKey: "branding.adminLabel", helperKey: "branding.adminHelper" },
   {
     key: "project_manager",
-    label: "Project manager label",
-    helper: "Used for the project_manager role (e.g. “Team lead”).",
+    labelKey: "branding.projectManagerLabel",
+    helperKey: "branding.projectManagerHelper",
   },
-  { key: "member", label: "Member label", helper: "Displayed for standard project members." },
+  { key: "member", labelKey: "branding.memberLabel", helperKey: "branding.memberHelper" },
 ];
 
 const INTERFACE_SETTINGS_QUERY_KEY = ["interface-settings"];
 
 export const SettingsBrandingPage = () => {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
@@ -61,7 +63,7 @@ export const SettingsBrandingPage = () => {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Interface settings updated");
+      toast.success(t("branding.interfaceSuccess"));
       void queryClient.invalidateQueries({ queryKey: INTERFACE_SETTINGS_QUERY_KEY });
     },
   });
@@ -75,7 +77,7 @@ export const SettingsBrandingPage = () => {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(ROLE_LABELS_QUERY_KEY, data);
-      setRoleMessage("Role labels updated");
+      setRoleMessage(t("branding.rolesSuccess"));
     },
   });
 
@@ -111,61 +113,54 @@ export const SettingsBrandingPage = () => {
   };
 
   if (!isPlatformAdmin) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Only platform admins can manage branding settings.
-      </p>
-    );
+    return <p className="text-muted-foreground text-sm">{t("branding.adminOnly")}</p>;
   }
 
   return (
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Brand colors</CardTitle>
-          <CardDescription>Customize the accent colors for light and dark mode.</CardDescription>
+          <CardTitle>{t("branding.colorsTitle")}</CardTitle>
+          <CardDescription>{t("branding.colorsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           {interfaceQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Loading interface settings…</p>
+            <p className="text-muted-foreground text-sm">{t("branding.loadingInterface")}</p>
           ) : interfaceQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load interface settings.</p>
+            <p className="text-destructive text-sm">{t("branding.interfaceError")}</p>
           ) : (
             <form className="grid gap-6 md:grid-cols-2" onSubmit={handleInterfaceSubmit}>
               <div className="space-y-3 rounded-lg border p-4">
                 <Label htmlFor="light-accent" className="text-sm font-medium">
-                  Light mode accent
+                  {t("branding.lightModeLabel")}
                 </Label>
                 <ColorPickerPopover
                   id="light-accent"
                   value={lightColor}
                   onChange={setLightColor}
-                  triggerLabel="Adjust"
+                  triggerLabel={t("branding.adjust")}
                 />
-                <p className="text-muted-foreground text-xs">
-                  Buttons, highlights, and focus states use this color while the app is in light
-                  mode.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("branding.lightModeHelp")}</p>
               </div>
 
               <div className="space-y-3 rounded-lg border p-4">
                 <Label htmlFor="dark-accent" className="text-sm font-medium">
-                  Dark mode accent
+                  {t("branding.darkModeLabel")}
                 </Label>
                 <ColorPickerPopover
                   id="dark-accent"
                   value={darkColor}
                   onChange={setDarkColor}
-                  triggerLabel="Adjust"
+                  triggerLabel={t("branding.adjust")}
                 />
-                <p className="text-muted-foreground text-xs">
-                  Accent and primary elements use this color while dark mode is active.
-                </p>
+                <p className="text-muted-foreground text-xs">{t("branding.darkModeHelp")}</p>
               </div>
 
               <CardFooter className="col-span-full flex flex-wrap gap-3 p-0 pt-2">
                 <Button type="submit" disabled={updateInterface.isPending}>
-                  {updateInterface.isPending ? "Saving…" : "Save interface settings"}
+                  {updateInterface.isPending
+                    ? t("branding.savingInterface")
+                    : t("branding.saveInterface")}
                 </Button>
               </CardFooter>
             </form>
@@ -175,21 +170,19 @@ export const SettingsBrandingPage = () => {
 
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Role labels</CardTitle>
-          <CardDescription>
-            Customize how each project role is described throughout the workspace.
-          </CardDescription>
+          <CardTitle>{t("branding.rolesTitle")}</CardTitle>
+          <CardDescription>{t("branding.rolesDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           {roleLabelsQuery.isLoading && !roleLabelsQuery.data ? (
-            <p className="text-muted-foreground text-sm">Loading role labels…</p>
+            <p className="text-muted-foreground text-sm">{t("branding.loadingRoles")}</p>
           ) : roleLabelsQuery.isError ? (
-            <p className="text-destructive text-sm">Unable to load role labels.</p>
+            <p className="text-destructive text-sm">{t("branding.rolesError")}</p>
           ) : (
             <form className="space-y-6" onSubmit={handleRoleSubmit}>
               {ROLE_FIELDS.map((field) => (
                 <div key={field.key} className="space-y-2">
-                  <Label htmlFor={`role-label-${field.key}`}>{field.label}</Label>
+                  <Label htmlFor={`role-label-${field.key}`}>{t(field.labelKey)}</Label>
                   <Input
                     id={`role-label-${field.key}`}
                     value={roleFormState[field.key]}
@@ -197,16 +190,16 @@ export const SettingsBrandingPage = () => {
                     maxLength={64}
                     required
                   />
-                  <p className="text-muted-foreground text-xs">{field.helper}</p>
+                  <p className="text-muted-foreground text-xs">{t(field.helperKey)}</p>
                 </div>
               ))}
               <div className="flex flex-col gap-2">
                 <Button type="submit" disabled={updateRoleLabels.isPending}>
-                  {updateRoleLabels.isPending ? "Saving…" : "Save role labels"}
+                  {updateRoleLabels.isPending ? t("branding.savingRoles") : t("branding.saveRoles")}
                 </Button>
                 {roleMessage ? <p className="text-primary text-sm">{roleMessage}</p> : null}
                 {updateRoleLabels.isError ? (
-                  <p className="text-destructive text-sm">Unable to update role labels.</p>
+                  <p className="text-destructive text-sm">{t("branding.rolesUpdateError")}</p>
                 ) : null}
               </div>
             </form>

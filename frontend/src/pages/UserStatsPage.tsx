@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, Flame, Target, Clock, TrendingUp, TrendingDown } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { HeatmapChart } from "@/components/stats/HeatmapChart";
 const GUILD_FILTER_ALL = "all";
 
 export function UserStatsPage() {
+  const { t } = useTranslation("stats");
   const [selectedGuildId, setSelectedGuildId] = useState<string>(GUILD_FILTER_ALL);
   const { guilds } = useGuilds();
 
@@ -34,18 +36,16 @@ export function UserStatsPage() {
       {/* Header with Guild filter */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">My Stats</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Track your productivity and task completion metrics
-          </p>
+          <h1 className="text-3xl font-bold">{t("page.title")}</h1>
+          <p className="text-muted-foreground mt-1 text-sm">{t("page.subtitle")}</p>
         </div>
         <div className="w-full sm:w-[200px]">
           <Select value={selectedGuildId} onValueChange={handleGuildChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Select guild" />
+              <SelectValue placeholder={t("page.guildFilterPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={GUILD_FILTER_ALL}>All Guilds</SelectItem>
+              <SelectItem value={GUILD_FILTER_ALL}>{t("page.allGuilds")}</SelectItem>
               {guilds.map((guild) => (
                 <SelectItem key={guild.id} value={String(guild.id)}>
                   {guild.name}
@@ -60,14 +60,14 @@ export function UserStatsPage() {
       {isLoading && (
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading stats...
+          {t("page.loading")}
         </div>
       )}
 
       {/* Error state */}
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>Failed to load stats. Please try again later.</AlertDescription>
+          <AlertDescription>{t("page.error")}</AlertDescription>
         </Alert>
       )}
 
@@ -78,18 +78,18 @@ export function UserStatsPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatsMetricCard
               icon={Flame}
-              title="Current Streak"
+              title={t("metrics.currentStreak")}
               value={stats.streak}
-              unit="days"
-              subtitle="Consecutive work days"
+              unit={t("metrics.days")}
+              subtitle={t("metrics.consecutiveDays")}
               variant={stats.streak >= 7 ? "success" : stats.streak >= 3 ? "warning" : "default"}
             />
             <StatsMetricCard
               icon={Target}
-              title="On-Time Rate"
+              title={t("metrics.onTimeRate")}
               value={stats.on_time_rate.toFixed(1)}
               unit="%"
-              subtitle="Tasks completed before due date"
+              subtitle={t("metrics.onTimeSubtitle")}
               variant={
                 stats.on_time_rate >= 80
                   ? "success"
@@ -100,16 +100,18 @@ export function UserStatsPage() {
             />
             <StatsMetricCard
               icon={Clock}
-              title="Avg Completion"
+              title={t("metrics.avgCompletion")}
               value={stats.avg_completion_days?.toFixed(1) ?? null}
-              unit={stats.avg_completion_days !== null ? "days" : undefined}
-              subtitle="From start to completion"
+              unit={stats.avg_completion_days !== null ? t("metrics.days") : undefined}
+              subtitle={t("metrics.avgCompletionSubtitle")}
             />
             <StatsMetricCard
               icon={stats.backlog_trend === "Growing" ? TrendingUp : TrendingDown}
-              title="Backlog Trend"
-              value={stats.backlog_trend}
-              subtitle="This week"
+              title={t("metrics.backlogTrend")}
+              value={
+                stats.backlog_trend === "Growing" ? t("metrics.growing") : t("metrics.shrinking")
+              }
+              subtitle={t("metrics.thisWeek")}
               variant={stats.backlog_trend === "Shrinking" ? "success" : "warning"}
             />
           </div>
@@ -117,17 +119,21 @@ export function UserStatsPage() {
           {/* Tasks Completed Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Tasks Completed</CardTitle>
+              <CardTitle>{t("tasksCompleted.title")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-6 sm:flex-row sm:gap-12">
                 <div>
                   <div className="text-3xl font-bold">{stats.tasks_completed_total}</div>
-                  <div className="text-muted-foreground mt-1 text-sm">All time</div>
+                  <div className="text-muted-foreground mt-1 text-sm">
+                    {t("tasksCompleted.allTime")}
+                  </div>
                 </div>
                 <div>
                   <div className="text-3xl font-bold">{stats.tasks_completed_this_week}</div>
-                  <div className="text-muted-foreground mt-1 text-sm">This week</div>
+                  <div className="text-muted-foreground mt-1 text-sm">
+                    {t("tasksCompleted.thisWeek")}
+                  </div>
                 </div>
               </div>
             </CardContent>

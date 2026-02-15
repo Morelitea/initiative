@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -47,6 +48,7 @@ const DEFAULT_STATE: FormState = {
 };
 
 export const SettingsAIPage = () => {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "admin";
   const [formState, setFormState] = useState<FormState>(DEFAULT_STATE);
@@ -84,12 +86,12 @@ export const SettingsAIPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      toast.success("AI settings saved");
+      toast.success(t("ai.saveSuccess"));
       setFormState((prev) => ({ ...prev, apiKey: "" }));
       setHasExistingKey(data.has_api_key);
       void settingsQuery.refetch();
     },
-    onError: () => toast.error("Unable to save AI settings"),
+    onError: () => toast.error(t("ai.saveError")),
   });
 
   const testMutation = useMutation({
@@ -115,7 +117,7 @@ export const SettingsAIPage = () => {
         toast.error(data.message);
       }
     },
-    onError: () => toast.error("Unable to test connection"),
+    onError: () => toast.error(t("ai.testError")),
   });
 
   const fetchModelsMutation = useMutation({
@@ -138,19 +140,15 @@ export const SettingsAIPage = () => {
   });
 
   if (!isPlatformAdmin) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Only platform admins can manage platform AI settings.
-      </p>
-    );
+    return <p className="text-muted-foreground text-sm">{t("ai.adminOnlyPlatform")}</p>;
   }
 
   if (settingsQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading AI settings...</p>;
+    return <p className="text-muted-foreground text-sm">{t("ai.loading")}</p>;
   }
 
   if (settingsQuery.isError || !settingsQuery.data) {
-    return <p className="text-destructive text-sm">Unable to load AI settings.</p>;
+    return <p className="text-destructive text-sm">{t("ai.loadError")}</p>;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -178,20 +176,15 @@ export const SettingsAIPage = () => {
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>AI Configuration</CardTitle>
-        <CardDescription>
-          Configure AI provider settings for the platform. Users can bring their own API keys if
-          allowed.
-        </CardDescription>
+        <CardTitle>{t("ai.title")}</CardTitle>
+        <CardDescription>{t("platformAI.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="flex items-center justify-between rounded-md border px-4 py-3">
             <div>
-              <p className="font-medium">Enable AI features</p>
-              <p className="text-muted-foreground text-sm">
-                Allow AI-powered features across the platform.
-              </p>
+              <p className="font-medium">{t("ai.enableAI")}</p>
+              <p className="text-muted-foreground text-sm">{t("ai.enableAIPlatformDescription")}</p>
             </div>
             <Switch
               checked={formState.enabled}
@@ -202,7 +195,7 @@ export const SettingsAIPage = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ai-provider">Provider</Label>
+            <Label htmlFor="ai-provider">{t("ai.providerFieldLabel")}</Label>
             <Select
               value={formState.provider}
               onValueChange={(value) => {
@@ -216,7 +209,7 @@ export const SettingsAIPage = () => {
               }}
             >
               <SelectTrigger id="ai-provider">
-                <SelectValue placeholder="Select a provider" />
+                <SelectValue placeholder={t("ai.providerPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {(
@@ -235,7 +228,7 @@ export const SettingsAIPage = () => {
 
           {showApiKeyField && (
             <div className="space-y-2">
-              <Label htmlFor="ai-api-key">API Key</Label>
+              <Label htmlFor="ai-api-key">{t("ai.apiKeyLabel")}</Label>
               <Input
                 id="ai-api-key"
                 type="password"
@@ -243,19 +236,21 @@ export const SettingsAIPage = () => {
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, apiKey: event.target.value }))
                 }
-                placeholder={hasExistingKey ? "••••••••" : "Enter API key"}
+                placeholder={
+                  hasExistingKey
+                    ? t("ai.apiKeyPlaceholderExisting")
+                    : t("ai.apiKeyPlaceholderNewShort")
+                }
               />
               <p className="text-muted-foreground text-xs">
-                {hasExistingKey
-                  ? "Leave blank to keep the existing key."
-                  : "Enter your API key for this provider."}
+                {hasExistingKey ? t("ai.apiKeyHelpExistingShort") : t("ai.apiKeyHelpNewShort")}
               </p>
             </div>
           )}
 
           {showBaseUrlField && (
             <div className="space-y-2">
-              <Label htmlFor="ai-base-url">Base URL</Label>
+              <Label htmlFor="ai-base-url">{t("ai.baseUrlLabel")}</Label>
               <Input
                 id="ai-base-url"
                 value={formState.baseUrl}
@@ -269,7 +264,7 @@ export const SettingsAIPage = () => {
 
           {formState.provider && (
             <div className="space-y-2">
-              <Label>Model</Label>
+              <Label>{t("ai.modelLabel")}</Label>
               <ModelCombobox
                 models={getModelOptions()}
                 value={formState.model}
@@ -287,9 +282,9 @@ export const SettingsAIPage = () => {
 
           <div className="flex items-center justify-between rounded-md border px-4 py-3">
             <div>
-              <p className="font-medium">Allow guild override</p>
+              <p className="font-medium">{t("ai.allowGuildOverride")}</p>
               <p className="text-muted-foreground text-sm">
-                Let guild administrators configure their own AI settings.
+                {t("ai.allowGuildOverrideDescription")}
               </p>
             </div>
             <Switch
@@ -302,9 +297,9 @@ export const SettingsAIPage = () => {
 
           <div className="flex items-center justify-between rounded-md border px-4 py-3">
             <div>
-              <p className="font-medium">Allow user override</p>
+              <p className="font-medium">{t("ai.allowUserOverridePlatform")}</p>
               <p className="text-muted-foreground text-sm">
-                Let users configure their own AI settings (BYOK).
+                {t("ai.allowUserOverridePlatformDescription")}
               </p>
             </div>
             <Switch
@@ -317,7 +312,7 @@ export const SettingsAIPage = () => {
 
           <div className="flex gap-2">
             <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save settings"}
+              {updateMutation.isPending ? t("ai.savingSettings") : t("ai.saveSettings")}
             </Button>
             <Button
               type="button"
@@ -325,7 +320,7 @@ export const SettingsAIPage = () => {
               onClick={() => testMutation.mutate()}
               disabled={testMutation.isPending || !formState.provider}
             >
-              {testMutation.isPending ? "Testing..." : "Test Connection"}
+              {testMutation.isPending ? t("ai.testing") : t("ai.testConnection")}
             </Button>
           </div>
         </form>

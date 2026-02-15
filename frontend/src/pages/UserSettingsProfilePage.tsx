@@ -1,5 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { apiClient } from "@/api/client";
@@ -27,6 +28,7 @@ interface UserSettingsProfilePageProps {
 }
 
 export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfilePageProps) => {
+  const { t } = useTranslation("settings");
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -54,7 +56,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const updateProfile = useMutation({
     mutationFn: async () => {
       if (password && password !== confirmPassword) {
-        throw new Error("Passwords do not match");
+        throw new Error(t("profile.passwordsMismatch"));
       }
       const payload: Record<string, unknown> = {};
       if (fullName !== user.full_name) {
@@ -77,10 +79,10 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
       setConfirmPassword("");
       setError(null);
       await refreshUser();
-      toast.success("Profile updated");
+      toast.success(t("profile.updateSuccess"));
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : "Unable to update profile");
+      setError(err instanceof Error ? err.message : t("profile.updateError"));
     },
   });
 
@@ -116,13 +118,13 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
         </Avatar>
         <div>
           <p className="text-lg font-semibold">{user.full_name || user.email}</p>
-          <p className="text-muted-foreground text-sm">Keep your account details up to date.</p>
+          <p className="text-muted-foreground text-sm">{t("profile.subtitle")}</p>
         </div>
       </div>
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Personal info</CardTitle>
-          <CardDescription>Update your name, password, and avatar.</CardDescription>
+          <CardTitle>{t("profile.cardTitle")}</CardTitle>
+          <CardDescription>{t("profile.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -133,53 +135,53 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             }}
           >
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>{t("profile.emailLabel")}</Label>
               <Input value={user.email} disabled readOnly />
-              <p className="text-muted-foreground text-xs">Email addresses cannot be changed.</p>
+              <p className="text-muted-foreground text-xs">{t("profile.emailHelp")}</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="full-name">Full name</Label>
+              <Label htmlFor="full-name">{t("profile.fullNameLabel")}</Label>
               <Input
                 id="full-name"
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
-                placeholder="Your name"
+                placeholder={t("profile.fullNamePlaceholder")}
               />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="password">New password</Label>
+                <Label htmlFor="password">{t("profile.newPasswordLabel")}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="••••••••"
+                  placeholder={t("profile.passwordPlaceholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>
                 <Input
                   id="confirm-password"
                   type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="••••••••"
+                  placeholder={t("profile.passwordPlaceholder")}
                 />
               </div>
             </div>
 
             <div className="space-y-3">
-              <Label>Avatar</Label>
+              <Label>{t("profile.avatarLabel")}</Label>
               <Tabs
                 value={avatarMode}
                 onValueChange={(value) => setAvatarMode(value as "upload" | "url")}
               >
                 <TabsList>
-                  <TabsTrigger value="upload">Upload</TabsTrigger>
-                  <TabsTrigger value="url">URL</TabsTrigger>
+                  <TabsTrigger value="upload">{t("profile.avatarUploadTab")}</TabsTrigger>
+                  <TabsTrigger value="url">{t("profile.avatarUrlTab")}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" className="space-y-2">
                   <Input type="file" accept="image/*" onChange={handleAvatarUpload} />
@@ -190,14 +192,14 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                       size="sm"
                       onClick={() => setAvatarBase64("")}
                     >
-                      Remove uploaded avatar
+                      {t("profile.removeUploadedAvatar")}
                     </Button>
                   ) : null}
                 </TabsContent>
                 <TabsContent value="url" className="space-y-2">
                   <Input
                     type="url"
-                    placeholder="https://example.com/avatar.jpg"
+                    placeholder={t("profile.avatarUrlPlaceholder")}
                     value={avatarUrl}
                     onChange={(event) => setAvatarUrl(event.target.value)}
                   />
@@ -208,7 +210,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                       size="sm"
                       onClick={() => setAvatarUrl("")}
                     >
-                      Clear avatar URL
+                      {t("profile.clearAvatarUrl")}
                     </Button>
                   ) : null}
                 </TabsContent>
@@ -219,7 +221,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={updateProfile.isPending}>
-                {updateProfile.isPending ? "Saving…" : "Save changes"}
+                {updateProfile.isPending ? t("profile.saving") : t("profile.saveChanges")}
               </Button>
               <Button
                 type="button"
@@ -235,7 +237,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   setError(null);
                 }}
               >
-                Reset
+                {t("profile.reset")}
               </Button>
             </div>
           </form>

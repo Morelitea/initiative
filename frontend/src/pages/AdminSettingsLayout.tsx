@@ -1,21 +1,31 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, Navigate, useLocation, useRouter } from "@tanstack/react-router";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 
-const adminTabs = [
-  { value: "auth", label: "Auth", path: "/settings/admin/auth" },
-  { value: "branding", label: "Branding", path: "/settings/admin/branding" },
-  { value: "email", label: "Email", path: "/settings/admin/email" },
-  { value: "ai", label: "AI", path: "/settings/admin/ai" },
-  { value: "users", label: "Users", path: "/settings/admin/users" },
-] as const;
-
 export const AdminSettingsLayout = () => {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const location = useLocation();
   const router = useRouter();
   const isPlatformAdmin = user?.role === "admin";
+
+  const adminTabs = useMemo(
+    () => [
+      { value: "auth", label: t("adminLayout.tabs.auth"), path: "/settings/admin/auth" },
+      {
+        value: "branding",
+        label: t("adminLayout.tabs.branding"),
+        path: "/settings/admin/branding",
+      },
+      { value: "email", label: t("adminLayout.tabs.email"), path: "/settings/admin/email" },
+      { value: "ai", label: t("adminLayout.tabs.ai"), path: "/settings/admin/ai" },
+      { value: "users", label: t("adminLayout.tabs.users"), path: "/settings/admin/users" },
+    ],
+    [t]
+  );
 
   if (!isPlatformAdmin) {
     return <Navigate to="/settings/guild" replace />;
@@ -31,10 +41,8 @@ export const AdminSettingsLayout = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Platform settings</h1>
-        <p className="text-muted-foreground">
-          Manage authentication, branding, SMTP, and users for the entire platform.
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("adminLayout.title")}</h1>
+        <p className="text-muted-foreground">{t("adminLayout.subtitle")}</p>
       </div>
       <Tabs
         value={activeTab}

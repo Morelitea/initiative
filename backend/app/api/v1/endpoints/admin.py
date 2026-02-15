@@ -23,6 +23,7 @@ from app.schemas.admin import (
     GuildBlockerInfo,
     InitiativeBlockerInfo,
 )
+from app.core.messages import AdminMessages, SettingsMessages
 from app.services import user_tokens
 from app.services import email as email_service
 from app.services import initiatives as initiatives_service
@@ -61,10 +62,10 @@ async def trigger_password_reset(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot reset password for inactive user")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AdminMessages.CANNOT_RESET_INACTIVE)
 
     try:
         token = await user_tokens.create_token(
@@ -77,7 +78,7 @@ async def trigger_password_reset(
     except email_service.EmailNotConfiguredError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="SMTP settings are incomplete."
+            detail=SettingsMessages.SMTP_INCOMPLETE
         ) from None
     except RuntimeError as exc:
         raise HTTPException(
@@ -98,10 +99,10 @@ async def reactivate_user(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
     if user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already active")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AdminMessages.USER_ALREADY_ACTIVE)
 
     user.is_active = True
     user.updated_at = datetime.now(timezone.utc)
@@ -138,21 +139,21 @@ async def update_platform_role(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot change your own platform role",
+            detail=AdminMessages.CANNOT_CHANGE_OWN_ROLE,
         )
 
     stmt = select(User).where(User.id == user_id).with_for_update()
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
     # Check if demoting the last admin (FOR UPDATE already acquired above)
     if user.role == UserRole.admin and payload.role != UserRole.admin:
         if await users_service.is_last_platform_admin(session, user_id, for_update=True):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot demote the last platform admin",
+                detail=AdminMessages.CANNOT_DEMOTE_LAST_ADMIN,
             )
 
     user.role = payload.role
@@ -178,14 +179,14 @@ async def check_user_deletion_eligibility(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Use /users/me/deletion-eligibility for self-deletion",
+            detail=AdminMessages.USE_SELF_DELETION,
         )
 
     stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
     can_delete, blockers, warnings, owned_projects = await users_service.check_deletion_eligibility(
         session, user_id, admin_context=True
@@ -265,21 +266,21 @@ async def delete_user(
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete your own account through admin endpoint. Use /users/me/delete-account instead.",
+            detail=AdminMessages.CANNOT_DELETE_SELF,
         )
 
     stmt = select(User).where(User.id == user_id).with_for_update()
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
     # Check if target is the last platform admin
     if user.role == UserRole.admin:
         if await users_service.is_last_platform_admin(session, user_id, for_update=True):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot delete the last platform admin",
+                detail=AdminMessages.CANNOT_DELETE_LAST_ADMIN,
             )
 
     # Check deletion eligibility
@@ -290,7 +291,7 @@ async def delete_user(
     if not can_delete:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=blockers[0] if blockers else "User cannot be deleted",
+            detail=blockers[0] if blockers else AdminMessages.USER_CANNOT_BE_DELETED,
         )
 
     if payload.deletion_type == "soft":
@@ -306,7 +307,7 @@ async def delete_user(
             if not payload.project_transfers:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Project transfers required for hard delete when user owns projects",
+                    detail=AdminMessages.PROJECT_TRANSFERS_REQUIRED,
                 )
 
             missing = [p.id for p in owned_projects if p.id not in payload.project_transfers]
@@ -341,7 +342,7 @@ async def admin_delete_guild(
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND)
 
     await guilds_service.delete_guild(session, guild)
     await session.commit()
@@ -373,21 +374,21 @@ async def admin_update_guild_member_role(
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND)
 
     # Get target membership with lock
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
     )
     if target_membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in guild")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_IN_GUILD)
 
     # Check if demoting the last guild admin
     if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
         if await users_service.is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot demote the last guild admin",
+                detail=AdminMessages.CANNOT_DEMOTE_LAST_GUILD_ADMIN,
             )
 
     target_membership.role = payload.role
@@ -421,7 +422,7 @@ async def admin_update_initiative_member_role(
     result = await session.exec(stmt)
     initiative = result.one_or_none()
     if not initiative:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Initiative not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.INITIATIVE_NOT_FOUND)
 
     # Get target membership with lock
     membership_stmt = (
@@ -435,7 +436,7 @@ async def admin_update_initiative_member_role(
     membership_result = await session.exec(membership_stmt)
     target_membership = membership_result.one_or_none()
     if target_membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in initiative")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_IN_INITIATIVE)
 
     # Check if demoting the last PM
     if target_membership.role == InitiativeRole.project_manager and payload.role != InitiativeRole.project_manager:
@@ -448,7 +449,7 @@ async def admin_update_initiative_member_role(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot demote the last project manager",
+                detail=AdminMessages.CANNOT_DEMOTE_LAST_PM,
             )
 
     target_membership.role = payload.role

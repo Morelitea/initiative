@@ -38,5 +38,7 @@
   "copyToClipboard": "Copy to clipboard",
   "copied": "Copied!",
   "untitled": "Untitled",
-  "appName": "initiative"
+  "appName": "initiative",
+  "send": "Send",
+  "submitting": "Sending\u2026"
 }

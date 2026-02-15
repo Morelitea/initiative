@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -32,6 +33,7 @@ const DEFAULT_STATE = {
 };
 
 export const SettingsEmailPage = () => {
+  const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "admin";
   const [formState, setFormState] = useState(DEFAULT_STATE);
@@ -67,12 +69,12 @@ export const SettingsEmailPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      toast.success("Email settings saved");
+      toast.success(t("email.saveSuccess"));
       setPassword("");
       setTestRecipient(data.test_recipient ?? "");
       void emailQuery.refetch();
     },
-    onError: () => toast.error("Unable to save email settings"),
+    onError: () => toast.error(t("email.saveError")),
   });
 
   const testMutation = useMutation({
@@ -81,24 +83,20 @@ export const SettingsEmailPage = () => {
         recipient: testRecipient || null,
       });
     },
-    onSuccess: () => toast.success("Test email sent"),
-    onError: () => toast.error("Unable to send test email"),
+    onSuccess: () => toast.success(t("email.testSuccess")),
+    onError: () => toast.error(t("email.testError")),
   });
 
   if (!isPlatformAdmin) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Only platform admins can manage email settings.
-      </p>
-    );
+    return <p className="text-muted-foreground text-sm">{t("email.adminOnly")}</p>;
   }
 
   if (emailQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading email settings…</p>;
+    return <p className="text-muted-foreground text-sm">{t("email.loading")}</p>;
   }
 
   if (emailQuery.isError || !emailQuery.data) {
-    return <p className="text-destructive text-sm">Unable to load email settings.</p>;
+    return <p className="text-destructive text-sm">{t("email.loadError")}</p>;
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -121,25 +119,25 @@ export const SettingsEmailPage = () => {
   return (
     <Card className="shadow-sm">
       <CardHeader>
-        <CardTitle>SMTP email</CardTitle>
-        <CardDescription>Configure the SMTP server used for transactional emails.</CardDescription>
+        <CardTitle>{t("email.title")}</CardTitle>
+        <CardDescription>{t("email.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="smtp-host">Host</Label>
+              <Label htmlFor="smtp-host">{t("email.hostLabel")}</Label>
               <Input
                 id="smtp-host"
                 value={formState.host}
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, host: event.target.value }))
                 }
-                placeholder="smtp.mailprovider.com"
+                placeholder={t("email.hostPlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="smtp-port">Port</Label>
+              <Label htmlFor="smtp-port">{t("email.portLabel")}</Label>
               <Input
                 id="smtp-port"
                 type="number"
@@ -149,18 +147,15 @@ export const SettingsEmailPage = () => {
                 onChange={(event) =>
                   setFormState((prev) => ({ ...prev, port: event.target.value }))
                 }
-                placeholder="587"
+                placeholder={t("email.portPlaceholder")}
               />
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
               <div>
-                <p className="font-medium">Secure (TLS) connection</p>
-                <p className="text-muted-foreground text-sm">
-                  Enable for port 465. Keep disabled for ports 587 or 25 (uses STARTTLS when
-                  available).
-                </p>
+                <p className="font-medium">{t("email.secureLabel")}</p>
+                <p className="text-muted-foreground text-sm">{t("email.secureHelp")}</p>
               </div>
               <Switch
                 checked={formState.secure}
@@ -171,10 +166,8 @@ export const SettingsEmailPage = () => {
             </div>
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
               <div>
-                <p className="font-medium">Reject unauthorized certificates</p>
-                <p className="text-muted-foreground text-sm">
-                  Disable only if you fully trust the mail server and understand the risk.
-                </p>
+                <p className="font-medium">{t("email.rejectUnauthorizedLabel")}</p>
+                <p className="text-muted-foreground text-sm">{t("email.rejectUnauthorizedHelp")}</p>
               </div>
               <Switch
                 checked={formState.reject_unauthorized}
@@ -186,7 +179,7 @@ export const SettingsEmailPage = () => {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="smtp-username">Username</Label>
+              <Label htmlFor="smtp-username">{t("email.usernameLabel")}</Label>
               <Input
                 id="smtp-username"
                 value={formState.username}
@@ -196,39 +189,37 @@ export const SettingsEmailPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="smtp-password">Password</Label>
+              <Label htmlFor="smtp-password">{t("email.passwordLabel")}</Label>
               <Input
                 id="smtp-password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder={emailQuery.data.has_password ? "••••••••" : ""}
+                placeholder={emailQuery.data.has_password ? t("email.passwordPlaceholder") : ""}
               />
-              <p className="text-muted-foreground text-xs">
-                Leave blank to keep the existing password.
-              </p>
+              <p className="text-muted-foreground text-xs">{t("email.passwordHelp")}</p>
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="smtp-from">From address</Label>
+            <Label htmlFor="smtp-from">{t("email.fromAddressLabel")}</Label>
             <Input
               id="smtp-from"
               value={formState.from_address}
               onChange={(event) =>
                 setFormState((prev) => ({ ...prev, from_address: event.target.value }))
               }
-              placeholder={"Initiative <no-reply@example.com>"}
+              placeholder={t("email.fromAddressPlaceholder")}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="smtp-test-recipient">Test email recipient</Label>
+              <Label htmlFor="smtp-test-recipient">{t("email.testRecipientLabel")}</Label>
               <Input
                 id="smtp-test-recipient"
                 type="email"
                 value={testRecipient}
                 onChange={(event) => setTestRecipient(event.target.value)}
-                placeholder="you@example.com"
+                placeholder={t("email.testRecipientPlaceholder")}
               />
             </div>
             <div className="flex items-end">
@@ -239,12 +230,12 @@ export const SettingsEmailPage = () => {
                 onClick={() => testMutation.mutate()}
                 disabled={testMutation.isPending}
               >
-                {testMutation.isPending ? "Sending…" : "Send test email"}
+                {testMutation.isPending ? t("email.sendingTest") : t("email.sendTest")}
               </Button>
             </div>
           </div>
           <Button type="submit" disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? "Saving…" : "Save email settings"}
+            {updateMutation.isPending ? t("email.saving") : t("email.save")}
           </Button>
         </form>
       </CardContent>
