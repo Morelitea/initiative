@@ -640,7 +640,7 @@ export const ProjectSettingsPage = () => {
   );
 
   if (!Number.isFinite(parsedProjectId)) {
-    return <p className="text-destructive">Invalid project id.</p>;
+    return <p className="text-destructive">{t("detail.invalidProjectId")}</p>;
   }
 
   const initiativesLoading = user?.role === "admin" ? initiativesQuery.isLoading : false;

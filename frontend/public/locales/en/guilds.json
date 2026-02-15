@@ -121,6 +121,15 @@
     "removeConfirmLabel": "Remove",
     "failedToUpdateRole": "Failed to update role"
   },
+  "noGuild": {
+    "title": "No guild membership",
+    "description": "You are not a member of any guild yet. Ask a guild admin for an invite link, or create a new guild to get started.",
+    "guildNamePlaceholder": "Guild name",
+    "create": "Create",
+    "inviteCodePlaceholder": "Invite code",
+    "redeem": "Redeem",
+    "logOut": "Log out"
+  },
   "notifications": {
     "title": "Notifications",
     "markAllRead": "Mark all read",

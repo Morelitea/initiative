@@ -233,14 +233,17 @@ export const CommentSection = ({
                   {t("comments.mentionUser")}
                 </li>
                 <li>
+                  {/* eslint-disable-next-line i18next/no-literal-string */}
                   <code className="bg-muted rounded px-1 text-xs">#task:</code>{" "}
                   {t("comments.mentionTask")}
                 </li>
                 <li>
+                  {/* eslint-disable-next-line i18next/no-literal-string */}
                   <code className="bg-muted rounded px-1 text-xs">#doc:</code>{" "}
                   {t("comments.mentionDoc")}
                 </li>
                 <li>
+                  {/* eslint-disable-next-line i18next/no-literal-string */}
                   <code className="bg-muted rounded px-1 text-xs">#project:</code>{" "}
                   {t("comments.mentionProject")}
                 </li>

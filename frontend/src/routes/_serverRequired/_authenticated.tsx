@@ -9,6 +9,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Loader2, LogOut, Menu, Plus, Ticket } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -202,6 +203,7 @@ function NoGuildState({
   createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
   logout: () => void;
 }) {
+  const { t } = useTranslation("guilds");
   const [guildName, setGuildName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -220,16 +222,13 @@ function NoGuildState({
   return (
     <div className="bg-background flex min-h-screen items-center justify-center p-4">
       <div className="mx-auto w-full max-w-md space-y-6 text-center">
-        <h1 className="text-2xl font-bold">No guild membership</h1>
-        <p className="text-muted-foreground">
-          You are not a member of any guild yet. Ask a guild admin for an invite link, or create a
-          new guild to get started.
-        </p>
+        <h1 className="text-2xl font-bold">{t("noGuild.title")}</h1>
+        <p className="text-muted-foreground">{t("noGuild.description")}</p>
 
         {canCreateGuilds && (
           <div className="flex gap-2">
             <Input
-              placeholder="Guild name"
+              placeholder={t("noGuild.guildNamePlaceholder")}
               value={guildName}
               onChange={(e) => setGuildName(e.target.value)}
               onKeyDown={(e) => {
@@ -238,14 +237,14 @@ function NoGuildState({
             />
             <Button onClick={() => void handleCreate()} disabled={creating || !guildName.trim()}>
               <Plus className="h-4 w-4" />
-              Create
+              {t("noGuild.create")}
             </Button>
           </div>
         )}
 
         <div className="flex gap-2">
           <Input
-            placeholder="Invite code"
+            placeholder={t("noGuild.inviteCodePlaceholder")}
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
           />
@@ -256,14 +255,14 @@ function NoGuildState({
               disabled={!inviteCode.trim()}
             >
               <Ticket className="h-4 w-4" />
-              Redeem
+              {t("noGuild.redeem")}
             </Link>
           </Button>
         </div>
 
         <Button variant="ghost" onClick={logout}>
           <LogOut className="h-4 w-4" />
-          Log out
+          {t("noGuild.logOut")}
         </Button>
       </div>
     </div>

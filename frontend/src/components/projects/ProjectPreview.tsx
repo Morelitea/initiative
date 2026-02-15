@@ -1,6 +1,7 @@
 import { HTMLAttributes } from "react";
 import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -39,6 +40,7 @@ const canPinProject = (project: Project, userId?: number, guildRole?: GuildRole)
 
 export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
+  const { t } = useTranslation("projects");
   const gp = useGuildPath();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
@@ -89,7 +91,11 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
             <div className="flex w-full justify-between gap-6">
               <div>
                 <InitiativeLabel initiative={initiative} />
-                <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
+                <p>
+                  {t("preview.updated", {
+                    date: new Date(project.updated_at).toLocaleDateString(undefined),
+                  })}
+                </p>
               </div>
               <div className="flex-1">
                 <ProjectProgress summary={project.task_summary} />
@@ -114,6 +120,7 @@ export const ProjectCardLink = ({ project, dragHandleProps, userId }: ProjectLin
 
 export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLinkProps) => {
   const { activeGuild } = useGuilds();
+  const { t } = useTranslation("projects");
   const gp = useGuildPath();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
@@ -161,7 +168,11 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
               <div className="flex flex-wrap gap-6">
                 <div className="min-w-30 flex-1">
                   <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-xs">
-                    <p>Updated {new Date(project.updated_at).toLocaleDateString(undefined)}</p>
+                    <p>
+                      {t("preview.updated", {
+                        date: new Date(project.updated_at).toLocaleDateString(undefined),
+                      })}
+                    </p>
                     <InitiativeLabel initiative={project.initiative} />
                   </div>
                   {project.tags && project.tags.length > 0 ? (
@@ -206,6 +217,7 @@ export const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null
 };
 
 const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => {
+  const { t } = useTranslation("projects");
   const total = summary?.total ?? 0;
   const completed = summary?.completed ?? 0;
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -214,7 +226,7 @@ const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => 
     <div className="@container flex w-full items-center justify-between gap-4">
       <div className="hidden w-full flex-col gap-2 @xs:flex">
         <span className="text-muted-foreground flex justify-end text-xs">
-          {completed}/{total} done
+          {t("preview.tasksDone", { completed, total })}
         </span>
         <Progress value={percent} className="h-2" />
       </div>

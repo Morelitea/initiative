@@ -131,6 +131,7 @@
     "aiDialogTitle": "Subtareas generadas por IA",
     "aiDialogDescription": "Selecciona las subtareas que quieres agregar a esta tarea.",
     "addSelected": "Agregar seleccionadas ({{count}})",
+    "addButton": "Agregar",
     "reorderItem": "Reordenar elemento de la lista",
     "markIncomplete": "Marcar subtarea como incompleta",
     "markComplete": "Marcar subtarea como completa",

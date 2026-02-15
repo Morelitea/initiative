@@ -6,6 +6,7 @@ import tsPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
+import i18next from "eslint-plugin-i18next";
 
 const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
 const tsRecommendedRules = tsPlugin.configs.recommended?.rules ?? {};
@@ -27,6 +28,17 @@ export default defineConfig([
   },
   js.configs.recommended,
   reactPlugin.configs.flat.recommended,
+  i18next.configs["flat/recommended"],
+  {
+    // Disable i18next rule for UI primitives, editor plugins, and test files
+    files: [
+      "src/components/ui/**",
+      "src/__tests__/**",
+    ],
+    rules: {
+      "i18next/no-literal-string": "off",
+    },
+  },
   {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
