@@ -12,12 +12,14 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect, status
 from jose import JWTError, jwt
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import SessionDep
+from app.api.deps import RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership, GuildContext
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.document import Document, DocumentPermissionLevel
@@ -346,7 +348,9 @@ async def websocket_collaborate(
 @router.get("/documents/{document_id}/collaborators")
 async def get_document_collaborators(
     document_id: int,
-    session: SessionDep,
+    session: RLSSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> list[dict]:
     """Get the list of current collaborators on a document."""
     room = collaboration_manager.get_room(document_id)
