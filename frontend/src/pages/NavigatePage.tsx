@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter, useSearch } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -16,6 +17,7 @@ const normalizeTarget = (raw: string): string => {
 };
 
 export const NavigatePage = () => {
+  const { t } = useTranslation("nav");
   const { user, loading: authLoading } = useAuth();
   const { guilds, activeGuildId, switchGuild } = useGuilds();
   const searchParams = useSearch({ strict: false }) as { guild_id?: string; target?: string };
@@ -42,12 +44,12 @@ export const NavigatePage = () => {
       return;
     }
     if (!user) {
-      setError("Please sign in again to follow this link.");
+      setError(t("navigate.signInRequired"));
       setIsProcessing(false);
       return;
     }
     if (!guildParam || !destination) {
-      setError("This link is missing destination details.");
+      setError(t("navigate.missingDestination"));
       setIsProcessing(false);
       return;
     }
@@ -56,7 +58,7 @@ export const NavigatePage = () => {
       parsedGuildId = Number.parseInt(guildParam, 10);
     }
     if (!Number.isFinite(parsedGuildId)) {
-      setError("Invalid guild id in link.");
+      setError(t("navigate.invalidGuildId"));
       setIsProcessing(false);
       return;
     }
@@ -64,7 +66,7 @@ export const NavigatePage = () => {
     // Check if user has access to this guild
     const hasAccess = guilds.some((g) => g.id === parsedGuildId);
     if (!hasAccess) {
-      setError("You don't have access to this guild.");
+      setError(t("navigate.noAccess"));
       setIsProcessing(false);
       return;
     }
@@ -86,18 +88,20 @@ export const NavigatePage = () => {
         router.navigate({ to: finalDestination, replace: true });
       } catch (err) {
         console.error("Failed to follow smart link", err);
-        setError("Unable to switch guild for this link.");
+        setError(t("navigate.switchError"));
         setIsProcessing(false);
       }
     };
     void performNavigation();
-  }, [authLoading, user, guilds, guildParam, activeGuildId, switchGuild, router, destination]);
+  }, [authLoading, user, guilds, guildParam, activeGuildId, switchGuild, router, destination, t]);
 
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-destructive text-base font-medium">{error}</p>
-        <Button onClick={() => router.navigate({ to: "/", replace: true })}>Go back home</Button>
+        <Button onClick={() => router.navigate({ to: "/", replace: true })}>
+          {t("navigate.goHome")}
+        </Button>
       </div>
     );
   }
@@ -106,7 +110,7 @@ export const NavigatePage = () => {
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
       <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       <p className="text-muted-foreground text-sm">
-        {isProcessing ? "Redirecting you to the right guild…" : "Finalizing redirect…"}
+        {isProcessing ? t("navigate.redirecting") : t("navigate.finalizing")}
       </p>
     </div>
   );

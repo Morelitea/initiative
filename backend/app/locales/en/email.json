@@ -1,0 +1,70 @@
+{
+  "layout": {
+    "footerDisclaimer": "This message was sent by Initiative. If you weren't expecting it, you can ignore this email.",
+    "updateNotifications": "Update notification settings"
+  },
+  "test": {
+    "subject": "SMTP configuration test",
+    "title": "SMTP test email",
+    "body": "This is a test email confirming SMTP settings are configured correctly."
+  },
+  "verification": {
+    "subject": "Verify your Initiative account",
+    "title": "Verify your email",
+    "greeting": "Hi {{name}},",
+    "body": "Confirm your email to finish setting up your Initiative account.",
+    "buttonLabel": "Verify email",
+    "fallbackText": "If the button doesn't work, copy and paste this link into your browser:",
+    "textBody": "Confirm your Initiative account by visiting {{link}}"
+  },
+  "passwordReset": {
+    "subject": "Reset your Initiative password",
+    "title": "Reset your password",
+    "greeting": "Hello {{name}},",
+    "body": "We received a request to reset your Initiative password.",
+    "buttonLabel": "Reset password",
+    "fallbackText": "If you didn't request this, you can ignore this email. The link expires soon.",
+    "textBody": "Reset your Initiative password by visiting {{link}}"
+  },
+  "initiativeAdded": {
+    "subject": "Added to initiative {{initiativeName}}",
+    "title": "You joined a new initiative",
+    "greeting": "Hi {{name}},",
+    "body": "You have been added to the <strong>{{initiativeName}}</strong> initiative.",
+    "buttonLabel": "View initiatives",
+    "textBody": "You have been added to the {{initiativeName}} initiative. Visit {{link}} to view it."
+  },
+  "projectAdded": {
+    "subject": "New project in {{initiativeName}}",
+    "title": "New project in your initiative",
+    "greeting": "Hi {{name}},",
+    "body": "A new project, <strong>{{projectName}}</strong>, was added to the <strong>{{initiativeName}}</strong> initiative.",
+    "buttonLabel": "Open project",
+    "textBody": "A new project, {{projectName}}, was added to the {{initiativeName}} initiative. View it at {{link}}."
+  },
+  "taskAssignment": {
+    "subject": "New tasks assigned to you",
+    "title": "Task assignment summary",
+    "greeting": "Hi {{name}},",
+    "body": "Here is your hourly summary of tasks assigned to you:",
+    "assignedBy": "assigned by {{name}}",
+    "inProject": "in {{projectName}}",
+    "footer": "Visit Initiative to review the tasks.",
+    "textBody": "Here is your hourly summary of tasks assigned to you:"
+  },
+  "mention": {
+    "greeting": "Hi {{name}},",
+    "buttonLabel": "View"
+  },
+  "overdue": {
+    "subject": "Overdue tasks reminder",
+    "title": "Overdue tasks reminder",
+    "greeting": "Hi {{name}},",
+    "body_one": "You have {{count}} overdue task:",
+    "body_other": "You have {{count}} overdue tasks:",
+    "taskDetail": "project: {{projectName}}, due {{dueDate}}",
+    "footer": "Visit Initiative to get back on track.",
+    "textBody_one": "You have {{count}} overdue task:",
+    "textBody_other": "You have {{count}} overdue tasks:"
+  }
+}

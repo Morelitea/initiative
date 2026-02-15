@@ -133,6 +133,12 @@ class User(SQLModel, table=True):
         sa_column=Column(String(255), nullable=True),
     )
 
+    # Locale
+    locale: str = Field(
+        default="en",
+        sa_column=Column(String(10), nullable=False, server_default="en"),
+    )
+
     # UI Preferences
     color_theme: str = Field(
         default="kobold",

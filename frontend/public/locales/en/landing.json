@@ -1,2 +1,83 @@
 {
+  "nav": {
+    "signIn": "Sign in",
+    "getStarted": "Get started"
+  },
+  "hero": {
+    "tagline": "Built for gamers, by gamers",
+    "preTitle": "Are you ready to",
+    "titleLine1": "ROLL FOR",
+    "titleLine2": "INITIATIVE",
+    "titleAria": "Roll for Initiative",
+    "subtitle": "A guild-based project management app built for gaming groups. Create your own guild, invite your party, and conquer quests together.",
+    "ctaStart": "Start your adventure",
+    "ctaSignIn": "Sign in to your guild",
+    "scroll": "Scroll",
+    "loading": "Loading..."
+  },
+  "heroScreenshot": {
+    "dashboard": "Initiative dashboard"
+  },
+  "stats": {
+    "initiatives": "Initiatives",
+    "initiativesValue": "Unlimited",
+    "partyMembers": "Party Members",
+    "partyMembersValue": "No Limits",
+    "openSource": "Open Source",
+    "openSourceValue": "Forever",
+    "selfHosted": "Self-Hosted",
+    "selfHostedValue": "Your Data"
+  },
+  "features": {
+    "sectionLabel": "Arsenal",
+    "title": "Everything your party needs",
+    "description": "Each guild gets a private workspace with projects, tasks, and documents. Whether you are running a campaign, organizing raid nights, or managing a gaming community -- keep everything in one place.",
+    "campaignTitle": "Campaign Management",
+    "campaignDescription": "Organize your TTRPG campaigns with ease. Track storylines, NPCs, and plot hooks across multiple sessions.",
+    "partyTitle": "Party Coordination",
+    "partyDescription": "Keep your gaming group in sync. Assign tasks, schedule sessions, and make sure everyone knows their role.",
+    "worldTitle": "World Building",
+    "worldDescription": "Document your lore, maps, and world details. Build rich settings your players will love to explore.",
+    "questTitle": "Quest Tracking",
+    "questDescription": "Never lose track of side quests again. Manage objectives, rewards, and story progression in one place.",
+    "sessionTitle": "Session Notes",
+    "sessionDescription": "Collaborative documents for session recaps, player handouts, and shared party knowledge.",
+    "eventTitle": "Event Planning",
+    "eventDescription": "Coordinate game nights, raid schedules, and guild events. Everyone stays on the same page."
+  },
+  "gallery": {
+    "sectionLabel": "See it in action",
+    "title": "Built for your workflow",
+    "projectAlt": "Project management view",
+    "projectCaption": "Organize projects with boards, lists, and custom views",
+    "documentAlt": "Document collaboration",
+    "documentCaption": "Collaborate on documents with your entire guild"
+  },
+  "useCases": {
+    "sectionLabel": "Your Quest Awaits",
+    "title": "Your guild, your way",
+    "description": "Create a private guild for your group. Invite members, organize into initiatives, and manage projects together. Everyone stays in sync, and your data stays yours.",
+    "ttrpgName": "TTRPG Groups",
+    "ttrpgDesc": "Manage campaigns, track quests, and share session notes with your adventuring party.",
+    "mmoName": "MMO Guilds",
+    "mmoDesc": "Coordinate raid schedules, loot distribution, and guild events.",
+    "esportsName": "Esports Teams",
+    "esportsDesc": "Track practice schedules, tournament prep, and team objectives.",
+    "communityName": "Gaming Communities",
+    "communityDesc": "Organize events, manage projects, and keep your community engaged.",
+    "cta": "Create your guild"
+  },
+  "cta": {
+    "title": "Ready to <1>level up</1>?",
+    "titleReady": "Ready to",
+    "titleHighlight": "level up",
+    "description": "Join gaming groups already using Initiative to stay organized and have more fun together.",
+    "button": "Get started for free"
+  },
+  "footer": {
+    "copyright": "\u00a9 {{year}} Initiative. Roll high, stay organized."
+  },
+  "screenshot": {
+    "placeholder": "Screenshot"
+  }
 }

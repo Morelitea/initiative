@@ -44,6 +44,7 @@ import {
   $isListNode,
 } from "@lexical/list";
 import { $findMatchingParent } from "@lexical/utils";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -87,15 +88,6 @@ type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote" | "code";
 type Alignment = "left" | "right" | "center" | "justify";
 type ListType = "bullet" | "number" | "check" | "none";
 
-const BLOCK_OPTIONS: { label: string; value: BlockType }[] = [
-  { label: "Normal", value: "paragraph" },
-  { label: "Heading 1", value: "h1" },
-  { label: "Heading 2", value: "h2" },
-  { label: "Heading 3", value: "h3" },
-  { label: "Blockquote", value: "quote" },
-  { label: "Code block", value: "code" },
-];
-
 const FONT_SIZE_OPTIONS = ["14px", "16px", "18px", "20px", "24px", "32px"];
 const DEFAULT_FONT_SIZE = "16px";
 
@@ -129,6 +121,7 @@ const mergeRegisters = (...fns: Array<() => void>) => {
 
 export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   const [editor] = useLexicalComposerContext();
+  const { t } = useTranslation("documents");
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
@@ -142,6 +135,18 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   const [isInTable, setIsInTable] = useState(false);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const blockOptions = useMemo(
+    () => [
+      { label: t("editor.blockNormal"), value: "paragraph" as BlockType },
+      { label: t("editor.blockH1"), value: "h1" as BlockType },
+      { label: t("editor.blockH2"), value: "h2" as BlockType },
+      { label: t("editor.blockH3"), value: "h3" as BlockType },
+      { label: t("editor.blockQuote"), value: "quote" as BlockType },
+      { label: t("editor.blockCode"), value: "code" as BlockType },
+    ],
+    [t]
+  );
 
   const cloneCurrentSelection = useCallback((): RangeSelection | null => {
     return editor.getEditorState().read(() => {
@@ -332,9 +337,9 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
   };
 
-  const insertLink = () => {
+  const insertLink = useCallback(() => {
     const savedSelection = cloneCurrentSelection();
-    const previousUrl = window.prompt("Enter a URL", "https://");
+    const previousUrl = window.prompt(t("editor.promptUrl"), "https://");
     if (previousUrl === null) {
       return;
     }
@@ -345,7 +350,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       }
       editor.dispatchCommand(TOGGLE_LINK_COMMAND, trimmed || null);
     });
-  };
+  }, [editor, cloneCurrentSelection, t]);
 
   const applyAlignment = (value: Alignment) => {
     setAlignment(value);
@@ -366,7 +371,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     async (files: FileList | File[]) => {
       const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
       if (!images.length) {
-        toast.error("Only image files are supported.");
+        toast.error(t("editor.errorImageOnly"));
         return;
       }
       setIsImageUploading(true);
@@ -377,14 +382,14 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             insertImageNode(editor, { src: response.url, altText: file.name });
           } catch (error) {
             console.error(error);
-            toast.error(`Failed to upload ${file.name}.`);
+            toast.error(t("editor.errorUpload", { fileName: file.name }));
           }
         }
       } finally {
         setIsImageUploading(false);
       }
     },
-    [editor]
+    [editor, t]
   );
 
   const handleImageInputChange = useCallback(
@@ -404,23 +409,23 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   }, [fileInputRef]);
 
   const insertTable = useCallback(() => {
-    const rows = Math.max(1, Number(window.prompt("Number of rows", "2")) || 2);
-    const columns = Math.max(1, Number(window.prompt("Number of columns", "2")) || 2);
+    const rows = Math.max(1, Number(window.prompt(t("editor.promptRows"), "2")) || 2);
+    const columns = Math.max(1, Number(window.prompt(t("editor.promptColumns"), "2")) || 2);
     editor.dispatchCommand(INSERT_TABLE_COMMAND, {
       rows: String(rows),
       columns: String(columns),
       includeHeaders: true,
     });
-  }, [editor]);
+  }, [editor, t]);
 
   const insertYoutube = useCallback(() => {
-    const url = window.prompt("YouTube URL");
+    const url = window.prompt(t("editor.promptYoutubeUrl"));
     if (!url) {
       return;
     }
     const videoId = extractYouTubeId(url);
     if (!videoId) {
-      window.alert("Unable to parse YouTube URL.");
+      window.alert(t("editor.errorYoutubeUrl"));
       return;
     }
     const html = `
@@ -433,33 +438,33 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         ></iframe>
       </div>`;
     insertEmbedNode(editor, { html });
-  }, [editor]);
+  }, [editor, t]);
 
   const requireTableSelection = useCallback(
     (operation: () => void) => {
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) {
-          toast.error("Place your cursor inside a table first.");
+          toast.error(t("editor.errorTableCursor"));
           return;
         }
         const anchorNode = selection.anchor.getNode();
         const cellNode = $findMatchingParent(anchorNode, (node) => $isTableCellNode(node));
         if (!cellNode) {
-          toast.error("Place your cursor inside a table first.");
+          toast.error(t("editor.errorTableCursor"));
           return;
         }
         operation();
       });
     },
-    [editor]
+    [editor, t]
   );
 
   const insertTableRow = (position: "above" | "below") => {
     requireTableSelection(() => {
       const inserted = $insertTableRowAtSelection(position === "below");
       if (!inserted) {
-        toast.error("Unable to insert table row.");
+        toast.error(t("editor.errorInsertRow"));
       }
     });
   };
@@ -468,7 +473,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     requireTableSelection(() => {
       const inserted = $insertTableColumnAtSelection(position === "right");
       if (!inserted) {
-        toast.error("Unable to insert table column.");
+        toast.error(t("editor.errorInsertColumn"));
       }
     });
   };
@@ -487,28 +492,28 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
 
   const insertOptions = useMemo(
     () => [
-      { label: "Horizontal rule", action: insertHorizontalRule },
-      { label: "Image", action: triggerImagePicker, disabled: isImageUploading },
-      { label: "Table", action: insertTable },
-      { label: "YouTube embed", action: insertYoutube },
+      { label: t("editor.horizontalRule"), action: insertHorizontalRule },
+      { label: t("editor.image"), action: triggerImagePicker, disabled: isImageUploading },
+      { label: t("editor.table"), action: insertTable },
+      { label: t("editor.youtubeEmbed"), action: insertYoutube },
     ],
-    [insertHorizontalRule, insertTable, insertYoutube, triggerImagePicker, isImageUploading]
+    [t, insertHorizontalRule, insertTable, insertYoutube, triggerImagePicker, isImageUploading]
   );
 
   const mobileOverflowMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" size="icon" variant="ghost" aria-label="More formatting">
+        <Button type="button" size="icon" variant="ghost" aria-label={t("editor.moreFormatting")}>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64 space-y-4">
-        <DropdownMenuLabel>Formatting</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("editor.formatting")}</DropdownMenuLabel>
         <div className="space-y-1">
-          <span className="text-muted-foreground text-xs font-medium">Font size</span>
+          <span className="text-muted-foreground text-xs font-medium">{t("editor.fontSize")}</span>
           <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
             <SelectTrigger>
-              <SelectValue placeholder="Font size" />
+              <SelectValue placeholder={t("editor.fontSize")} />
             </SelectTrigger>
             <SelectContent>
               {FONT_SIZE_OPTIONS.map((size) => (
@@ -594,41 +599,41 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
           </Button>
         </div>
         <div className="space-y-1">
-          <span className="text-muted-foreground text-xs font-medium">Alignment</span>
+          <span className="text-muted-foreground text-xs font-medium">{t("editor.alignment")}</span>
           <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
             <SelectTrigger>
-              <SelectValue placeholder="Align" />
+              <SelectValue placeholder={t("editor.alignment")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="left">
                 <div className="flex items-center gap-2">
                   <AlignLeft className="h-4 w-4" />
-                  Left
+                  {t("editor.alignLeft")}
                 </div>
               </SelectItem>
               <SelectItem value="center">
                 <div className="flex items-center gap-2">
                   <AlignCenter className="h-4 w-4" />
-                  Center
+                  {t("editor.alignCenter")}
                 </div>
               </SelectItem>
               <SelectItem value="right">
                 <div className="flex items-center gap-2">
                   <AlignRight className="h-4 w-4" />
-                  Right
+                  {t("editor.alignRight")}
                 </div>
               </SelectItem>
               <SelectItem value="justify">
                 <div className="flex items-center gap-2">
                   <AlignJustify className="h-4 w-4" />
-                  Justify
+                  {t("editor.alignJustify")}
                 </div>
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <span className="text-muted-foreground text-xs font-medium">Insert</span>
+          <span className="text-muted-foreground text-xs font-medium">{t("editor.insert")}</span>
           <div className="grid grid-cols-2 gap-2">
             {insertOptions.map((item) => (
               <Button
@@ -646,8 +651,8 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
         </div>
         <div className="space-y-2">
           <div className="text-muted-foreground flex items-center justify-between text-xs font-medium">
-            <span>Table actions</span>
-            {!isInTable ? <span className="text-[10px]">Select a table</span> : null}
+            <span>{t("editor.tableActions")}</span>
+            {!isInTable ? <span className="text-[10px]">{t("editor.selectTable")}</span> : null}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -657,7 +662,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               disabled={!isInTable}
               onClick={() => insertTableRow("above")}
             >
-              Row above
+              {t("editor.rowAbove")}
             </Button>
             <Button
               type="button"
@@ -666,7 +671,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               disabled={!isInTable}
               onClick={() => insertTableRow("below")}
             >
-              Row below
+              {t("editor.rowBelow")}
             </Button>
             <Button
               type="button"
@@ -675,7 +680,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               disabled={!isInTable}
               onClick={() => insertTableColumn("left")}
             >
-              Column left
+              {t("editor.columnLeft")}
             </Button>
             <Button
               type="button"
@@ -684,7 +689,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               disabled={!isInTable}
               onClick={() => insertTableColumn("right")}
             >
-              Column right
+              {t("editor.columnRight")}
             </Button>
             <Button
               type="button"
@@ -693,7 +698,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               disabled={!isInTable}
               onClick={deleteTableRow}
             >
-              Delete row
+              {t("editor.deleteRow")}
             </Button>
             <Button
               type="button"
@@ -702,7 +707,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               disabled={!isInTable}
               onClick={deleteTableColumn}
             >
-              Delete column
+              {t("editor.deleteColumn")}
             </Button>
           </div>
         </div>
@@ -759,10 +764,10 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       </div>
       <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
         <SelectTrigger className="w-36">
-          <SelectValue placeholder="Text style" />
+          <SelectValue placeholder={t("editor.textStyle")} />
         </SelectTrigger>
         <SelectContent>
-          {BLOCK_OPTIONS.map((option) => (
+          {blockOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
@@ -771,7 +776,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       </Select>
       <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
         <SelectTrigger className="w-28">
-          <SelectValue placeholder="Font size" />
+          <SelectValue placeholder={t("editor.fontSize")} />
         </SelectTrigger>
         <SelectContent>
           {FONT_SIZE_OPTIONS.map((size) => (
@@ -873,31 +878,31 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       </Button>
       <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
         <SelectTrigger className="w-32">
-          <SelectValue placeholder="Align" />
+          <SelectValue placeholder={t("editor.alignment")} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="left">
             <div className="flex items-center gap-2">
               <AlignLeft className="h-4 w-4" />
-              Left
+              {t("editor.alignLeft")}
             </div>
           </SelectItem>
           <SelectItem value="center">
             <div className="flex items-center gap-2">
               <AlignCenter className="h-4 w-4" />
-              Center
+              {t("editor.alignCenter")}
             </div>
           </SelectItem>
           <SelectItem value="right">
             <div className="flex items-center gap-2">
               <AlignRight className="h-4 w-4" />
-              Right
+              {t("editor.alignRight")}
             </div>
           </SelectItem>
           <SelectItem value="justify">
             <div className="flex items-center gap-2">
               <AlignJustify className="h-4 w-4" />
-              Justify
+              {t("editor.alignJustify")}
             </div>
           </SelectItem>
         </SelectContent>
@@ -905,11 +910,11 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="ghost">
-            Insert
+            {t("editor.insert")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-48">
-          <DropdownMenuLabel>Insert</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("editor.insert")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {insertOptions.map((item) => (
             <DropdownMenuItem
@@ -928,11 +933,11 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="ghost" disabled={!isInTable}>
-            Table
+            {t("editor.table")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
-          <DropdownMenuLabel>Table actions</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("editor.tableActions")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={!isInTable}
@@ -941,7 +946,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               insertTableRow("above");
             }}
           >
-            Insert row above
+            {t("editor.insertRowAbove")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!isInTable}
@@ -950,7 +955,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               insertTableRow("below");
             }}
           >
-            Insert row below
+            {t("editor.insertRowBelow")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!isInTable}
@@ -959,7 +964,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               insertTableColumn("left");
             }}
           >
-            Insert column left
+            {t("editor.insertColumnLeft")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!isInTable}
@@ -968,7 +973,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               insertTableColumn("right");
             }}
           >
-            Insert column right
+            {t("editor.insertColumnRight")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -978,7 +983,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               deleteTableRow();
             }}
           >
-            Delete row
+            {t("editor.deleteRow")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!isInTable}
@@ -987,7 +992,7 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
               deleteTableColumn();
             }}
           >
-            Delete column
+            {t("editor.deleteColumn")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -1011,10 +1016,10 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
       <div className="flex flex-wrap items-center gap-2 lg:hidden">
         <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="Text style" />
+            <SelectValue placeholder={t("editor.textStyle")} />
           </SelectTrigger>
           <SelectContent>
-            {BLOCK_OPTIONS.map((option) => (
+            {blockOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

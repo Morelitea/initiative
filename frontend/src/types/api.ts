@@ -46,6 +46,7 @@ export interface User extends UserPublic {
   last_overdue_notification_at?: string | null;
   last_task_assignment_digest_at?: string | null;
   color_theme?: string;
+  locale?: string;
   initiative_roles?: UserInitiativeRole[];
 }
 

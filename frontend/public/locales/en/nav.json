@@ -31,5 +31,15 @@
   "toggleTheme": "Toggle theme",
   "themeSystem": "System",
   "themeLight": "Light",
-  "themeDark": "Dark"
+  "themeDark": "Dark",
+  "navigate": {
+    "signInRequired": "Please sign in again to follow this link.",
+    "missingDestination": "This link is missing destination details.",
+    "invalidGuildId": "Invalid guild id in link.",
+    "noAccess": "You don't have access to this guild.",
+    "switchError": "Unable to switch guild for this link.",
+    "redirecting": "Redirecting you to the right guild\u2026",
+    "finalizing": "Finalizing redirect\u2026",
+    "goHome": "Go back home"
+  }
 }

@@ -40,5 +40,7 @@
   "untitled": "Untitled",
   "appName": "initiative",
   "send": "Send",
-  "submitting": "Sending\u2026"
+  "submitting": "Sending\u2026",
+  "clear": "Clear",
+  "pickEmoji": "Pick an emoji"
 }
