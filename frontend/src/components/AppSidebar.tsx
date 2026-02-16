@@ -316,6 +316,35 @@ export const AppSidebar = () => {
                     </>
                   )}
 
+                  {/* All Projects & All Documents */}
+                  {activeGuild && (
+                    <>
+                      <SidebarGroup>
+                        <SidebarGroupContent>
+                          <SidebarMenu>
+                            <SidebarMenuItem>
+                              <SidebarMenuButton asChild>
+                                <Link to={gp("/projects")} className="flex items-center gap-2">
+                                  <ListTodo className="h-4 w-4" />
+                                  <span>{t("allProjects")}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                              <SidebarMenuButton asChild>
+                                <Link to={gp("/documents")} className="flex items-center gap-2">
+                                  <ScrollText className="h-4 w-4" />
+                                  <span>{t("allDocuments")}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </SidebarGroup>
+                      <SidebarSeparator />
+                    </>
+                  )}
+
                   {/* Initiatives Section */}
                   <SidebarGroup>
                     <SidebarGroupLabel className="flex items-center gap-2 py-2">
