@@ -13,15 +13,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
-# Primary engine: prefer non-superuser (DATABASE_URL_APP) for RLS enforcement,
-# fall back to DATABASE_URL for backward compatibility.
-_primary_url = settings.DATABASE_URL_APP or settings.DATABASE_URL
-engine = create_async_engine(_primary_url, echo=False, future=True)
+# Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
+engine = create_async_engine(settings.DATABASE_URL_APP, echo=False, future=True)
 
-# Admin engine: for migrations, background jobs, startup seeding.
-# Prefer DATABASE_URL_ADMIN (BYPASSRLS), fall back to DATABASE_URL.
-_admin_url = settings.DATABASE_URL_ADMIN or settings.DATABASE_URL
-admin_engine = create_async_engine(_admin_url, echo=False, future=True)
+# Admin engine: for background jobs and startup seeding (BYPASSRLS).
+admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False, future=True)
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
@@ -42,15 +38,14 @@ AdminSessionLocal = sessionmaker(
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-        if settings.ENABLE_RLS:
-            # Reset RLS variables from any previous request on this pooled connection.
-            # Uses set_config() in a single round-trip for efficiency.
-            await session.execute(text(
-                "SELECT set_config('app.current_user_id', '', false), "
-                "set_config('app.current_guild_id', '', false), "
-                "set_config('app.current_guild_role', '', false), "
-                "set_config('app.is_superadmin', 'false', false)"
-            ))
+        # Reset RLS variables from any previous request on this pooled connection.
+        # Uses set_config() in a single round-trip for efficiency.
+        await session.execute(text(
+            "SELECT set_config('app.current_user_id', '', false), "
+            "set_config('app.current_guild_id', '', false), "
+            "set_config('app.current_guild_role', '', false), "
+            "set_config('app.is_superadmin', 'false', false)"
+        ))
         yield session
 
 
@@ -78,9 +73,6 @@ async def set_rls_context(
     so that stale values from a previous request on the same pooled
     connection can never leak into the current request.
     """
-    if not settings.ENABLE_RLS:
-        return
-
     _VALID_ROLES = {"admin", "member"}
     if guild_role is not None and guild_role not in _VALID_ROLES:
         raise ValueError(f"Invalid guild_role: {guild_role!r}")
@@ -159,17 +151,13 @@ ALEMBIC_SCRIPT_LOCATION = BACKEND_DIR / "alembic"
 def _get_alembic_config() -> Config:
     config = Config(str(ALEMBIC_INI_PATH))
     config.set_main_option("script_location", str(ALEMBIC_SCRIPT_LOCATION))
-    # Use admin URL for migrations (has BYPASSRLS privilege), fall back to regular URL
-    migration_url = settings.DATABASE_URL_ADMIN or settings.DATABASE_URL
-    config.set_main_option("sqlalchemy.url", migration_url)
+    # Use superuser URL for migrations (needs CREATE ROLE and DDL privileges)
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
     config.attributes["configure_logger"] = False
+    config.attributes["url_configured"] = True
     return config
 
 
 async def run_migrations() -> None:
     config = _get_alembic_config()
     await asyncio.to_thread(command.upgrade, config, "head")
-
-
-async def init_models() -> None:  # Backwards compatibility for existing imports
-    await run_migrations()
