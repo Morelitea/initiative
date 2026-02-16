@@ -64,6 +64,19 @@ class CommentRead(CommentBase):
         from_attributes = True
 
 
+class RecentActivityEntry(BaseModel):
+    comment_id: int
+    content: str
+    created_at: datetime
+    author: Optional[CommentAuthor] = None
+    task_id: Optional[int] = None
+    task_title: Optional[str] = None
+    document_id: Optional[int] = None
+    document_title: Optional[str] = None
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+
+
 class MentionSuggestion(BaseModel):
     """A suggestion for mention autocomplete."""
 

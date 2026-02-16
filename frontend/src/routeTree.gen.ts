@@ -46,6 +46,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdRouteImport } from './route
 import { Route as ServerRequiredAuthenticatedDocumentsDocumentIdRouteImport } from './routes/_serverRequired/_authenticated/documents_.$documentId'
 import { Route as ServerRequiredAuthenticatedSettingsGuildIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/index'
 import { Route as ServerRequiredAuthenticatedSettingsAdminIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/index'
+import { Route as ServerRequiredAuthenticatedGGuildIdIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/index'
 import { Route as ServerRequiredAuthenticatedSettingsGuildUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/users'
 import { Route as ServerRequiredAuthenticatedSettingsGuildAiRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/ai'
 import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/users'
@@ -287,6 +288,12 @@ const ServerRequiredAuthenticatedSettingsAdminIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
   } as any)
+const ServerRequiredAuthenticatedGGuildIdIndexRoute =
+  ServerRequiredAuthenticatedGGuildIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
 const ServerRequiredAuthenticatedSettingsGuildUsersRoute =
   ServerRequiredAuthenticatedSettingsGuildUsersRouteImport.update({
     id: '/users',
@@ -492,6 +499,7 @@ export interface FileRoutesByFullPath {
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
   '/settings/guild/users': typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
+  '/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
   '/g/$guildId/documents/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
@@ -525,7 +533,6 @@ export interface FileRoutesByTo {
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/documents/$documentId': typeof ServerRequiredAuthenticatedDocumentsDocumentIdRoute
-  '/g/$guildId': typeof ServerRequiredAuthenticatedGGuildIdRouteWithChildren
   '/initiatives/$initiativeId': typeof ServerRequiredAuthenticatedInitiativesInitiativeIdRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
@@ -550,6 +557,7 @@ export interface FileRoutesByTo {
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
   '/settings/guild/users': typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
+  '/g/$guildId': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
   '/g/$guildId/documents/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
@@ -615,6 +623,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/_serverRequired/_authenticated/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
   '/_serverRequired/_authenticated/settings/guild/users': typeof ServerRequiredAuthenticatedSettingsGuildUsersRoute
+  '/_serverRequired/_authenticated/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/_serverRequired/_authenticated/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/_serverRequired/_authenticated/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
   '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
@@ -679,6 +688,7 @@ export interface FileRouteTypes {
     | '/settings/admin/users'
     | '/settings/guild/ai'
     | '/settings/guild/users'
+    | '/g/$guildId/'
     | '/settings/admin/'
     | '/settings/guild/'
     | '/g/$guildId/documents/$documentId'
@@ -712,7 +722,6 @@ export interface FileRouteTypes {
     | '/invite/$code'
     | '/oidc/callback'
     | '/documents/$documentId'
-    | '/g/$guildId'
     | '/initiatives/$initiativeId'
     | '/profile/ai'
     | '/profile/danger'
@@ -737,6 +746,7 @@ export interface FileRouteTypes {
     | '/settings/admin/users'
     | '/settings/guild/ai'
     | '/settings/guild/users'
+    | '/g/$guildId'
     | '/settings/admin'
     | '/settings/guild'
     | '/g/$guildId/documents/$documentId'
@@ -801,6 +811,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/admin/users'
     | '/_serverRequired/_authenticated/settings/guild/ai'
     | '/_serverRequired/_authenticated/settings/guild/users'
+    | '/_serverRequired/_authenticated/g/$guildId/'
     | '/_serverRequired/_authenticated/settings/admin/'
     | '/_serverRequired/_authenticated/settings/guild/'
     | '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId'
@@ -1081,6 +1092,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/admin/'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/': {
+      id: '/_serverRequired/_authenticated/g/$guildId/'
+      path: '/'
+      fullPath: '/g/$guildId/'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/settings/guild/users': {
       id: '/_serverRequired/_authenticated/settings/guild/users'
@@ -1388,6 +1406,7 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
   ServerRequiredAuthenticatedGGuildIdInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
   ServerRequiredAuthenticatedGGuildIdProjectsRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   ServerRequiredAuthenticatedGGuildIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
+  ServerRequiredAuthenticatedGGuildIdIndexRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
   ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
@@ -1408,6 +1427,8 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdProjectsRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren,
+    ServerRequiredAuthenticatedGGuildIdIndexRoute:
+      ServerRequiredAuthenticatedGGuildIdIndexRoute,
     ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute:
       ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute:

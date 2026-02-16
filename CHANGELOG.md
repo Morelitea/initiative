@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Guild Dashboard landing page at `/g/:guildId/` with project health, velocity chart, upcoming tasks, recent projects, and initiative overview
+- Guild switching now navigates to the dashboard instead of preserving the previous sub-path
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
 
 ## [0.30.0] - 2026-02-15

@@ -2,6 +2,7 @@ import "i18next";
 
 import type auth from "../../public/locales/en/auth.json";
 import type common from "../../public/locales/en/common.json";
+import type dashboard from "../../public/locales/en/dashboard.json";
 import type dates from "../../public/locales/en/dates.json";
 import type documents from "../../public/locales/en/documents.json";
 import type errors from "../../public/locales/en/errors.json";
@@ -26,6 +27,7 @@ declare module "i18next" {
     resources: {
       auth: typeof auth;
       common: typeof common;
+      dashboard: typeof dashboard;
       dates: typeof dates;
       documents: typeof documents;
       errors: typeof errors;
