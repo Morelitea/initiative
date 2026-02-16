@@ -134,6 +134,7 @@ git log --oneline --grep="bump version" -n 1
 **Rules:**
 
 - ✅ Update changelog for all feature additions, breaking changes, and bug fixes
+- ✅ Update the changelog **before** creating a PR, not after
 - ✅ Use `[Unreleased]` section if the current VERSION has already been tagged
 - ✅ Keep entries concise and user-focused
 - ❌ Do NOT add changelog entries for minor refactoring or internal changes
