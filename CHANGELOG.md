@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
+
 ## [0.30.0] - 2026-02-15
 
 ### Added

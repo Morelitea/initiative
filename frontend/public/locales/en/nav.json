@@ -4,6 +4,8 @@
   "initiatives": "Initiatives",
   "tags": "Tags",
   "favorites": "Favorites",
+  "allProjects": "All Projects",
+  "allDocuments": "All Documents",
   "noInitiativesAvailable": "No initiatives available",
   "addInitiative": "Add initiative",
   "noTagsCreated": "No tags created yet",
