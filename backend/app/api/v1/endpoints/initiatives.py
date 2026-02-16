@@ -38,6 +38,7 @@ from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services import documents as documents_service
+from app.services import rls as rls_service
 
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
@@ -99,9 +100,9 @@ async def _require_manager_access(
     guild_role: GuildRole | None = None,
 ) -> None:
     """Require that the user has manager-level access to the initiative."""
-    if guild_role == GuildRole.admin:
+    if guild_role is not None and rls_service.is_guild_admin(guild_role):
         return
-    is_manager = await initiatives_service.is_initiative_manager(
+    is_manager = await rls_service.is_initiative_manager(
         session,
         initiative_id=initiative.id,
         user=current_user,
@@ -147,7 +148,7 @@ async def list_initiatives(
             .selectinload(InitiativeRoleModel.permissions),
         )
     )
-    if guild_context.role != GuildRole.admin:
+    if not rls_service.is_guild_admin(guild_context.role):
         statement = (
             statement.join(InitiativeMember, InitiativeMember.initiative_id == Initiative.id)
             .where(InitiativeMember.user_id == current_user.id)
@@ -180,7 +181,7 @@ async def get_initiative(
     if not initiative:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND)
     # Check access: must be guild admin or initiative member
-    if guild_context.role != GuildRole.admin:
+    if not rls_service.is_guild_admin(guild_context.role):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=InitiativeMessages.NOT_A_MEMBER)
@@ -284,7 +285,7 @@ async def list_initiative_roles(
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
     # Check access: must be guild admin or initiative member
-    if guild_context.role != GuildRole.admin:
+    if not rls_service.is_guild_admin(guild_context.role):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=InitiativeMessages.NOT_A_MEMBER)
@@ -447,7 +448,7 @@ async def get_my_initiative_permissions(
     await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
     # Guild admins have all permissions
-    if guild_context.role == GuildRole.admin:
+    if rls_service.is_guild_admin(guild_context.role):
         return MyInitiativePermissions(
             is_manager=True,
             permissions={

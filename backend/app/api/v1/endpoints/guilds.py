@@ -24,6 +24,7 @@ from app.schemas.guild import (
 )
 from app.services import guilds as guilds_service
 from app.services import initiatives as initiatives_service
+from app.services import rls as rls_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -54,11 +55,10 @@ async def _ensure_guild_admin(
     # Set minimal RLS context so the guild_memberships query succeeds.
     # Full context is set by _set_guild_admin_rls after validation.
     await set_rls_context(session, user_id=user_id, is_superadmin=is_superadmin)
-    membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=user_id)
-    if membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ACCESS_DENIED)
-    if membership.role != GuildRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ADMIN_REQUIRED)
+    membership = await rls_service.require_guild_membership(
+        session, guild_id=guild_id, user_id=user_id,
+    )
+    rls_service.require_guild_admin(membership.role)
     return membership
 
 

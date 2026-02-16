@@ -115,33 +115,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for frontend changes
+        id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- frontend/ || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1...HEAD -- frontend/ || true)
+          fi
+          if [[ -z "$CHANGED" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No frontend changes — skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Frontend changes detected"
+          fi
 
       - name: Set up Node.js
+        if: steps.filter.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install pnpm
+        if: steps.filter.outputs.skip != 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
       - name: Install dependencies
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm install --frozen-lockfile
 
       - name: Lint
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm lint
 
       - name: TypeScript Check
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm tsc --noEmit
 
       - name: Run tests
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm vitest run --passWithNoTests

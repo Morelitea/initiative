@@ -11,10 +11,10 @@ from app.core.messages import TagMessages
 from app.db.session import reapply_rls_context
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.task import Task
-from app.models.project import Project, ProjectPermission, ProjectRolePermission
-from app.models.document import Document, DocumentPermission, DocumentRolePermission
-from app.models.initiative import InitiativeMember
+from app.models.project import Project
+from app.models.document import Document
 from app.models.user import User
+from app.services import permissions as permissions_service
 from app.schemas.tag import (
     TagCreate,
     TagRead,
@@ -169,18 +169,7 @@ async def get_tag_entities(
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
     # Build project access subquery (user + role)
-    user_project_perm = select(ProjectPermission.project_id).where(
-        ProjectPermission.user_id == current_user.id
-    )
-    role_project_perm = (
-        select(ProjectRolePermission.project_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == current_user.id),
-        )
-    )
-    project_access_subq = user_project_perm.union(role_project_perm)
+    project_access_subq = permissions_service.visible_project_ids_subquery(current_user.id)
 
     # Get tasks with this tag that user can access
     tasks_stmt = (
@@ -227,18 +216,7 @@ async def get_tag_entities(
     ]
 
     # Build document access subquery (user + role)
-    user_doc_perm = select(DocumentPermission.document_id).where(
-        DocumentPermission.user_id == current_user.id
-    )
-    role_doc_perm = (
-        select(DocumentRolePermission.document_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == current_user.id),
-        )
-    )
-    doc_access_subq = user_doc_perm.union(role_doc_perm)
+    doc_access_subq = permissions_service.visible_document_ids_subquery(current_user.id)
 
     # Get documents with this tag that user can access
     documents_stmt = (
