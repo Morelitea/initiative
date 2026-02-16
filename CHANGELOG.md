@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
+- Composite database indexes for query performance: tasks (project + archived, due date + status, updated_at), guild memberships (user + guild), and documents (updated_at)
+
+### Changed
+
+- Reorganized backend security architecture into two centralized service modules:
+  - `rls.py` — Mandatory Access Control: guild isolation, guild RBAC (admin-only writes), initiative membership, and initiative RBAC via PermissionKey
+  - `permissions.py` — Discretionary Access Control: project/document-level read/write/owner permissions with visibility subqueries
+- Centralized guild admin enforcement across all endpoints via `rls_service.is_guild_admin()` and `rls_service.require_guild_admin()`
+- Moved initiative security checks (`is_initiative_manager`, `check_initiative_permission`, `has_feature_access`) from initiatives service to `rls.py` (backward-compatible re-exports preserved)
+- Replaced duplicated permission logic in endpoint files (projects, documents, tasks, tags, imports, collaboration) with shared helpers from `permissions.py`
+- Consolidated visibility subquery patterns (`visible_project_ids_subquery`, `visible_document_ids_subquery`) to eliminate duplication across listing endpoints
 
 ## [0.30.0] - 2026-02-15
 

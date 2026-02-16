@@ -16,12 +16,18 @@ from app.models.initiative import (
     InitiativeRole,
     InitiativeRoleModel,
     InitiativeRolePermission,
-    PermissionKey,
     BUILTIN_ROLE_PERMISSIONS,
-    DEFAULT_PERMISSION_VALUES,
 )
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.user import UserInitiativeRole
+
+# Backward compatibility — these security functions moved to rls.py
+from app.services.rls import (  # noqa: F401
+    is_initiative_manager,
+    assert_initiative_manager,
+    check_initiative_permission,
+    has_feature_access,
+)
 
 DEFAULT_INITIATIVE_NAME = "Default Initiative"
 DEFAULT_INITIATIVE_COLOR = "#2563eb"
@@ -256,98 +262,6 @@ async def get_initiative_membership_with_role(
     )
     result = await session.exec(stmt)
     return result.one_or_none()
-
-
-async def is_initiative_manager(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-) -> bool:
-    """Check if user has manager-level role in the initiative."""
-    if user.role == UserRole.admin:
-        return True
-    membership = await get_initiative_membership_with_role(
-        session, initiative_id=initiative_id, user_id=user.id
-    )
-    if not membership or not membership.role_ref:
-        return False
-    return membership.role_ref.is_manager
-
-
-async def assert_initiative_manager(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-) -> None:
-    if await is_initiative_manager(session, initiative_id=initiative_id, user=user):
-        return
-    raise PermissionError(InitiativeMessages.MANAGER_REQUIRED)
-
-
-async def check_initiative_permission(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-    permission_key: PermissionKey | str,
-) -> bool:
-    """Check if user has a specific permission in the initiative.
-
-    Args:
-        session: Database session
-        initiative_id: ID of the initiative
-        user: User to check permissions for
-        permission_key: Permission to check (e.g., PermissionKey.create_docs)
-
-    Returns:
-        True if user has the permission, False otherwise
-    """
-    # App admins bypass permission checks
-    if user.role == UserRole.admin:
-        return True
-
-    membership = await get_initiative_membership_with_role(
-        session, initiative_id=initiative_id, user_id=user.id
-    )
-    if not membership or not membership.role_ref:
-        return False
-
-    # Managers with is_manager=True have all permissions
-    if membership.role_ref.is_manager:
-        return True
-
-    # Check specific permission
-    perm_key_enum = permission_key if isinstance(permission_key, PermissionKey) else PermissionKey(permission_key)
-    perm_key_str = perm_key_enum.value
-    for perm in membership.role_ref.permissions:
-        if perm.permission_key == perm_key_str:
-            return perm.enabled
-
-    # Permission not explicitly set - use documented default
-    return DEFAULT_PERMISSION_VALUES.get(perm_key_enum, False)
-
-
-async def has_feature_access(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-    feature: str,
-) -> bool:
-    """Check if user can see a feature (docs or projects).
-
-    Args:
-        feature: Either "docs" or "projects"
-    """
-    perm_key = PermissionKey.docs_enabled if feature == "docs" else PermissionKey.projects_enabled
-    return await check_initiative_permission(
-        session,
-        initiative_id=initiative_id,
-        user=user,
-        permission_key=perm_key,
-    )
 
 
 async def ensure_managers_remain(

@@ -13,7 +13,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.models.project import Project, ProjectPermissionLevel
+from app.models.project import Project
 from app.models.initiative import Initiative
 from app.models.user import User
 from app.schemas.import_data import (
@@ -27,6 +27,7 @@ from app.schemas.import_data import (
 )
 from app.core.messages import ImportMessages
 from app.services import import_service
+from app.services import permissions as permissions_service
 from app.services import task_statuses as task_statuses_service
 
 router = APIRouter()
@@ -40,7 +41,7 @@ async def _validate_project_write_access(
     user: User,
     guild_id: int,
 ) -> Project:
-    """Validate user has write access to a project using pure DAC."""
+    """Validate user has write access to a project using centralized DAC."""
     project_stmt = (
         select(Project)
         .join(Project.initiative)
@@ -48,7 +49,11 @@ async def _validate_project_write_access(
             Project.id == project_id,
             Initiative.guild_id == guild_id,
         )
-        .options(selectinload(Project.permissions))
+        .options(
+            selectinload(Project.permissions),
+            selectinload(Project.role_permissions),
+            selectinload(Project.initiative).selectinload(Initiative.memberships),
+        )
     )
     result = await session.exec(project_stmt)
     project = result.first()
@@ -64,26 +69,7 @@ async def _validate_project_write_access(
             detail=ImportMessages.PROJECT_ARCHIVED,
         )
 
-    # Pure DAC: check explicit project permission
-    permission = next(
-        (p for p in project.permissions if p.user_id == user.id),
-        None,
-    )
-
-    if not permission:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportMessages.NO_PERMISSION,
-        )
-
-    if permission.level not in (
-        ProjectPermissionLevel.owner,
-        ProjectPermissionLevel.write,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ImportMessages.INSUFFICIENT_PERMISSION,
-        )
+    permissions_service.require_project_access(project, user, access="write")
 
     return project
 
