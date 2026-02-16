@@ -531,6 +531,19 @@ export interface ProjectActivityResponse {
   project_id?: number;
 }
 
+export interface RecentActivityEntry {
+  comment_id: number;
+  content: string;
+  created_at: string;
+  author?: CommentAuthor | null;
+  task_id?: number | null;
+  task_title?: string | null;
+  document_id?: number | null;
+  document_title?: string | null;
+  project_id?: number | null;
+  project_name?: string | null;
+}
+
 export interface TaskReorderPayload {
   project_id: number;
   items: {

@@ -1,0 +1,60 @@
+{
+  "title": "Guild Overview",
+  "subtitle": "Guild overview and activity",
+  "loading": "Loading dashboard\u2026",
+  "error": "Failed to load dashboard data. Please try again later.",
+  "quickActions": {
+    "projects": "Projects",
+    "initiatives": "Initiatives",
+    "documents": "Documents"
+  },
+  "metrics": {
+    "tasksThisWeek": "Tasks This Week",
+    "onTimeRate": "On-Time Rate",
+    "currentStreak": "Current Streak",
+    "backlogTrend": "Backlog Trend",
+    "days": "days",
+    "growing": "Growing",
+    "shrinking": "Shrinking"
+  },
+  "projectHealth": {
+    "title": "Project Health",
+    "description": "Task completion progress by project",
+    "noProjects": "No projects yet",
+    "viewAll": "View all",
+    "tasks_one": "{{count}} task",
+    "tasks_other": "{{count}} tasks"
+  },
+  "upcomingTasks": {
+    "title": "Upcoming Tasks",
+    "description": "Tasks sorted by urgency",
+    "noTasks": "No upcoming tasks",
+    "overdue": "Overdue",
+    "today": "Today",
+    "upcoming": "Upcoming",
+    "viewAll": "View all"
+  },
+  "recentComments": {
+    "title": "Recent Comments",
+    "description": "Latest comments across the guild",
+    "noComments": "No comments yet",
+    "onTask": "on {{taskTitle}}",
+    "onDocument": "on {{documentTitle}}",
+    "inProject": "in {{projectName}}"
+  },
+  "recentProjects": {
+    "title": "Recent Projects",
+    "description": "Recently updated projects",
+    "noProjects": "No recent projects"
+  },
+  "initiatives": {
+    "title": "Initiatives",
+    "description": "Active initiatives in this guild",
+    "noInitiatives": "No initiatives yet",
+    "viewAll": "View all",
+    "member_one": "{{count}} member",
+    "member_other": "{{count}} members",
+    "project_one": "{{count}} project",
+    "project_other": "{{count}} projects"
+  }
+}
