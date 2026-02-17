@@ -518,14 +518,18 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const handleComposerOpenChange = (open: boolean) => {
     setIsComposerOpen(open);
-    // Clear ?create from URL when dialog closes
-    if (!open && searchParams.create) {
-      isClosingComposer.current = true;
-      router.navigate({
-        to: "/projects",
-        search: { initiativeId: searchParams.initiativeId },
-        replace: true,
-      });
+    // Reset grants when dialog closes so stale state doesn't persist
+    if (!open) {
+      setRoleGrants([]);
+      setUserGrants([]);
+      if (searchParams.create) {
+        isClosingComposer.current = true;
+        router.navigate({
+          to: "/projects",
+          search: { initiativeId: searchParams.initiativeId },
+          replace: true,
+        });
+      }
     }
   };
 
