@@ -974,12 +974,13 @@ async def create_project(
                     if membership.role_id == rp_schema.initiative_role_id:
                         granted_user_ids.add(membership.user_id)
 
-        # Only notify users who were granted access
+        # Only notify users who were explicitly granted access
+        has_any_grants = bool(project_in.role_permissions or project_in.user_permissions)
         for membership in project.initiative.memberships:
             member = membership.user
             if not member or member.id == current_user.id:
                 continue
-            if granted_user_ids and member.id not in granted_user_ids:
+            if not has_any_grants or member.id not in granted_user_ids:
                 continue
             await notifications_service.notify_project_added(
                 session,
