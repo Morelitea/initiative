@@ -227,15 +227,15 @@ export const CreateDocumentDialog = ({
         newDocument = response.data;
       }
 
-      // Auto-attach to project before permissions so a project-attach
-      // failure doesn't mask already-applied permission results
-      if (projectId) {
-        await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
-      }
-
-      // Apply permissions after project is attached (for copy/template path)
+      // Apply permissions before project-attach so they're always applied
+      // even if the attach call fails
       if (selectedTemplateId) {
         permissionFailures = await applyDocumentPermissions(newDocument.id);
+      }
+
+      // Auto-attach to project if specified
+      if (projectId) {
+        await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
 
       return { document: newDocument, permissionFailures };
@@ -282,14 +282,14 @@ export const CreateDocumentDialog = ({
 
       const newDocument = response.data;
 
-      // Auto-attach to project before permissions so a project-attach
-      // failure doesn't mask already-applied permission results
+      // Apply permissions before project-attach so they're always applied
+      // even if the attach call fails
+      const permissionFailures = await applyDocumentPermissions(newDocument.id);
+
+      // Auto-attach to project if specified
       if (projectId) {
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
-
-      // Apply permissions via follow-up calls (upload uses multipart, no nested JSON)
-      const permissionFailures = await applyDocumentPermissions(newDocument.id);
 
       return { document: newDocument, permissionFailures };
     },
