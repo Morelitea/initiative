@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VelocityWeekData(BaseModel):
@@ -29,6 +29,7 @@ class GuildTaskBreakdown(BaseModel):
 
 class UserStatsResponse(BaseModel):
     """Comprehensive user statistics response."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     streak: int = Field(..., description="Current streak of consecutive work days (Mon-Fri) with task activity")
     on_time_rate: float = Field(

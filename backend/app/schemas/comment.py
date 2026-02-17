@@ -3,18 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class CommentAuthor(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: str
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     avatar_base64: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class CommentBase(BaseModel):
@@ -50,6 +49,8 @@ class CommentUpdate(CommentBase):
 
 
 class CommentRead(CommentBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     author_id: int
     task_id: Optional[int] = None
@@ -59,9 +60,6 @@ class CommentRead(CommentBase):
     updated_at: Optional[datetime] = None
     author: Optional[CommentAuthor] = None
     project_id: Optional[int] = None
-
-    class Config:
-        from_attributes = True
 
 
 class RecentActivityEntry(BaseModel):

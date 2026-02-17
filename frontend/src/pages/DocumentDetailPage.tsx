@@ -133,7 +133,7 @@ export const DocumentDetailPage = () => {
 
   const document = documentQuery.data;
   const normalizedDocumentContent = useMemo(
-    () => normalizeEditorState(document?.content),
+    () => normalizeEditorState(document?.content as SerializedEditorState | null | undefined),
     [document]
   );
 

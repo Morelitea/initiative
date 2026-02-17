@@ -9,9 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- CI check (`check-generated-types` job) that fails when Orval-generated frontend types drift from backend schemas
+- Auto-generated frontend TypeScript types and React Query hooks from the backend OpenAPI spec using Orval
+  - Generated files in `frontend/src/api/generated/` committed to the repo so the frontend builds without a running backend
+  - `frontend/src/types/api.ts` now re-exports generated types with backward-compatible aliases (e.g., `Task = TaskListRead`)
+  - Custom Axios mutator (`frontend/src/api/mutator.ts`) preserves existing auth/guild interceptors
+  - `pnpm generate:api` script to regenerate from a running backend
+- CI check (`check-generated-types` job) that fails when generated frontend types drift from backend schemas
 - `backend/scripts/export_openapi.py` to export OpenAPI spec without a running server (used by CI)
-- `--from-spec <path>` flag on `frontend/scripts/generate-api.sh` for offline spec generation
+
+### Changed
+
+- Backend Pydantic schemas now use `ConfigDict(json_schema_serialization_defaults_required=True)` so optional fields with defaults appear as required in the OpenAPI spec, producing cleaner generated types
+- `frontend/src/types/api.ts` replaced ~800 lines of hand-maintained type definitions with re-exports from Orval-generated types
 - Guild Dashboard landing page at `/g/:guildId/` with project health, velocity chart, upcoming tasks, recent projects, and initiative overview
 - Guild switching now navigates to the dashboard instead of preserving the previous sub-path
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives

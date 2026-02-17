@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, computed_field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
 
 from app.models.initiative import InitiativeRole
 from app.models.user import UserRole
@@ -44,18 +44,18 @@ class UserUpdate(BaseModel):
 
 class UserPublic(BaseModel):
     """Public user information exposed to other users"""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     email: EmailStr
     full_name: Optional[str] = None
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class UserGuildMember(UserPublic):
     """User information for guild member management (includes role/status but not personal settings)"""
+
     role: UserRole  # Platform role
     guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
@@ -64,11 +64,10 @@ class UserGuildMember(UserPublic):
     created_at: datetime
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
-    class Config:
-        from_attributes = True
-
 
 class UserRead(UserBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     is_active: bool
     email_verified: bool
@@ -102,9 +101,6 @@ class UserRead(UserBase):
             return True
         # When disabled, only platform admins can create guilds
         return self.role == UserRole.admin
-
-    class Config:
-        from_attributes = True
 
 
 class UserInDB(UserRead):
@@ -141,12 +137,11 @@ class UserSelfUpdate(BaseModel):
 
 class ProjectBasic(BaseModel):
     """Basic project information for deletion flow"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     initiative_id: int
-
-    class Config:
-        from_attributes = True
 
 
 class AccountDeletionRequest(BaseModel):
@@ -159,6 +154,8 @@ class AccountDeletionRequest(BaseModel):
 
 class DeletionEligibilityResponse(BaseModel):
     """Response indicating whether user can be deleted and any blockers"""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
@@ -168,6 +165,8 @@ class DeletionEligibilityResponse(BaseModel):
 
 class AccountDeletionResponse(BaseModel):
     """Response after account deletion attempt"""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     success: bool
     deletion_type: str
     message: str

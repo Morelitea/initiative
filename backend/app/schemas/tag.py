@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TagBase(BaseModel):
@@ -35,22 +35,20 @@ class TagUpdate(BaseModel):
 
 class TagSummary(BaseModel):
     """Lightweight tag representation for embedding in other schemas."""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     name: str
     color: str
 
-    class Config:
-        from_attributes = True
-
 
 class TagRead(TagBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     guild_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class TagSetRequest(BaseModel):
@@ -60,39 +58,38 @@ class TagSetRequest(BaseModel):
 
 class TaggedEntitiesResponse(BaseModel):
     """Response for GET /tags/{id}/entities - all entities with a given tag."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     tasks: List["TaggedTaskSummary"] = Field(default_factory=list)
     projects: List["TaggedProjectSummary"] = Field(default_factory=list)
     documents: List["TaggedDocumentSummary"] = Field(default_factory=list)
 
 
 class TaggedTaskSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     title: str
     project_id: int
     project_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class TaggedProjectSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     name: str
     initiative_id: int
     initiative_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class TaggedDocumentSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     title: str
     initiative_id: int
     initiative_name: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 # Update forward references
