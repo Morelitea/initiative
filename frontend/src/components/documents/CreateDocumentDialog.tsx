@@ -211,8 +211,6 @@ export const CreateDocumentDialog = ({
           { target_initiative_id: effectiveInitiativeId, title: trimmedTitle }
         );
         newDocument = response.data;
-        // Apply permissions via follow-up calls for copy path
-        permissionFailures = await applyDocumentPermissions(newDocument.id);
       } else {
         const payload: Record<string, unknown> = {
           title: trimmedTitle,
@@ -229,9 +227,15 @@ export const CreateDocumentDialog = ({
         newDocument = response.data;
       }
 
-      // Auto-attach to project if specified
+      // Auto-attach to project before permissions so a project-attach
+      // failure doesn't mask already-applied permission results
       if (projectId) {
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
+      }
+
+      // Apply permissions after project is attached (for copy/template path)
+      if (selectedTemplateId) {
+        permissionFailures = await applyDocumentPermissions(newDocument.id);
       }
 
       return { document: newDocument, permissionFailures };
@@ -278,13 +282,14 @@ export const CreateDocumentDialog = ({
 
       const newDocument = response.data;
 
-      // Apply permissions via follow-up calls (upload uses multipart, no nested JSON)
-      const permissionFailures = await applyDocumentPermissions(newDocument.id);
-
-      // Auto-attach to project if specified
+      // Auto-attach to project before permissions so a project-attach
+      // failure doesn't mask already-applied permission results
       if (projectId) {
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
+
+      // Apply permissions via follow-up calls (upload uses multipart, no nested JSON)
+      const permissionFailures = await applyDocumentPermissions(newDocument.id);
 
       return { document: newDocument, permissionFailures };
     },
