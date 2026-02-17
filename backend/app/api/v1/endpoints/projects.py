@@ -900,10 +900,10 @@ async def create_project(
 
     # Process optional role permissions from request
     granted_user_ids: set[int] = set()
+    valid_role_ids: set[int] = set()
     if project_in.role_permissions:
         # Validate each role belongs to this initiative
         role_ids = {rp.initiative_role_id for rp in project_in.role_permissions if rp.level != ProjectPermissionLevel.owner}
-        valid_role_ids: set[int] = set()
         if role_ids:
             result = await session.exec(
                 select(InitiativeRoleModel.id).where(
@@ -967,9 +967,11 @@ async def create_project(
 
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if project.initiative_id and project.initiative:
-        # Collect user IDs who hold a granted role
-        if project_in.role_permissions:
+        # Collect user IDs who hold a validated granted role
+        if project_in.role_permissions and valid_role_ids:
             for rp_schema in project_in.role_permissions:
+                if rp_schema.initiative_role_id not in valid_role_ids:
+                    continue
                 for membership in project.initiative.memberships:
                     if membership.role_id == rp_schema.initiative_role_id:
                         granted_user_ids.add(membership.user_id)
