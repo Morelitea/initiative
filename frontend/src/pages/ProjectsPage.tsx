@@ -161,6 +161,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const [isTemplateProject, setIsTemplateProject] = useState(false);
   const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
   const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
     return getItem(PROJECT_SEARCH_KEY) ?? "";
   });
@@ -1254,6 +1255,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                           userGrants={userGrants}
                           onUserGrantsChange={setUserGrants}
                           addAllMembersDefault
+                          onLoadingChange={setAccessLoading}
                         />
                       </AccordionContent>
                     </AccordionItem>
@@ -1271,7 +1273,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       >
                         {t("common:cancel")}
                       </Button>
-                      <Button type="submit" disabled={createProject.isPending}>
+                      <Button type="submit" disabled={createProject.isPending || accessLoading}>
                         {createProject.isPending
                           ? t("createDialog.creating")
                           : t("createDialog.createProject")}

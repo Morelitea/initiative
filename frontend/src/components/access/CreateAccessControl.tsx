@@ -50,6 +50,7 @@ interface CreateAccessControlProps {
   userGrants: UserGrant[];
   onUserGrantsChange: (grants: UserGrant[]) => void;
   addAllMembersDefault?: boolean;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ export const CreateAccessControl = ({
   userGrants,
   onUserGrantsChange,
   addAllMembersDefault = false,
+  onLoadingChange,
 }: CreateAccessControlProps) => {
   const { t } = useTranslation("common");
   const { user: currentUser } = useAuth();
@@ -69,7 +71,7 @@ export const CreateAccessControl = ({
 
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
 
-  const { data: initiative } = useQuery<Initiative>({
+  const { data: initiative, isLoading: initiativeLoading } = useQuery<Initiative>({
     queryKey: ["initiatives", initiativeId],
     queryFn: async () => {
       const response = await apiClient.get<Initiative>(`/initiatives/${initiativeId}`);
@@ -77,6 +79,10 @@ export const CreateAccessControl = ({
     },
     enabled: !!initiativeId,
   });
+
+  useEffect(() => {
+    onLoadingChange?.(initiativeLoading);
+  }, [initiativeLoading, onLoadingChange]);
 
   const members = useMemo(() => {
     if (!initiative?.members) return [];
