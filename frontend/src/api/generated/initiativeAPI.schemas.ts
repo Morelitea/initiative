@@ -2523,6 +2523,10 @@ export type ListDocumentsApiV1DocumentsGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * Filter to documents with no tags
+   */
+  untagged?: boolean | null;
+  /**
    * @minimum 1
    */
   page?: number;
