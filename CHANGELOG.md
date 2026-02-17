@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-02-16
+
 ### Added
 
 - Auto-generated frontend TypeScript types and React Query hooks from the backend OpenAPI spec using Orval
