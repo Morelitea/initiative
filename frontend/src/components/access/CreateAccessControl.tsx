@@ -91,6 +91,11 @@ export const CreateAccessControl = ({
 
   const [addAllMembers, setAddAllMembers] = useState(addAllMembersDefault);
 
+  // Sync internal state if the parent changes addAllMembersDefault
+  useEffect(() => {
+    setAddAllMembers(addAllMembersDefault);
+  }, [addAllMembersDefault]);
+
   // When initiative changes or members load, auto-populate if addAllMembers is active
   useEffect(() => {
     if (addAllMembers && members.length > 0) {
