@@ -230,6 +230,16 @@ export const CreateDocumentDialog = ({
         }
         const response = await apiClient.post<DocumentRead>("/documents/", payload);
         newDocument = response.data;
+
+        // Verify the backend applied the expected grants (it silently drops
+        // invalid entries like cross-initiative roles). Count mismatches as
+        // failures so the user sees the same warning as copy/upload paths.
+        const appliedRoles = newDocument.role_permissions?.length ?? 0;
+        const appliedUsers = (newDocument.permissions?.length ?? 1) - 1; // exclude owner
+        if (roleGrants.length > appliedRoles || userGrants.length > appliedUsers) {
+          permissionFailures +=
+            roleGrants.length - appliedRoles + (userGrants.length - appliedUsers);
+        }
       }
 
       // Apply permissions before project-attach so they're always applied
