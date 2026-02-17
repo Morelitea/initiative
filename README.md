@@ -130,9 +130,8 @@ Whether you're managing a single team or multiple client workspaces, Initiative 
 The fastest way to get Initiative running:
 
 ```bash
-# 1. Download the example compose file and database init script
+# 1. Download the example compose file
 curl -O https://raw.githubusercontent.com/Morelitea/initiative/main/docker-compose.example.yml
-mkdir -p docker && curl -o docker/init-db.sh https://raw.githubusercontent.com/Morelitea/initiative/main/docker/init-db.sh
 cp docker-compose.example.yml docker-compose.yml
 
 # 2. Edit configuration
@@ -159,12 +158,12 @@ Also configure env variables according to your preferences, see [Key Environment
 
 **How database security works:**
 
-The example compose file sets up two database roles automatically via `docker/init-db.sh`:
+The baseline migration automatically creates two database roles on first run:
 
 - **`app_user`** — Used for all user-facing API queries. This role has no `BYPASSRLS` privilege, so PostgreSQL Row Level Security policies enforce guild-level data isolation at the database layer.
 - **`app_admin`** — Used for migrations, startup seeding, and background jobs. Has `BYPASSRLS` for administrative operations.
 
-Passwords for these roles are configured via `APP_USER_PASSWORD` and `APP_ADMIN_PASSWORD` in the compose file. The corresponding connection strings (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN`) are built from these passwords automatically.
+Passwords for these roles are extracted from `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` in the compose file. Both are **required** environment variables.
 
 **First-time setup:**
 
@@ -172,9 +171,13 @@ Passwords for these roles are configured via `APP_USER_PASSWORD` and `APP_ADMIN_
 - Configure SMTP settings in the admin panel to enable email notifications
 - Create your first guild and start inviting team members
 
-**Upgrading from pre-RLS versions:**
+**Upgrading from v0.30.0:**
 
-If you're upgrading an existing deployment, add `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` to your compose file (see `docker-compose.example.yml`). The database migration will automatically create the roles and set passwords from these URLs. Existing setups without these variables continue to work via the `DATABASE_URL` fallback, but RLS enforcement will not be active.
+If you're on v0.30.0, the baseline migration is a no-op — your database is already up to date. You can safely remove `docker/init-db.sh` if present, as role creation is now handled by the migration.
+
+**Upgrading from pre-v0.30.0:**
+
+Run `scripts/upgrade-to-baseline.sql` against your database first, then start the new version. See the script header for instructions.
 
 ---
 

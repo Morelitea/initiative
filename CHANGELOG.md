@@ -33,7 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ENABLE_RLS` environment variable — RLS is always active; remove this from your `.env` if present
 - `init_models()` backwards-compatibility alias (use `import app.db.base` directly)
 - `docker/init-db.sh` — database role creation is now handled by the baseline migration itself
-- 76 individual migration files replaced by single baseline (existing v0.30.0 databases upgrade seamlessly; pre-v0.30.0 databases must upgrade to v0.30.0 first)
+- 76 individual migration files replaced by single baseline (existing v0.30.0 databases upgrade seamlessly)
+
+### Upgrade Notes
+
+- **From v0.30.0**: No action needed — the baseline migration is a no-op for existing databases. You can safely remove `docker/init-db.sh` if present.
+- **From pre-v0.30.0 (v0.14.1–v0.29.x)**: The application will detect the old schema and exit with instructions. Run the upgrade script before starting:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+    -o upgrade-to-baseline.sql
+  psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
+  ```
+  Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.
 
 ## [0.30.0] - 2026-02-15
 

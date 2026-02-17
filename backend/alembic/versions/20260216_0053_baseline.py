@@ -1696,14 +1696,13 @@ def upgrade() -> None:
     # be missing from a partial previous run or a setup without init-db.sh).
     _create_roles(connection)
 
-    # If the schema already exists (v0.30.0 upgrade), skip DDL.
-    if _table_exists(connection, "users"):
-        print("Baseline: schema already exists, nothing to do.")
-        return
+    # If the schema already exists (v0.30.0 upgrade), skip DDL but still
+    # ensure RLS policies and grants are applied (they may be missing if
+    # the database was upgraded via the SQL script or a partial run).
+    if not _table_exists(connection, "users"):
+        _create_schema(connection)
 
-    _create_schema(connection)
-
-    # Create after tables exist (references initiative_members).
+    # Create/replace helper function (idempotent, must exist before RLS policies).
     connection.execute(text("""
     CREATE OR REPLACE FUNCTION is_initiative_member(
         p_initiative_id integer, p_user_id integer
