@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.user import UserPublic
 from app.schemas.task_status import TaskStatusRead
@@ -14,13 +14,12 @@ from app.models.task import TaskPriority
 
 class TaskAssigneeSummary(BaseModel):
     """Minimal assignee data for task lists"""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     avatar_base64: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 WeekdayLiteral = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -30,6 +29,8 @@ RecurrenceEndsLiteral = Literal["never", "on_date", "after_occurrences"]
 
 
 class TaskRecurrence(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     frequency: Literal["daily", "weekly", "monthly", "yearly"]
     interval: int = Field(default=1, ge=1, le=365)
     weekdays: List[WeekdayLiteral] = Field(default_factory=list)
@@ -132,15 +133,16 @@ class TaskMoveRequest(BaseModel):
 
 
 class TaskProjectInitiativeSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     name: str
     color: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class TaskProjectSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     name: str
     icon: Optional[str] = None
@@ -149,11 +151,10 @@ class TaskProjectSummary(BaseModel):
     is_archived: Optional[bool] = None
     is_template: Optional[bool] = None
 
-    class Config:
-        from_attributes = True
-
 
 class TaskRead(TaskBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     project_id: int
     task_status_id: int
@@ -170,12 +171,11 @@ class TaskRead(TaskBase):
     subtask_progress: Optional[TaskSubtaskProgress] = None
     tags: List[TagSummary] = []
 
-    class Config:
-        from_attributes = True
-
 
 class TaskListRead(TaskBase):
     """Lightweight schema for task list endpoints - excludes heavy nested data"""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     project_id: int
     task_status_id: int
@@ -196,11 +196,10 @@ class TaskListRead(TaskBase):
     subtask_progress: Optional[TaskSubtaskProgress] = None
     tags: List[TagSummary] = []
 
-    class Config:
-        from_attributes = True
-
 
 class TaskListResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     items: List[TaskListRead]
     total_count: int
     page: int

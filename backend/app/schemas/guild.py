@@ -19,14 +19,13 @@ class GuildCreate(GuildBase):
 
 
 class GuildRead(GuildBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     role: GuildRole
     position: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class GuildInviteCreate(BaseModel):
@@ -36,6 +35,8 @@ class GuildInviteCreate(BaseModel):
 
 
 class GuildInviteRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     code: str
     guild_id: int
@@ -46,15 +47,14 @@ class GuildInviteRead(BaseModel):
     invitee_email: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class GuildInviteAcceptRequest(BaseModel):
     code: str
 
 
 class GuildInviteStatus(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     code: str
     guild_id: Optional[int] = None
     guild_name: Optional[str] = None
@@ -77,12 +77,11 @@ class GuildOrderUpdate(BaseModel):
 
 
 class GuildSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     name: str
     icon_base64: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class GuildMembershipUpdate(BaseModel):
@@ -92,6 +91,8 @@ class GuildMembershipUpdate(BaseModel):
 
 class LeaveGuildEligibilityResponse(BaseModel):
     """Response for checking if a user can leave a guild."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     can_leave: bool
     is_last_admin: bool
     sole_pm_initiatives: list[str] = []

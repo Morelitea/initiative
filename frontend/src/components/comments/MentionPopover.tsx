@@ -172,7 +172,7 @@ export const MentionPopover = ({
               index === selectedIndex ? "bg-accent" : ""
             }`}
           >
-            {getIcon(suggestion.type)}
+            {getIcon(suggestion.type as MentionEntityType)}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{suggestion.display_text}</p>
               {suggestion.subtitle && (

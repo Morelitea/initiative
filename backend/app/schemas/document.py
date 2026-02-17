@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.document import DocumentPermissionLevel
 from app.schemas.initiative import InitiativeRead, serialize_initiative
@@ -60,14 +60,13 @@ class DocumentRolePermissionUpdate(BaseModel):
 
 
 class DocumentRolePermissionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     initiative_role_id: int
     role_name: str = ""
     role_display_name: str = ""
     level: DocumentPermissionLevel
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class DocumentPermissionCreate(BaseModel):
@@ -89,35 +88,34 @@ class DocumentPermissionUpdate(BaseModel):
 
 
 class DocumentPermissionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     user_id: int
     level: DocumentPermissionLevel
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class DocumentAutocomplete(BaseModel):
     """Lightweight document info for autocomplete/wikilinks."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class DocumentBacklink(BaseModel):
     """Document that links to another document."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class DocumentSummary(DocumentBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     created_by_id: int
     updated_by_id: int
@@ -137,11 +135,10 @@ class DocumentSummary(DocumentBase):
     original_filename: Optional[str] = None
     my_permission_level: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class DocumentListResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     items: List[DocumentSummary]
     total_count: int
     page: int
@@ -152,6 +149,8 @@ class DocumentListResponse(BaseModel):
 
 
 class DocumentCountsResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     total_count: int
     untagged_count: int
     tag_counts: Dict[int, int]
@@ -162,6 +161,8 @@ class DocumentRead(DocumentSummary):
 
 
 class ProjectDocumentSummary(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     document_id: int
     title: str
     updated_at: datetime

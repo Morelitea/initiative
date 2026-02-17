@@ -15,7 +15,7 @@ interface UpcomingTasksListProps {
 }
 
 function getDueBadgeVariant(
-  dueDate: string | undefined
+  dueDate: string | null | undefined
 ): "destructive" | "default" | "secondary" | null {
   if (!dueDate) return null;
   const due = parseISO(dueDate);
@@ -25,7 +25,7 @@ function getDueBadgeVariant(
   return "secondary";
 }
 
-function getDueBadgeLabelKey(dueDate: string | undefined): string | null {
+function getDueBadgeLabelKey(dueDate: string | null | undefined): string | null {
   if (!dueDate) return null;
   const due = parseISO(dueDate);
   const now = new Date();

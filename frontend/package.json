@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "test": "vitest",
     "test:run": "vitest run",
+    "generate:api": "./scripts/generate-api.sh",
     "prepare": "cd .. && husky ./frontend/.husky"
   },
   "dependencies": {
@@ -136,6 +137,7 @@
     "jsdom": "^25.0.1",
     "lint-staged": "^16.2.7",
     "msw": "^2.12.10",
+    "orval": "^8.4.0",
     "postcss": "^8.4.38",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.1",

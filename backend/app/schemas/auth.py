@@ -1,10 +1,12 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class VerificationSendResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     status: str
 
 
@@ -34,6 +36,7 @@ class DeviceTokenRequest(BaseModel):
 
 class DeviceTokenResponse(BaseModel):
     """Response containing the device token."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     device_token: str
     token_type: str = "device_token"
@@ -41,6 +44,7 @@ class DeviceTokenResponse(BaseModel):
 
 class DeviceTokenInfo(BaseModel):
     """Information about a device token (for listing/management)."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: int
     device_name: Optional[str]

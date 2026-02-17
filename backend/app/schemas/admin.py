@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.guild import GuildRole
 from app.models.initiative import InitiativeRole
@@ -17,6 +17,8 @@ class PlatformRoleUpdate(BaseModel):
 
 class PlatformAdminCountResponse(BaseModel):
     """Response schema for platform admin count."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     count: int
 
 
@@ -28,6 +30,8 @@ class AdminUserDeleteRequest(BaseModel):
 
 class GuildBlockerInfo(BaseModel):
     """Info about a guild blocking user deletion."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     guild_id: int
     guild_name: str
     other_members: List[UserPublic] = Field(default_factory=list)
@@ -35,6 +39,8 @@ class GuildBlockerInfo(BaseModel):
 
 class InitiativeBlockerInfo(BaseModel):
     """Info about an initiative blocking user deletion."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     initiative_id: int
     initiative_name: str
     guild_id: int
@@ -43,6 +49,8 @@ class InitiativeBlockerInfo(BaseModel):
 
 class AdminDeletionEligibilityResponse(BaseModel):
     """Enhanced eligibility response with actionable blocker details."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     can_delete: bool
     blockers: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
