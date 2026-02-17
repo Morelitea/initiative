@@ -169,3 +169,83 @@ jobs:
         run: |
           cd frontend
           pnpm vitest run --passWithNoTests
+
+  check-generated-types:
+    name: Check Generated Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for backend changes
+        id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1...HEAD -- backend/ || true)
+          fi
+          if [[ -z "$CHANGED" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No backend changes — skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Backend changes detected"
+          fi
+
+      - name: Set up Python
+        if: steps.filter.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Export OpenAPI spec
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd backend
+          python scripts/export_openapi.py ../frontend/openapi.json
+
+      - name: Set up Node.js
+        if: steps.filter.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        if: steps.filter.outputs.skip != 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend dependencies
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd frontend
+          pnpm install --frozen-lockfile
+
+      - name: Regenerate types
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd frontend
+          pnpm orval
+
+      - name: Check for drift
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          if ! git diff --exit-code frontend/src/api/generated/; then
+            echo ""
+            echo "ERROR: Generated types are out of date!"
+            echo "Run 'pnpm generate:api' in the frontend directory and commit the results."
+            echo ""
+            exit 1
+          fi
+          echo "Generated types are up to date."

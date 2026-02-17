@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CI check (`check-generated-types` job) that fails when Orval-generated frontend types drift from backend schemas
+- `backend/scripts/export_openapi.py` to export OpenAPI spec without a running server (used by CI)
+- `--from-spec <path>` flag on `frontend/scripts/generate-api.sh` for offline spec generation
 - Guild Dashboard landing page at `/g/:guildId/` with project health, velocity chart, upcoming tasks, recent projects, and initiative overview
 - Guild switching now navigates to the dashboard instead of preserving the previous sub-path
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives

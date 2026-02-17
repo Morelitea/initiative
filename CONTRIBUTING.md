@@ -71,6 +71,25 @@ Both linters must pass before merging.
 
 Tests are co-located next to source files (`_test.py` for backend, `.test.ts` for frontend). Shared test factories live in `backend/app/testing/` and `frontend/src/__tests__/factories/`.
 
+## Generated API Types
+
+Frontend TypeScript types and React Query hooks are auto-generated from the backend's OpenAPI spec using [Orval](https://orval.dev). The generated files live in `frontend/src/api/generated/` and are committed to the repo.
+
+**When you change backend schemas** (`backend/app/schemas/`), you must regenerate the frontend types:
+
+```bash
+# With the backend running locally:
+cd frontend && pnpm generate:api
+
+# Or without a running backend (export spec directly):
+cd backend && python scripts/export_openapi.py ../frontend/openapi.json
+cd frontend && pnpm orval
+```
+
+Commit the updated generated files alongside your schema changes. CI will fail if generated types are out of date.
+
+**Important:** Do not hand-edit files in `frontend/src/api/generated/` — they will be overwritten on the next generation run.
+
 ## Submitting Changes
 
 1. Fork the repo and create a branch from **`dev`**
