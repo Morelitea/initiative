@@ -38,6 +38,7 @@ frontend/capacitor.config.js
 frontend/capacitor.config.d.ts
 frontend/vitest.config.js
 frontend/vitest.config.d.ts
+frontend/openapi.json
 
 # Firebase (keep template, ignore actual config)
 frontend/android/app/google-services.json

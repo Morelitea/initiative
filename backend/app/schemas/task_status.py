@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.task import TaskStatusCategory
 
@@ -27,11 +27,10 @@ class TaskStatusUpdate(BaseModel):
 
 
 class TaskStatusRead(TaskStatusBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     project_id: int
-
-    class Config:
-        from_attributes = True
 
 
 class TaskStatusDeleteRequest(BaseModel):

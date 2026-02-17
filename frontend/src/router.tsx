@@ -6,7 +6,7 @@ import type { Guild } from "./types/api";
 
 // Define the router context types
 export interface AuthContextValue {
-  user: { id: number; email: string; full_name?: string } | null;
+  user: { id: number; email: string; full_name?: string | null } | null;
   token: string | null;
   loading: boolean;
   isDeviceToken: boolean;

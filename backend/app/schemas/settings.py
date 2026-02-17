@@ -1,8 +1,10 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 class OIDCSettingsResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     enabled: bool
     issuer: Optional[str] = None
     client_id: Optional[str] = None
@@ -25,6 +27,8 @@ class OIDCSettingsUpdate(BaseModel):
 
 
 class InterfaceSettingsResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     light_accent_color: str
     dark_accent_color: str
 
@@ -35,6 +39,8 @@ class InterfaceSettingsUpdate(BaseModel):
 
 
 class RoleLabelsResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     admin: str
     project_manager: str
     member: str
@@ -47,6 +53,8 @@ class RoleLabelsUpdate(BaseModel):
 
 
 class EmailSettingsResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     host: Optional[str] = None
     port: Optional[int] = None
     secure: bool = False
@@ -93,6 +101,8 @@ class OIDCClaimMappingUpdate(BaseModel):
 
 
 class OIDCClaimMappingRead(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     id: int
     claim_value: str
     target_type: str
@@ -110,5 +120,7 @@ class OIDCClaimPathUpdate(BaseModel):
 
 
 class OIDCMappingsResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     claim_path: Optional[str] = None
     mappings: List[OIDCClaimMappingRead] = Field(default_factory=list)

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.project import ProjectPermissionLevel
 from app.schemas.initiative import InitiativeRead
@@ -47,14 +47,13 @@ class ProjectRolePermissionUpdate(BaseModel):
 
 
 class ProjectRolePermissionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     initiative_role_id: int
     role_name: str = ""
     role_display_name: str = ""
     level: ProjectPermissionLevel
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ProjectPermissionBase(BaseModel):
@@ -80,18 +79,21 @@ class ProjectPermissionUpdate(BaseModel):
 
 
 class ProjectPermissionRead(ProjectPermissionBase):
-    created_at: datetime
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
-    class Config:
-        from_attributes = True
+    created_at: datetime
 
 
 class ProjectTaskSummary(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     total: int = 0
     completed: int = 0
 
 
 class ProjectRead(ProjectBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     owner_id: int
     initiative_id: int
@@ -113,20 +115,21 @@ class ProjectRead(ProjectBase):
     tags: List[TagSummary] = Field(default_factory=list)
     my_permission_level: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class ProjectReorderRequest(BaseModel):
     project_ids: List[int] = Field(default_factory=list)
 
 
 class ProjectFavoriteStatus(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     project_id: int
     is_favorited: bool
 
 
 class ProjectRecentViewRead(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     project_id: int
     last_viewed_at: datetime
 
@@ -141,5 +144,7 @@ class ProjectActivityEntry(BaseModel):
 
 
 class ProjectActivityResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     items: List[ProjectActivityEntry]
     next_page: Optional[int] = None

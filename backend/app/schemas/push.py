@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PushTokenRegisterRequest(BaseModel):
@@ -19,6 +19,7 @@ class PushTokenUnregisterRequest(BaseModel):
 
 class PushTokenResponse(BaseModel):
     """Generic response for push token operations."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     status: str
 
@@ -29,6 +30,7 @@ class FCMConfigResponse(BaseModel):
     Only exposes public fields (API key, project ID, sender ID).
     Does NOT expose service account credentials.
     """
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     enabled: bool
     project_id: Optional[str] = None

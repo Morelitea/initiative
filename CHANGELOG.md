@@ -9,13 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Auto-generated frontend TypeScript types and React Query hooks from the backend OpenAPI spec using Orval
+  - Generated files in `frontend/src/api/generated/` committed to the repo so the frontend builds without a running backend
+  - `frontend/src/types/api.ts` now re-exports generated types with backward-compatible aliases (e.g., `Task = TaskListRead`)
+  - Custom Axios mutator (`frontend/src/api/mutator.ts`) preserves existing auth/guild interceptors
+  - `pnpm generate:api` script to regenerate from a running backend
+- CI check (`check-generated-types` job) that fails when generated frontend types drift from backend schemas
+- `backend/scripts/export_openapi.py` to export OpenAPI spec without a running server (used by CI)
+
+### Changed
+
+- Backend Pydantic schemas now use `ConfigDict(json_schema_serialization_defaults_required=True)` so optional fields with defaults appear as required in the OpenAPI spec, producing cleaner generated types
+- `frontend/src/types/api.ts` replaced ~800 lines of hand-maintained type definitions with re-exports from Orval-generated types
+- Excluded `src/api/generated/**` from ESLint (Orval generates function overloads that trigger `no-redeclare`)
+- CI backend test scoping now treats `app/schemas/` as shared infrastructure, triggering a full test run when schemas change
 - Guild Dashboard landing page at `/g/:guildId/` with project health, velocity chart, upcoming tasks, recent projects, and initiative overview
 - Guild switching now navigates to the dashboard instead of preserving the previous sub-path
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
 - Composite database indexes for query performance: tasks (project + archived, due date + status, updated_at), guild memberships (user + guild), and documents (updated_at)
-
-### Changed
-
 - Reorganized backend security architecture into two centralized service modules:
   - `rls.py` — Mandatory Access Control: guild isolation, guild RBAC (admin-only writes), initiative membership, and initiative RBAC via PermissionKey
   - `permissions.py` — Discretionary Access Control: project/document-level read/write/owner permissions with visibility subqueries
