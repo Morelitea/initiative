@@ -180,6 +180,7 @@ jobs:
 
       - name: Check for backend changes
         id: filter
+        run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts || true)
           else
