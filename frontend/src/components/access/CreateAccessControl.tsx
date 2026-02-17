@@ -223,6 +223,7 @@ export const CreateAccessControl = ({
 
   const removeUserGrant = useCallback(
     (userId: number) => {
+      setAddAllMembers(false); // manual removal opts out of auto-populate
       onUserGrantsChange(userGrants.filter((g) => g.user_id !== userId));
     },
     [userGrants, onUserGrantsChange]
