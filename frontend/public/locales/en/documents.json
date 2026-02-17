@@ -242,7 +242,8 @@
     "uploadedAttached": "Document uploaded and attached.",
     "uploaded": "Document uploaded.",
     "createError": "Unable to create document.",
-    "uploadError": "Unable to upload document."
+    "uploadError": "Unable to upload document.",
+    "somePermissionsFailed": "Document created, but some permissions could not be applied."
   },
   "viewer": {
     "loadError": "Unable to load document",

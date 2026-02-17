@@ -160,14 +160,20 @@ export const CreateDocumentDialog = ({
     if (!isValid) setSelectedTemplateId("");
   }, [manageableTemplates, selectedTemplateId]);
 
-  // Helper to apply role + user permissions via follow-up API calls
-  // Used for copy-from-template and upload paths where the create payload can't carry them
-  const applyDocumentPermissions = async (documentId: number) => {
+  // Helper to apply role + user permissions via follow-up API calls.
+  // Used for copy-from-template and upload paths where the create payload can't carry them.
+  // Returns the count of failed permission calls so callers can warn the user.
+  const applyDocumentPermissions = async (documentId: number): Promise<number> => {
+    let failures = 0;
     for (const rg of roleGrants) {
-      await apiClient.post(`/documents/${documentId}/role-permissions`, {
-        initiative_role_id: rg.initiative_role_id,
-        level: rg.level,
-      });
+      try {
+        await apiClient.post(`/documents/${documentId}/role-permissions`, {
+          initiative_role_id: rg.initiative_role_id,
+          level: rg.level,
+        });
+      } catch {
+        failures++;
+      }
     }
     // Batch user grants by level to use bulk endpoint
     const byLevel = new Map<string, number[]>();
@@ -177,11 +183,16 @@ export const CreateDocumentDialog = ({
       byLevel.set(ug.level, arr);
     }
     for (const [level, userIds] of byLevel) {
-      await apiClient.post(`/documents/${documentId}/members/bulk`, {
-        user_ids: userIds,
-        level,
-      });
+      try {
+        await apiClient.post(`/documents/${documentId}/members/bulk`, {
+          user_ids: userIds,
+          level,
+        });
+      } catch {
+        failures++;
+      }
     }
+    return failures;
   };
 
   const createDocument = useMutation({
@@ -191,6 +202,7 @@ export const CreateDocumentDialog = ({
       if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
 
       let newDocument: DocumentRead;
+      let permissionFailures = 0;
 
       if (selectedTemplateId) {
         const response = await apiClient.post<DocumentRead>(
@@ -199,7 +211,7 @@ export const CreateDocumentDialog = ({
         );
         newDocument = response.data;
         // Apply permissions via follow-up calls for copy path
-        await applyDocumentPermissions(newDocument.id);
+        permissionFailures = await applyDocumentPermissions(newDocument.id);
       } else {
         const payload: Record<string, unknown> = {
           title: trimmedTitle,
@@ -221,10 +233,13 @@ export const CreateDocumentDialog = ({
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
 
-      return newDocument;
+      return { document: newDocument, permissionFailures };
     },
-    onSuccess: (document) => {
+    onSuccess: ({ document, permissionFailures: failures }) => {
       toast.success(projectId ? t("create.createdAttached") : t("create.created"));
+      if (failures > 0) {
+        toast.warning(t("create.somePermissionsFailed"));
+      }
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
@@ -263,17 +278,20 @@ export const CreateDocumentDialog = ({
       const newDocument = response.data;
 
       // Apply permissions via follow-up calls (upload uses multipart, no nested JSON)
-      await applyDocumentPermissions(newDocument.id);
+      const permissionFailures = await applyDocumentPermissions(newDocument.id);
 
       // Auto-attach to project if specified
       if (projectId) {
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
 
-      return newDocument;
+      return { document: newDocument, permissionFailures };
     },
-    onSuccess: (document) => {
+    onSuccess: ({ document, permissionFailures: failures }) => {
       toast.success(projectId ? t("create.uploadedAttached") : t("create.uploaded"));
+      if (failures > 0) {
+        toast.warning(t("create.somePermissionsFailed"));
+      }
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
