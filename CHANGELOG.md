@@ -7,10 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Access controls in Create Project and Create Document dialogs via a collapsible "Advanced options" accordion
+  - Role-based permission grants: assign access by initiative role at creation time
+  - User-based permission grants: assign access to specific members at creation time
+  - "Add all initiative members" opt-out toggle for projects (replaces invisible auto-add behavior)
+- Shared `CreateAccessControl` component for role/user permission pickers
+
+### Changed
+
+- Creating a project no longer auto-adds all initiative members as read — permissions are now explicitly controlled via the create dialog
+- Project creation notifications are now scoped to only users who were granted access
+
 ### Fixed
 
 - Documents tag tree view: selecting "Not tagged" now filters server-side with correct pagination instead of client-side filtering per page
 - Documents tag tree view: selecting a tag with no matching documents no longer replaces the sidebar with the empty state card
+- AppSidebar crash when initiative query data is not an array
 
 ## [0.30.1] - 2026-02-16
 
