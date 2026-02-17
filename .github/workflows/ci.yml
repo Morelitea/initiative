@@ -95,7 +95,7 @@ jobs:
           fi
 
           # Check if shared infra changed (requires full test run)
-          if echo "$CHANGED" | grep -qE '(app/testing/|app/models/|app/core/|app/db/|conftest\.py)'; then
+          if echo "$CHANGED" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|conftest\.py)'; then
             echo "scope=app/" >> $GITHUB_OUTPUT
             echo "Shared infrastructure changed — running all tests"
           else
