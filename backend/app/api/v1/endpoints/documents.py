@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import delete as sa_delete, exists, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -205,6 +205,7 @@ def _build_visible_docs_filters(
     initiative_id: Optional[int] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
+    untagged: Optional[bool] = None,
 ):
     """Build common WHERE conditions for visible-document queries."""
     has_permission_subq = permissions_service.visible_document_ids_subquery(user_id)
@@ -233,6 +234,14 @@ def _build_visible_docs_filters(
             .distinct()
         )
         conditions.append(Document.id.in_(tag_subquery))
+
+    if untagged:
+        tagged_subquery = (
+            select(DocumentTag.document_id)
+            .where(DocumentTag.document_id == Document.id)
+            .correlate(Document)
+        )
+        conditions.append(~exists(tagged_subquery))
 
     return conditions
 
@@ -313,6 +322,7 @@ async def list_documents(
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
+    untagged: Optional[bool] = Query(default=None, description="Filter to documents with no tags"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
     sort_by: Optional[str] = Query(default=None),
@@ -333,6 +343,7 @@ async def list_documents(
         initiative_id=initiative_id,
         search=search,
         tag_ids=tag_ids,
+        untagged=untagged,
     )
 
     # Count query

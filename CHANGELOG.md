@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Documents tag tree view: selecting "Not tagged" now filters server-side with correct pagination instead of client-side filtering per page
+- Documents tag tree view: selecting a tag with no matching documents no longer replaces the sidebar with the empty state card
+
 ## [0.30.1] - 2026-02-16
 
 ### Added
