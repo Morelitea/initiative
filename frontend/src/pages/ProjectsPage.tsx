@@ -1237,7 +1237,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       }}
                     />
                   </div>
-                  <Accordion type="single" collapsible>
+                  <Accordion type="single" collapsible defaultValue="advanced">
                     <AccordionItem value="advanced" className="border-b-0">
                       <AccordionTrigger>
                         {t("common:createAccess.advancedOptions")}
