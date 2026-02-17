@@ -1,0 +1,60 @@
+{
+  "title": "Resumen del Gremio",
+  "subtitle": "Resumen y actividad del gremio",
+  "loading": "Cargando panel\u2026",
+  "error": "Error al cargar los datos del panel. Int\u00e9ntalo de nuevo m\u00e1s tarde.",
+  "quickActions": {
+    "projects": "Proyectos",
+    "initiatives": "Iniciativas",
+    "documents": "Documentos"
+  },
+  "metrics": {
+    "tasksThisWeek": "Tareas esta semana",
+    "onTimeRate": "Tasa de puntualidad",
+    "currentStreak": "Racha actual",
+    "backlogTrend": "Tendencia del backlog",
+    "days": "d\u00edas",
+    "growing": "Creciendo",
+    "shrinking": "Reduci\u00e9ndose"
+  },
+  "projectHealth": {
+    "title": "Estado de proyectos",
+    "description": "Progreso de tareas por proyecto",
+    "noProjects": "A\u00fan no hay proyectos",
+    "viewAll": "Ver todos",
+    "tasks_one": "{{count}} tarea",
+    "tasks_other": "{{count}} tareas"
+  },
+  "upcomingTasks": {
+    "title": "Pr\u00f3ximas tareas",
+    "description": "Tareas ordenadas por urgencia",
+    "noTasks": "No hay tareas pr\u00f3ximas",
+    "overdue": "Atrasada",
+    "today": "Hoy",
+    "upcoming": "Pr\u00f3xima",
+    "viewAll": "Ver todas"
+  },
+  "recentComments": {
+    "title": "Comentarios recientes",
+    "description": "Últimos comentarios en el gremio",
+    "noComments": "Aún no hay comentarios",
+    "onTask": "en {{taskTitle}}",
+    "onDocument": "en {{documentTitle}}",
+    "inProject": "en {{projectName}}"
+  },
+  "recentProjects": {
+    "title": "Proyectos recientes",
+    "description": "Proyectos actualizados recientemente",
+    "noProjects": "No hay proyectos recientes"
+  },
+  "initiatives": {
+    "title": "Iniciativas",
+    "description": "Iniciativas activas en este gremio",
+    "noInitiatives": "A\u00fan no hay iniciativas",
+    "viewAll": "Ver todas",
+    "member_one": "{{count}} miembro",
+    "member_other": "{{count}} miembros",
+    "project_one": "{{count}} proyecto",
+    "project_other": "{{count}} proyectos"
+  }
+}

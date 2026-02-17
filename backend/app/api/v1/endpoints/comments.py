@@ -10,7 +10,16 @@ from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate, MentionSuggestion
+from app.models.comment import Comment
+from app.schemas.comment import (
+    CommentAuthor,
+    CommentCreate,
+    CommentRead,
+    CommentUpdate,
+    MentionSuggestion,
+    RecentActivityEntry,
+)
+from sqlalchemy.orm import selectinload
 from app.services import comments as comments_service
 from app.services.realtime import broadcast_event
 
@@ -49,6 +58,75 @@ async def create_comment(
     response = CommentRead.model_validate(comment)
     await broadcast_event("comment", "created", response.model_dump(mode="json"))
     return response
+
+
+@router.get("/recent", response_model=List[RecentActivityEntry])
+async def recent_comments(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    limit: int = Query(default=10, ge=1, le=50),
+) -> List[RecentActivityEntry]:
+    """Return the most recent comments across the guild."""
+    stmt = (
+        select(Comment)
+        .where(
+            Comment.parent_comment_id.is_(None),
+            Comment.guild_id == guild_context.guild_id,
+        )
+        .options(selectinload(Comment.author))
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
+        .limit(limit)
+    )
+    result = await session.exec(stmt)
+    comments = result.all()
+
+    # Batch-load related task/document/project info
+    task_ids = {c.task_id for c in comments if c.task_id}
+    doc_ids = {c.document_id for c in comments if c.document_id}
+
+    tasks_by_id: dict[int, Task] = {}
+    projects_by_id: dict[int, Project] = {}
+    docs_by_id: dict[int, Document] = {}
+
+    if task_ids:
+        task_result = await session.exec(select(Task).where(Task.id.in_(task_ids)))
+        for task in task_result.all():
+            tasks_by_id[task.id] = task
+
+        project_ids = {t.project_id for t in tasks_by_id.values()}
+        if project_ids:
+            proj_result = await session.exec(select(Project).where(Project.id.in_(project_ids)))
+            for proj in proj_result.all():
+                projects_by_id[proj.id] = proj
+
+    if doc_ids:
+        doc_result = await session.exec(select(Document).where(Document.id.in_(doc_ids)))
+        for doc in doc_result.all():
+            docs_by_id[doc.id] = doc
+
+    entries: List[RecentActivityEntry] = []
+    for comment in comments:
+        author = comment.author
+        author_payload = CommentAuthor.model_validate(author) if author else None
+        task = tasks_by_id.get(comment.task_id) if comment.task_id else None
+        project = projects_by_id.get(task.project_id) if task else None
+        document = docs_by_id.get(comment.document_id) if comment.document_id else None
+        entries.append(
+            RecentActivityEntry(
+                comment_id=comment.id,
+                content=comment.content,
+                created_at=comment.created_at,
+                author=author_payload,
+                task_id=task.id if task else None,
+                task_title=task.title if task else None,
+                document_id=document.id if document else None,
+                document_title=document.title if document else None,
+                project_id=project.id if project else None,
+                project_name=project.name if project else None,
+            )
+        )
+    return entries
 
 
 @router.get("/", response_model=List[CommentRead])

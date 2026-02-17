@@ -27,6 +27,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
+      DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5432/initiative_test
+      DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5432/initiative_test
       SECRET_KEY: ${{ secrets.CI_SECRET_KEY }}
       AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
@@ -47,27 +49,6 @@ jobs:
           cd backend
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov ruff
-
-      - name: Create database roles for RLS
-        run: |
-          PGPASSWORD=initiative psql -h localhost -U initiative -d initiative_test <<-'EOSQL'
-            DO $$ BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-                CREATE ROLE app_user WITH LOGIN NOINHERIT;
-              END IF;
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_admin') THEN
-                CREATE ROLE app_admin WITH LOGIN BYPASSRLS;
-              END IF;
-            END $$;
-            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
-            GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_user;
-            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_admin;
-            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app_admin;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO app_admin;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO app_admin;
-          EOSQL
 
       - name: Run Alembic migrations
         run: |
@@ -95,7 +76,7 @@ jobs:
           fi
 
           # Check if shared infra changed (requires full test run)
-          if echo "$CHANGED" | grep -qE '(app/testing/|app/models/|app/core/|app/db/|conftest\.py)'; then
+          if echo "$CHANGED" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|conftest\.py)'; then
             echo "scope=app/" >> $GITHUB_OUTPUT
             echo "Shared infrastructure changed — running all tests"
           else
@@ -115,33 +96,138 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for frontend changes
+        id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- frontend/ || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1...HEAD -- frontend/ || true)
+          fi
+          if [[ -z "$CHANGED" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No frontend changes — skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Frontend changes detected"
+          fi
 
       - name: Set up Node.js
+        if: steps.filter.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install pnpm
+        if: steps.filter.outputs.skip != 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
       - name: Install dependencies
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm install --frozen-lockfile
 
       - name: Lint
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm lint
 
       - name: TypeScript Check
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm tsc --noEmit
 
       - name: Run tests
+        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm vitest run --passWithNoTests
+
+  check-generated-types:
+    name: Check Generated Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for backend changes
+        id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts || true)
+          else
+            CHANGED=$(git diff --name-only HEAD~1...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts || true)
+          fi
+          if [[ -z "$CHANGED" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No backend or codegen config changes — skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Backend or codegen config changes detected"
+          fi
+
+      - name: Set up Python
+        if: steps.filter.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Export OpenAPI spec
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd backend
+          python scripts/export_openapi.py ../frontend/openapi.json
+
+      - name: Set up Node.js
+        if: steps.filter.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        if: steps.filter.outputs.skip != 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend dependencies
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd frontend
+          pnpm install --frozen-lockfile
+
+      - name: Regenerate types
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd frontend
+          pnpm orval
+          pnpm prettier --write src/api/generated/
+
+      - name: Check for drift
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          if ! git diff --exit-code frontend/src/api/generated/; then
+            echo ""
+            echo "ERROR: Generated types are out of date!"
+            echo "Run 'pnpm generate:api' in the frontend directory and commit the results."
+            echo ""
+            exit 1
+          fi
+          echo "Generated types are up to date."

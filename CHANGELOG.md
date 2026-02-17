@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-02-16
+
+### Added
+
+- Auto-generated frontend TypeScript types and React Query hooks from the backend OpenAPI spec using Orval
+  - Generated files in `frontend/src/api/generated/` committed to the repo so the frontend builds without a running backend
+  - `frontend/src/types/api.ts` now re-exports generated types with backward-compatible aliases (e.g., `Task = TaskListRead`)
+  - Custom Axios mutator (`frontend/src/api/mutator.ts`) preserves existing auth/guild interceptors
+  - `pnpm generate:api` script to regenerate from a running backend
+- CI check (`check-generated-types` job) that fails when generated frontend types drift from backend schemas
+- `backend/scripts/export_openapi.py` to export OpenAPI spec without a running server (used by CI)
+
+### Changed
+
+- Backend Pydantic schemas now use `ConfigDict(json_schema_serialization_defaults_required=True)` so optional fields with defaults appear as required in the OpenAPI spec, producing cleaner generated types
+- `frontend/src/types/api.ts` replaced ~800 lines of hand-maintained type definitions with re-exports from Orval-generated types
+- Excluded `src/api/generated/**` from ESLint (Orval generates function overloads that trigger `no-redeclare`)
+- CI backend test scoping now treats `app/schemas/` as shared infrastructure, triggering a full test run when schemas change
+- Guild Dashboard landing page at `/g/:guildId/` with project health, velocity chart, upcoming tasks, recent projects, and initiative overview
+- Guild switching now navigates to the dashboard instead of preserving the previous sub-path
+- "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
+- Composite database indexes for query performance: tasks (project + archived, due date + status, updated_at), guild memberships (user + guild), and documents (updated_at)
+- Squashed all 76 Alembic migrations into a single idempotent baseline migration — fresh installs no longer require `docker/init-db.sh` to pre-create database roles
+- `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` are now **required** environment variables (previously fell back to `DATABASE_URL`, which silently ran the app as superuser without RLS enforcement)
+- RLS is now always enforced — removed the `ENABLE_RLS` configuration flag
+- Migrations always run using `DATABASE_URL` (superuser), fixing the env.py URL override bug that caused migrations to use the wrong connection
+- Reorganized backend security architecture into two centralized service modules:
+  - `rls.py` — Mandatory Access Control: guild isolation, guild RBAC (admin-only writes), initiative membership, and initiative RBAC via PermissionKey
+  - `permissions.py` — Discretionary Access Control: project/document-level read/write/owner permissions with visibility subqueries
+- Centralized guild admin enforcement across all endpoints via `rls_service.is_guild_admin()` and `rls_service.require_guild_admin()`
+- Moved initiative security checks (`is_initiative_manager`, `check_initiative_permission`, `has_feature_access`) from initiatives service to `rls.py` (backward-compatible re-exports preserved)
+- Replaced duplicated permission logic in endpoint files (projects, documents, tasks, tags, imports, collaboration) with shared helpers from `permissions.py`
+- Consolidated visibility subquery patterns (`visible_project_ids_subquery`, `visible_document_ids_subquery`) to eliminate duplication across listing endpoints
+
+### Removed
+
+- `ENABLE_RLS` environment variable — RLS is always active; remove this from your `.env` if present
+- `init_models()` backwards-compatibility alias (use `import app.db.base` directly)
+- `docker/init-db.sh` — database role creation is now handled by the baseline migration itself
+- 76 individual migration files replaced by single baseline (existing v0.30.0 databases upgrade seamlessly)
+
+### Upgrade Notes
+
+- **From v0.30.0**: No action needed — the baseline migration is a no-op for existing databases. You can safely remove `docker/init-db.sh` if present.
+- **From pre-v0.30.0 (v0.14.1–v0.29.x)**: The application will detect the old schema and exit with instructions. Run the upgrade script before starting:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+    -o upgrade-to-baseline.sql
+  psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
+  ```
+  If psql is not available on your host (e.g. Synology, Unraid), pipe through the Postgres container:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql | \
+    docker exec -i initiative-db psql -v ON_ERROR_STOP=1 -U initiative -d initiative
+  ```
+  Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.
+
 ## [0.30.0] - 2026-02-15
 
 ### Added

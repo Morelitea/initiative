@@ -23,6 +23,7 @@ export const namespaces = [
   "landing",
   "errors",
   "dates",
+  "dashboard",
 ] as const;
 
 const LANGUAGE_STORAGE_KEY = "initiative-language";

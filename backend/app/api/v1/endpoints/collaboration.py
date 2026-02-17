@@ -22,8 +22,8 @@ from sqlmodel import select
 from app.api.deps import RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership, GuildContext
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal, set_rls_context
-from app.models.document import Document, DocumentPermissionLevel
-from app.models.guild import GuildMembership, GuildRole
+from app.models.document import Document, DocumentRolePermission
+from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.schemas.token import TokenPayload
@@ -32,6 +32,8 @@ from app.services.collaboration import (
     collaboration_manager,
 )
 from app.services import documents as documents_service
+from app.services import permissions as permissions_service
+from app.services import rls as rls_service
 from app.services import user_tokens
 
 router = APIRouter()
@@ -87,6 +89,8 @@ async def _get_document_with_permissions(
             .selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.role_ref),
             selectinload(Document.permissions),
+            selectinload(Document.role_permissions)
+            .selectinload(DocumentRolePermission.role),
         )
     )
     result = await session.exec(stmt)
@@ -108,13 +112,12 @@ async def _check_document_access(
     user: User,
     guild_id: int,
 ) -> tuple[bool, bool]:
-    """
-    Check if user has access to the document.
+    """Check document access level. Returns (can_read, can_write).
 
-    Returns:
-        (can_read, can_write)
+    Uses DAC (permissions_service) for document-level access and
+    RLS (rls_service) for initiative-level manager checks.
     """
-    # Get guild membership
+    # Check guild membership
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user.id,
@@ -125,34 +128,29 @@ async def _check_document_access(
     if not guild_membership:
         return False, False
 
-    # Guild admins have full access
-    if guild_membership.role == GuildRole.admin:
+    is_guild_admin = rls_service.is_guild_admin(guild_membership.role)
+
+    # Guild admins get full access
+    if is_guild_admin:
         return True, True
 
-    # Check initiative membership
-    initiative_memberships = getattr(document.initiative, "memberships", []) or []
-    user_initiative_membership = next(
-        (m for m in initiative_memberships if m.user_id == user.id),
-        None,
-    )
+    # Initiative managers get full access
+    if document.initiative_id:
+        is_manager = await rls_service.is_initiative_manager(
+            session,
+            initiative_id=document.initiative_id,
+            user=user,
+        )
+        if is_manager:
+            return True, True
 
-    if not user_initiative_membership:
+    # Use centralized DAC permission computation
+    level = permissions_service.compute_document_permission(document, user.id)
+    if level is None:
         return False, False
 
-    # Initiative managers have full write access
-    role_ref = getattr(user_initiative_membership, "role_ref", None)
-    if role_ref and role_ref.is_manager:
-        return True, True
-
-    # Check explicit document permissions (owner or write grants write access)
-    permissions = getattr(document, "permissions", []) or []
-    has_write_permission = any(
-        p.user_id == user.id and p.level in (DocumentPermissionLevel.owner, DocumentPermissionLevel.write)
-        for p in permissions
-    )
-
-    # All initiative members can read
-    return True, has_write_permission
+    can_write = level in ("write", "owner")
+    return True, can_write
 
 
 @router.websocket("/documents/{document_id}/collaborate")

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SubtaskBase(BaseModel):
@@ -33,16 +33,17 @@ class SubtaskReorderRequest(BaseModel):
 
 
 class SubtaskRead(SubtaskBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     task_id: int
     position: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class TaskSubtaskProgress(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     completed: int = 0
     total: int = 0

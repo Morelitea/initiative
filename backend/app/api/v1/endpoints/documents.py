@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete as sa_delete, func, inspect
+from sqlalchemy import delete as sa_delete, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -47,6 +47,8 @@ from app.services import attachments as attachments_service
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
 from app.services import notifications as notifications_service
+from app.services import permissions as permissions_service
+from app.services import rls as rls_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 
 router = APIRouter()
@@ -122,7 +124,7 @@ async def _require_initiative_access(
         require_manager: If True, require manager-level role (legacy, use permission_key instead)
         permission_key: Specific permission to check (e.g., PermissionKey.create_docs)
     """
-    if guild_role == GuildRole.admin:
+    if rls_service.is_guild_admin(guild_role):
         return
     membership = await initiatives_service.get_initiative_membership(
         session,
@@ -134,7 +136,7 @@ async def _require_initiative_access(
 
     # Check specific permission if requested
     if permission_key is not None:
-        has_perm = await initiatives_service.check_initiative_permission(
+        has_perm = await rls_service.check_initiative_permission(
             session,
             initiative_id=initiative_id,
             user=user,
@@ -149,7 +151,7 @@ async def _require_initiative_access(
 
     # Legacy manager check
     if require_manager:
-        is_manager = await initiatives_service.is_initiative_manager(
+        is_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
             user=user,
@@ -158,105 +160,24 @@ async def _require_initiative_access(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.MANAGER_REQUIRED)
 
 
-def _role_permission_level_from_document(document: Document, user_id: int) -> DocumentPermissionLevel | None:
-    """Get the highest role-based permission level for a user on a document."""
-    role_permissions = getattr(document, "role_permissions", None)
-    if not role_permissions:
-        return None
-    initiative = getattr(document, "initiative", None)
-    if not initiative:
-        return None
-    memberships = getattr(initiative, "memberships", None)
-    if not memberships:
-        return None
-    user_role_ids = {m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None}
-    if not user_role_ids:
-        return None
-    level_order = {DocumentPermissionLevel.read: 0, DocumentPermissionLevel.write: 1, DocumentPermissionLevel.owner: 2}
-    best_level: DocumentPermissionLevel | None = None
-    for rp in role_permissions:
-        if rp.initiative_role_id in user_role_ids:
-            if best_level is None or level_order.get(rp.level, 0) > level_order.get(best_level, 0):
-                best_level = rp.level
-    return best_level
-
-
-def _effective_doc_permission_level(
-    user_level: DocumentPermissionLevel | None,
-    role_level: DocumentPermissionLevel | None,
-) -> DocumentPermissionLevel | None:
-    """Return the higher of two permission levels (MAX behavior)."""
-    if user_level is None:
-        return role_level
-    if role_level is None:
-        return user_level
-    level_order = {DocumentPermissionLevel.read: 0, DocumentPermissionLevel.write: 1, DocumentPermissionLevel.owner: 2}
-    if level_order.get(role_level, 0) > level_order.get(user_level, 0):
-        return role_level
-    return user_level
-
-
 def _compute_my_doc_permission_level(
     document: Document,
     user_id: int,
     *,
     is_guild_admin: bool = False,
 ) -> str | None:
-    """Compute the effective permission level for a user on a document.
-
-    Uses eagerly-loaded relationships (permissions, role_permissions,
-    initiative.memberships) so no DB queries are needed.
-    Guild admins are treated as having owner-level access.
-    """
-    if is_guild_admin:
-        return DocumentPermissionLevel.owner.value
-
-    # Check user-specific permission
-    user_level: DocumentPermissionLevel | None = None
-    permissions = getattr(document, "permissions", None) or []
-    for perm in permissions:
-        if perm.user_id == user_id:
-            user_level = perm.level
-            break
-
-    # Check role-based permission
-    role_level = _role_permission_level_from_document(document, user_id)
-
-    effective = _effective_doc_permission_level(user_level, role_level)
-    return effective.value if effective else None
+    """Compute the effective permission level for a user on a document."""
+    return permissions_service.compute_document_permission(
+        document, user_id, is_guild_admin=is_guild_admin,
+    )
 
 
 def _require_document_write_access(
     document: Document,
     user: User,
 ) -> None:
-    """Check if user has write access to a document.
-
-    DAC: Access granted through explicit DocumentPermission or role-based permission.
-    Write access requires either 'write' or 'owner' permission level.
-    """
-    permissions = getattr(document, "permissions", None) or []
-    user_level: DocumentPermissionLevel | None = None
-    for permission in permissions:
-        if permission.user_id == user.id:
-            user_level = permission.level
-            break
-    role_level = _role_permission_level_from_document(document, user.id)
-    effective = _effective_doc_permission_level(user_level, role_level)
-    if effective and effective in (DocumentPermissionLevel.write, DocumentPermissionLevel.owner):
-        return
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.WRITE_ACCESS_REQUIRED)
-
-
-def _get_loaded_permissions(document: Document) -> list[DocumentPermission]:
-    """Get permissions from document, asserting they were eagerly loaded."""
-    state = inspect(document)
-    if "permissions" not in state.dict or state.attrs.permissions.loaded_value is None:
-        raise RuntimeError(
-            f"Document {document.id} permissions not loaded. "
-            "Use selectinload(Document.permissions) in query."
-        )
-    return document.permissions or []
+    """Check if user has write access to a document."""
+    permissions_service.require_document_access(document, user, access="write")
 
 
 def _require_document_access(
@@ -266,40 +187,15 @@ def _require_document_access(
     access: str = "read",
     require_owner: bool = False,
 ) -> None:
-    """Check if user has required access to a document.
-
-    DAC: Access granted through explicit DocumentPermission or role-based permission.
-    Effective level = MAX(user-specific, role-based).
-    - owner permission = full access (can manage permissions, delete, etc.)
-    - write permission = can edit document content
-    - read permission = can view document
-    """
-    # Check explicit permission
-    permission = next((p for p in _get_loaded_permissions(document) if p.user_id == user.id), None)
-    user_level = permission.level if permission else None
-
-    # Check role-based permission
-    role_level = _role_permission_level_from_document(document, user.id)
-    effective = _effective_doc_permission_level(user_level, role_level)
-
-    if require_owner:
-        if effective != DocumentPermissionLevel.owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=DocumentMessages.OWNER_REQUIRED,
-            )
-        return
-
-    if effective is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.NO_ACCESS)
-
-    if access == "write" and effective == DocumentPermissionLevel.read:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.WRITE_ACCESS_REQUIRED)
+    """Check if user has required access to a document."""
+    permissions_service.require_document_access(
+        document, user, access=access, require_owner=require_owner,
+    )
 
 
 def _get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
     """Get a user's permission for a document from the loaded permissions."""
-    return next((p for p in _get_loaded_permissions(document) if p.user_id == user_id), None)
+    return permissions_service.get_document_permission(document, user_id)
 
 
 def _build_visible_docs_filters(
@@ -310,24 +206,8 @@ def _build_visible_docs_filters(
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
 ):
-    """Build common WHERE conditions for visible-document queries.
-
-    Returns (conditions list, has_permission_subq) that can be applied to
-    any query selecting from Document joined to Initiative.
-    """
-    user_perm_subq = (
-        select(DocumentPermission.document_id)
-        .where(DocumentPermission.user_id == user_id)
-    )
-    role_perm_subq = (
-        select(DocumentRolePermission.document_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
-    )
-    has_permission_subq = user_perm_subq.union(role_perm_subq)
+    """Build common WHERE conditions for visible-document queries."""
+    has_permission_subq = permissions_service.visible_document_ids_subquery(user_id)
 
     conditions = [
         Initiative.guild_id == guild_id,
@@ -490,7 +370,7 @@ async def list_documents(
     documents = result.unique().all()
 
     await documents_service.annotate_comment_counts(session, documents)
-    is_admin = guild_context.role == GuildRole.admin
+    is_admin = rls_service.is_guild_admin(guild_context.role)
     items = [
         serialize_document_summary(
             document,
@@ -535,20 +415,7 @@ async def autocomplete_documents(
     """
     await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
 
-    # Subquery: documents where user has explicit permission
-    user_perm_subq = (
-        select(DocumentPermission.document_id)
-        .where(DocumentPermission.user_id == current_user.id)
-    )
-    role_perm_subq = (
-        select(DocumentRolePermission.document_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == current_user.id),
-        )
-    )
-    has_permission_subq = user_perm_subq.union(role_perm_subq)
+    has_permission_subq = permissions_service.visible_document_ids_subquery(current_user.id)
 
     normalized = q.strip().lower()
     stmt = (
@@ -669,7 +536,7 @@ async def create_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -750,7 +617,7 @@ async def upload_document_file(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -768,7 +635,7 @@ async def read_document(
         document,
         my_permission_level=_compute_my_doc_permission_level(
             document, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -871,7 +738,7 @@ async def update_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -904,7 +771,7 @@ async def duplicate_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -950,7 +817,7 @@ async def copy_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -1299,7 +1166,7 @@ async def set_document_tags(
         doc,
         my_permission_level=_compute_my_doc_permission_level(
             doc, current_user.id,
-            is_guild_admin=guild_context.role == GuildRole.admin,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 

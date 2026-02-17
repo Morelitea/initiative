@@ -14,7 +14,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.db.session import reapply_rls_context
-from app.models.project import Project, ProjectPermission, ProjectPermissionLevel, ProjectRolePermission
+from app.models.project import Project, ProjectPermission, ProjectRolePermission
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
 from app.models.tag import Tag, TaskTag
@@ -36,6 +36,7 @@ from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescript
 from app.schemas.tag import TagSummary, TagSetRequest
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
+from app.services import permissions as permissions_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
@@ -128,51 +129,62 @@ async def _next_sort_order(session: SessionDep, project_id: int) -> float:
     return (max_value or 0) + 1
 
 
-async def _annotate_task_comment_counts(session: SessionDep, tasks: list[Task]) -> None:
+async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
+    """Annotate tasks with comment counts and subtask progress in a single query."""
     task_ids = [task.id for task in tasks if task.id is not None]
     if not task_ids:
         return
-    stmt = (
-        select(Comment.task_id, func.count(Comment.id))
-        .where(Comment.task_id.in_(tuple(task_ids)))
+
+    ids_tuple = tuple(task_ids)
+
+    # Single query: LEFT JOIN comments and subtasks aggregations via subqueries
+    comment_subq = (
+        select(
+            Comment.task_id.label("task_id"),
+            func.count(Comment.id).label("comment_count"),
+        )
+        .where(Comment.task_id.in_(ids_tuple))
         .group_by(Comment.task_id)
+        .subquery()
     )
-    result = await session.exec(stmt)
-    counts = dict(result.all())
-    for task in tasks:
-        object.__setattr__(task, "comment_count", counts.get(task.id, 0))
+    subtask_subq = (
+        select(
+            Subtask.task_id.label("task_id"),
+            func.count(Subtask.id).label("total"),
+            func.sum(case((Subtask.is_completed.is_(True), 1), else_=0)).label("completed"),
+        )
+        .where(Subtask.task_id.in_(ids_tuple))
+        .group_by(Subtask.task_id)
+        .subquery()
+    )
 
-
-async def _annotate_task_subtask_progress(session: SessionDep, tasks: list[Task]) -> None:
-    task_ids = [task.id for task in tasks if task.id is not None]
-    if not task_ids:
-        return
     stmt = (
         select(
-            Subtask.task_id,
-            func.count(Subtask.id).label("total"),
-            func.sum(
-                case(
-                    (Subtask.is_completed.is_(True), 1),
-                    else_=0,
-                )
-            ).label("completed"),
+            Task.id,
+            func.coalesce(comment_subq.c.comment_count, 0),
+            subtask_subq.c.total,
+            subtask_subq.c.completed,
         )
-        .where(Subtask.task_id.in_(tuple(task_ids)))
-        .group_by(Subtask.task_id)
+        .outerjoin(comment_subq, comment_subq.c.task_id == Task.id)
+        .outerjoin(subtask_subq, subtask_subq.c.task_id == Task.id)
+        .where(Task.id.in_(ids_tuple))
     )
     result = await session.exec(stmt)
-    counts = {task_id: {"total": total, "completed": completed or 0} for task_id, total, completed in result.all()}
+    annotations: dict[int, tuple] = {
+        row[0]: (row[1], row[2], row[3]) for row in result.all()
+    }
+
     for task in tasks:
-        progress_data = counts.get(task.id)
-        if not progress_data:
+        comment_count, sub_total, sub_completed = annotations.get(task.id, (0, None, None))
+        object.__setattr__(task, "comment_count", comment_count)
+        if sub_total is not None:
+            progress = TaskSubtaskProgress(
+                completed=int(sub_completed or 0),
+                total=int(sub_total),
+            )
+            object.__setattr__(task, "subtask_progress", progress)
+        else:
             object.__setattr__(task, "subtask_progress", None)
-            continue
-        progress = TaskSubtaskProgress(
-            completed=int(progress_data["completed"]),
-            total=int(progress_data["total"]),
-        )
-        object.__setattr__(task, "subtask_progress", progress)
 
 
 def _annotate_task_guild(tasks: list[Task]) -> None:
@@ -313,8 +325,7 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
     result = await session.exec(stmt)
     task = result.one_or_none()
     if task:
-        await _annotate_task_comment_counts(session, [task])
-        await _annotate_task_subtask_progress(session, [task])
+        await _annotate_tasks(session, [task])
         _annotate_task_guild([task])
         _annotate_task_tags([task])
     return task
@@ -339,18 +350,6 @@ async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: lis
 
     await session.flush()
     await session.refresh(task, attribute_names=["assignees"])
-
-
-def _permission_from_project(project: Project, user_id: int) -> ProjectPermission | None:
-    permissions = getattr(project, "permissions", None)
-    if not permissions:
-        return None
-    for permission in permissions:
-        if permission.user_id == user_id:
-            return permission
-    return None
-
-
 
 
 async def _advance_recurrence_if_needed(
@@ -435,29 +434,6 @@ async def _advance_recurrence_if_needed(
     return True
 
 
-def _role_permission_level(project: Project, user_id: int) -> ProjectPermissionLevel | None:
-    """Get the highest role-based permission level for a user on a project."""
-    role_permissions = getattr(project, "role_permissions", None)
-    if not role_permissions:
-        return None
-    initiative = getattr(project, "initiative", None)
-    if not initiative:
-        return None
-    memberships = getattr(initiative, "memberships", None)
-    if not memberships:
-        return None
-    user_role_ids = {m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None}
-    if not user_role_ids:
-        return None
-    level_order = {ProjectPermissionLevel.read: 0, ProjectPermissionLevel.write: 1, ProjectPermissionLevel.owner: 2}
-    best: ProjectPermissionLevel | None = None
-    for rp in role_permissions:
-        if rp.initiative_role_id in user_role_ids:
-            if best is None or level_order.get(rp.level, 0) > level_order.get(best, 0):
-                best = rp.level
-    return best
-
-
 async def _get_project_with_access(
     session: SessionDep,
     project_id: int,
@@ -494,8 +470,8 @@ async def _get_project_with_access(
     if project.is_archived and access == "write":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED)
 
-    # Check explicit project permission
-    permission = _permission_from_project(project, user.id)
+    # Ensure permission is loaded (may need fallback query)
+    permission = permissions_service.user_permission_from_project(project, user.id)
     if not permission:
         stmt = select(ProjectPermission).where(
             ProjectPermission.project_id == project.id,
@@ -506,25 +482,7 @@ async def _get_project_with_access(
         if permission:
             project.permissions.append(permission)
 
-    user_level = permission.level if permission else None
-    role_level = _role_permission_level(project, user.id)
-
-    # Effective level = MAX(user, role)
-    level_order = {ProjectPermissionLevel.read: 0, ProjectPermissionLevel.write: 1, ProjectPermissionLevel.owner: 2}
-    effective = user_level
-    if role_level is not None:
-        if effective is None or level_order.get(role_level, 0) > level_order.get(effective, 0):
-            effective = role_level
-
-    if effective is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ProjectMessages.NO_ACCESS)
-
-    if access == "read":
-        return project
-
-    # Write access requires owner or write permission level
-    if effective not in (ProjectPermissionLevel.owner, ProjectPermissionLevel.write):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ProjectMessages.WRITE_ACCESS_REQUIRED)
+    permissions_service.require_project_access(project, user, access=access)
 
     return project
 
@@ -695,8 +653,7 @@ async def list_tasks(
             sort_by=sort_by,
             sort_dir=sort_dir,
         )
-        await _annotate_task_comment_counts(session, tasks)
-        await _annotate_task_subtask_progress(session, tasks)
+        await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
         items = [_task_to_list_read(task) for task in tasks]
         if page_size > 0:
@@ -800,8 +757,7 @@ async def list_tasks(
 
     result = await session.exec(statement)
     tasks = result.all()
-    await _annotate_task_comment_counts(session, tasks)
-    await _annotate_task_subtask_progress(session, tasks)
+    await _annotate_tasks(session, tasks)
     _annotate_task_tags(tasks)
     items = [_task_to_list_read(task) for task in tasks]
     if page_size > 0:
@@ -1123,9 +1079,8 @@ async def duplicate_task(
 
     await session.commit()
     await reapply_rls_context(session)
-    await session.refresh(new_task)
 
-    # Annotate and return the task
+    # Fetch with all relationships for the response
     task_with_relations = await _fetch_task(session, new_task.id, guild_context.guild_id)
     if not task_with_relations:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.DUPLICATE_NOT_FOUND)
@@ -1254,8 +1209,7 @@ async def reorder_tasks(
     )
     refreshed_result = await session.exec(refreshed_stmt)
     tasks = refreshed_result.all()
-    await _annotate_task_comment_counts(session, tasks)
-    await _annotate_task_subtask_progress(session, tasks)
+    await _annotate_tasks(session, tasks)
     _annotate_task_guild(tasks)
     await broadcast_event("task", "reordered", {"project_id": reorder_in.project_id})
     return tasks
@@ -1673,15 +1627,15 @@ async def set_task_tags(
             for tag_id in unique_tag_ids
         ])
 
-    # Fetch fresh task to avoid issues with deleted relationship objects
-    fresh_task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
-    if fresh_task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
-    fresh_task.updated_at = datetime.now(timezone.utc)
+    # Update timestamp via a lightweight select (avoids stale relationship objects)
+    ts_stmt = select(Task).where(Task.id == task_id_to_update)
+    ts_result = await session.exec(ts_stmt)
+    ts_task = ts_result.one()
+    ts_task.updated_at = datetime.now(timezone.utc)
     await session.commit()
     await reapply_rls_context(session)
 
-    # Refresh and return
+    # Single fetch with all relationships for the response
     task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)

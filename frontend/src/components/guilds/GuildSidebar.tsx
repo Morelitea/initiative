@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { useRouter, useLocation, Link } from "@tanstack/react-router";
+import { useRouter, Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import {
   DndContext,
@@ -24,7 +24,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { useTranslation } from "react-i18next";
 import { useGuilds } from "@/hooks/useGuilds";
-import { extractSubPath, isGuildScopedPath, guildPath } from "@/lib/guildUrl";
+import { guildPath } from "@/lib/guildUrl";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -225,7 +225,6 @@ export const GuildSidebar = () => {
   const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
   const { t } = useTranslation(["guilds", "nav"]);
   const router = useRouter();
-  const location = useLocation();
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -243,48 +242,11 @@ export const GuildSidebar = () => {
   );
 
   const handleGuildSwitch = (guildId: number) => {
-    if (guildId === activeGuildId) return;
-
-    const currentPath = location.pathname;
-
-    // If on a guild-scoped route, navigate to same sub-path in new guild
-    if (isGuildScopedPath(currentPath)) {
-      const subPath = extractSubPath(currentPath);
-      // For detail pages (e.g., /projects/123), redirect to list instead
-      // since the ID won't exist in the new guild
-      let targetSubPath = subPath;
-      if (/^\/(projects|initiatives|documents|tasks|tags)\/\d+/.test(subPath)) {
-        // Extract just the section name (e.g., "/projects")
-        const match = subPath.match(/^\/([^/]+)/);
-        targetSubPath = match ? `/${match[1]}` : "/projects";
-      }
-      // Fire both in the same tick so URL and context update together,
-      // preventing GuildLayout's useEffect from seeing a mismatch.
+    // Always navigate to the guild dashboard
+    if (guildId !== activeGuildId) {
       void switchGuild(guildId);
-      router.navigate({ to: guildPath(guildId, targetSubPath) });
-      return;
     }
-
-    // Legacy: handle old URL patterns during transition
-    let targetPath = "/"; // Default to My Tasks for global pages
-    if (currentPath.startsWith("/projects")) {
-      targetPath = guildPath(guildId, "/projects");
-    } else if (currentPath.startsWith("/initiatives")) {
-      targetPath = guildPath(guildId, "/initiatives");
-    } else if (currentPath.startsWith("/documents")) {
-      targetPath = guildPath(guildId, "/documents");
-    } else if (currentPath.startsWith("/settings/guild")) {
-      targetPath = guildPath(guildId, "/settings");
-    } else if (currentPath.startsWith("/profile")) {
-      // User profile is global, stay on current path
-      targetPath = currentPath;
-    }
-
-    void switchGuild(guildId);
-
-    if (targetPath !== "/") {
-      router.navigate({ to: targetPath });
-    }
+    router.navigate({ to: guildPath(guildId, "/") });
   };
 
   const handleDragStart = useCallback((event: DragStartEvent) => {

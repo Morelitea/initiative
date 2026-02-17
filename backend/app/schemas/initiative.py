@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional, TYPE_CHECKING
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.initiative import InitiativeRole
 from app.schemas.user import UserPublic
@@ -32,15 +32,16 @@ class InitiativeUpdate(BaseModel):
 # Role schemas
 class InitiativeRolePermissionRead(BaseModel):
     """Permission entry for a role."""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     permission_key: str
     enabled: bool
-
-    class Config:
-        from_attributes = True
 
 
 class InitiativeRoleRead(BaseModel):
     """Role definition with permissions."""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     name: str
     display_name: str
@@ -49,9 +50,6 @@ class InitiativeRoleRead(BaseModel):
     position: int
     permissions: Dict[str, bool] = Field(default_factory=dict)
     member_count: int = 0
-
-    class Config:
-        from_attributes = True
 
 
 class InitiativeRoleCreate(BaseModel):
@@ -71,6 +69,8 @@ class InitiativeRoleUpdate(BaseModel):
 
 class MyInitiativePermissions(BaseModel):
     """Current user's permissions for an initiative."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     role_id: Optional[int] = None
     role_name: Optional[str] = None
     role_display_name: Optional[str] = None
@@ -99,6 +99,8 @@ class InitiativeMemberUpdate(BaseModel):
 
 class InitiativeMemberRead(BaseModel):
     """Member info including their role."""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     user: UserPublic
     role_id: Optional[int] = None
     role_name: Optional[str] = None
@@ -114,20 +116,16 @@ class InitiativeMemberRead(BaseModel):
     can_create_docs: bool = False
     can_create_projects: bool = False
 
-    class Config:
-        from_attributes = True
-
 
 class InitiativeRead(InitiativeBase):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
     id: int
     guild_id: int
     is_default: bool = False
     created_at: datetime
     updated_at: datetime
     members: List[InitiativeMemberRead] = Field(default_factory=list)
-
-    class Config:
-        from_attributes = True
 
 
 def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> InitiativeRoleRead:

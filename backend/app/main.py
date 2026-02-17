@@ -129,6 +129,8 @@ app.openapi = custom_openapi
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    from app.db.init_db import check_pre_baseline_db
+    await check_pre_baseline_db()
     await run_migrations()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)

@@ -51,6 +51,32 @@ history/
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters.
 
+## Generated API Types (Orval)
+
+Frontend TypeScript types and React Query hooks in `frontend/src/api/generated/` are auto-generated from the backend's OpenAPI spec using Orval. **Do not hand-edit these files.**
+
+- `frontend/src/types/api.ts` re-exports all generated types and adds backward-compatible aliases (e.g., `Task = TaskListRead`).
+- Generated files are committed to the repo so the frontend builds without a running backend.
+
+**After changing backend schemas** (`backend/app/schemas/`), regenerate:
+
+```bash
+# Option 1: With a running backend
+cd frontend && pnpm generate:api
+
+# Option 2: Without a running backend
+cd backend && python scripts/export_openapi.py ../frontend/openapi.json
+cd frontend && pnpm orval
+```
+
+Always commit the regenerated output. CI enforces this — the `check-generated-types` job will fail if generated files don't match the current backend schemas.
+
+**Key files:**
+- `frontend/orval.config.ts` — Orval configuration
+- `frontend/src/api/mutator.ts` — Axios wrapper that preserves auth/guild interceptors
+- `frontend/scripts/generate-api.sh` — Generation script (supports `--from-spec <path>` for CI)
+- `backend/scripts/export_openapi.py` — Exports OpenAPI JSON without a running server
+
 ## Versioning
 
 This project uses **semantic versioning** (semver) with a single source of truth: the `VERSION` file at the project root.

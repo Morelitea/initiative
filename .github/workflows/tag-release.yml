@@ -34,6 +34,14 @@ jobs:
           git push origin "${{ steps.version.outputs.tag }}"
           echo "Created and pushed tag ${{ steps.version.outputs.tag }}"
 
+      - name: Merge main back into dev
+        run: |
+          git fetch origin dev
+          git checkout dev
+          git merge main --no-edit
+          git push origin dev
+          echo "Merged main back into dev"
+
       - name: Trigger Build and Release workflow
         run: |
           gh workflow run "Build and Release" \
