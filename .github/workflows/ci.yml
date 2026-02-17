@@ -237,6 +237,7 @@ jobs:
         run: |
           cd frontend
           pnpm orval
+          pnpm prettier --write src/api/generated/
 
       - name: Check for drift
         if: steps.filter.outputs.skip != 'true'
