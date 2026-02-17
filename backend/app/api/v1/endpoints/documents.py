@@ -533,8 +533,19 @@ async def create_document(
 
     # Process optional role permissions from request
     if document_in.role_permissions:
+        # Validate each role belongs to this initiative
+        role_ids = {rp.initiative_role_id for rp in document_in.role_permissions if rp.level != DocumentPermissionLevel.owner}
+        valid_role_ids: set[int] = set()
+        if role_ids:
+            result = await session.exec(
+                select(InitiativeRoleModel.id).where(
+                    InitiativeRoleModel.id.in_(role_ids),
+                    InitiativeRoleModel.initiative_id == initiative.id,
+                )
+            )
+            valid_role_ids = set(result.all())
         for rp in document_in.role_permissions:
-            if rp.level == DocumentPermissionLevel.owner:
+            if rp.initiative_role_id not in valid_role_ids or rp.level == DocumentPermissionLevel.owner:
                 continue
             session.add(DocumentRolePermission(
                 document_id=document.id,

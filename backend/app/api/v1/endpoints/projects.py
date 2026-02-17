@@ -901,8 +901,19 @@ async def create_project(
     # Process optional role permissions from request
     granted_user_ids: set[int] = set()
     if project_in.role_permissions:
+        # Validate each role belongs to this initiative
+        role_ids = {rp.initiative_role_id for rp in project_in.role_permissions if rp.level != ProjectPermissionLevel.owner}
+        valid_role_ids: set[int] = set()
+        if role_ids:
+            result = await session.exec(
+                select(InitiativeRoleModel.id).where(
+                    InitiativeRoleModel.id.in_(role_ids),
+                    InitiativeRoleModel.initiative_id == initiative_id,
+                )
+            )
+            valid_role_ids = set(result.all())
         for rp in project_in.role_permissions:
-            if rp.level == ProjectPermissionLevel.owner:
+            if rp.initiative_role_id not in valid_role_ids or rp.level == ProjectPermissionLevel.owner:
                 continue
             session.add(ProjectRolePermission(
                 project_id=project.id,
