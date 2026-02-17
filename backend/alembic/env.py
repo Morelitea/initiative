@@ -25,7 +25,10 @@ config = context.config
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
-if settings.DATABASE_URL:
+# Only set URL for CLI invocations. When called programmatically via
+# run_migrations(), _get_alembic_config() already sets the URL and marks
+# url_configured=True so we don't override it here.
+if not config.attributes.get("url_configured"):
     config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = SQLModel.metadata

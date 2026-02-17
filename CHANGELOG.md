@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Guild switching now navigates to the dashboard instead of preserving the previous sub-path
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
 - Composite database indexes for query performance: tasks (project + archived, due date + status, updated_at), guild memberships (user + guild), and documents (updated_at)
+- Squashed all 76 Alembic migrations into a single idempotent baseline migration — fresh installs no longer require `docker/init-db.sh` to pre-create database roles
+- `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` are now **required** environment variables (previously fell back to `DATABASE_URL`, which silently ran the app as superuser without RLS enforcement)
+- RLS is now always enforced — removed the `ENABLE_RLS` configuration flag
+- Migrations always run using `DATABASE_URL` (superuser), fixing the env.py URL override bug that caused migrations to use the wrong connection
 - Reorganized backend security architecture into two centralized service modules:
   - `rls.py` — Mandatory Access Control: guild isolation, guild RBAC (admin-only writes), initiative membership, and initiative RBAC via PermissionKey
   - `permissions.py` — Discretionary Access Control: project/document-level read/write/owner permissions with visibility subqueries
@@ -34,6 +38,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved initiative security checks (`is_initiative_manager`, `check_initiative_permission`, `has_feature_access`) from initiatives service to `rls.py` (backward-compatible re-exports preserved)
 - Replaced duplicated permission logic in endpoint files (projects, documents, tasks, tags, imports, collaboration) with shared helpers from `permissions.py`
 - Consolidated visibility subquery patterns (`visible_project_ids_subquery`, `visible_document_ids_subquery`) to eliminate duplication across listing endpoints
+
+### Removed
+
+- `ENABLE_RLS` environment variable — RLS is always active; remove this from your `.env` if present
+- `init_models()` backwards-compatibility alias (use `import app.db.base` directly)
+- `docker/init-db.sh` — database role creation is now handled by the baseline migration itself
+- 76 individual migration files replaced by single baseline (existing v0.30.0 databases upgrade seamlessly)
+
+### Upgrade Notes
+
+- **From v0.30.0**: No action needed — the baseline migration is a no-op for existing databases. You can safely remove `docker/init-db.sh` if present.
+- **From pre-v0.30.0 (v0.14.1–v0.29.x)**: The application will detect the old schema and exit with instructions. Run the upgrade script before starting:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+    -o upgrade-to-baseline.sql
+  psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
+  ```
+  Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.
 
 ## [0.30.0] - 2026-02-15
 
