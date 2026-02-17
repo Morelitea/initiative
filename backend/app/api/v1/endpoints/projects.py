@@ -852,7 +852,7 @@ async def create_project(
     )
     if initiative_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.INITIATIVE_REQUIRED)
-    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if not rls_service.is_guild_admin(guild_context.role):
         has_perm = await rls_service.check_initiative_permission(
             session,
@@ -898,16 +898,51 @@ async def create_project(
     )
     session.add(owner_permission)
 
-    # Add read permissions for all initiative members (except owner)
-    for membership in initiative.memberships:
-        if membership.user_id != owner_id and membership.user:
-            read_permission = ProjectPermission(
-                project_id=project.id,
-                user_id=membership.user_id,
-                level=ProjectPermissionLevel.read,
-                guild_id=guild_context.guild_id,
+    # Process optional role permissions from request
+    granted_user_ids: set[int] = set()
+    valid_role_ids: set[int] = set()
+    if project_in.role_permissions:
+        # Validate each role belongs to this initiative
+        role_ids = {rp.initiative_role_id for rp in project_in.role_permissions if rp.level != ProjectPermissionLevel.owner}
+        if role_ids:
+            result = await session.exec(
+                select(InitiativeRoleModel.id).where(
+                    InitiativeRoleModel.id.in_(role_ids),
+                    InitiativeRoleModel.initiative_id == initiative_id,
+                )
             )
-            session.add(read_permission)
+            valid_role_ids = set(result.all())
+        for rp in project_in.role_permissions:
+            if rp.initiative_role_id not in valid_role_ids or rp.level == ProjectPermissionLevel.owner:
+                continue
+            session.add(ProjectRolePermission(
+                project_id=project.id,
+                initiative_role_id=rp.initiative_role_id,
+                guild_id=guild_context.guild_id,
+                level=rp.level,
+            ))
+
+    # Process optional user permissions (batch-validate initiative membership)
+    if project_in.user_permissions:
+        requested = {up.user_id for up in project_in.user_permissions if up.user_id != owner_id}
+        valid_ids: set[int] = set()
+        if requested:
+            result = await session.exec(
+                select(InitiativeMember.user_id).where(
+                    InitiativeMember.initiative_id == initiative_id,
+                    InitiativeMember.user_id.in_(requested),
+                )
+            )
+            valid_ids = set(result.all())
+        for up in project_in.user_permissions:
+            if up.user_id in valid_ids and up.level != ProjectPermissionLevel.owner:
+                session.add(ProjectPermission(
+                    project_id=project.id,
+                    user_id=up.user_id,
+                    level=up.level,
+                    guild_id=guild_context.guild_id,
+                ))
+                granted_user_ids.add(up.user_id)
 
     if template_project:
         await _duplicate_template_tasks(
@@ -933,9 +968,22 @@ async def create_project(
 
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if project.initiative_id and project.initiative:
+        # Collect user IDs who hold a validated granted role
+        if project_in.role_permissions and valid_role_ids:
+            for rp_schema in project_in.role_permissions:
+                if rp_schema.initiative_role_id not in valid_role_ids:
+                    continue
+                for membership in project.initiative.memberships:
+                    if membership.role_id == rp_schema.initiative_role_id:
+                        granted_user_ids.add(membership.user_id)
+
+        # Only notify users who were explicitly granted access
+        has_any_grants = bool(project_in.role_permissions or project_in.user_permissions)
         for membership in project.initiative.memberships:
             member = membership.user
             if not member or member.id == current_user.id:
+                continue
+            if not has_any_grants or member.id not in granted_user_ids:
                 continue
             await notifications_service.notify_project_added(
                 session,

@@ -162,7 +162,7 @@ export const AppSidebar = () => {
     if (!user) {
       return [];
     }
-    const source = initiativesQuery.data ?? [];
+    const source = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
     if (isGuildAdmin) {
       return source.slice().sort((a, b) => a.name.localeCompare(b.name));
     }

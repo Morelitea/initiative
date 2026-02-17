@@ -242,7 +242,8 @@
     "uploadedAttached": "Documento subido y adjuntado.",
     "uploaded": "Documento subido.",
     "createError": "No se pudo crear el documento.",
-    "uploadError": "No se pudo subir el documento."
+    "uploadError": "No se pudo subir el documento.",
+    "somePermissionsFailed": "Documento creado, pero algunos permisos no se pudieron aplicar."
   },
   "viewer": {
     "loadError": "No se pudo cargar el documento",

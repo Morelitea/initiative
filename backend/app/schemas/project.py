@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -22,6 +24,8 @@ class ProjectCreate(ProjectBase):
     initiative_id: Optional[int] = None
     is_template: bool = False
     template_id: Optional[int] = None
+    role_permissions: Optional[List[ProjectRolePermissionCreate]] = None
+    user_permissions: Optional[List[ProjectPermissionCreate]] = None
 
 
 class ProjectUpdate(BaseModel):

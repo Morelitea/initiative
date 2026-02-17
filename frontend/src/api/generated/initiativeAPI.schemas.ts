@@ -335,12 +335,33 @@ export interface DocumentCountsResponse {
 
 export type DocumentCreateContent = { [key: string]: unknown } | null;
 
+export type DocumentPermissionLevel =
+  (typeof DocumentPermissionLevel)[keyof typeof DocumentPermissionLevel];
+
+export const DocumentPermissionLevel = {
+  owner: "owner",
+  write: "write",
+  read: "read",
+} as const;
+
+export interface DocumentRolePermissionCreate {
+  initiative_role_id: number;
+  level?: DocumentPermissionLevel;
+}
+
+export interface DocumentPermissionCreate {
+  user_id: number;
+  level?: DocumentPermissionLevel;
+}
+
 export interface DocumentCreate {
   title: string;
   initiative_id: number;
   featured_image_url?: string | null;
   is_template?: boolean;
   content?: DocumentCreateContent;
+  role_permissions?: DocumentRolePermissionCreate[] | null;
+  user_permissions?: DocumentPermissionCreate[] | null;
 }
 
 export interface DocumentDuplicateRequest {
@@ -383,15 +404,6 @@ export interface DocumentProjectLink {
   project_icon?: string | null;
   attached_at: string;
 }
-
-export type DocumentPermissionLevel =
-  (typeof DocumentPermissionLevel)[keyof typeof DocumentPermissionLevel];
-
-export const DocumentPermissionLevel = {
-  owner: "owner",
-  write: "write",
-  read: "read",
-} as const;
 
 export interface DocumentPermissionRead {
   user_id: number;
@@ -467,11 +479,6 @@ export interface DocumentPermissionBulkDelete {
   user_ids: number[];
 }
 
-export interface DocumentPermissionCreate {
-  user_id: number;
-  level?: DocumentPermissionLevel;
-}
-
 export interface DocumentPermissionUpdate {
   level: DocumentPermissionLevel;
 }
@@ -509,11 +516,6 @@ export interface DocumentRead {
   original_filename: string | null;
   my_permission_level: string | null;
   content: DocumentReadContent;
-}
-
-export interface DocumentRolePermissionCreate {
-  initiative_role_id: number;
-  level?: DocumentPermissionLevel;
 }
 
 export interface DocumentRolePermissionUpdate {
@@ -1019,6 +1021,25 @@ export interface ProjectActivityResponse {
   next_page: number | null;
 }
 
+export type ProjectPermissionLevel =
+  (typeof ProjectPermissionLevel)[keyof typeof ProjectPermissionLevel];
+
+export const ProjectPermissionLevel = {
+  owner: "owner",
+  write: "write",
+  read: "read",
+} as const;
+
+export interface ProjectRolePermissionCreate {
+  initiative_role_id: number;
+  level?: ProjectPermissionLevel;
+}
+
+export interface ProjectPermissionCreate {
+  user_id: number;
+  level?: ProjectPermissionLevel;
+}
+
 export interface ProjectCreate {
   name: string;
   description?: string | null;
@@ -1027,6 +1048,8 @@ export interface ProjectCreate {
   initiative_id?: number | null;
   is_template?: boolean;
   template_id?: number | null;
+  role_permissions?: ProjectRolePermissionCreate[] | null;
+  user_permissions?: ProjectPermissionCreate[] | null;
 }
 
 export interface ProjectDocumentSummary {
@@ -1045,15 +1068,6 @@ export interface ProjectFavoriteStatus {
   is_favorited: boolean;
 }
 
-export type ProjectPermissionLevel =
-  (typeof ProjectPermissionLevel)[keyof typeof ProjectPermissionLevel];
-
-export const ProjectPermissionLevel = {
-  owner: "owner",
-  write: "write",
-  read: "read",
-} as const;
-
 export interface ProjectPermissionBulkCreate {
   user_ids: number[];
   level?: ProjectPermissionLevel;
@@ -1061,11 +1075,6 @@ export interface ProjectPermissionBulkCreate {
 
 export interface ProjectPermissionBulkDelete {
   user_ids: number[];
-}
-
-export interface ProjectPermissionCreate {
-  user_id: number;
-  level?: ProjectPermissionLevel;
 }
 
 export interface ProjectPermissionRead {
@@ -1124,11 +1133,6 @@ export interface ProjectRecentViewRead {
 
 export interface ProjectReorderRequest {
   project_ids?: number[];
-}
-
-export interface ProjectRolePermissionCreate {
-  initiative_role_id: number;
-  level?: ProjectPermissionLevel;
 }
 
 export interface ProjectRolePermissionUpdate {
