@@ -164,6 +164,11 @@ export const CreateDocumentDialog = ({
   // Helper to apply role + user permissions via follow-up API calls.
   // Used for copy-from-template and upload paths where the create payload can't carry them.
   // Returns the count of failed permission calls so callers can warn the user.
+  //
+  // Note: cross-initiative role grants are handled differently per path:
+  // - Direct create (POST /documents/): backend silently drops invalid roles (no error).
+  // - Copy/upload paths (this helper): individual POST calls return 400, counted as failures.
+  // This inconsistency is cosmetic — CreateAccessControl filters to valid roles in the UI.
   const applyDocumentPermissions = async (documentId: number): Promise<number> => {
     let failures = 0;
     for (const rg of roleGrants) {
