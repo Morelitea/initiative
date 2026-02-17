@@ -925,6 +925,7 @@ async def create_project(
     # Process optional user permissions (batch-validate initiative membership)
     if project_in.user_permissions:
         requested = {up.user_id for up in project_in.user_permissions if up.user_id != owner_id}
+        valid_ids: set[int] = set()
         if requested:
             result = await session.exec(
                 select(InitiativeMember.user_id).where(
@@ -933,15 +934,15 @@ async def create_project(
                 )
             )
             valid_ids = set(result.all())
-            for up in project_in.user_permissions:
-                if up.user_id in valid_ids and up.level != ProjectPermissionLevel.owner:
-                    session.add(ProjectPermission(
-                        project_id=project.id,
-                        user_id=up.user_id,
-                        level=up.level,
-                        guild_id=guild_context.guild_id,
-                    ))
-                    granted_user_ids.add(up.user_id)
+        for up in project_in.user_permissions:
+            if up.user_id in valid_ids and up.level != ProjectPermissionLevel.owner:
+                session.add(ProjectPermission(
+                    project_id=project.id,
+                    user_id=up.user_id,
+                    level=up.level,
+                    guild_id=guild_context.guild_id,
+                ))
+                granted_user_ids.add(up.user_id)
 
     if template_project:
         await _duplicate_template_tasks(
