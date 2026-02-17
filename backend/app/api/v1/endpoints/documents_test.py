@@ -139,3 +139,30 @@ async def test_create_document_rejects_foreign_initiative_role(
     data = response.json()
     # Foreign role must have been silently dropped
     assert len(data["role_permissions"]) == 0
+
+
+@pytest.mark.integration
+async def test_create_document_skips_owner_level_grants(
+    client: AsyncClient, session: AsyncSession
+):
+    """Owner-level grants in user_permissions must be silently ignored."""
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild)
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
+    await create_initiative_member(session, initiative, member, role_name="member")
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "title": "Doc Owner Skip",
+        "initiative_id": initiative.id,
+        "user_permissions": [{"user_id": member.id, "level": "owner"}],
+    }
+
+    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    member_perms = [p for p in response.json()["permissions"] if p["user_id"] == member.id]
+    assert len(member_perms) == 0
