@@ -55,6 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     -o upgrade-to-baseline.sql
   psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
   ```
+  If psql is not available on your host (e.g. Synology, Unraid), pipe through the Postgres container:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql | \
+    docker exec -i initiative-db psql -v ON_ERROR_STOP=1 -U initiative -d initiative
+  ```
   Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.
 
 ## [0.30.0] - 2026-02-15

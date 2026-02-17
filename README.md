@@ -177,7 +177,18 @@ If you're on v0.30.0, the baseline migration is a no-op — your database is alr
 
 **Upgrading from pre-v0.30.0:**
 
-Run `scripts/upgrade-to-baseline.sql` against your database first, then start the new version. See the script header for instructions.
+The application will detect the old schema and exit with instructions. Run the upgrade script, then restart:
+
+```bash
+# With psql installed locally:
+curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+  -o upgrade-to-baseline.sql
+psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
+
+# Or pipe through the Postgres container (Synology, Unraid, etc.):
+curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql | \
+  docker exec -i initiative-db psql -v ON_ERROR_STOP=1 -U initiative -d initiative
+```
 
 ---
 
