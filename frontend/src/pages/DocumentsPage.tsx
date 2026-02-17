@@ -407,7 +407,7 @@ export const DocumentsView = ({
   const queryTagIdsKey = JSON.stringify(queryTagIds);
   useEffect(() => {
     setPage(1);
-  }, [viewMode, initiativeFilter, searchQuery, queryTagIdsKey, setPage]);
+  }, [viewMode, initiativeFilter, searchQuery, queryTagIdsKey, treeWantsUntagged, setPage]);
 
   const documentsQuery = useQuery<DocumentListResponse>({
     queryKey: [
@@ -417,6 +417,7 @@ export const DocumentsView = ({
         initiative: initiativeFilter,
         search: searchQuery,
         tagFilters: queryTagIds,
+        untagged: treeWantsUntagged,
         page,
         pageSize,
         sortBy,
@@ -433,6 +434,9 @@ export const DocumentsView = ({
       }
       if (queryTagIds.length > 0) {
         params.tag_ids = queryTagIds.map(String);
+      }
+      if (treeWantsUntagged && treeTagIds.length === 0) {
+        params.untagged = "true";
       }
       params.page = String(page);
       params.page_size = String(pageSize);
@@ -483,6 +487,9 @@ export const DocumentsView = ({
       if (queryTagIds.length > 0) {
         params.tag_ids = queryTagIds.map(String);
       }
+      if (treeWantsUntagged && treeTagIds.length === 0) {
+        params.untagged = "true";
+      }
       params.page = String(targetPage);
       params.page_size = String(pageSize);
       if (sortBy) params.sort_by = sortBy;
@@ -496,6 +503,7 @@ export const DocumentsView = ({
             initiative: initiativeFilter,
             search: searchQuery,
             tagFilters: queryTagIds,
+            untagged: treeWantsUntagged,
             page: targetPage,
             pageSize,
             sortBy,
@@ -514,6 +522,8 @@ export const DocumentsView = ({
       initiativeFilter,
       searchQuery,
       queryTagIds,
+      treeWantsUntagged,
+      treeTagIds,
       pageSize,
       sortBy,
       sortDir,
@@ -865,24 +875,8 @@ export const DocumentsView = ({
   const hasNext = documentsQuery.data?.has_next ?? false;
   const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
-  // For tags view with "untagged" selected, client-side filter since server
-  // doesn't support "untagged" as a tag_id filter
-  const displayDocuments = useMemo(() => {
-    // When only "untagged" is selected (no tag IDs), we sent no tag_ids to server
-    // so we need to client-side filter to only untagged docs
-    if (treeWantsUntagged && treeTagIds.length === 0) {
-      return documents.filter((doc) => !doc.tags || doc.tags.length === 0);
-    }
-    // When "untagged" is selected along with tags, include both
-    if (treeWantsUntagged && treeTagIds.length > 0) {
-      // Server already filtered by tag_ids, but we also want untagged docs.
-      // Since the server can't do OR(tagged, untagged), we accept the server
-      // results which filter by tags — untagged won't appear in that result.
-      // This is a minor limitation; users can click "untagged" alone for that.
-      return documents;
-    }
-    return documents;
-  }, [documents, treeWantsUntagged, treeTagIds]);
+  // Server handles untagged filtering via ?untagged=true param
+  const displayDocuments = documents;
 
   return (
     <div className="space-y-6">
@@ -1058,80 +1052,80 @@ export const DocumentsView = ({
         </div>
       ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">{t("page.loadError")}</p>
-      ) : totalCount > 0 ? (
-        viewMode === "tags" ? (
-          <div className="flex flex-col gap-4 md:flex-row">
-            {/* Mobile: collapsible tag panel */}
-            <Collapsible className="border-muted bg-background/40 rounded-md border md:hidden">
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
-                >
-                  <span className="flex items-center gap-2">
-                    <Tags className="h-4 w-4" />
-                    {t("page.browseByTag")}
-                    {treeSelectedPaths.size > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                        {treeSelectedPaths.size}
-                      </Badge>
-                    )}
-                  </span>
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="max-h-64">
-                  <TagTreeView
-                    tags={allTags}
-                    tagCounts={countsQuery.data?.tag_counts ?? {}}
-                    untaggedCount={countsQuery.data?.untagged_count ?? 0}
-                    selectedTagPaths={treeSelectedPaths}
-                    onToggleTag={handleTreeTagToggle}
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-            {/* Desktop: fixed sidebar */}
-            <div className="border-muted bg-background/40 hidden w-64 shrink-0 rounded-md border md:block">
-              <TagTreeView
-                tags={allTags}
-                tagCounts={countsQuery.data?.tag_counts ?? {}}
-                untaggedCount={countsQuery.data?.untagged_count ?? 0}
-                selectedTagPaths={treeSelectedPaths}
-                onToggleTag={handleTreeTagToggle}
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              {displayDocuments.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-                    {displayDocuments.map((document) => (
-                      <DocumentCard key={document.id} document={document} hideInitiative />
-                    ))}
-                  </div>
-                  {totalCount > 0 && (
-                    <div className="mt-4">
-                      <PaginationBar
-                        page={page}
-                        pageSize={pageSize}
-                        totalCount={totalCount}
-                        hasNext={hasNext}
-                        onPageChange={setPage}
-                        onPageSizeChange={handlePageSizeChange}
-                        onPrefetchPage={prefetchPage}
-                      />
-                    </div>
+      ) : viewMode === "tags" ? (
+        <div className="flex flex-col gap-4 md:flex-row">
+          {/* Mobile: collapsible tag panel */}
+          <Collapsible className="border-muted bg-background/40 rounded-md border md:hidden">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
+              >
+                <span className="flex items-center gap-2">
+                  <Tags className="h-4 w-4" />
+                  {t("page.browseByTag")}
+                  {treeSelectedPaths.size > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      {treeSelectedPaths.size}
+                    </Badge>
                   )}
-                </>
-              ) : (
-                <div className="text-muted-foreground py-8 text-center text-sm">
-                  {t("page.noMatchingTags")}
-                </div>
-              )}
-            </div>
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="max-h-64">
+                <TagTreeView
+                  tags={allTags}
+                  tagCounts={countsQuery.data?.tag_counts ?? {}}
+                  untaggedCount={countsQuery.data?.untagged_count ?? 0}
+                  selectedTagPaths={treeSelectedPaths}
+                  onToggleTag={handleTreeTagToggle}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+          {/* Desktop: fixed sidebar */}
+          <div className="border-muted bg-background/40 hidden w-64 shrink-0 rounded-md border md:block">
+            <TagTreeView
+              tags={allTags}
+              tagCounts={countsQuery.data?.tag_counts ?? {}}
+              untaggedCount={countsQuery.data?.untagged_count ?? 0}
+              selectedTagPaths={treeSelectedPaths}
+              onToggleTag={handleTreeTagToggle}
+            />
           </div>
-        ) : viewMode === "grid" ? (
+          <div className="min-w-0 flex-1">
+            {displayDocuments.length > 0 ? (
+              <>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                  {displayDocuments.map((document) => (
+                    <DocumentCard key={document.id} document={document} hideInitiative />
+                  ))}
+                </div>
+                {totalCount > 0 && (
+                  <div className="mt-4">
+                    <PaginationBar
+                      page={page}
+                      pageSize={pageSize}
+                      totalCount={totalCount}
+                      hasNext={hasNext}
+                      onPageChange={setPage}
+                      onPageSizeChange={handlePageSizeChange}
+                      onPrefetchPage={prefetchPage}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-muted-foreground py-8 text-center text-sm">
+                {t("page.noMatchingTags")}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : totalCount > 0 ? (
+        viewMode === "grid" ? (
           <>
             <div className="animate grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {documents.map((document) => (
