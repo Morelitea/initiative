@@ -1,12 +1,17 @@
 """Export the OpenAPI spec to a JSON file without starting the server."""
 import json
+import os
 import sys
 from pathlib import Path
 
 # Add backend to path so imports work
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.main import app
+# Set required env vars with dummy values so Settings() validates
+# without a .env file (no DB connection or crypto needed for schema export)
+os.environ.setdefault("SECRET_KEY", "openapi-export-dummy-key")
+
+from app.main import app  # noqa: E402
 
 
 def main():
