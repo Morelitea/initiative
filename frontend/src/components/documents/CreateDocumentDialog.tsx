@@ -81,6 +81,7 @@ export const CreateDocumentDialog = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
   const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
 
   // Determine effective initiative ID
   const effectiveInitiativeId =
@@ -526,6 +527,7 @@ export const CreateDocumentDialog = ({
                 onRoleGrantsChange={setRoleGrants}
                 userGrants={userGrants}
                 onUserGrantsChange={setUserGrants}
+                onLoadingChange={setAccessLoading}
               />
             </AccordionContent>
           </AccordionItem>
@@ -533,7 +535,11 @@ export const CreateDocumentDialog = ({
 
         <DialogFooter>
           {createDialogTab === "new" ? (
-            <Button type="button" onClick={() => createDocument.mutate()} disabled={!canSubmitNew}>
+            <Button
+              type="button"
+              onClick={() => createDocument.mutate()}
+              disabled={!canSubmitNew || accessLoading}
+            >
               {createDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -547,7 +553,7 @@ export const CreateDocumentDialog = ({
             <Button
               type="button"
               onClick={() => uploadDocument.mutate()}
-              disabled={!canSubmitUpload}
+              disabled={!canSubmitUpload || accessLoading}
             >
               {uploadDocument.isPending ? (
                 <>
