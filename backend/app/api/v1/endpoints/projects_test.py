@@ -815,3 +815,45 @@ async def test_create_project_skips_owner_level_grants(
     # Member should NOT have been granted owner
     member_perms = [p for p in data["permissions"] if p["user_id"] == member.id]
     assert len(member_perms) == 0
+
+
+@pytest.mark.integration
+async def test_create_project_rejects_foreign_initiative_role(
+    client: AsyncClient, session: AsyncSession
+):
+    """Role from a different initiative must be silently dropped."""
+    from sqlmodel import select
+    from app.models.initiative import InitiativeRoleModel
+    from app.testing.factories import create_initiative
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+
+    initiative_a = await _create_initiative_with_member(session, guild, admin)
+    initiative_b = await create_initiative(session, guild, admin, name="Other Initiative")
+
+    # Get a role that belongs to initiative_b, not initiative_a
+    result = await session.exec(
+        select(InitiativeRoleModel).where(
+            InitiativeRoleModel.initiative_id == initiative_b.id,
+            InitiativeRoleModel.name == "member",
+        )
+    )
+    foreign_role = result.one()
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "name": "Project Cross Initiative",
+        "initiative_id": initiative_a.id,
+        "role_permissions": [
+            {"initiative_role_id": foreign_role.id, "level": "read"},
+        ],
+    }
+
+    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    # Foreign role must have been silently dropped
+    assert len(data["role_permissions"]) == 0

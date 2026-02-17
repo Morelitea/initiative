@@ -101,3 +101,41 @@ async def test_create_document_without_permissions(
     assert data["permissions"][0]["user_id"] == admin.id
     assert data["permissions"][0]["level"] == "owner"
     assert len(data["role_permissions"]) == 0
+
+
+@pytest.mark.integration
+async def test_create_document_rejects_foreign_initiative_role(
+    client: AsyncClient, session: AsyncSession
+):
+    """Role from a different initiative must be silently dropped."""
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+
+    initiative_a = await create_initiative(session, guild, admin, name="Initiative A")
+    initiative_b = await create_initiative(session, guild, admin, name="Initiative B")
+
+    # Get a role that belongs to initiative_b, not initiative_a
+    result = await session.exec(
+        select(InitiativeRoleModel).where(
+            InitiativeRoleModel.initiative_id == initiative_b.id,
+            InitiativeRoleModel.name == "member",
+        )
+    )
+    foreign_role = result.one()
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "title": "Doc Cross Initiative",
+        "initiative_id": initiative_a.id,
+        "role_permissions": [
+            {"initiative_role_id": foreign_role.id, "level": "read"},
+        ],
+    }
+
+    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    # Foreign role must have been silently dropped
+    assert len(data["role_permissions"]) == 0
