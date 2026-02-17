@@ -25,5 +25,6 @@ fi
 echo "Generating TypeScript types and React Query hooks..."
 cd "$FRONTEND_DIR"
 pnpm orval
+pnpm prettier --write src/api/generated/
 
 echo "Done! Generated files in src/api/generated/"
