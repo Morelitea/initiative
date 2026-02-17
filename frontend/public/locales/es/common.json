@@ -63,5 +63,26 @@
   "countSelected": "{{count}} seleccionados",
   "selectEllipsis": "Seleccionar...",
   "noOptionsAvailable": "No hay opciones disponibles",
-  "clearAll": "Limpiar todo"
+  "clearAll": "Limpiar todo",
+  "createAccess": {
+    "advancedOptions": "Opciones avanzadas",
+    "roleAccess": "Acceso por rol",
+    "roleAccessHint": "Otorgar acceso a miembros por rol de iniciativa",
+    "userAccess": "Acceso por usuario",
+    "userAccessHint": "Otorgar acceso a miembros específicos",
+    "selectRoles": "Seleccionar roles...",
+    "selectMembers": "Seleccionar miembros...",
+    "searchRoles": "Buscar roles...",
+    "searchMembers": "Buscar miembros...",
+    "noRoles": "No se encontraron roles",
+    "noMembers": "No se encontraron miembros",
+    "level": "Nivel de acceso",
+    "canView": "Puede ver",
+    "canEdit": "Puede editar",
+    "add": "Agregar",
+    "addAllMembers": "Agregar todos los miembros de la iniciativa",
+    "addAllMembersHint": "Otorgar acceso de lectura a todos los miembros actuales",
+    "noInitiative": "Seleccione una iniciativa primero",
+    "remove": "Eliminar"
+  }
 }

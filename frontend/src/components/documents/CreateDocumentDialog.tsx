@@ -25,6 +25,17 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  CreateAccessControl,
+  type RoleGrant,
+  type UserGrant,
+} from "@/components/access/CreateAccessControl";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
@@ -54,7 +65,7 @@ export const CreateDocumentDialog = ({
   onSuccess,
   initiatives = [],
 }: CreateDocumentDialogProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -68,6 +79,8 @@ export const CreateDocumentDialog = ({
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
+  const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
 
   // Determine effective initiative ID
   const effectiveInitiativeId =
@@ -128,6 +141,8 @@ export const CreateDocumentDialog = ({
       setIsTemplateDocument(false);
       setSelectedFile(null);
       setCreateDialogTab("new");
+      setRoleGrants([]);
+      setUserGrants([]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -145,6 +160,30 @@ export const CreateDocumentDialog = ({
     if (!isValid) setSelectedTemplateId("");
   }, [manageableTemplates, selectedTemplateId]);
 
+  // Helper to apply role + user permissions via follow-up API calls
+  // Used for copy-from-template and upload paths where the create payload can't carry them
+  const applyDocumentPermissions = async (documentId: number) => {
+    for (const rg of roleGrants) {
+      await apiClient.post(`/documents/${documentId}/role-permissions`, {
+        initiative_role_id: rg.initiative_role_id,
+        level: rg.level,
+      });
+    }
+    // Batch user grants by level to use bulk endpoint
+    const byLevel = new Map<string, number[]>();
+    for (const ug of userGrants) {
+      const arr = byLevel.get(ug.level) ?? [];
+      arr.push(ug.user_id);
+      byLevel.set(ug.level, arr);
+    }
+    for (const [level, userIds] of byLevel) {
+      await apiClient.post(`/documents/${documentId}/members/bulk`, {
+        user_ids: userIds,
+        level,
+      });
+    }
+  };
+
   const createDocument = useMutation({
     mutationFn: async () => {
       const trimmedTitle = newTitle.trim();
@@ -159,12 +198,21 @@ export const CreateDocumentDialog = ({
           { target_initiative_id: effectiveInitiativeId, title: trimmedTitle }
         );
         newDocument = response.data;
+        // Apply permissions via follow-up calls for copy path
+        await applyDocumentPermissions(newDocument.id);
       } else {
-        const response = await apiClient.post<DocumentRead>("/documents/", {
+        const payload: Record<string, unknown> = {
           title: trimmedTitle,
           initiative_id: effectiveInitiativeId,
           is_template: isTemplateDocument,
-        });
+        };
+        if (roleGrants.length > 0) {
+          payload.role_permissions = roleGrants;
+        }
+        if (userGrants.length > 0) {
+          payload.user_permissions = userGrants;
+        }
+        const response = await apiClient.post<DocumentRead>("/documents/", payload);
         newDocument = response.data;
       }
 
@@ -213,6 +261,9 @@ export const CreateDocumentDialog = ({
       });
 
       const newDocument = response.data;
+
+      // Apply permissions via follow-up calls (upload uses multipart, no nested JSON)
+      await applyDocumentPermissions(newDocument.id);
 
       // Auto-attach to project if specified
       if (projectId) {
@@ -446,6 +497,21 @@ export const CreateDocumentDialog = ({
             </div>
           </TabsContent>
         </Tabs>
+
+        <Accordion type="single" collapsible>
+          <AccordionItem value="advanced" className="border-b-0">
+            <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
+            <AccordionContent>
+              <CreateAccessControl
+                initiativeId={effectiveInitiativeId}
+                roleGrants={roleGrants}
+                onRoleGrantsChange={setRoleGrants}
+                userGrants={userGrants}
+                onUserGrantsChange={setUserGrants}
+              />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
 
         <DialogFooter>
           {createDialogTab === "new" ? (

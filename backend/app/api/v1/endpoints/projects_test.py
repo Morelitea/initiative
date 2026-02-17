@@ -674,3 +674,144 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
     response2 = await client.get(f"/api/v1/projects/{project1.id}", headers=headers2)
 
     assert response2.status_code == 404
+
+
+@pytest.mark.integration
+async def test_create_project_with_user_permissions(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test creating a project with explicit user permissions."""
+    from app.testing.factories import create_initiative_member
+
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    initiative = await _create_initiative_with_member(session, guild, admin)
+    await create_initiative_member(session, initiative, member, role_name="member")
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "name": "Project With Permissions",
+        "initiative_id": initiative.id,
+        "user_permissions": [
+            {"user_id": member.id, "level": "write"},
+        ],
+    }
+
+    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Project With Permissions"
+    # Owner permission + explicitly granted member
+    perm_user_ids = {p["user_id"] for p in data["permissions"]}
+    assert admin.id in perm_user_ids  # owner
+    assert member.id in perm_user_ids  # granted write
+    member_perm = next(p for p in data["permissions"] if p["user_id"] == member.id)
+    assert member_perm["level"] == "write"
+
+
+@pytest.mark.integration
+async def test_create_project_with_role_permissions(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test creating a project with role-based permissions."""
+    from sqlmodel import select
+    from app.models.initiative import InitiativeRoleModel
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+
+    initiative = await _create_initiative_with_member(session, guild, admin)
+
+    # Find the member role
+    result = await session.exec(
+        select(InitiativeRoleModel).where(
+            InitiativeRoleModel.initiative_id == initiative.id,
+            InitiativeRoleModel.name == "member",
+        )
+    )
+    member_role = result.one()
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "name": "Project With Role Perms",
+        "initiative_id": initiative.id,
+        "role_permissions": [
+            {"initiative_role_id": member_role.id, "level": "read"},
+        ],
+    }
+
+    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert len(data["role_permissions"]) == 1
+    assert data["role_permissions"][0]["initiative_role_id"] == member_role.id
+    assert data["role_permissions"][0]["level"] == "read"
+
+
+@pytest.mark.integration
+async def test_create_project_without_permissions(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test creating a project without any explicit permissions yields only owner."""
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+
+    initiative = await _create_initiative_with_member(session, guild, admin)
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "name": "Project No Extra Perms",
+        "initiative_id": initiative.id,
+    }
+
+    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    # Only the owner permission should exist
+    assert len(data["permissions"]) == 1
+    assert data["permissions"][0]["user_id"] == admin.id
+    assert data["permissions"][0]["level"] == "owner"
+    assert len(data["role_permissions"]) == 0
+
+
+@pytest.mark.integration
+async def test_create_project_skips_owner_level_grants(
+    client: AsyncClient, session: AsyncSession
+):
+    """Test that owner-level grants in user_permissions are silently ignored."""
+    from app.testing.factories import create_initiative_member
+
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    initiative = await _create_initiative_with_member(session, guild, admin)
+    await create_initiative_member(session, initiative, member, role_name="member")
+
+    headers = get_guild_headers(guild, admin)
+    payload = {
+        "name": "Project Owner Skip",
+        "initiative_id": initiative.id,
+        "user_permissions": [
+            {"user_id": member.id, "level": "owner"},
+        ],
+    }
+
+    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    # Member should NOT have been granted owner
+    member_perms = [p for p in data["permissions"] if p["user_id"] == member.id]
+    assert len(member_perms) == 0

@@ -531,6 +531,38 @@ async def create_document(
     )
     session.add(owner_permission)
 
+    # Process optional role permissions from request
+    if document_in.role_permissions:
+        for rp in document_in.role_permissions:
+            if rp.level == DocumentPermissionLevel.owner:
+                continue
+            session.add(DocumentRolePermission(
+                document_id=document.id,
+                initiative_role_id=rp.initiative_role_id,
+                guild_id=guild_context.guild_id,
+                level=rp.level,
+            ))
+
+    # Process optional user permissions (batch-validate initiative membership)
+    if document_in.user_permissions:
+        requested = {up.user_id for up in document_in.user_permissions if up.user_id != current_user.id}
+        if requested:
+            result = await session.exec(
+                select(InitiativeMember.user_id).where(
+                    InitiativeMember.initiative_id == initiative.id,
+                    InitiativeMember.user_id.in_(requested),
+                )
+            )
+            valid_ids = set(result.all())
+            for up in document_in.user_permissions:
+                if up.user_id in valid_ids and up.level != DocumentPermissionLevel.owner:
+                    session.add(DocumentPermission(
+                        document_id=document.id,
+                        user_id=up.user_id,
+                        level=up.level,
+                        guild_id=guild_context.guild_id,
+                    ))
+
     # Sync wikilinks to document_links table
     await documents_service.sync_document_links(
         session,
