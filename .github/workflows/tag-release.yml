@@ -36,13 +36,23 @@ jobs:
           git push origin "${{ steps.version.outputs.tag }}"
           echo "Created and pushed tag ${{ steps.version.outputs.tag }}"
 
-      - name: Merge main back into dev
+      - name: Create PR to merge main back into dev
         run: |
-          git fetch origin dev
-          git checkout dev
-          git merge main --no-edit
-          git push origin dev
-          echo "Merged main back into dev"
+          # Check if there are differences between main and dev
+          if git diff --quiet origin/main origin/dev; then
+            echo "main and dev are identical, no PR needed"
+          else
+            # Create a PR to merge main back into dev (respects branch protection)
+            gh pr create \
+              --base dev \
+              --head main \
+              --title "Merge main back into dev after ${{ steps.version.outputs.tag }}" \
+              --body "Automated PR to sync \`main\` back into \`dev\` after release ${{ steps.version.outputs.tag }}." \
+              --label "sync" \
+              || echo "PR already exists or branches are identical"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Trigger Build and Release workflow
         run: |
