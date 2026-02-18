@@ -22,9 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Guild admins now follow DAC (Discretionary Access Control) for documents and projects — admin role no longer grants implicit owner-level access to every resource
+- Guild admins and initiative managers now follow DAC (Discretionary Access Control) for documents and projects — these roles no longer grant implicit owner-level access to every resource
 - Guild admins can now add themselves to initiatives and manage initiative membership (previously required being an initiative manager)
-- Collaboration WebSocket endpoint no longer bypasses DAC for guild admins — write access requires an actual permission grant
+- Collaboration WebSocket endpoint now uses pure DAC — matches REST endpoint behavior instead of bypassing access checks for admins/managers
 - Fixed `handle_owner_removal` crash (`AttributeError: role`) when removing a member from an initiative
 - Documents tag tree view: selecting "Not tagged" now filters server-side with correct pagination instead of client-side filtering per page
 - Documents tag tree view: selecting a tag with no matching documents no longer replaces the sidebar with the empty state card
