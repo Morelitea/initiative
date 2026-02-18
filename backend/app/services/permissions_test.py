@@ -125,10 +125,11 @@ def test_effective_permission_level_takes_higher():
 
 
 @pytest.mark.unit
-def test_compute_project_permission_guild_admin():
+def test_compute_project_permission_guild_admin_no_dac():
+    """Guild admin with no DAC grant gets no access (no admin bypass)."""
     project = _make_project()
-    result = compute_project_permission(project, user_id=1, is_guild_admin=True)
-    assert result == "owner"
+    result = compute_project_permission(project, user_id=1)
+    assert result is None
 
 
 @pytest.mark.unit
@@ -251,10 +252,11 @@ def test_has_project_write_access_false_for_none():
 
 
 @pytest.mark.unit
-def test_compute_document_permission_guild_admin():
+def test_compute_document_permission_guild_admin_no_dac():
+    """Guild admin with no DAC grant gets no access (no admin bypass)."""
     doc = _make_document()
-    result = compute_document_permission(doc, user_id=1, is_guild_admin=True)
-    assert result == "owner"
+    result = compute_document_permission(doc, user_id=1)
+    assert result is None
 
 
 @pytest.mark.unit

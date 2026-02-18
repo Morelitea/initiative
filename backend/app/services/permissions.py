@@ -219,18 +219,13 @@ def effective_project_permission(
 def compute_project_permission(
     project: Project,
     user_id: int,
-    *,
-    is_guild_admin: bool = False,
 ) -> str | None:
     """Compute the effective permission level string for a user on a project.
 
     Uses eagerly-loaded relationships (permissions, role_permissions,
     initiative.memberships) so no DB queries are needed.
-    Guild admins are treated as having owner-level access.
+    Pure DAC — no guild admin bypass.
     """
-    if is_guild_admin:
-        return ProjectPermissionLevel.owner.value
-
     user_perm = user_permission_from_project(project, user_id)
     user_level = user_perm.level if user_perm else None
     role_level = project_role_permission_level(project, user_id)
@@ -335,18 +330,13 @@ def _get_loaded_document_permissions(document: Document) -> list[DocumentPermiss
 def compute_document_permission(
     document: Document,
     user_id: int,
-    *,
-    is_guild_admin: bool = False,
 ) -> str | None:
     """Compute the effective permission level string for a user on a document.
 
     Uses eagerly-loaded relationships (permissions, role_permissions,
     initiative.memberships) so no DB queries are needed.
-    Guild admins are treated as having owner-level access.
+    Pure DAC — no guild admin bypass.
     """
-    if is_guild_admin:
-        return DocumentPermissionLevel.owner.value
-
     user_level: DocumentPermissionLevel | None = None
     permissions = getattr(document, "permissions", None) or []
     for perm in permissions:

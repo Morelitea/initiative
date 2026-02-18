@@ -163,13 +163,9 @@ async def _require_initiative_access(
 def _compute_my_doc_permission_level(
     document: Document,
     user_id: int,
-    *,
-    is_guild_admin: bool = False,
 ) -> str | None:
     """Compute the effective permission level for a user on a document."""
-    return permissions_service.compute_document_permission(
-        document, user_id, is_guild_admin=is_guild_admin,
-    )
+    return permissions_service.compute_document_permission(document, user_id)
 
 
 def _require_document_write_access(
@@ -381,12 +377,11 @@ async def list_documents(
     documents = result.unique().all()
 
     await documents_service.annotate_comment_counts(session, documents)
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     items = [
         serialize_document_summary(
             document,
             my_permission_level=_compute_my_doc_permission_level(
-                document, current_user.id, is_guild_admin=is_admin,
+                document, current_user.id,
             ),
         )
         for document in documents
@@ -591,7 +586,6 @@ async def create_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -672,7 +666,6 @@ async def upload_document_file(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -690,7 +683,6 @@ async def read_document(
         document,
         my_permission_level=_compute_my_doc_permission_level(
             document, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -793,7 +785,6 @@ async def update_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -826,7 +817,6 @@ async def duplicate_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -872,7 +862,6 @@ async def copy_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -1221,7 +1210,6 @@ async def set_document_tags(
         doc,
         my_permission_level=_compute_my_doc_permission_level(
             doc, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
