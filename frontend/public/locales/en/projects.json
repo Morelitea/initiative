@@ -25,6 +25,7 @@
       "project": "Project",
       "initiative": "Initiative",
       "tasks": "Tasks",
+      "tags": "Tags",
       "updated": "Updated"
     },
     "tasksDone": "{{completed}}/{{total}} done",

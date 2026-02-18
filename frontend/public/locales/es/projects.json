@@ -24,6 +24,7 @@
       "project": "Proyecto",
       "initiative": "Iniciativa",
       "tasks": "Tareas",
+      "tags": "Etiquetas",
       "updated": "Actualizado"
     },
     "tasksDone": "{{completed}}/{{total}} terminadas",

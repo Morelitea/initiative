@@ -19,6 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataTable } from "@/components/ui/data-table";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { TagBadge } from "@/components/tags/TagBadge";
 import type { ProjectListResponse, ProjectRead } from "@/types/api";
 
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
@@ -263,6 +264,34 @@ export const MyProjectsPage = () => {
                 total: summary.total,
               })}
             </span>
+          );
+        },
+        enableSorting: false,
+      },
+      {
+        id: "tags",
+        header: () => <span className="font-medium">{t("myProjects.columns.tags")}</span>,
+        cell: ({ row }) => {
+          const project = row.original;
+          const projectTags = project.tags ?? [];
+          if (projectTags.length === 0) {
+            return <span className="text-muted-foreground text-sm">&mdash;</span>;
+          }
+          const guildId = getProjectGuildId(project);
+          return (
+            <div className="flex flex-wrap gap-1">
+              {projectTags.slice(0, 3).map((tag) => (
+                <TagBadge
+                  key={tag.id}
+                  tag={tag}
+                  size="sm"
+                  to={guildId ? guildPath(guildId, `/tags/${tag.id}`) : `/tags/${tag.id}`}
+                />
+              ))}
+              {projectTags.length > 3 && (
+                <span className="text-muted-foreground text-xs">+{projectTags.length - 3}</span>
+              )}
+            </div>
           );
         },
         enableSorting: false,
