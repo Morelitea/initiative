@@ -163,6 +163,7 @@ class TaskRead(TaskBase):
     updated_at: datetime
     sort_order: float
     is_archived: bool = False
+    created_by_id: Optional[int] = None
     assignees: List[UserPublic] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0
@@ -184,6 +185,7 @@ class TaskListRead(TaskBase):
     updated_at: datetime
     sort_order: float
     is_archived: bool = False
+    created_by_id: Optional[int] = None
     assignees: List[TaskAssigneeSummary] = []
     recurrence_occurrence_count: int = 0
     comment_count: int = 0

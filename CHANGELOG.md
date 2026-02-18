@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-02-18
+
+### Added
+
+- **Home sidebar mode** — clicking the logo now shows a user-centric sidebar (Discord-style) with personal navigation links instead of guild content
+  - My Tasks (existing, refactored)
+  - Tasks I Created — cross-guild list of tasks you created, with inline assignee display
+  - My Projects — cross-guild list of projects you have access to
+  - My Documents — cross-guild list of documents you own
+  - My Stats (existing)
+- `created_by_id` column on Task model to track who created each task
+- `GET /tasks/?scope=global_created` endpoint — lists tasks created by the current user across all guilds
+- `GET /projects/global` endpoint — lists projects the user can access across all guilds with pagination, guild filter, and search
+- `GET /documents/?scope=global` endpoint — lists documents owned by the current user across all guilds
+- Sequential Alembic migration naming convention (`YYYYMMDD_NNNN`) for chronological sorting
+- Access controls in Create Project and Create Document dialogs via a collapsible "Advanced options" accordion
+  - Role-based permission grants: assign access by initiative role at creation time
+  - User-based permission grants: assign access to specific members at creation time
+  - "Add all initiative members" opt-out toggle for projects (replaces invisible auto-add behavior)
+- Shared `CreateAccessControl` component for role/user permission pickers
+
+### Changed
+
+- Sidebar now switches between Home mode (non-guild routes) and Guild mode (guild routes) based on the current URL
+- MyTasksPage refactored to use shared `useGlobalTasksTable` hook, `GlobalTaskFilters`, and `globalTaskColumns` — shared across My Tasks and Tasks I Created pages
+- Creating a project no longer auto-adds all initiative members as read — permissions are now explicitly controlled via the create dialog
+- Project creation notifications are now scoped to only users who were granted access
+
+### Fixed
+
+- Post-baseline Alembic migration detection no longer crashes on startup — `init_db` now checks for `app_user` role existence instead of exact revision match
+- Guild admins and initiative managers now follow DAC (Discretionary Access Control) for documents and projects — these roles no longer grant implicit owner-level access to every resource
+- Guild admins can now add themselves to initiatives and manage initiative membership (previously required being an initiative manager)
+- Collaboration WebSocket endpoint now uses pure DAC — matches REST endpoint behavior instead of bypassing access checks for admins/managers
+- Fixed `handle_owner_removal` crash (`AttributeError: role`) when removing a member from an initiative
+- Documents tag tree view: selecting "Not tagged" now filters server-side with correct pagination instead of client-side filtering per page
+- Documents tag tree view: selecting a tag with no matching documents no longer replaces the sidebar with the empty state card
+- AppSidebar crash when initiative query data is not an array
+
 ## [0.30.1] - 2026-02-16
 
 ### Added

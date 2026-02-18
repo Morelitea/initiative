@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import List, Optional
 
@@ -22,6 +24,8 @@ class ProjectCreate(ProjectBase):
     initiative_id: Optional[int] = None
     is_template: bool = False
     template_id: Optional[int] = None
+    role_permissions: Optional[List[ProjectRolePermissionCreate]] = None
+    user_permissions: Optional[List[ProjectPermissionCreate]] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -114,6 +118,16 @@ class ProjectRead(ProjectBase):
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
     tags: List[TagSummary] = Field(default_factory=list)
     my_permission_level: Optional[str] = None
+
+
+class ProjectListResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[ProjectRead]
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
 
 
 class ProjectReorderRequest(BaseModel):

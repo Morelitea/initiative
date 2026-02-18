@@ -529,7 +529,9 @@ async def add_initiative_member(
 ) -> InitiativeRead:
     """Add a member to an initiative or update their role."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
-    await _require_manager_access(session, initiative, current_user)
+    await _require_manager_access(
+        session, initiative, current_user, guild_role=guild_context.role,
+    )
 
     user_stmt = await session.exec(select(User).where(User.id == payload.user_id))
     user = user_stmt.one_or_none()
@@ -609,7 +611,9 @@ async def remove_initiative_member(
 ) -> InitiativeRead:
     """Remove a member from an initiative."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
-    await _require_manager_access(session, initiative, current_user)
+    await _require_manager_access(
+        session, initiative, current_user, guild_role=guild_context.role,
+    )
 
     stmt = (
         select(InitiativeMember)
@@ -721,7 +725,9 @@ async def update_initiative_member(
 ) -> InitiativeRead:
     """Update a member's role."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
-    await _require_manager_access(session, initiative, current_user)
+    await _require_manager_access(
+        session, initiative, current_user, guild_role=guild_context.role,
+    )
 
     # Verify role exists and belongs to this initiative
     new_role = await initiatives_service.get_role_by_id(

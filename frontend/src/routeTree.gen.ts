@@ -27,8 +27,11 @@ import { Route as ServerRequiredAuthenticatedSettingsRouteImport } from './route
 import { Route as ServerRequiredAuthenticatedProjectsRouteImport } from './routes/_serverRequired/_authenticated/projects'
 import { Route as ServerRequiredAuthenticatedProfileRouteImport } from './routes/_serverRequired/_authenticated/profile'
 import { Route as ServerRequiredAuthenticatedNavigateRouteImport } from './routes/_serverRequired/_authenticated/navigate'
+import { Route as ServerRequiredAuthenticatedMyProjectsRouteImport } from './routes/_serverRequired/_authenticated/my-projects'
+import { Route as ServerRequiredAuthenticatedMyDocumentsRouteImport } from './routes/_serverRequired/_authenticated/my-documents'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
+import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
 import { Route as ServerRequiredAuthenticatedTasksTaskIdRouteImport } from './routes/_serverRequired/_authenticated/tasks_.$taskId'
 import { Route as ServerRequiredAuthenticatedTagsTagIdRouteImport } from './routes/_serverRequired/_authenticated/tags_.$tagId'
@@ -174,6 +177,18 @@ const ServerRequiredAuthenticatedNavigateRoute =
     path: '/navigate',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
+const ServerRequiredAuthenticatedMyProjectsRoute =
+  ServerRequiredAuthenticatedMyProjectsRouteImport.update({
+    id: '/my-projects',
+    path: '/my-projects',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedMyDocumentsRoute =
+  ServerRequiredAuthenticatedMyDocumentsRouteImport.update({
+    id: '/my-documents',
+    path: '/my-documents',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
 const ServerRequiredAuthenticatedInitiativesRoute =
   ServerRequiredAuthenticatedInitiativesRouteImport.update({
     id: '/initiatives',
@@ -184,6 +199,12 @@ const ServerRequiredAuthenticatedDocumentsRoute =
   ServerRequiredAuthenticatedDocumentsRouteImport.update({
     id: '/documents',
     path: '/documents',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedCreatedTasksRoute =
+  ServerRequiredAuthenticatedCreatedTasksRouteImport.update({
+    id: '/created-tasks',
+    path: '/created-tasks',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileIndexRoute =
@@ -460,8 +481,11 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ServerRequiredResetPasswordRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
+  '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
+  '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/projects': typeof ServerRequiredAuthenticatedProjectsRoute
@@ -523,8 +547,11 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ServerRequiredResetPasswordRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
+  '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
+  '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/projects': typeof ServerRequiredAuthenticatedProjectsRoute
   '/settings': typeof ServerRequiredAuthenticatedSettingsRouteWithChildren
@@ -583,8 +610,11 @@ export interface FileRoutesById {
   '/_serverRequired/reset-password': typeof ServerRequiredResetPasswordRoute
   '/_serverRequired/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/_serverRequired/welcome': typeof ServerRequiredWelcomeRoute
+  '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/_serverRequired/_authenticated/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
+  '/_serverRequired/_authenticated/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/_serverRequired/_authenticated/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/_serverRequired/_authenticated/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/_serverRequired/_authenticated/projects': typeof ServerRequiredAuthenticatedProjectsRoute
@@ -649,8 +679,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/welcome'
+    | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/my-documents'
+    | '/my-projects'
     | '/navigate'
     | '/profile'
     | '/projects'
@@ -712,8 +745,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/welcome'
+    | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/my-documents'
+    | '/my-projects'
     | '/navigate'
     | '/projects'
     | '/settings'
@@ -771,8 +807,11 @@ export interface FileRouteTypes {
     | '/_serverRequired/reset-password'
     | '/_serverRequired/verify-email'
     | '/_serverRequired/welcome'
+    | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
+    | '/_serverRequired/_authenticated/my-documents'
+    | '/_serverRequired/_authenticated/my-projects'
     | '/_serverRequired/_authenticated/navigate'
     | '/_serverRequired/_authenticated/profile'
     | '/_serverRequired/_authenticated/projects'
@@ -960,6 +999,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedNavigateRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
+    '/_serverRequired/_authenticated/my-projects': {
+      id: '/_serverRequired/_authenticated/my-projects'
+      path: '/my-projects'
+      fullPath: '/my-projects'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyProjectsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/my-documents': {
+      id: '/_serverRequired/_authenticated/my-documents'
+      path: '/my-documents'
+      fullPath: '/my-documents'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyDocumentsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
     '/_serverRequired/_authenticated/initiatives': {
       id: '/_serverRequired/_authenticated/initiatives'
       path: '/initiatives'
@@ -972,6 +1025,13 @@ declare module '@tanstack/react-router' {
       path: '/documents'
       fullPath: '/documents'
       preLoaderRoute: typeof ServerRequiredAuthenticatedDocumentsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/created-tasks': {
+      id: '/_serverRequired/_authenticated/created-tasks'
+      path: '/created-tasks'
+      fullPath: '/created-tasks'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCreatedTasksRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/profile/': {
@@ -1453,8 +1513,11 @@ const ServerRequiredAuthenticatedGGuildIdRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedRouteChildren {
+  ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
+  ServerRequiredAuthenticatedMyDocumentsRoute: typeof ServerRequiredAuthenticatedMyDocumentsRoute
+  ServerRequiredAuthenticatedMyProjectsRoute: typeof ServerRequiredAuthenticatedMyProjectsRoute
   ServerRequiredAuthenticatedNavigateRoute: typeof ServerRequiredAuthenticatedNavigateRoute
   ServerRequiredAuthenticatedProfileRoute: typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   ServerRequiredAuthenticatedProjectsRoute: typeof ServerRequiredAuthenticatedProjectsRoute
@@ -1475,10 +1538,16 @@ interface ServerRequiredAuthenticatedRouteChildren {
 
 const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRouteChildren =
   {
+    ServerRequiredAuthenticatedCreatedTasksRoute:
+      ServerRequiredAuthenticatedCreatedTasksRoute,
     ServerRequiredAuthenticatedDocumentsRoute:
       ServerRequiredAuthenticatedDocumentsRoute,
     ServerRequiredAuthenticatedInitiativesRoute:
       ServerRequiredAuthenticatedInitiativesRoute,
+    ServerRequiredAuthenticatedMyDocumentsRoute:
+      ServerRequiredAuthenticatedMyDocumentsRoute,
+    ServerRequiredAuthenticatedMyProjectsRoute:
+      ServerRequiredAuthenticatedMyProjectsRoute,
     ServerRequiredAuthenticatedNavigateRoute:
       ServerRequiredAuthenticatedNavigateRoute,
     ServerRequiredAuthenticatedProfileRoute:

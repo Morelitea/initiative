@@ -25,6 +25,17 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  CreateAccessControl,
+  type RoleGrant,
+  type UserGrant,
+} from "@/components/access/CreateAccessControl";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
@@ -54,7 +65,7 @@ export const CreateDocumentDialog = ({
   onSuccess,
   initiatives = [],
 }: CreateDocumentDialogProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -68,6 +79,9 @@ export const CreateDocumentDialog = ({
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
+  const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
 
   // Determine effective initiative ID
   const effectiveInitiativeId =
@@ -128,6 +142,8 @@ export const CreateDocumentDialog = ({
       setIsTemplateDocument(false);
       setSelectedFile(null);
       setCreateDialogTab("new");
+      setRoleGrants([]);
+      setUserGrants([]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -145,6 +161,46 @@ export const CreateDocumentDialog = ({
     if (!isValid) setSelectedTemplateId("");
   }, [manageableTemplates, selectedTemplateId]);
 
+  // Helper to apply role + user permissions via follow-up API calls.
+  // Used for copy-from-template and upload paths where the create payload can't carry them.
+  // Returns the count of failed permission calls so callers can warn the user.
+  //
+  // Note: cross-initiative role grants are handled differently per path:
+  // - Direct create (POST /documents/): backend silently drops invalid roles (no error).
+  // - Copy/upload paths (this helper): individual POST calls return 400, counted as failures.
+  // This inconsistency is cosmetic — CreateAccessControl filters to valid roles in the UI.
+  const applyDocumentPermissions = async (documentId: number): Promise<number> => {
+    let failures = 0;
+    for (const rg of roleGrants) {
+      try {
+        await apiClient.post(`/documents/${documentId}/role-permissions`, {
+          initiative_role_id: rg.initiative_role_id,
+          level: rg.level,
+        });
+      } catch {
+        failures++;
+      }
+    }
+    // Batch user grants by level to use bulk endpoint
+    const byLevel = new Map<string, number[]>();
+    for (const ug of userGrants) {
+      const arr = byLevel.get(ug.level) ?? [];
+      arr.push(ug.user_id);
+      byLevel.set(ug.level, arr);
+    }
+    for (const [level, userIds] of byLevel) {
+      try {
+        await apiClient.post(`/documents/${documentId}/members/bulk`, {
+          user_ids: userIds,
+          level,
+        });
+      } catch {
+        failures++;
+      }
+    }
+    return failures;
+  };
+
   const createDocument = useMutation({
     mutationFn: async () => {
       const trimmedTitle = newTitle.trim();
@@ -152,6 +208,7 @@ export const CreateDocumentDialog = ({
       if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
 
       let newDocument: DocumentRead;
+      let permissionFailures = 0;
 
       if (selectedTemplateId) {
         const response = await apiClient.post<DocumentRead>(
@@ -160,12 +217,35 @@ export const CreateDocumentDialog = ({
         );
         newDocument = response.data;
       } else {
-        const response = await apiClient.post<DocumentRead>("/documents/", {
+        const payload: Record<string, unknown> = {
           title: trimmedTitle,
           initiative_id: effectiveInitiativeId,
           is_template: isTemplateDocument,
-        });
+        };
+        if (roleGrants.length > 0) {
+          payload.role_permissions = roleGrants;
+        }
+        if (userGrants.length > 0) {
+          payload.user_permissions = userGrants;
+        }
+        const response = await apiClient.post<DocumentRead>("/documents/", payload);
         newDocument = response.data;
+
+        // Verify the backend applied the expected grants (it silently drops
+        // invalid entries like cross-initiative roles). Count mismatches as
+        // failures so the user sees the same warning as copy/upload paths.
+        const appliedRoles = newDocument.role_permissions?.length ?? 0;
+        const appliedUsers = (newDocument.permissions?.length ?? 1) - 1; // exclude owner
+        if (roleGrants.length > appliedRoles || userGrants.length > appliedUsers) {
+          permissionFailures +=
+            roleGrants.length - appliedRoles + (userGrants.length - appliedUsers);
+        }
+      }
+
+      // Apply permissions before project-attach so they're always applied
+      // even if the attach call fails
+      if (selectedTemplateId) {
+        permissionFailures = await applyDocumentPermissions(newDocument.id);
       }
 
       // Auto-attach to project if specified
@@ -173,10 +253,13 @@ export const CreateDocumentDialog = ({
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
 
-      return newDocument;
+      return { document: newDocument, permissionFailures };
     },
-    onSuccess: (document) => {
+    onSuccess: ({ document, permissionFailures: failures }) => {
       toast.success(projectId ? t("create.createdAttached") : t("create.created"));
+      if (failures > 0) {
+        toast.warning(t("create.somePermissionsFailed"));
+      }
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
@@ -214,15 +297,22 @@ export const CreateDocumentDialog = ({
 
       const newDocument = response.data;
 
+      // Apply permissions before project-attach so they're always applied
+      // even if the attach call fails
+      const permissionFailures = await applyDocumentPermissions(newDocument.id);
+
       // Auto-attach to project if specified
       if (projectId) {
         await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
       }
 
-      return newDocument;
+      return { document: newDocument, permissionFailures };
     },
-    onSuccess: (document) => {
+    onSuccess: ({ document, permissionFailures: failures }) => {
       toast.success(projectId ? t("create.uploadedAttached") : t("create.uploaded"));
+      if (failures > 0) {
+        toast.warning(t("create.somePermissionsFailed"));
+      }
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
@@ -447,9 +537,29 @@ export const CreateDocumentDialog = ({
           </TabsContent>
         </Tabs>
 
+        <Accordion type="single" collapsible>
+          <AccordionItem value="advanced" className="border-b-0">
+            <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
+            <AccordionContent>
+              <CreateAccessControl
+                initiativeId={effectiveInitiativeId}
+                roleGrants={roleGrants}
+                onRoleGrantsChange={setRoleGrants}
+                userGrants={userGrants}
+                onUserGrantsChange={setUserGrants}
+                onLoadingChange={setAccessLoading}
+              />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
         <DialogFooter>
           {createDialogTab === "new" ? (
-            <Button type="button" onClick={() => createDocument.mutate()} disabled={!canSubmitNew}>
+            <Button
+              type="button"
+              onClick={() => createDocument.mutate()}
+              disabled={!canSubmitNew || accessLoading}
+            >
               {createDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -463,7 +573,7 @@ export const CreateDocumentDialog = ({
             <Button
               type="button"
               onClick={() => uploadDocument.mutate()}
-              disabled={!canSubmitUpload}
+              disabled={!canSubmitUpload || accessLoading}
             >
               {uploadDocument.isPending ? (
                 <>

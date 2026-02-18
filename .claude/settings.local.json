@@ -15,7 +15,8 @@
       "Bash(bd create:*)",
       "Bash(pnpm exec tsc:*)",
       "Bash(timeout 300 pytest:*)",
-      "Bash(python -m pytest:*)"
+      "Bash(python -m pytest:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }
