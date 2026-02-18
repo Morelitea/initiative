@@ -10,11 +10,11 @@ import { DataTable } from "@/components/ui/data-table";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import type { TranslateFn } from "@/types/i18n";
 
-export const MyTasksPage = () => {
+export const CreatedTasksPage = () => {
   const { t } = useTranslation(["tasks", "dates", "common"]);
   const { guilds } = useGuilds();
 
-  const table = useGlobalTasksTable({ scope: "global", storageKeyPrefix: "my-tasks" });
+  const table = useGlobalTasksTable({ scope: "global_created", storageKeyPrefix: "created-tasks" });
 
   const handleRefresh = useCallback(async () => {
     await table.localQueryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
@@ -31,6 +31,7 @@ export const MyTasksPage = () => {
         projectStatusCache: table.projectStatusCache,
         projectsById: table.projectsById,
         t: t as TranslateFn,
+        showAssignees: true,
       }),
     [
       table.activeGuildId,
@@ -46,8 +47,8 @@ export const MyTasksPage = () => {
 
   const groupingOptions = useMemo(
     () => [
-      { id: "date group", label: t("myTasks.groupByDate") },
-      { id: "guild", label: t("myTasks.groupByGuild") },
+      { id: "date group", label: t("createdTasks.groupByDate") },
+      { id: "guild", label: t("createdTasks.groupByGuild") },
     ],
     [t]
   );
@@ -56,8 +57,8 @@ export const MyTasksPage = () => {
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{t("myTasks.title")}</h1>
-          <p className="text-muted-foreground">{t("myTasks.subtitle")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("createdTasks.title")}</h1>
+          <p className="text-muted-foreground">{t("createdTasks.subtitle")}</p>
         </div>
 
         <GlobalTaskFilters
@@ -86,7 +87,9 @@ export const MyTasksPage = () => {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : table.hasError ? (
-            <p className="text-destructive py-8 text-center text-sm">{t("myTasks.loadError")}</p>
+            <p className="text-destructive py-8 text-center text-sm">
+              {t("createdTasks.loadError")}
+            </p>
           ) : (
             <DataTable
               columns={columns}

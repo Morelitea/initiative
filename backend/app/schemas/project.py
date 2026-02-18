@@ -120,6 +120,16 @@ class ProjectRead(ProjectBase):
     my_permission_level: Optional[str] = None
 
 
+class ProjectListResponse(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[ProjectRead]
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
+
+
 class ProjectReorderRequest(BaseModel):
     project_ids: List[int] = Field(default_factory=list)
 

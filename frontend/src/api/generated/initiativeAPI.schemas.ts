@@ -1068,23 +1068,10 @@ export interface ProjectFavoriteStatus {
   is_favorited: boolean;
 }
 
-export interface ProjectPermissionBulkCreate {
-  user_ids: number[];
-  level?: ProjectPermissionLevel;
-}
-
-export interface ProjectPermissionBulkDelete {
-  user_ids: number[];
-}
-
 export interface ProjectPermissionRead {
   user_id: number;
   level: ProjectPermissionLevel;
   created_at: string;
-}
-
-export interface ProjectPermissionUpdate {
-  level: ProjectPermissionLevel;
 }
 
 export interface ProjectRolePermissionRead {
@@ -1124,6 +1111,27 @@ export interface ProjectRead {
   task_summary: ProjectTaskSummary;
   tags: TagSummary[];
   my_permission_level: string | null;
+}
+
+export interface ProjectListResponse {
+  items: ProjectRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface ProjectPermissionBulkCreate {
+  user_ids: number[];
+  level?: ProjectPermissionLevel;
+}
+
+export interface ProjectPermissionBulkDelete {
+  user_ids: number[];
+}
+
+export interface ProjectPermissionUpdate {
+  level: ProjectPermissionLevel;
 }
 
 export interface ProjectRecentViewRead {
@@ -1554,6 +1562,7 @@ export interface TaskListRead {
   updated_at: string;
   sort_order: number;
   is_archived: boolean;
+  created_by_id: number | null;
   assignees: TaskAssigneeSummary[];
   recurrence_occurrence_count: number;
   comment_count: number;
@@ -1622,6 +1631,7 @@ export interface TaskRead {
   updated_at: string;
   sort_order: number;
   is_archived: boolean;
+  created_by_id: number | null;
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
   comment_count: number;
@@ -2098,6 +2108,24 @@ export type ListWritableProjectsApiV1ProjectsWritableGetHeaders = {
   "X-Guild-ID"?: number | null;
 };
 
+export type ListGlobalProjectsApiV1ProjectsGlobalGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListGlobalProjectsApiV1ProjectsGlobalGetHeaders = {
+  "X-Guild-ID"?: number | null;
+};
+
 export type ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders = {
   "X-Guild-ID"?: number | null;
 };
@@ -2232,7 +2260,7 @@ export type ReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPostHead
 
 export type ListTasksApiV1TasksGetParams = {
   project_id?: number | null;
-  scope?: "global" | null;
+  scope?: "global" | "global_created" | null;
   assignee_ids?: string[] | null;
   task_status_ids?: number[] | null;
   priorities?: TaskPriority[] | null;
@@ -2521,6 +2549,8 @@ export type GetDocumentCountsApiV1DocumentsCountsGetHeaders = {
 
 export type ListDocumentsApiV1DocumentsGetParams = {
   initiative_id?: number | null;
+  scope?: "global" | null;
+  guild_ids?: number[] | null;
   search?: string | null;
   /**
    * Filter by tag IDs
