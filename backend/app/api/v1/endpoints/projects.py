@@ -23,7 +23,7 @@ from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory, 
 from app.models.comment import Comment
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.user import User
-from app.models.guild import GuildRole
+from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.document import Document, ProjectDocument
 from app.models.tag import Tag, ProjectTag, TaskTag
 from app.services import notifications as notifications_service
@@ -37,6 +37,7 @@ from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
     ProjectDuplicateRequest,
+    ProjectListResponse,
     ProjectPermissionBulkCreate,
     ProjectPermissionBulkDelete,
     ProjectPermissionCreate,
@@ -757,6 +758,70 @@ async def _require_project_membership(
     )
 
 
+async def _list_global_projects(
+    session: SessionDep,
+    current_user: User,
+    *,
+    guild_ids: Optional[List[int]] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Project], int]:
+    """List projects across all guilds the user belongs to.
+
+    Joins through Initiative -> Guild -> GuildMembership to enforce that the
+    user is a member of the owning guild, and filters through the DAC
+    visible-project-ids subquery for permission checks.
+    """
+    has_permission_subq = permissions_service.visible_project_ids_subquery(current_user.id)
+
+    conditions = [
+        GuildMembership.user_id == current_user.id,
+        Project.is_archived.is_(False),
+        Project.is_template.is_(False),
+        Project.id.in_(has_permission_subq),
+    ]
+    if guild_ids:
+        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+    if search:
+        conditions.append(func.lower(Project.name).contains(search.strip().lower()))
+
+    def _base_query(stmt):
+        return (
+            stmt
+            .join(Project.initiative)
+            .join(Initiative.guild)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(*conditions)
+        )
+
+    # Count query
+    count_subq = _base_query(select(Project.id)).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+
+    # Data query
+    statement = _base_query(select(Project)).options(
+        selectinload(Project.permissions).selectinload(ProjectPermission.user),
+        selectinload(Project.role_permissions).selectinload(ProjectRolePermission.role),
+        selectinload(Project.owner),
+        selectinload(Project.initiative).selectinload(Initiative.memberships).options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+        ),
+        selectinload(Project.document_links).selectinload(ProjectDocument.document).options(
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions),
+        ),
+        selectinload(Project.tag_links).selectinload(ProjectTag.tag),
+    ).order_by(Project.updated_at.desc())
+
+    statement = statement.offset((page - 1) * page_size).limit(page_size)
+
+    result = await session.exec(statement)
+    return list(result.all()), total_count
+
+
 @router.get("/", response_model=List[ProjectRead])
 async def list_projects(
     session: RLSSessionDep,
@@ -797,6 +862,42 @@ async def list_writable_projects(
     ]
     return await _project_reads_with_order(
         session, current_user, writable_projects,
+    )
+
+
+@router.get("/global", response_model=ProjectListResponse)
+async def list_global_projects(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    guild_ids: Optional[List[int]] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> ProjectListResponse:
+    """List projects across all guilds the current user belongs to.
+
+    Returns a paginated list filtered by DAC permissions, excluding
+    archived and template projects. Supports optional guild and
+    name-search filters.
+    """
+    projects, total_count = await _list_global_projects(
+        session,
+        current_user,
+        guild_ids=guild_ids,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+    project_reads = await _project_reads_with_order(
+        session, current_user, projects,
+    )
+    return ProjectListResponse(
+        items=project_reads,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=page * page_size < total_count,
     )
 
 

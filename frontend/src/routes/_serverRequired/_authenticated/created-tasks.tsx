@@ -2,12 +2,11 @@ import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 import { apiClient } from "@/api/client";
 import { getItem } from "@/lib/storage";
 
-type MyTasksSearchParams = {
+type CreatedTasksSearchParams = {
   page?: number;
-  authenticated?: string;
 };
 
-const STORAGE_KEY = "initiative-my-tasks-filters";
+const STORAGE_KEY = "initiative-created-tasks-filters";
 const PAGE_SIZE = 20;
 
 function readStoredFilters() {
@@ -25,22 +24,21 @@ function readStoredFilters() {
   }
 }
 
-export const Route = createFileRoute("/_serverRequired/_authenticated/")({
-  validateSearch: (search: Record<string, unknown>): MyTasksSearchParams => ({
+export const Route = createFileRoute("/_serverRequired/_authenticated/created-tasks")({
+  validateSearch: (search: Record<string, unknown>): CreatedTasksSearchParams => ({
     page:
       typeof search.page === "number" && search.page >= 1
         ? search.page
         : typeof search.page === "string" && Number(search.page) >= 1
           ? Number(search.page)
           : undefined,
-    authenticated: typeof search.authenticated === "string" ? search.authenticated : undefined,
   }),
   loader: async ({ context }) => {
     const { queryClient } = context;
     const { statusFilters, priorityFilters, guildFilters } = readStoredFilters();
 
     const params: Record<string, string | string[] | number | number[]> = {
-      scope: "global",
+      scope: "global_created",
       page: 1,
       page_size: PAGE_SIZE,
       sort_by: "date_group,due_date",
@@ -55,7 +53,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/")({
         queryKey: [
           "tasks",
           "global",
-          "global",
+          "global_created",
           statusFilters,
           priorityFilters,
           guildFilters,
@@ -72,6 +70,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/")({
     }
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/MyTasksPage").then((m) => ({ default: m.MyTasksPage }))
+    import("@/pages/CreatedTasksPage").then((m) => ({ default: m.CreatedTasksPage }))
   ),
 });

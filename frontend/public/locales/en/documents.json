@@ -1,4 +1,20 @@
 {
+  "myDocuments": {
+    "title": "My Documents",
+    "subtitle": "Documents you own across all your guilds.",
+    "empty": "You haven't created any documents yet.",
+    "loadError": "Unable to load your documents.",
+    "searchPlaceholder": "Search documents...",
+    "filterByGuild": "Filter by guild",
+    "allGuilds": "All guilds",
+    "noGuilds": "No guilds found",
+    "noGuild": "No guild",
+    "filters": "Filters",
+    "showFilters": "Show filters",
+    "hideFilters": "Hide filters",
+    "updating": "Updating..."
+  },
+
   "page": {
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
@@ -37,7 +53,9 @@
     "projects": "Projects",
     "tags": "Tags",
     "owner": "Owner",
-    "type": "Type"
+    "type": "Type",
+    "guild": "Guild",
+    "initiative": "Initiative"
   },
   "type": {
     "template": "Template",

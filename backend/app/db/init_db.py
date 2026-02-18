@@ -88,20 +88,28 @@ async def check_pre_baseline_db() -> None:
         if revision is None:
             return  # Fresh database (empty alembic_version)
 
+        # Check whether the baseline migration has already been applied.
+        # After post-baseline migrations run, the stamp advances past
+        # BASELINE_REVISION, so we also check for the app_user role which
+        # the baseline creates.
+        has_roles = await conn.fetchval(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM pg_roles WHERE rolname = 'app_user'"
+            ")"
+        )
+
         if revision == BASELINE_REVISION:
             # Already on baseline, but roles may be missing if the user
             # upgraded to v0.30.0 without running init-db.sh. Clear the
             # stamp so the baseline migration re-runs — it's idempotent
             # and will create roles, RLS policies, and grants as needed.
-            has_roles = await conn.fetchval(
-                "SELECT EXISTS ("
-                "  SELECT 1 FROM pg_roles WHERE rolname = 'app_user'"
-                ")"
-            )
             if not has_roles:
                 print("Baseline stamped but database roles missing. Re-running baseline migration...")
                 await conn.execute("DELETE FROM alembic_version")
             return
+
+        if has_roles:
+            return  # Post-baseline revision; baseline was already applied
 
         raise SystemExit(
             f"\n{'=' * 70}\n"
