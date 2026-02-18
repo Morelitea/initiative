@@ -128,12 +128,6 @@ async def _check_document_access(
     if not guild_membership:
         return False, False
 
-    is_guild_admin = rls_service.is_guild_admin(guild_membership.role)
-
-    # Guild admins get full access
-    if is_guild_admin:
-        return True, True
-
     # Initiative managers get full access
     if document.initiative_id:
         is_manager = await rls_service.is_initiative_manager(

@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
 from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, ProjectDocument
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole, InitiativeRoleModel
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.services import attachments as attachments_service
@@ -222,11 +222,13 @@ async def handle_owner_removal(
     if not documents:
         return
 
-    # Get all initiative PMs
+    # Get all initiative PMs (users with is_manager role)
     pm_result = await session.exec(
-        select(InitiativeMember).where(
+        select(InitiativeMember)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(
             InitiativeMember.initiative_id == initiative_id,
-            InitiativeMember.role == InitiativeRole.project_manager,
+            InitiativeRoleModel.is_manager.is_(True),
         )
     )
     pm_user_ids = {pm.user_id for pm in pm_result.all()}

@@ -101,11 +101,9 @@ def _project_documents(
     *,
     user_id: int | None = None,
 ) -> List[ProjectDocumentSummary]:
-    """Serialize project document links, optionally filtering by permission.
+    """Serialize project document links, filtering by DAC permission.
 
-    Pass ``user_id`` for non-admin callers so only documents the user can
-    access are included.  Pass ``user_id=None`` (guild admins) to skip
-    filtering entirely.
+    Pass ``user_id`` so only documents the user can access are included.
     """
     documents: List[ProjectDocumentSummary] = []
     for link in getattr(project, "document_links", []) or []:
@@ -234,13 +232,9 @@ async def _get_initiative_or_404(initiative_id: int, session: SessionDep, guild_
 def _compute_my_permission_level(
     project: Project,
     user_id: int,
-    *,
-    is_guild_admin: bool = False,
 ) -> str | None:
     """Compute the effective permission level for a user on a project."""
-    return permissions_service.compute_project_permission(
-        project, user_id, is_guild_admin=is_guild_admin,
-    )
+    return permissions_service.compute_project_permission(project, user_id)
 
 
 def _membership_from_project(project: Project, user_id: int) -> InitiativeMember | None:
@@ -476,8 +470,6 @@ async def _project_reads_with_order(
     session: SessionDep,
     current_user: User,
     projects: List[Project],
-    *,
-    is_guild_admin: bool = False,
 ) -> List[ProjectRead]:
     if not projects:
         return []
@@ -501,14 +493,9 @@ async def _project_reads_with_order(
 
     sorted_projects = sorted(projects, key=sort_key)
 
-    # Guild admins see all documents; non-admins get filtered by permission
-    doc_user_id = None if is_guild_admin else current_user.id
-
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
-        my_level = _compute_my_permission_level(
-            project, current_user.id, is_guild_admin=is_guild_admin,
-        )
+        my_level = _compute_my_permission_level(project, current_user.id)
         payloads.append(
             _build_project_payload(
                 project,
@@ -516,7 +503,7 @@ async def _project_reads_with_order(
                 favorite_ids=favorite_ids,
                 view_map=view_map,
                 my_permission_level=my_level,
-                user_id=doc_user_id,
+                user_id=current_user.id,
             )
         )
     return payloads
@@ -745,12 +732,8 @@ async def _project_read_for_user(
     session: SessionDep,
     current_user: User,
     project: Project,
-    *,
-    is_guild_admin: bool = False,
 ) -> ProjectRead:
-    payloads = await _project_reads_with_order(
-        session, current_user, [project], is_guild_admin=is_guild_admin,
-    )
+    payloads = await _project_reads_with_order(session, current_user, [project])
     return payloads[0]
 
 
@@ -791,7 +774,6 @@ async def list_projects(
     )
     return await _project_reads_with_order(
         session, current_user, projects,
-        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 
@@ -815,7 +797,6 @@ async def list_writable_projects(
     ]
     return await _project_reads_with_order(
         session, current_user, writable_projects,
-        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 
@@ -995,16 +976,15 @@ async def create_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "created", _project_payload(
         project,
         my_permission_level=_compute_my_permission_level(
-            project, current_user.id, is_guild_admin=is_admin,
+            project, current_user.id,
         ),
-        user_id=None if is_admin else current_user.id,
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, project, is_guild_admin=is_admin,
+        session, current_user, project,
     )
 
 
@@ -1030,16 +1010,15 @@ async def archive_project(
         await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "updated", _project_payload(
         updated,
         my_permission_level=_compute_my_permission_level(
-            updated, current_user.id, is_guild_admin=is_admin,
+            updated, current_user.id,
         ),
-        user_id=None if is_admin else current_user.id,
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, updated, is_guild_admin=is_admin,
+        session, current_user, updated,
     )
 
 
@@ -1152,15 +1131,15 @@ async def duplicate_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [new_project])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "created", _project_payload(
         new_project,
         my_permission_level=_compute_my_permission_level(
-            new_project, current_user.id, is_guild_admin=is_admin,
+            new_project, current_user.id,
         ),
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, new_project, is_guild_admin=is_admin,
+        session, current_user, new_project,
     )
 
 
@@ -1186,16 +1165,15 @@ async def unarchive_project(
         await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "updated", _project_payload(
         updated,
         my_permission_level=_compute_my_permission_level(
-            updated, current_user.id, is_guild_admin=is_admin,
+            updated, current_user.id,
         ),
-        user_id=None if is_admin else current_user.id,
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, updated, is_guild_admin=is_admin,
+        session, current_user, updated,
     )
 
 
@@ -1218,7 +1196,6 @@ async def recent_projects(
     project_ids = [record.project_id for record in records]
     project_map = await _projects_by_ids(session, project_ids, guild_id=guild_context.guild_id)
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
-    is_admin = rls_service.is_guild_admin(guild_context.role)
 
     payloads: List[ProjectRead] = []
     for record in records:
@@ -1241,9 +1218,9 @@ async def recent_projects(
                 favorite_ids=favorite_ids,
                 view_map=view_map,
                 my_permission_level=_compute_my_permission_level(
-                    project, current_user.id, is_guild_admin=is_admin,
+                    project, current_user.id,
                 ),
-                user_id=None if is_admin else current_user.id,
+                user_id=current_user.id,
             )
         )
     return payloads
@@ -1267,7 +1244,6 @@ async def favorite_projects(
     project_ids = [favorite.project_id for favorite in favorites]
     project_map = await _projects_by_ids(session, project_ids, guild_id=guild_context.guild_id)
     favorite_ids, view_map = await _project_meta_for_user(session, current_user.id, project_ids)
-    is_admin = rls_service.is_guild_admin(guild_context.role)
 
     payloads: List[ProjectRead] = []
     for favorite in favorites:
@@ -1290,9 +1266,9 @@ async def favorite_projects(
                 favorite_ids=favorite_ids,
                 view_map=view_map,
                 my_permission_level=_compute_my_permission_level(
-                    project, current_user.id, is_guild_admin=is_admin,
+                    project, current_user.id,
                 ),
-                user_id=None if is_admin else current_user.id,
+                user_id=current_user.id,
             )
         )
     return payloads
@@ -1432,7 +1408,6 @@ async def read_project(
             )
     return await _project_read_for_user(
         session, current_user, project,
-        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 
@@ -1513,16 +1488,15 @@ async def update_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "updated", _project_payload(
         project,
         my_permission_level=_compute_my_permission_level(
-            project, current_user.id, is_guild_admin=is_admin,
+            project, current_user.id,
         ),
-        user_id=None if is_admin else current_user.id,
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, project, is_guild_admin=is_admin,
+        session, current_user, project,
     )
 
 
@@ -1559,16 +1533,15 @@ async def attach_project_document(
     )
     updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated_project])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "updated", _project_payload(
         updated_project,
         my_permission_level=_compute_my_permission_level(
-            updated_project, current_user.id, is_guild_admin=is_admin,
+            updated_project, current_user.id,
         ),
-        user_id=None if is_admin else current_user.id,
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, updated_project, is_guild_admin=is_admin,
+        session, current_user, updated_project,
     )
 
 
@@ -1604,16 +1577,15 @@ async def detach_project_document(
     )
     updated_project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated_project])
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     await broadcast_event("project", "updated", _project_payload(
         updated_project,
         my_permission_level=_compute_my_permission_level(
-            updated_project, current_user.id, is_guild_admin=is_admin,
+            updated_project, current_user.id,
         ),
-        user_id=None if is_admin else current_user.id,
+        user_id=current_user.id,
     ))
     return await _project_read_for_user(
-        session, current_user, updated_project, is_guild_admin=is_admin,
+        session, current_user, updated_project,
     )
 
 
@@ -1914,7 +1886,6 @@ async def reorder_projects(
     await reapply_rls_context(session)
     return await _project_reads_with_order(
         session, current_user, visible_projects,
-        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 
@@ -1997,7 +1968,6 @@ async def set_project_tags(
     await _attach_task_summaries(session, [updated])
     return await _project_read_for_user(
         session, current_user, updated,
-        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 
