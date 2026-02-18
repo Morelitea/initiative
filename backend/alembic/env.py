@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from logging.config import fileConfig
 from pathlib import Path
 import sys
@@ -34,6 +35,26 @@ if not config.attributes.get("url_configured"):
 target_metadata = SQLModel.metadata
 
 
+def _process_revision_directives(context, revision, directives):
+    """Set the revision ID to YYYYMMDD_NNNN (date + sequential number)."""
+    if not directives:
+        return
+    now = datetime.now(timezone.utc)
+    date_prefix = now.strftime("%Y%m%d")
+
+    # Find the highest existing revision number for any date
+    versions_dir = Path(__file__).parent / "versions"
+    max_seq = 0
+    for f in versions_dir.glob("*.py"):
+        name = f.stem
+        # Match pattern: YYYYMMDD_NNNN_...
+        if len(name) >= 13 and name[8] == "_" and name[:8].isdigit() and name[9:13].isdigit():
+            max_seq = max(max_seq, int(name[9:13]))
+
+    next_seq = max_seq + 1
+    directives[0].rev_id = f"{date_prefix}_{next_seq:04d}"
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
 
@@ -45,6 +66,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         render_as_batch=True,
+        process_revision_directives=_process_revision_directives,
     )
 
     with context.begin_transaction():
@@ -60,6 +82,7 @@ def do_run_migrations(connection: Connection) -> None:
         # Commit after each migration to allow PostgreSQL enum values
         # added in one migration to be used in subsequent migrations
         transaction_per_migration=True,
+        process_revision_directives=_process_revision_directives,
     )
 
     with context.begin_transaction():

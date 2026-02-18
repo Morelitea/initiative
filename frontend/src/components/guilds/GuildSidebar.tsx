@@ -221,7 +221,7 @@ const SortableGuildButton = ({
   );
 };
 
-export const GuildSidebar = () => {
+export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) => {
   const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
   const { t } = useTranslation(["guilds", "nav"]);
   const router = useRouter();
@@ -288,14 +288,20 @@ export const GuildSidebar = () => {
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link to="/" className="flex flex-col items-center">
+            <Link
+              to="/"
+              className={cn(
+                "flex flex-col items-center rounded-2xl p-1 transition",
+                isHomeMode && "bg-primary/10 ring-primary/60 ring-2"
+              )}
+            >
               <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
               {/* eslint-disable-next-line i18next/no-literal-string */}
               <span className="text-primary text-s text-center">initiative</span>
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={12}>
-            <p>{t("nav:myTasks")}</p>
+            <p>{t("nav:home")}</p>
           </TooltipContent>
         </Tooltip>
         <div className="flex flex-col items-center gap-3 overflow-y-auto border-t pt-3">

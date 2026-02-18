@@ -11,6 +11,26 @@
   "accessRestricted": "Access Restricted",
   "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Contact an administrator if you believe this is an error.",
 
+  "myProjects": {
+    "title": "My Projects",
+    "subtitle": "Projects you have access to across all your guilds.",
+    "empty": "You're not part of any projects yet.",
+    "loadError": "Unable to load your projects.",
+    "searchPlaceholder": "Search projects...",
+    "filterByGuild": "Filter by guild",
+    "allGuilds": "All guilds",
+    "noGuilds": "No guilds available",
+    "columns": {
+      "guild": "Guild",
+      "project": "Project",
+      "initiative": "Initiative",
+      "tasks": "Tasks",
+      "updated": "Updated"
+    },
+    "tasksDone": "{{completed}}/{{total}} done",
+    "noTasks": "No tasks"
+  },
+
   "tabs": {
     "active": "Active Projects",
     "templates": "Templates",

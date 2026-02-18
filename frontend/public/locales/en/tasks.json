@@ -123,6 +123,15 @@
     "groupByGuild": "Guild"
   },
 
+  "createdTasks": {
+    "title": "Tasks I Created",
+    "subtitle": "Tasks you've created across all your guilds.",
+    "empty": "You haven't created any tasks yet.",
+    "loadError": "Unable to load your created tasks.",
+    "groupByDate": "Date",
+    "groupByGuild": "Guild"
+  },
+
   "tagTasks": {
     "loadError": "Unable to load tasks."
   },

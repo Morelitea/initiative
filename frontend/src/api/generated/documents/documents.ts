@@ -294,6 +294,9 @@ export function useGetDocumentCountsApiV1DocumentsCountsGet<
 DAC: Documents with explicit DocumentPermission or role-based permission.
 
 Pagination: page_size=0 returns all documents (no pagination).
+
+When scope=global, returns documents created by the current user across
+all guilds they belong to. Optionally filter by guild_ids.
  * @summary List Documents
  */
 export type listDocumentsApiV1DocumentsGetResponse200 = {
