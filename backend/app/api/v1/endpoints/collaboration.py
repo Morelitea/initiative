@@ -33,7 +33,6 @@ from app.services.collaboration import (
 )
 from app.services import documents as documents_service
 from app.services import permissions as permissions_service
-from app.services import rls as rls_service
 from app.services import user_tokens
 
 router = APIRouter()
@@ -114,8 +113,8 @@ async def _check_document_access(
 ) -> tuple[bool, bool]:
     """Check document access level. Returns (can_read, can_write).
 
-    Uses DAC (permissions_service) for document-level access and
-    RLS (rls_service) for initiative-level manager checks.
+    Pure DAC — access granted through explicit DocumentPermission or
+    role-based permission only.
     """
     # Check guild membership
     stmt = select(GuildMembership).where(
@@ -127,16 +126,6 @@ async def _check_document_access(
 
     if not guild_membership:
         return False, False
-
-    # Initiative managers get full access
-    if document.initiative_id:
-        is_manager = await rls_service.is_initiative_manager(
-            session,
-            initiative_id=document.initiative_id,
-            user=user,
-        )
-        if is_manager:
-            return True, True
 
     # Use centralized DAC permission computation
     level = permissions_service.compute_document_permission(document, user.id)
