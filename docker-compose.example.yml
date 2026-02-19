@@ -7,13 +7,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-initiative}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-initiative}
       POSTGRES_DB: ${POSTGRES_DB:-initiative}
-      # Passwords for RLS database roles (created by init script)
-      APP_USER_PASSWORD: ${APP_USER_PASSWORD:-app_user_password}
-      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-app_admin_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Init script creates app_user and app_admin database roles
-      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/01-create-roles.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
@@ -34,7 +29,7 @@ services:
       DATABASE_URL_APP: postgresql+asyncpg://app_user:${APP_USER_PASSWORD:-app_user_password}@db:5432/${POSTGRES_DB:-initiative}
       # Admin connection for migrations and background jobs (app_admin role, BYPASSRLS)
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:${APP_ADMIN_PASSWORD:-app_admin_password}@db:5432/${POSTGRES_DB:-initiative}
-      # Fallback URL (used if DATABASE_URL_APP not set; existing setups keep working)
+      # Superuser connection (used for migrations and role creation)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@db:5432/${POSTGRES_DB:-initiative}
       SECRET_KEY: super-secret-key
       ACCESS_TOKEN_EXPIRE_MINUTES: 10080

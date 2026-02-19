@@ -241,6 +241,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         updated_at=task.updated_at,
         sort_order=task.sort_order,
         is_archived=task.is_archived,
+        created_by_id=task.created_by_id,
         assignees=assignees,
         recurrence_occurrence_count=task.recurrence_occurrence_count,
         comment_count=getattr(task, "comment_count", 0),
@@ -411,6 +412,7 @@ async def _advance_recurrence_if_needed(
         recurrence_strategy=strategy,
         sort_order=await _next_sort_order(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
+        created_by_id=task.created_by_id,
     )
     session.add(new_task)
     await session.flush()
@@ -618,13 +620,85 @@ async def _list_global_tasks(
     return result.all(), total_count
 
 
+async def _list_global_created_tasks(
+    session: SessionDep,
+    current_user: User,
+    *,
+    project_id: Optional[int],
+    priorities: Optional[List[TaskPriority]],
+    status_category: Optional[List[TaskStatusCategory]],
+    initiative_ids: Optional[List[int]],
+    guild_ids: Optional[List[int]],
+    include_archived: bool = False,
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None,
+) -> tuple[list[Task], int]:
+    """List tasks created by the current user across all guilds they belong to."""
+    # Base conditions shared by count and data queries
+    conditions = [
+        Task.created_by_id == current_user.id,
+        GuildMembership.user_id == current_user.id,
+        Project.is_archived.is_(False),
+        Project.is_template.is_(False),
+    ]
+    if not include_archived:
+        conditions.append(Task.is_archived.is_(False))
+    if project_id is not None:
+        conditions.append(Task.project_id == project_id)
+    if priorities:
+        conditions.append(Task.priority.in_(tuple(priorities)))
+    if initiative_ids:
+        conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
+    if guild_ids:
+        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+
+    # Build base join chain (no TaskAssignee join needed)
+    def _base_query(stmt):
+        stmt = (
+            stmt
+            .join(Task.project)
+            .join(Project.initiative)
+            .join(Initiative.guild)
+            .join(GuildMembership, GuildMembership.guild_id == Initiative.guild_id)
+        )
+        if status_category:
+            stmt = stmt.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(
+                TaskStatus.category.in_(tuple(status_category))
+            )
+        return stmt.where(*conditions)
+
+    # Count query
+    count_subq = _base_query(select(Task.id)).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+
+    # Data query
+    statement = _base_query(select(Task)).options(
+        selectinload(Task.project)
+        .selectinload(Project.initiative)
+        .selectinload(Initiative.guild),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+        selectinload(Task.tag_links).selectinload(TaskTag.tag),
+    )
+    statement = _apply_task_sort(statement, sort_by, sort_dir)
+
+    if page_size > 0:
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
+
+    result = await session.exec(statement)
+    return result.all(), total_count
+
+
 @router.get("/", response_model=TaskListResponse)
 async def list_tasks(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: Optional[int] = Query(default=None),
-    scope: Annotated[Literal["global"] | None, Query()] = None,
+    scope: Annotated[Literal["global", "global_created"] | None, Query()] = None,
     assignee_ids: Optional[List[str]] = Query(default=None),
     task_status_ids: Optional[List[int]] = Query(default=None),
     priorities: Optional[List[TaskPriority]] = Query(default=None),
@@ -660,6 +734,39 @@ async def list_tasks(
             has_next = page * page_size < total_count
         else:
             # page_size=0 means "all rows, no pagination"
+            has_next = False
+            page = 1
+        return TaskListResponse(
+            items=items,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_next=has_next,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+
+    elif scope == "global_created":
+        tasks, total_count = await _list_global_created_tasks(
+            session,
+            current_user,
+            project_id=project_id,
+            priorities=priorities,
+            status_category=status_category,
+            initiative_ids=initiative_ids,
+            guild_ids=guild_ids,
+            include_archived=include_archived,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+        await _annotate_tasks(session, tasks)
+        _annotate_task_tags(tasks)
+        items = [_task_to_list_read(task) for task in tasks]
+        if page_size > 0:
+            has_next = page * page_size < total_count
+        else:
             has_next = False
             page = 1
         return TaskListResponse(
@@ -817,7 +924,7 @@ async def create_task(
             recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
             task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
 
-    task = Task(**task_data, sort_order=sort_order, task_status_id=selected_status.id)
+    task = Task(**task_data, sort_order=sort_order, task_status_id=selected_status.id, created_by_id=current_user.id)
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
@@ -1052,6 +1159,7 @@ async def duplicate_task(
         recurrence=original_task.recurrence,
         recurrence_strategy=original_task.recurrence_strategy,
         sort_order=sort_order,
+        created_by_id=current_user.id,
     )
     session.add(new_task)
     await session.flush()

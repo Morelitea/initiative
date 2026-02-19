@@ -115,6 +115,15 @@
     "groupByDate": "Fecha",
     "groupByGuild": "Gremio"
   },
+
+  "createdTasks": {
+    "title": "Tareas que creé",
+    "subtitle": "Tareas que has creado en todos tus gremios.",
+    "empty": "Aún no has creado ninguna tarea.",
+    "loadError": "No se pudieron cargar tus tareas creadas.",
+    "groupByDate": "Fecha",
+    "groupByGuild": "Gremio"
+  },
   "tagTasks": {
     "loadError": "No se pudieron cargar las tareas."
   },

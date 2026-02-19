@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Set required env vars with dummy values so Settings() validates
 # without a .env file (no DB connection or crypto needed for schema export)
 os.environ.setdefault("SECRET_KEY", "openapi-export-dummy-key")
+os.environ.setdefault("DATABASE_URL_APP", "postgresql+asyncpg://app_user:x@localhost/dummy")
+os.environ.setdefault("DATABASE_URL_ADMIN", "postgresql+asyncpg://app_admin:x@localhost/dummy")
 
 from app.main import app  # noqa: E402
 

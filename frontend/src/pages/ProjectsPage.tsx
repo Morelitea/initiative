@@ -94,6 +94,17 @@ import {
 } from "@/components/ui/dialog";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { useTags } from "@/hooks/useTags";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  CreateAccessControl,
+  type RoleGrant,
+  type UserGrant,
+} from "@/components/access/CreateAccessControl";
 import type { Tag, TagSummary } from "@/types/api";
 
 const NO_TEMPLATE_VALUE = "template-none";
@@ -158,6 +169,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, [searchParams, isComposerOpen]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
+  const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
+  const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
     return getItem(PROJECT_SEARCH_KEY) ?? "";
   });
@@ -394,14 +408,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const createProject = useMutation({
     mutationFn: async () => {
-      const payload: {
-        name: string;
-        description: string;
-        icon?: string;
-        initiative_id?: number;
-        template_id?: number;
-        is_template?: boolean;
-      } = { name, description };
+      const payload: Record<string, unknown> = { name, description };
       const trimmedIcon = icon.trim();
       if (trimmedIcon) {
         payload.icon = trimmedIcon;
@@ -418,6 +425,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return createProjectApiV1ProjectsPost(
         payload as Parameters<typeof createProjectApiV1ProjectsPost>[0]
       ) as unknown as Promise<Project>;
+      if (roleGrants.length > 0) {
+        payload.role_permissions = roleGrants;
+      }
+      if (userGrants.length > 0) {
+        payload.user_permissions = userGrants;
+      }
+      const response = await apiClient.post<Project>("/projects/", payload);
+      return response.data;
     },
     onSuccess: () => {
       setName("");
@@ -426,6 +441,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       setInitiativeId(null);
       setSelectedTemplateId(NO_TEMPLATE_VALUE);
       setIsTemplateProject(false);
+      setRoleGrants([]);
+      setUserGrants([]);
       handleComposerOpenChange(false);
       void invalidateAllProjects();
     },
@@ -491,14 +508,18 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const handleComposerOpenChange = (open: boolean) => {
     setIsComposerOpen(open);
-    // Clear ?create from URL when dialog closes
-    if (!open && searchParams.create) {
-      isClosingComposer.current = true;
-      router.navigate({
-        to: "/projects",
-        search: { initiativeId: searchParams.initiativeId },
-        replace: true,
-      });
+    // Reset grants when dialog closes so stale state doesn't persist
+    if (!open) {
+      setRoleGrants([]);
+      setUserGrants([]);
+      if (searchParams.create) {
+        isClosingComposer.current = true;
+        router.navigate({
+          to: "/projects",
+          search: { initiativeId: searchParams.initiativeId },
+          replace: true,
+        });
+      }
     }
   };
 
@@ -1210,6 +1231,24 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       }}
                     />
                   </div>
+                  <Accordion type="single" collapsible defaultValue="advanced">
+                    <AccordionItem value="advanced" className="border-b-0">
+                      <AccordionTrigger>
+                        {t("common:createAccess.advancedOptions")}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <CreateAccessControl
+                          initiativeId={initiativeId ? Number(initiativeId) : null}
+                          roleGrants={roleGrants}
+                          onRoleGrantsChange={setRoleGrants}
+                          userGrants={userGrants}
+                          onUserGrantsChange={setUserGrants}
+                          addAllMembersDefault
+                          onLoadingChange={setAccessLoading}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                   <div className="flex flex-wrap items-center gap-2">
                     {createProject.isError ? (
                       <p className="text-destructive text-sm">{t("createDialog.createError")}</p>
@@ -1223,7 +1262,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                       >
                         {t("common:cancel")}
                       </Button>
-                      <Button type="submit" disabled={createProject.isPending}>
+                      <Button type="submit" disabled={createProject.isPending || accessLoading}>
                         {createProject.isPending
                           ? t("createDialog.creating")
                           : t("createDialog.createProject")}

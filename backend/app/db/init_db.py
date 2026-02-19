@@ -1,5 +1,7 @@
 import asyncio
+from urllib.parse import urlparse
 
+import asyncpg
 from sqlmodel import select
 
 from app.core.config import settings
@@ -10,6 +12,12 @@ from app.models.guild import GuildRole
 from app.services import app_settings as app_settings_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
+
+BASELINE_REVISION = "20260216_0053"
+UPGRADE_SCRIPT_URL = (
+    "https://raw.githubusercontent.com/Morelitea/initiative/"
+    "main/scripts/upgrade-to-baseline.sql"
+)
 
 
 async def init_superuser() -> None:
@@ -49,7 +57,84 @@ async def init_superuser() -> None:
             await initiatives_service.ensure_default_initiative(session, superuser, guild_id=primary_guild.id)
 
 
+async def check_pre_baseline_db() -> None:
+    """Exit with upgrade instructions if the database is pre-v0.30.0."""
+    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+
+    try:
+        conn = await asyncpg.connect(
+            user=parsed.username,
+            password=parsed.password,
+            database=parsed.path.lstrip("/"),
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+        )
+    except Exception:
+        return  # Can't connect; let alembic surface the error
+
+    try:
+        has_table = await conn.fetchval(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM information_schema.tables "
+            "  WHERE table_schema = 'public' AND table_name = 'alembic_version'"
+            ")"
+        )
+        if not has_table:
+            return  # Fresh database
+
+        revision = await conn.fetchval(
+            "SELECT version_num FROM alembic_version LIMIT 1"
+        )
+        if revision is None:
+            return  # Fresh database (empty alembic_version)
+
+        # Check whether the baseline migration has already been applied.
+        # After post-baseline migrations run, the stamp advances past
+        # BASELINE_REVISION, so we also check for the app_user role which
+        # the baseline creates.
+        has_roles = await conn.fetchval(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM pg_roles WHERE rolname = 'app_user'"
+            ")"
+        )
+
+        if revision == BASELINE_REVISION:
+            # Already on baseline, but roles may be missing if the user
+            # upgraded to v0.30.0 without running init-db.sh. Clear the
+            # stamp so the baseline migration re-runs — it's idempotent
+            # and will create roles, RLS policies, and grants as needed.
+            if not has_roles:
+                print("Baseline stamped but database roles missing. Re-running baseline migration...")
+                await conn.execute("DELETE FROM alembic_version")
+            return
+
+        if has_roles:
+            return  # Post-baseline revision; baseline was already applied
+
+        raise SystemExit(
+            f"\n{'=' * 70}\n"
+            f"Pre-v0.30.0 database detected (revision: {revision}).\n\n"
+            f"The database schema must be upgraded before this version can run.\n"
+            f"Run the upgrade script with psql:\n\n"
+            f"  curl -fsSL {UPGRADE_SCRIPT_URL} \\\n"
+            f"    -o upgrade-to-baseline.sql\n\n"
+            f"  psql -v ON_ERROR_STOP=1 \\\n"
+            f"    -f upgrade-to-baseline.sql \"$DATABASE_URL\"\n\n"
+            f"If psql is not available (e.g. Synology, Unraid), pipe through\n"
+            f"the Postgres container:\n\n"
+            f"  curl -fsSL {UPGRADE_SCRIPT_URL} | \\\n"
+            f"    docker exec -i initiative-db \\\n"
+            f"    psql -v ON_ERROR_STOP=1 -U initiative -d initiative\n\n"
+            f"Then restart the application. The baseline migration will\n"
+            f"create database roles, RLS policies, and grants automatically.\n"
+            f"{'=' * 70}"
+        )
+    finally:
+        await conn.close()
+
+
 async def init() -> None:
+    await check_pre_baseline_db()
     await run_migrations()
     await init_superuser()
     async with AdminSessionLocal() as session:

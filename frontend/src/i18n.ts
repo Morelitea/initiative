@@ -68,6 +68,7 @@ void i18n
     },
     backend: {
       loadPath: "/locales/{{lng}}/{{ns}}.json",
+      queryStringParams: { v: __APP_VERSION__ },
     },
     react: {
       useSuspense: true,

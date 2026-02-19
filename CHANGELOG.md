@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Translation files were cached by the browser across deploys, causing newly added i18n keys to render as raw strings — translation fetches now include a version query param for cache busting
+
+## [0.31.0] - 2026-02-18
+
+### Added
+
+- **Home sidebar mode** — clicking the logo now shows a user-centric sidebar (Discord-style) with personal navigation links instead of guild content
+  - My Tasks (existing, refactored)
+  - Tasks I Created — cross-guild list of tasks you created, with inline assignee display
+  - My Projects — cross-guild list of projects you have access to
+  - My Documents — cross-guild list of documents you own
+  - My Stats (existing)
+- `created_by_id` column on Task model to track who created each task
+- `GET /tasks/?scope=global_created` endpoint — lists tasks created by the current user across all guilds
+- `GET /projects/global` endpoint — lists projects the user can access across all guilds with pagination, guild filter, and search
+- `GET /documents/?scope=global` endpoint — lists documents owned by the current user across all guilds
+- Sequential Alembic migration naming convention (`YYYYMMDD_NNNN`) for chronological sorting
+- Access controls in Create Project and Create Document dialogs via a collapsible "Advanced options" accordion
+  - Role-based permission grants: assign access by initiative role at creation time
+  - User-based permission grants: assign access to specific members at creation time
+  - "Add all initiative members" opt-out toggle for projects (replaces invisible auto-add behavior)
+- Shared `CreateAccessControl` component for role/user permission pickers
+
+### Changed
+
+- Sidebar now switches between Home mode (non-guild routes) and Guild mode (guild routes) based on the current URL
+- MyTasksPage refactored to use shared `useGlobalTasksTable` hook, `GlobalTaskFilters`, and `globalTaskColumns` — shared across My Tasks and Tasks I Created pages
+- Creating a project no longer auto-adds all initiative members as read — permissions are now explicitly controlled via the create dialog
+- Project creation notifications are now scoped to only users who were granted access
+
+### Fixed
+
+- Post-baseline Alembic migration detection no longer crashes on startup — `init_db` now checks for `app_user` role existence instead of exact revision match
+- Guild admins and initiative managers now follow DAC (Discretionary Access Control) for documents and projects — these roles no longer grant implicit owner-level access to every resource
+- Guild admins can now add themselves to initiatives and manage initiative membership (previously required being an initiative manager)
+- Collaboration WebSocket endpoint now uses pure DAC — matches REST endpoint behavior instead of bypassing access checks for admins/managers
+- Fixed `handle_owner_removal` crash (`AttributeError: role`) when removing a member from an initiative
+- Documents tag tree view: selecting "Not tagged" now filters server-side with correct pagination instead of client-side filtering per page
+- Documents tag tree view: selecting a tag with no matching documents no longer replaces the sidebar with the empty state card
+- AppSidebar crash when initiative query data is not an array
+
+## [0.30.1] - 2026-02-16
+
 ### Added
 
 - Auto-generated frontend TypeScript types and React Query hooks from the backend OpenAPI spec using Orval
@@ -37,6 +82,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Guild switching now navigates to the dashboard instead of preserving the previous sub-path
 - "All Projects" and "All Documents" links in the sidebar between favorites and initiatives
 - Composite database indexes for query performance: tasks (project + archived, due date + status, updated_at), guild memberships (user + guild), and documents (updated_at)
+- Squashed all 76 Alembic migrations into a single idempotent baseline migration — fresh installs no longer require `docker/init-db.sh` to pre-create database roles
+- `DATABASE_URL_APP` and `DATABASE_URL_ADMIN` are now **required** environment variables (previously fell back to `DATABASE_URL`, which silently ran the app as superuser without RLS enforcement)
+- RLS is now always enforced — removed the `ENABLE_RLS` configuration flag
+- Migrations always run using `DATABASE_URL` (superuser), fixing the env.py URL override bug that caused migrations to use the wrong connection
 - Reorganized backend security architecture into two centralized service modules:
   - `rls.py` — Mandatory Access Control: guild isolation, guild RBAC (admin-only writes), initiative membership, and initiative RBAC via PermissionKey
   - `permissions.py` — Discretionary Access Control: project/document-level read/write/owner permissions with visibility subqueries
@@ -44,6 +93,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved initiative security checks (`is_initiative_manager`, `check_initiative_permission`, `has_feature_access`) from initiatives service to `rls.py` (backward-compatible re-exports preserved)
 - Replaced duplicated permission logic in endpoint files (projects, documents, tasks, tags, imports, collaboration) with shared helpers from `permissions.py`
 - Consolidated visibility subquery patterns (`visible_project_ids_subquery`, `visible_document_ids_subquery`) to eliminate duplication across listing endpoints
+
+### Removed
+
+- `ENABLE_RLS` environment variable — RLS is always active; remove this from your `.env` if present
+- `init_models()` backwards-compatibility alias (use `import app.db.base` directly)
+- `docker/init-db.sh` — database role creation is now handled by the baseline migration itself
+- 76 individual migration files replaced by single baseline (existing v0.30.0 databases upgrade seamlessly)
+
+### Upgrade Notes
+
+- **From v0.30.0**: No action needed — the baseline migration is a no-op for existing databases. You can safely remove `docker/init-db.sh` if present.
+- **From pre-v0.30.0 (v0.14.1–v0.29.x)**: The application will detect the old schema and exit with instructions. Run the upgrade script before starting:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+    -o upgrade-to-baseline.sql
+  psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
+  ```
+  If psql is not available on your host (e.g. Synology, Unraid), pipe through the Postgres container:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql | \
+    docker exec -i initiative-db psql -v ON_ERROR_STOP=1 -U initiative -d initiative
+  ```
+  Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.
 
 ## [0.30.0] - 2026-02-15
 

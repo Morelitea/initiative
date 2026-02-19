@@ -65,6 +65,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
+import { HomeSidebarContent } from "@/components/HomeSidebarContent";
 import { ModeToggle } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
@@ -92,6 +93,9 @@ export const AppSidebar = () => {
   const isGuildAdmin = activeGuild?.role === "admin";
   // Platform admins can access platform settings (separate from guild admin role)
   const isPlatformAdmin = user?.role === "admin";
+
+  // Determine sidebar mode from route
+  const isGuildRoute = location.pathname.startsWith("/g/");
 
   // Extract active project ID from URL (support both old and new URL patterns)
   const activeProjectId = useMemo(() => {
@@ -163,7 +167,7 @@ export const AppSidebar = () => {
     if (!user) {
       return [];
     }
-    const source = initiativesQuery.data ?? [];
+    const source = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
     if (isGuildAdmin) {
       return source.slice().sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -249,177 +253,187 @@ export const AppSidebar = () => {
     >
       <div className="flex h-full w-full max-w-full min-w-0 flex-col">
         <div className="flex min-h-0 max-w-full flex-1">
-          <GuildSidebar />
+          <GuildSidebar isHomeMode={!isGuildRoute} />
           <div className="flex max-w-full min-w-0 flex-1 flex-col overflow-hidden border-r">
-            <SidebarHeader className="border-b">
-              <div className="flex min-w-0 items-center justify-between gap-2 p-4">
-                <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
-                  {activeGuild?.name ?? t("selectGuild")}
-                </h2>
-                {activeGuild && isGuildAdmin && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-                    <Link to={gp("/settings")} aria-label={t("guildSettings")}>
-                      <Settings className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                )}
-              </div>
-            </SidebarHeader>
+            {!isGuildRoute ? (
+              <HomeSidebarContent />
+            ) : (
+              <>
+                <SidebarHeader className="border-b">
+                  <div className="flex min-w-0 items-center justify-between gap-2 p-4">
+                    <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
+                      {activeGuild?.name ?? t("selectGuild")}
+                    </h2>
+                    {activeGuild && isGuildAdmin && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+                        <Link to={gp("/settings")} aria-label={t("guildSettings")}>
+                          <Settings className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+                </SidebarHeader>
 
-            <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">
-              {/* <div className="border-b px-2"> */}
-              <TabsList className="h-9 w-full rounded-none">
-                <TabsTrigger value="initiatives" className="flex-1 text-xs">
-                  <Users className="mr-2 h-3.5 w-3.5" />
-                  {t("initiatives")}
-                </TabsTrigger>
-                <TabsTrigger value="tags" className="flex-1 text-xs">
-                  <Tag className="mr-2 h-3.5 w-3.5" />
-                  {t("tags")}
-                </TabsTrigger>
-              </TabsList>
-              {/* </div> */}
+                <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">
+                  {/* <div className="border-b px-2"> */}
+                  <TabsList className="h-9 w-full rounded-none">
+                    <TabsTrigger value="initiatives" className="flex-1 text-xs">
+                      <Users className="mr-2 h-3.5 w-3.5" />
+                      {t("initiatives")}
+                    </TabsTrigger>
+                    <TabsTrigger value="tags" className="flex-1 text-xs">
+                      <Tag className="mr-2 h-3.5 w-3.5" />
+                      {t("tags")}
+                    </TabsTrigger>
+                  </TabsList>
+                  {/* </div> */}
 
-              <TabsContent value="initiatives" className="mt-0 flex-1 overflow-hidden">
-                <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
-                  {/* Favorites Section */}
-                  {favoritesQuery?.data && favoritesQuery.data.length > 0 && (
-                    <>
+                  <TabsContent value="initiatives" className="mt-0 flex-1 overflow-hidden">
+                    <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
+                      {/* Favorites Section */}
+                      {favoritesQuery?.data && favoritesQuery.data.length > 0 && (
+                        <>
+                          <SidebarGroup>
+                            <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                              <Star className="h-4 w-4" />
+                              {t("favorites")}
+                            </SidebarGroupLabel>
+                            <SidebarGroupContent>
+                              <SidebarMenu>
+                                {favoritesQuery.data.map((project) => (
+                                  <SidebarMenuItem key={project.id}>
+                                    <SidebarMenuButton
+                                      asChild
+                                      isActive={project.id === activeProjectId}
+                                    >
+                                      <Link
+                                        to={gp(`/projects/${project.id}`)}
+                                        className="flex min-w-0 items-center gap-2"
+                                      >
+                                        {project.icon ? (
+                                          <span className="shrink-0 text-lg">{project.icon}</span>
+                                        ) : null}
+                                        <span className="min-w-0 flex-1 truncate">
+                                          {project.name}
+                                        </span>
+                                      </Link>
+                                    </SidebarMenuButton>
+                                  </SidebarMenuItem>
+                                ))}
+                              </SidebarMenu>
+                            </SidebarGroupContent>
+                          </SidebarGroup>
+                          <SidebarSeparator />
+                        </>
+                      )}
+
+                      {/* All Projects & All Documents */}
+                      {activeGuild && (
+                        <>
+                          <SidebarGroup>
+                            <SidebarGroupContent>
+                              <SidebarMenu>
+                                <SidebarMenuItem>
+                                  <SidebarMenuButton asChild>
+                                    <Link to={gp("/projects")} className="flex items-center gap-2">
+                                      <ListTodo className="h-4 w-4" />
+                                      <span>{t("allProjects")}</span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                                <SidebarMenuItem>
+                                  <SidebarMenuButton asChild>
+                                    <Link to={gp("/documents")} className="flex items-center gap-2">
+                                      <ScrollText className="h-4 w-4" />
+                                      <span>{t("allDocuments")}</span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              </SidebarMenu>
+                            </SidebarGroupContent>
+                          </SidebarGroup>
+                          <SidebarSeparator />
+                        </>
+                      )}
+
+                      {/* Initiatives Section */}
                       <SidebarGroup>
                         <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                          <Star className="h-4 w-4" />
-                          {t("favorites")}
+                          <Users className="h-4 w-4" /> {t("initiatives")}
                         </SidebarGroupLabel>
                         <SidebarGroupContent>
-                          <SidebarMenu>
-                            {favoritesQuery.data.map((project) => (
-                              <SidebarMenuItem key={project.id}>
-                                <SidebarMenuButton
-                                  asChild
-                                  isActive={project.id === activeProjectId}
-                                >
-                                  <Link
-                                    to={gp(`/projects/${project.id}`)}
-                                    className="flex min-w-0 items-center gap-2"
-                                  >
-                                    {project.icon ? (
-                                      <span className="shrink-0 text-lg">{project.icon}</span>
-                                    ) : null}
-                                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                          {initiativesQuery.isLoading ? (
+                            <div className="space-y-2 px-4">
+                              <Skeleton className="h-8 w-full" />
+                              <Skeleton className="h-8 w-full" />
+                              <Skeleton className="h-8 w-full" />
+                            </div>
+                          ) : visibleInitiatives.length === 0 ? (
+                            <div className="text-muted-foreground px-4 py-2 text-sm">
+                              {t("noInitiativesAvailable")}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {visibleInitiatives.map((initiative) => {
+                                const permissions = getUserPermissions(initiative);
+                                return (
+                                  <InitiativeSection
+                                    key={initiative.id}
+                                    initiative={initiative}
+                                    projects={projectsByInitiative.get(initiative.id) ?? []}
+                                    documentCount={
+                                      documentCountsByInitiative.get(initiative.id) ?? 0
+                                    }
+                                    canManageInitiative={canManageInitiative(initiative)}
+                                    activeProjectId={activeProjectId}
+                                    userId={user?.id}
+                                    canViewDocs={permissions.canViewDocs}
+                                    canViewProjects={permissions.canViewProjects}
+                                    canCreateDocs={permissions.canCreateDocs}
+                                    canCreateProjects={permissions.canCreateProjects}
+                                    activeGuildId={activeGuildId}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {isGuildAdmin && (
+                            <SidebarMenu>
+                              <SidebarMenuItem>
+                                <SidebarMenuButton asChild size="sm">
+                                  <Link to={gp("/initiatives")} search={{ create: "true" }}>
+                                    <Plus className="h-4 w-4" />
+                                    <span>{t("addInitiative")}</span>
                                   </Link>
                                 </SidebarMenuButton>
                               </SidebarMenuItem>
-                            ))}
-                          </SidebarMenu>
+                            </SidebarMenu>
+                          )}
                         </SidebarGroupContent>
                       </SidebarGroup>
-                      <SidebarSeparator />
-                    </>
-                  )}
+                    </SidebarContent>
+                  </TabsContent>
 
-                  {/* All Projects & All Documents */}
-                  {activeGuild && (
-                    <>
+                  <TabsContent value="tags" className="mt-0 flex-1 overflow-hidden">
+                    <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
                       <SidebarGroup>
+                        <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                          <Tag className="h-4 w-4" /> {t("tags")}
+                        </SidebarGroupLabel>
                         <SidebarGroupContent>
-                          <SidebarMenu>
-                            <SidebarMenuItem>
-                              <SidebarMenuButton asChild>
-                                <Link to={gp("/projects")} className="flex items-center gap-2">
-                                  <ListTodo className="h-4 w-4" />
-                                  <span>{t("allProjects")}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                              <SidebarMenuButton asChild>
-                                <Link to={gp("/documents")} className="flex items-center gap-2">
-                                  <ScrollText className="h-4 w-4" />
-                                  <span>{t("allDocuments")}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          </SidebarMenu>
+                          <TagBrowser
+                            tags={tagsQuery.data ?? []}
+                            isLoading={tagsQuery.isLoading}
+                            activeGuildId={activeGuildId}
+                          />
                         </SidebarGroupContent>
                       </SidebarGroup>
-                      <SidebarSeparator />
-                    </>
-                  )}
-
-                  {/* Initiatives Section */}
-                  <SidebarGroup>
-                    <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                      <Users className="h-4 w-4" /> {t("initiatives")}
-                    </SidebarGroupLabel>
-                    <SidebarGroupContent>
-                      {initiativesQuery.isLoading ? (
-                        <div className="space-y-2 px-4">
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
-                          <Skeleton className="h-8 w-full" />
-                        </div>
-                      ) : visibleInitiatives.length === 0 ? (
-                        <div className="text-muted-foreground px-4 py-2 text-sm">
-                          {t("noInitiativesAvailable")}
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {visibleInitiatives.map((initiative) => {
-                            const permissions = getUserPermissions(initiative);
-                            return (
-                              <InitiativeSection
-                                key={initiative.id}
-                                initiative={initiative}
-                                projects={projectsByInitiative.get(initiative.id) ?? []}
-                                documentCount={documentCountsByInitiative.get(initiative.id) ?? 0}
-                                canManageInitiative={canManageInitiative(initiative)}
-                                activeProjectId={activeProjectId}
-                                userId={user?.id}
-                                canViewDocs={permissions.canViewDocs}
-                                canViewProjects={permissions.canViewProjects}
-                                canCreateDocs={permissions.canCreateDocs}
-                                canCreateProjects={permissions.canCreateProjects}
-                                activeGuildId={activeGuildId}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {isGuildAdmin && (
-                        <SidebarMenu>
-                          <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="sm">
-                              <Link to={gp("/initiatives")} search={{ create: "true" }}>
-                                <Plus className="h-4 w-4" />
-                                <span>{t("addInitiative")}</span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        </SidebarMenu>
-                      )}
-                    </SidebarGroupContent>
-                  </SidebarGroup>
-                </SidebarContent>
-              </TabsContent>
-
-              <TabsContent value="tags" className="mt-0 flex-1 overflow-hidden">
-                <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
-                  <SidebarGroup>
-                    <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                      <Tag className="h-4 w-4" /> {t("tags")}
-                    </SidebarGroupLabel>
-                    <SidebarGroupContent>
-                      <TagBrowser
-                        tags={tagsQuery.data ?? []}
-                        isLoading={tagsQuery.isLoading}
-                        activeGuildId={activeGuildId}
-                      />
-                    </SidebarGroupContent>
-                  </SidebarGroup>
-                </SidebarContent>
-              </TabsContent>
-            </Tabs>
+                    </SidebarContent>
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
           </div>
         </div>
 

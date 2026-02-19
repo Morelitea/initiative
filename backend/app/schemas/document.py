@@ -32,6 +32,8 @@ class DocumentBase(BaseModel):
 
 class DocumentCreate(DocumentBase):
     content: Optional[LexicalState] = Field(default_factory=dict)
+    role_permissions: Optional[List[DocumentRolePermissionCreate]] = None
+    user_permissions: Optional[List[DocumentPermissionCreate]] = None
 
 
 class DocumentUpdate(BaseModel):

@@ -107,22 +107,15 @@ jobs:
           name: android-apk
           path: artifacts/*.apk
 
-  build-and-push:
-    needs: build-android
+  build-docker:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Download Android APK
-        uses: actions/download-artifact@v4
-        with:
-          name: android-apk
-          path: artifacts
 
       - name: Check for required secrets
         run: |
@@ -132,7 +125,7 @@ jobs:
             echo "::error::See .github/DOCKER_SETUP.md for instructions"
             exit 1
           fi
-          echo "✓ Required secrets are configured"
+          echo "Required secrets are configured"
 
       - name: Extract version from tag
         id: version
@@ -182,12 +175,40 @@ jobs:
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
             VITE_API_URL=/api/v1
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=docker-build
+          cache-to: type=gha,scope=docker-build,mode=max
           platforms: linux/amd64,linux/arm64
 
       - name: Image digest
         run: echo "Image pushed with digest ${{ steps.build.outputs.digest }}"
+
+  release:
+    needs: [build-android, build-docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: artifacts
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(cat VERSION)
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Extract changelog for version
         id: changelog

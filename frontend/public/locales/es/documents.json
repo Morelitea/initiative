@@ -1,4 +1,20 @@
 {
+  "myDocuments": {
+    "title": "Mis documentos",
+    "subtitle": "Documentos que posees en todos tus gremios.",
+    "empty": "Aún no has creado ningún documento.",
+    "loadError": "No se pudieron cargar tus documentos.",
+    "searchPlaceholder": "Buscar documentos...",
+    "filterByGuild": "Filtrar por gremio",
+    "allGuilds": "Todos los gremios",
+    "noGuilds": "No se encontraron gremios",
+    "noGuild": "Sin gremio",
+    "filters": "Filtros",
+    "showFilters": "Mostrar filtros",
+    "hideFilters": "Ocultar filtros",
+    "updating": "Actualizando..."
+  },
+
   "page": {
     "title": "Documentos",
     "subtitle": "Mantén el conocimiento de la iniciativa organizado y adjunta documentos a proyectos.",
@@ -37,7 +53,9 @@
     "projects": "Proyectos",
     "tags": "Etiquetas",
     "owner": "Propietario",
-    "type": "Tipo"
+    "type": "Tipo",
+    "guild": "Gremio",
+    "initiative": "Iniciativa"
   },
   "type": {
     "template": "Plantilla",
@@ -242,7 +260,8 @@
     "uploadedAttached": "Documento subido y adjuntado.",
     "uploaded": "Documento subido.",
     "createError": "No se pudo crear el documento.",
-    "uploadError": "No se pudo subir el documento."
+    "uploadError": "No se pudo subir el documento.",
+    "somePermissionsFailed": "Documento creado, pero algunos permisos no se pudieron aplicar."
   },
   "viewer": {
     "loadError": "No se pudo cargar el documento",

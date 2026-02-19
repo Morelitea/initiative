@@ -63,5 +63,26 @@
   "countSelected": "{{count}} selected",
   "selectEllipsis": "Select...",
   "noOptionsAvailable": "No options available",
-  "clearAll": "Clear all"
+  "clearAll": "Clear all",
+  "createAccess": {
+    "advancedOptions": "Advanced options",
+    "roleAccess": "Role access",
+    "roleAccessHint": "Grant access to members by initiative role",
+    "userAccess": "User access",
+    "userAccessHint": "Grant access to specific members",
+    "selectRoles": "Select roles...",
+    "selectMembers": "Select members...",
+    "searchRoles": "Search roles...",
+    "searchMembers": "Search members...",
+    "noRoles": "No roles found",
+    "noMembers": "No members found",
+    "level": "Access level",
+    "canView": "Can view",
+    "canEdit": "Can edit",
+    "add": "Add",
+    "addAllMembers": "Add all initiative members",
+    "addAllMembersHint": "Grant read access to all current members",
+    "noInitiative": "Select an initiative first",
+    "remove": "Remove"
+  }
 }
