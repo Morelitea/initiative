@@ -1,4 +1,9 @@
-import { apiClient } from "./client";
+import {
+  listNotificationsApiV1NotificationsGet,
+  unreadNotificationsCountApiV1NotificationsUnreadCountGet,
+  markNotificationReadApiV1NotificationsNotificationIdReadPost,
+  markAllNotificationsReadApiV1NotificationsReadAllPost,
+} from "@/api/generated/notifications/notifications";
 import type {
   Notification,
   NotificationCountResponse,
@@ -6,21 +11,19 @@ import type {
 } from "@/types/api";
 
 export const fetchNotifications = async () => {
-  const response = await apiClient.get<NotificationListResponse>("/notifications/");
-  return response.data;
+  return listNotificationsApiV1NotificationsGet() as unknown as Promise<NotificationListResponse>;
 };
 
 export const fetchUnreadNotificationCount = async () => {
-  const response = await apiClient.get<NotificationCountResponse>("/notifications/unread-count");
-  return response.data;
+  return unreadNotificationsCountApiV1NotificationsUnreadCountGet() as unknown as Promise<NotificationCountResponse>;
 };
 
 export const markNotificationRead = async (notificationId: number) => {
-  const response = await apiClient.post<Notification>(`/notifications/${notificationId}/read`);
-  return response.data;
+  return markNotificationReadApiV1NotificationsNotificationIdReadPost(
+    notificationId
+  ) as unknown as Promise<Notification>;
 };
 
 export const markAllNotificationsRead = async () => {
-  const response = await apiClient.post<NotificationCountResponse>("/notifications/read-all");
-  return response.data;
+  return markAllNotificationsReadApiV1NotificationsReadAllPost() as unknown as Promise<NotificationCountResponse>;
 };

@@ -26,14 +26,9 @@ import type {
   ApiKeyCreateRequest,
   ApiKeyCreateResponse,
   ApiKeyListResponse,
-  ApproveUserApiV1UsersUserIdApprovePostHeaders,
-  CreateUserApiV1UsersPostHeaders,
-  DeleteUserApiV1UsersUserIdDeleteHeaders,
   DeletionEligibilityResponse,
   GetUserStatsApiV1UsersMeStatsGetParams,
   HTTPValidationError,
-  ListUsersApiV1UsersGetHeaders,
-  UpdateUserApiV1UsersUserIdPatchHeaders,
   UserCreate,
   UserGuildMember,
   UserRead,
@@ -50,27 +45,11 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Read Users Me
  */
-export type readUsersMeApiV1UsersMeGetResponse200 = {
-  data: UserRead;
-  status: 200;
-};
-
-export type readUsersMeApiV1UsersMeGetResponseSuccess = readUsersMeApiV1UsersMeGetResponse200 & {
-  headers: Headers;
-};
-export type readUsersMeApiV1UsersMeGetResponse = readUsersMeApiV1UsersMeGetResponseSuccess;
-
-export const getReadUsersMeApiV1UsersMeGetUrl = () => {
-  return `/api/v1/users/me`;
-};
-
-export const readUsersMeApiV1UsersMeGet = async (
-  options?: RequestInit
-): Promise<readUsersMeApiV1UsersMeGetResponse> => {
-  return apiMutator<readUsersMeApiV1UsersMeGetResponse>(getReadUsersMeApiV1UsersMeGetUrl(), {
-    ...options,
-    method: "GET",
-  });
+export const readUsersMeApiV1UsersMeGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>({ url: `/api/v1/users/me`, method: "GET", signal }, options);
 };
 
 export const getReadUsersMeApiV1UsersMeGetQueryKey = () => {
@@ -92,7 +71,7 @@ export const getReadUsersMeApiV1UsersMeGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>> = ({
     signal,
-  }) => readUsersMeApiV1UsersMeGet({ signal, ...requestOptions });
+  }) => readUsersMeApiV1UsersMeGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof readUsersMeApiV1UsersMeGet>>,
@@ -186,45 +165,20 @@ export function useReadUsersMeApiV1UsersMeGet<
 /**
  * @summary Update Users Me
  */
-export type updateUsersMeApiV1UsersMePatchResponse200 = {
-  data: UserRead;
-  status: 200;
-};
-
-export type updateUsersMeApiV1UsersMePatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateUsersMeApiV1UsersMePatchResponseSuccess =
-  updateUsersMeApiV1UsersMePatchResponse200 & {
-    headers: Headers;
-  };
-export type updateUsersMeApiV1UsersMePatchResponseError =
-  updateUsersMeApiV1UsersMePatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateUsersMeApiV1UsersMePatchResponse =
-  | updateUsersMeApiV1UsersMePatchResponseSuccess
-  | updateUsersMeApiV1UsersMePatchResponseError;
-
-export const getUpdateUsersMeApiV1UsersMePatchUrl = () => {
-  return `/api/v1/users/me`;
-};
-
-export const updateUsersMeApiV1UsersMePatch = async (
-  userSelfUpdate: UserSelfUpdate,
-  options?: RequestInit
-): Promise<updateUsersMeApiV1UsersMePatchResponse> => {
-  return apiMutator<updateUsersMeApiV1UsersMePatchResponse>(
-    getUpdateUsersMeApiV1UsersMePatchUrl(),
+export const updateUsersMeApiV1UsersMePatch = (
+  userSelfUpdate: BodyType<UserSelfUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
     {
-      ...options,
+      url: `/api/v1/users/me`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(userSelfUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: userSelfUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -299,57 +253,14 @@ export const useUpdateUsersMeApiV1UsersMePatch = <
  * Get comprehensive statistics for the current user.
  * @summary Get User Stats
  */
-export type getUserStatsApiV1UsersMeStatsGetResponse200 = {
-  data: UserStatsResponse;
-  status: 200;
-};
-
-export type getUserStatsApiV1UsersMeStatsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type getUserStatsApiV1UsersMeStatsGetResponseSuccess =
-  getUserStatsApiV1UsersMeStatsGetResponse200 & {
-    headers: Headers;
-  };
-export type getUserStatsApiV1UsersMeStatsGetResponseError =
-  getUserStatsApiV1UsersMeStatsGetResponse422 & {
-    headers: Headers;
-  };
-
-export type getUserStatsApiV1UsersMeStatsGetResponse =
-  | getUserStatsApiV1UsersMeStatsGetResponseSuccess
-  | getUserStatsApiV1UsersMeStatsGetResponseError;
-
-export const getGetUserStatsApiV1UsersMeStatsGetUrl = (
-  params?: GetUserStatsApiV1UsersMeStatsGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/users/me/stats?${stringifiedParams}`
-    : `/api/v1/users/me/stats`;
-};
-
-export const getUserStatsApiV1UsersMeStatsGet = async (
+export const getUserStatsApiV1UsersMeStatsGet = (
   params?: GetUserStatsApiV1UsersMeStatsGetParams,
-  options?: RequestInit
-): Promise<getUserStatsApiV1UsersMeStatsGetResponse> => {
-  return apiMutator<getUserStatsApiV1UsersMeStatsGetResponse>(
-    getGetUserStatsApiV1UsersMeStatsGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserStatsResponse>(
+    { url: `/api/v1/users/me/stats`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -377,7 +288,7 @@ export const getGetUserStatsApiV1UsersMeStatsGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserStatsApiV1UsersMeStatsGet>>> = ({
     signal,
-  }) => getUserStatsApiV1UsersMeStatsGet(params, { signal, ...requestOptions });
+  }) => getUserStatsApiV1UsersMeStatsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getUserStatsApiV1UsersMeStatsGet>>,
@@ -475,40 +386,11 @@ export function useGetUserStatsApiV1UsersMeStatsGet<
 /**
  * @summary List Users
  */
-export type listUsersApiV1UsersGetResponse200 = {
-  data: UserGuildMember[];
-  status: 200;
-};
-
-export type listUsersApiV1UsersGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listUsersApiV1UsersGetResponseSuccess = listUsersApiV1UsersGetResponse200 & {
-  headers: Headers;
-};
-export type listUsersApiV1UsersGetResponseError = listUsersApiV1UsersGetResponse422 & {
-  headers: Headers;
-};
-
-export type listUsersApiV1UsersGetResponse =
-  | listUsersApiV1UsersGetResponseSuccess
-  | listUsersApiV1UsersGetResponseError;
-
-export const getListUsersApiV1UsersGetUrl = () => {
-  return `/api/v1/users/`;
-};
-
-export const listUsersApiV1UsersGet = async (
-  headers?: ListUsersApiV1UsersGetHeaders,
-  options?: RequestInit
-): Promise<listUsersApiV1UsersGetResponse> => {
-  return apiMutator<listUsersApiV1UsersGetResponse>(getListUsersApiV1UsersGetUrl(), {
-    ...options,
-    method: "GET",
-    headers: { ...headers, ...options?.headers },
-  });
+export const listUsersApiV1UsersGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserGuildMember[]>({ url: `/api/v1/users/`, method: "GET", signal }, options);
 };
 
 export const getListUsersApiV1UsersGetQueryKey = () => {
@@ -518,21 +400,18 @@ export const getListUsersApiV1UsersGetQueryKey = () => {
 export const getListUsersApiV1UsersGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listUsersApiV1UsersGet>>,
   TError = ErrorType<HTTPValidationError>,
->(
-  headers?: ListUsersApiV1UsersGetHeaders,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey = queryOptions?.queryKey ?? getListUsersApiV1UsersGetQueryKey();
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>> = ({ signal }) =>
-    listUsersApiV1UsersGet(headers, { signal, ...requestOptions });
+    listUsersApiV1UsersGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listUsersApiV1UsersGet>>,
@@ -550,7 +429,6 @@ export function useListUsersApiV1UsersGet<
   TData = Awaited<ReturnType<typeof listUsersApiV1UsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers: undefined | ListUsersApiV1UsersGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>, TError, TData>
@@ -571,7 +449,6 @@ export function useListUsersApiV1UsersGet<
   TData = Awaited<ReturnType<typeof listUsersApiV1UsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListUsersApiV1UsersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>, TError, TData>
@@ -592,7 +469,6 @@ export function useListUsersApiV1UsersGet<
   TData = Awaited<ReturnType<typeof listUsersApiV1UsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListUsersApiV1UsersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>, TError, TData>
@@ -609,7 +485,6 @@ export function useListUsersApiV1UsersGet<
   TData = Awaited<ReturnType<typeof listUsersApiV1UsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListUsersApiV1UsersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1UsersGet>>, TError, TData>
@@ -618,7 +493,7 @@ export function useListUsersApiV1UsersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListUsersApiV1UsersGetQueryOptions(headers, options);
+  const queryOptions = getListUsersApiV1UsersGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -630,42 +505,21 @@ export function useListUsersApiV1UsersGet<
 /**
  * @summary Create User
  */
-export type createUserApiV1UsersPostResponse201 = {
-  data: UserRead;
-  status: 201;
-};
-
-export type createUserApiV1UsersPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createUserApiV1UsersPostResponseSuccess = createUserApiV1UsersPostResponse201 & {
-  headers: Headers;
-};
-export type createUserApiV1UsersPostResponseError = createUserApiV1UsersPostResponse422 & {
-  headers: Headers;
-};
-
-export type createUserApiV1UsersPostResponse =
-  | createUserApiV1UsersPostResponseSuccess
-  | createUserApiV1UsersPostResponseError;
-
-export const getCreateUserApiV1UsersPostUrl = () => {
-  return `/api/v1/users/`;
-};
-
-export const createUserApiV1UsersPost = async (
-  userCreate: UserCreate,
-  headers?: CreateUserApiV1UsersPostHeaders,
-  options?: RequestInit
-): Promise<createUserApiV1UsersPostResponse> => {
-  return apiMutator<createUserApiV1UsersPostResponse>(getCreateUserApiV1UsersPostUrl(), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-    body: JSON.stringify(userCreate),
-  });
+export const createUserApiV1UsersPost = (
+  userCreate: BodyType<UserCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/users/`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: userCreate,
+      signal,
+    },
+    options
+  );
 };
 
 export const getCreateUserApiV1UsersPostMutationOptions = <
@@ -675,14 +529,14 @@ export const getCreateUserApiV1UsersPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createUserApiV1UsersPost>>,
     TError,
-    { data: BodyType<UserCreate>; headers?: CreateUserApiV1UsersPostHeaders },
+    { data: BodyType<UserCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createUserApiV1UsersPost>>,
   TError,
-  { data: BodyType<UserCreate>; headers?: CreateUserApiV1UsersPostHeaders },
+  { data: BodyType<UserCreate> },
   TContext
 > => {
   const mutationKey = ["createUserApiV1UsersPost"];
@@ -694,11 +548,11 @@ export const getCreateUserApiV1UsersPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createUserApiV1UsersPost>>,
-    { data: BodyType<UserCreate>; headers?: CreateUserApiV1UsersPostHeaders }
+    { data: BodyType<UserCreate> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return createUserApiV1UsersPost(data, headers, requestOptions);
+    return createUserApiV1UsersPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -721,7 +575,7 @@ export const useCreateUserApiV1UsersPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createUserApiV1UsersPost>>,
       TError,
-      { data: BodyType<UserCreate>; headers?: CreateUserApiV1UsersPostHeaders },
+      { data: BodyType<UserCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -730,7 +584,7 @@ export const useCreateUserApiV1UsersPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createUserApiV1UsersPost>>,
   TError,
-  { data: BodyType<UserCreate>; headers?: CreateUserApiV1UsersPostHeaders },
+  { data: BodyType<UserCreate> },
   TContext
 > => {
   return useMutation(getCreateUserApiV1UsersPostMutationOptions(options), queryClient);
@@ -738,47 +592,21 @@ export const useCreateUserApiV1UsersPost = <
 /**
  * @summary Update User
  */
-export type updateUserApiV1UsersUserIdPatchResponse200 = {
-  data: UserRead;
-  status: 200;
-};
-
-export type updateUserApiV1UsersUserIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateUserApiV1UsersUserIdPatchResponseSuccess =
-  updateUserApiV1UsersUserIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateUserApiV1UsersUserIdPatchResponseError =
-  updateUserApiV1UsersUserIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateUserApiV1UsersUserIdPatchResponse =
-  | updateUserApiV1UsersUserIdPatchResponseSuccess
-  | updateUserApiV1UsersUserIdPatchResponseError;
-
-export const getUpdateUserApiV1UsersUserIdPatchUrl = (userId: number) => {
-  return `/api/v1/users/${userId}`;
-};
-
-export const updateUserApiV1UsersUserIdPatch = async (
+export const updateUserApiV1UsersUserIdPatch = (
   userId: number,
-  userUpdate: UserUpdate,
-  headers?: UpdateUserApiV1UsersUserIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateUserApiV1UsersUserIdPatchResponse> => {
-  return apiMutator<updateUserApiV1UsersUserIdPatchResponse>(
-    getUpdateUserApiV1UsersUserIdPatchUrl(userId),
+  userUpdate: BodyType<UserUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
     {
-      ...options,
+      url: `/api/v1/users/${userId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(userUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: userUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -789,18 +617,14 @@ export const getUpdateUserApiV1UsersUserIdPatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateUserApiV1UsersUserIdPatch>>,
     TError,
-    {
-      userId: number;
-      data: BodyType<UserUpdate>;
-      headers?: UpdateUserApiV1UsersUserIdPatchHeaders;
-    },
+    { userId: number; data: BodyType<UserUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateUserApiV1UsersUserIdPatch>>,
   TError,
-  { userId: number; data: BodyType<UserUpdate>; headers?: UpdateUserApiV1UsersUserIdPatchHeaders },
+  { userId: number; data: BodyType<UserUpdate> },
   TContext
 > => {
   const mutationKey = ["updateUserApiV1UsersUserIdPatch"];
@@ -812,11 +636,11 @@ export const getUpdateUserApiV1UsersUserIdPatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateUserApiV1UsersUserIdPatch>>,
-    { userId: number; data: BodyType<UserUpdate>; headers?: UpdateUserApiV1UsersUserIdPatchHeaders }
+    { userId: number; data: BodyType<UserUpdate> }
   > = (props) => {
-    const { userId, data, headers } = props ?? {};
+    const { userId, data } = props ?? {};
 
-    return updateUserApiV1UsersUserIdPatch(userId, data, headers, requestOptions);
+    return updateUserApiV1UsersUserIdPatch(userId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -839,11 +663,7 @@ export const useUpdateUserApiV1UsersUserIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateUserApiV1UsersUserIdPatch>>,
       TError,
-      {
-        userId: number;
-        data: BodyType<UserUpdate>;
-        headers?: UpdateUserApiV1UsersUserIdPatchHeaders;
-      },
+      { userId: number; data: BodyType<UserUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -852,7 +672,7 @@ export const useUpdateUserApiV1UsersUserIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateUserApiV1UsersUserIdPatch>>,
   TError,
-  { userId: number; data: BodyType<UserUpdate>; headers?: UpdateUserApiV1UsersUserIdPatchHeaders },
+  { userId: number; data: BodyType<UserUpdate> },
   TContext
 > => {
   return useMutation(getUpdateUserApiV1UsersUserIdPatchMutationOptions(options), queryClient);
@@ -860,46 +680,12 @@ export const useUpdateUserApiV1UsersUserIdPatch = <
 /**
  * @summary Delete User
  */
-export type deleteUserApiV1UsersUserIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteUserApiV1UsersUserIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteUserApiV1UsersUserIdDeleteResponseSuccess =
-  deleteUserApiV1UsersUserIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteUserApiV1UsersUserIdDeleteResponseError =
-  deleteUserApiV1UsersUserIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteUserApiV1UsersUserIdDeleteResponse =
-  | deleteUserApiV1UsersUserIdDeleteResponseSuccess
-  | deleteUserApiV1UsersUserIdDeleteResponseError;
-
-export const getDeleteUserApiV1UsersUserIdDeleteUrl = (userId: number) => {
-  return `/api/v1/users/${userId}`;
-};
-
-export const deleteUserApiV1UsersUserIdDelete = async (
+export const deleteUserApiV1UsersUserIdDelete = (
   userId: number,
-  headers?: DeleteUserApiV1UsersUserIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteUserApiV1UsersUserIdDeleteResponse> => {
-  return apiMutator<deleteUserApiV1UsersUserIdDeleteResponse>(
-    getDeleteUserApiV1UsersUserIdDeleteUrl(userId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
-  );
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>({ url: `/api/v1/users/${userId}`, method: "DELETE", signal }, options);
 };
 
 export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
@@ -909,14 +695,14 @@ export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
     TError,
-    { userId: number; headers?: DeleteUserApiV1UsersUserIdDeleteHeaders },
+    { userId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
   TError,
-  { userId: number; headers?: DeleteUserApiV1UsersUserIdDeleteHeaders },
+  { userId: number },
   TContext
 > => {
   const mutationKey = ["deleteUserApiV1UsersUserIdDelete"];
@@ -928,11 +714,11 @@ export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
-    { userId: number; headers?: DeleteUserApiV1UsersUserIdDeleteHeaders }
+    { userId: number }
   > = (props) => {
-    const { userId, headers } = props ?? {};
+    const { userId } = props ?? {};
 
-    return deleteUserApiV1UsersUserIdDelete(userId, headers, requestOptions);
+    return deleteUserApiV1UsersUserIdDelete(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -955,7 +741,7 @@ export const useDeleteUserApiV1UsersUserIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
       TError,
-      { userId: number; headers?: DeleteUserApiV1UsersUserIdDeleteHeaders },
+      { userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -964,7 +750,7 @@ export const useDeleteUserApiV1UsersUserIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
   TError,
-  { userId: number; headers?: DeleteUserApiV1UsersUserIdDeleteHeaders },
+  { userId: number },
   TContext
 > => {
   return useMutation(getDeleteUserApiV1UsersUserIdDeleteMutationOptions(options), queryClient);
@@ -972,45 +758,14 @@ export const useDeleteUserApiV1UsersUserIdDelete = <
 /**
  * @summary Approve User
  */
-export type approveUserApiV1UsersUserIdApprovePostResponse200 = {
-  data: UserRead;
-  status: 200;
-};
-
-export type approveUserApiV1UsersUserIdApprovePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type approveUserApiV1UsersUserIdApprovePostResponseSuccess =
-  approveUserApiV1UsersUserIdApprovePostResponse200 & {
-    headers: Headers;
-  };
-export type approveUserApiV1UsersUserIdApprovePostResponseError =
-  approveUserApiV1UsersUserIdApprovePostResponse422 & {
-    headers: Headers;
-  };
-
-export type approveUserApiV1UsersUserIdApprovePostResponse =
-  | approveUserApiV1UsersUserIdApprovePostResponseSuccess
-  | approveUserApiV1UsersUserIdApprovePostResponseError;
-
-export const getApproveUserApiV1UsersUserIdApprovePostUrl = (userId: number) => {
-  return `/api/v1/users/${userId}/approve`;
-};
-
-export const approveUserApiV1UsersUserIdApprovePost = async (
+export const approveUserApiV1UsersUserIdApprovePost = (
   userId: number,
-  headers?: ApproveUserApiV1UsersUserIdApprovePostHeaders,
-  options?: RequestInit
-): Promise<approveUserApiV1UsersUserIdApprovePostResponse> => {
-  return apiMutator<approveUserApiV1UsersUserIdApprovePostResponse>(
-    getApproveUserApiV1UsersUserIdApprovePostUrl(userId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    { url: `/api/v1/users/${userId}/approve`, method: "POST", signal },
+    options
   );
 };
 
@@ -1021,14 +776,14 @@ export const getApproveUserApiV1UsersUserIdApprovePostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof approveUserApiV1UsersUserIdApprovePost>>,
     TError,
-    { userId: number; headers?: ApproveUserApiV1UsersUserIdApprovePostHeaders },
+    { userId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof approveUserApiV1UsersUserIdApprovePost>>,
   TError,
-  { userId: number; headers?: ApproveUserApiV1UsersUserIdApprovePostHeaders },
+  { userId: number },
   TContext
 > => {
   const mutationKey = ["approveUserApiV1UsersUserIdApprovePost"];
@@ -1040,11 +795,11 @@ export const getApproveUserApiV1UsersUserIdApprovePostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof approveUserApiV1UsersUserIdApprovePost>>,
-    { userId: number; headers?: ApproveUserApiV1UsersUserIdApprovePostHeaders }
+    { userId: number }
   > = (props) => {
-    const { userId, headers } = props ?? {};
+    const { userId } = props ?? {};
 
-    return approveUserApiV1UsersUserIdApprovePost(userId, headers, requestOptions);
+    return approveUserApiV1UsersUserIdApprovePost(userId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1067,7 +822,7 @@ export const useApproveUserApiV1UsersUserIdApprovePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof approveUserApiV1UsersUserIdApprovePost>>,
       TError,
-      { userId: number; headers?: ApproveUserApiV1UsersUserIdApprovePostHeaders },
+      { userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1076,7 +831,7 @@ export const useApproveUserApiV1UsersUserIdApprovePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof approveUserApiV1UsersUserIdApprovePost>>,
   TError,
-  { userId: number; headers?: ApproveUserApiV1UsersUserIdApprovePostHeaders },
+  { userId: number },
   TContext
 > => {
   return useMutation(
@@ -1088,31 +843,13 @@ export const useApproveUserApiV1UsersUserIdApprovePost = <
  * Check if the current user can be deleted and what blockers exist.
  * @summary Check Deletion Eligibility
  */
-export type checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponse200 = {
-  data: DeletionEligibilityResponse;
-  status: 200;
-};
-
-export type checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponseSuccess =
-  checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponse200 & {
-    headers: Headers;
-  };
-export type checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponse =
-  checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponseSuccess;
-
-export const getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetUrl = () => {
-  return `/api/v1/users/me/deletion-eligibility`;
-};
-
-export const checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet = async (
-  options?: RequestInit
-): Promise<checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponse> => {
-  return apiMutator<checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGetResponse>(
-    getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DeletionEligibilityResponse>(
+    { url: `/api/v1/users/me/deletion-eligibility`, method: "GET", signal },
+    options
   );
 };
 
@@ -1142,7 +879,7 @@ export const getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryO
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>
   > = ({ signal }) =>
-    checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet({ signal, ...requestOptions });
+    checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet>>,
@@ -1255,45 +992,20 @@ export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
  * Delete or deactivate the current user's account.
  * @summary Delete Own Account
  */
-export type deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse200 = {
-  data: AccountDeletionResponse;
-  status: 200;
-};
-
-export type deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteOwnAccountApiV1UsersMeDeleteAccountPostResponseSuccess =
-  deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse200 & {
-    headers: Headers;
-  };
-export type deleteOwnAccountApiV1UsersMeDeleteAccountPostResponseError =
-  deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse =
-  | deleteOwnAccountApiV1UsersMeDeleteAccountPostResponseSuccess
-  | deleteOwnAccountApiV1UsersMeDeleteAccountPostResponseError;
-
-export const getDeleteOwnAccountApiV1UsersMeDeleteAccountPostUrl = () => {
-  return `/api/v1/users/me/delete-account`;
-};
-
-export const deleteOwnAccountApiV1UsersMeDeleteAccountPost = async (
-  accountDeletionRequest: AccountDeletionRequest,
-  options?: RequestInit
-): Promise<deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse> => {
-  return apiMutator<deleteOwnAccountApiV1UsersMeDeleteAccountPostResponse>(
-    getDeleteOwnAccountApiV1UsersMeDeleteAccountPostUrl(),
+export const deleteOwnAccountApiV1UsersMeDeleteAccountPost = (
+  accountDeletionRequest: BodyType<AccountDeletionRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountDeletionResponse>(
     {
-      ...options,
+      url: `/api/v1/users/me/delete-account`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(accountDeletionRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: accountDeletionRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1373,31 +1085,13 @@ export const useDeleteOwnAccountApiV1UsersMeDeleteAccountPost = <
  * List all API keys for the current user.
  * @summary List My Api Keys
  */
-export type listMyApiKeysApiV1UsersMeApiKeysGetResponse200 = {
-  data: ApiKeyListResponse;
-  status: 200;
-};
-
-export type listMyApiKeysApiV1UsersMeApiKeysGetResponseSuccess =
-  listMyApiKeysApiV1UsersMeApiKeysGetResponse200 & {
-    headers: Headers;
-  };
-export type listMyApiKeysApiV1UsersMeApiKeysGetResponse =
-  listMyApiKeysApiV1UsersMeApiKeysGetResponseSuccess;
-
-export const getListMyApiKeysApiV1UsersMeApiKeysGetUrl = () => {
-  return `/api/v1/users/me/api-keys`;
-};
-
-export const listMyApiKeysApiV1UsersMeApiKeysGet = async (
-  options?: RequestInit
-): Promise<listMyApiKeysApiV1UsersMeApiKeysGetResponse> => {
-  return apiMutator<listMyApiKeysApiV1UsersMeApiKeysGetResponse>(
-    getListMyApiKeysApiV1UsersMeApiKeysGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const listMyApiKeysApiV1UsersMeApiKeysGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ApiKeyListResponse>(
+    { url: `/api/v1/users/me/api-keys`, method: "GET", signal },
+    options
   );
 };
 
@@ -1420,7 +1114,7 @@ export const getListMyApiKeysApiV1UsersMeApiKeysGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>> = ({
     signal,
-  }) => listMyApiKeysApiV1UsersMeApiKeysGet({ signal, ...requestOptions });
+  }) => listMyApiKeysApiV1UsersMeApiKeysGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listMyApiKeysApiV1UsersMeApiKeysGet>>,
@@ -1531,45 +1225,20 @@ export function useListMyApiKeysApiV1UsersMeApiKeysGet<
  * Create a new API key for the current user.
  * @summary Create My Api Key
  */
-export type createMyApiKeyApiV1UsersMeApiKeysPostResponse201 = {
-  data: ApiKeyCreateResponse;
-  status: 201;
-};
-
-export type createMyApiKeyApiV1UsersMeApiKeysPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createMyApiKeyApiV1UsersMeApiKeysPostResponseSuccess =
-  createMyApiKeyApiV1UsersMeApiKeysPostResponse201 & {
-    headers: Headers;
-  };
-export type createMyApiKeyApiV1UsersMeApiKeysPostResponseError =
-  createMyApiKeyApiV1UsersMeApiKeysPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createMyApiKeyApiV1UsersMeApiKeysPostResponse =
-  | createMyApiKeyApiV1UsersMeApiKeysPostResponseSuccess
-  | createMyApiKeyApiV1UsersMeApiKeysPostResponseError;
-
-export const getCreateMyApiKeyApiV1UsersMeApiKeysPostUrl = () => {
-  return `/api/v1/users/me/api-keys`;
-};
-
-export const createMyApiKeyApiV1UsersMeApiKeysPost = async (
-  apiKeyCreateRequest: ApiKeyCreateRequest,
-  options?: RequestInit
-): Promise<createMyApiKeyApiV1UsersMeApiKeysPostResponse> => {
-  return apiMutator<createMyApiKeyApiV1UsersMeApiKeysPostResponse>(
-    getCreateMyApiKeyApiV1UsersMeApiKeysPostUrl(),
+export const createMyApiKeyApiV1UsersMeApiKeysPost = (
+  apiKeyCreateRequest: BodyType<ApiKeyCreateRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ApiKeyCreateResponse>(
     {
-      ...options,
+      url: `/api/v1/users/me/api-keys`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(apiKeyCreateRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: apiKeyCreateRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1644,43 +1313,14 @@ export const useCreateMyApiKeyApiV1UsersMeApiKeysPost = <
  * Delete an API key for the current user.
  * @summary Delete My Api Key
  */
-export type deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponseSuccess =
-  deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponseError =
-  deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse =
-  | deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponseSuccess
-  | deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponseError;
-
-export const getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteUrl = (apiKeyId: number) => {
-  return `/api/v1/users/me/api-keys/${apiKeyId}`;
-};
-
-export const deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = async (
+export const deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = (
   apiKeyId: number,
-  options?: RequestInit
-): Promise<deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse> => {
-  return apiMutator<deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteResponse>(
-    getDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDeleteUrl(apiKeyId),
-    {
-      ...options,
-      method: "DELETE",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/users/me/api-keys/${apiKeyId}`, method: "DELETE", signal },
+    options
   );
 };
 

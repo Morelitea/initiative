@@ -14,9 +14,6 @@ import type {
 
 import type {
   HTTPValidationError,
-  ImportFromTicktickApiV1ImportsTicktickPostHeaders,
-  ImportFromTodoistApiV1ImportsTodoistPostHeaders,
-  ImportFromVikunjaApiV1ImportsVikunjaPostHeaders,
   ImportResult,
   TickTickImportRequest,
   TickTickParseResult,
@@ -37,45 +34,20 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 This is a preview endpoint to help users map sections before importing.
  * @summary Parse Todoist Csv
  */
-export type parseTodoistCsvApiV1ImportsTodoistParsePostResponse200 = {
-  data: TodoistParseResult;
-  status: 200;
-};
-
-export type parseTodoistCsvApiV1ImportsTodoistParsePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type parseTodoistCsvApiV1ImportsTodoistParsePostResponseSuccess =
-  parseTodoistCsvApiV1ImportsTodoistParsePostResponse200 & {
-    headers: Headers;
-  };
-export type parseTodoistCsvApiV1ImportsTodoistParsePostResponseError =
-  parseTodoistCsvApiV1ImportsTodoistParsePostResponse422 & {
-    headers: Headers;
-  };
-
-export type parseTodoistCsvApiV1ImportsTodoistParsePostResponse =
-  | parseTodoistCsvApiV1ImportsTodoistParsePostResponseSuccess
-  | parseTodoistCsvApiV1ImportsTodoistParsePostResponseError;
-
-export const getParseTodoistCsvApiV1ImportsTodoistParsePostUrl = () => {
-  return `/api/v1/imports/todoist/parse`;
-};
-
-export const parseTodoistCsvApiV1ImportsTodoistParsePost = async (
-  parseTodoistCsvApiV1ImportsTodoistParsePostBody: string,
-  options?: RequestInit
-): Promise<parseTodoistCsvApiV1ImportsTodoistParsePostResponse> => {
-  return apiMutator<parseTodoistCsvApiV1ImportsTodoistParsePostResponse>(
-    getParseTodoistCsvApiV1ImportsTodoistParsePostUrl(),
+export const parseTodoistCsvApiV1ImportsTodoistParsePost = (
+  parseTodoistCsvApiV1ImportsTodoistParsePostBody: BodyType<string>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TodoistParseResult>(
     {
-      ...options,
+      url: `/api/v1/imports/todoist/parse`,
       method: "POST",
-      headers: { "Content-Type": "text/plain", ...options?.headers },
-      body: parseTodoistCsvApiV1ImportsTodoistParsePostBody,
-    }
+      headers: { "Content-Type": "text/plain" },
+      data: parseTodoistCsvApiV1ImportsTodoistParsePostBody,
+      signal,
+    },
+    options
   );
 };
 
@@ -157,46 +129,20 @@ The section_mapping maps Todoist section names to task_status_id values
 in the target project.
  * @summary Import From Todoist
  */
-export type importFromTodoistApiV1ImportsTodoistPostResponse200 = {
-  data: ImportResult;
-  status: 200;
-};
-
-export type importFromTodoistApiV1ImportsTodoistPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type importFromTodoistApiV1ImportsTodoistPostResponseSuccess =
-  importFromTodoistApiV1ImportsTodoistPostResponse200 & {
-    headers: Headers;
-  };
-export type importFromTodoistApiV1ImportsTodoistPostResponseError =
-  importFromTodoistApiV1ImportsTodoistPostResponse422 & {
-    headers: Headers;
-  };
-
-export type importFromTodoistApiV1ImportsTodoistPostResponse =
-  | importFromTodoistApiV1ImportsTodoistPostResponseSuccess
-  | importFromTodoistApiV1ImportsTodoistPostResponseError;
-
-export const getImportFromTodoistApiV1ImportsTodoistPostUrl = () => {
-  return `/api/v1/imports/todoist`;
-};
-
-export const importFromTodoistApiV1ImportsTodoistPost = async (
-  todoistImportRequest: TodoistImportRequest,
-  headers?: ImportFromTodoistApiV1ImportsTodoistPostHeaders,
-  options?: RequestInit
-): Promise<importFromTodoistApiV1ImportsTodoistPostResponse> => {
-  return apiMutator<importFromTodoistApiV1ImportsTodoistPostResponse>(
-    getImportFromTodoistApiV1ImportsTodoistPostUrl(),
+export const importFromTodoistApiV1ImportsTodoistPost = (
+  todoistImportRequest: BodyType<TodoistImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportResult>(
     {
-      ...options,
+      url: `/api/v1/imports/todoist`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(todoistImportRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: todoistImportRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -207,20 +153,14 @@ export const getImportFromTodoistApiV1ImportsTodoistPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof importFromTodoistApiV1ImportsTodoistPost>>,
     TError,
-    {
-      data: BodyType<TodoistImportRequest>;
-      headers?: ImportFromTodoistApiV1ImportsTodoistPostHeaders;
-    },
+    { data: BodyType<TodoistImportRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof importFromTodoistApiV1ImportsTodoistPost>>,
   TError,
-  {
-    data: BodyType<TodoistImportRequest>;
-    headers?: ImportFromTodoistApiV1ImportsTodoistPostHeaders;
-  },
+  { data: BodyType<TodoistImportRequest> },
   TContext
 > => {
   const mutationKey = ["importFromTodoistApiV1ImportsTodoistPost"];
@@ -232,14 +172,11 @@ export const getImportFromTodoistApiV1ImportsTodoistPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof importFromTodoistApiV1ImportsTodoistPost>>,
-    {
-      data: BodyType<TodoistImportRequest>;
-      headers?: ImportFromTodoistApiV1ImportsTodoistPostHeaders;
-    }
+    { data: BodyType<TodoistImportRequest> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return importFromTodoistApiV1ImportsTodoistPost(data, headers, requestOptions);
+    return importFromTodoistApiV1ImportsTodoistPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -262,10 +199,7 @@ export const useImportFromTodoistApiV1ImportsTodoistPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof importFromTodoistApiV1ImportsTodoistPost>>,
       TError,
-      {
-        data: BodyType<TodoistImportRequest>;
-        headers?: ImportFromTodoistApiV1ImportsTodoistPostHeaders;
-      },
+      { data: BodyType<TodoistImportRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -274,10 +208,7 @@ export const useImportFromTodoistApiV1ImportsTodoistPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof importFromTodoistApiV1ImportsTodoistPost>>,
   TError,
-  {
-    data: BodyType<TodoistImportRequest>;
-    headers?: ImportFromTodoistApiV1ImportsTodoistPostHeaders;
-  },
+  { data: BodyType<TodoistImportRequest> },
   TContext
 > => {
   return useMutation(
@@ -291,45 +222,20 @@ export const useImportFromTodoistApiV1ImportsTodoistPost = <
 This is a preview endpoint to help users select a project and map buckets.
  * @summary Parse Vikunja Json
  */
-export type parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse200 = {
-  data: VikunjaParseResult;
-  status: 200;
-};
-
-export type parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type parseVikunjaJsonApiV1ImportsVikunjaParsePostResponseSuccess =
-  parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse200 & {
-    headers: Headers;
-  };
-export type parseVikunjaJsonApiV1ImportsVikunjaParsePostResponseError =
-  parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse422 & {
-    headers: Headers;
-  };
-
-export type parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse =
-  | parseVikunjaJsonApiV1ImportsVikunjaParsePostResponseSuccess
-  | parseVikunjaJsonApiV1ImportsVikunjaParsePostResponseError;
-
-export const getParseVikunjaJsonApiV1ImportsVikunjaParsePostUrl = () => {
-  return `/api/v1/imports/vikunja/parse`;
-};
-
-export const parseVikunjaJsonApiV1ImportsVikunjaParsePost = async (
-  parseVikunjaJsonApiV1ImportsVikunjaParsePostBody: string,
-  options?: RequestInit
-): Promise<parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse> => {
-  return apiMutator<parseVikunjaJsonApiV1ImportsVikunjaParsePostResponse>(
-    getParseVikunjaJsonApiV1ImportsVikunjaParsePostUrl(),
+export const parseVikunjaJsonApiV1ImportsVikunjaParsePost = (
+  parseVikunjaJsonApiV1ImportsVikunjaParsePostBody: BodyType<string>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VikunjaParseResult>(
     {
-      ...options,
+      url: `/api/v1/imports/vikunja/parse`,
       method: "POST",
-      headers: { "Content-Type": "text/plain", ...options?.headers },
-      body: parseVikunjaJsonApiV1ImportsVikunjaParsePostBody,
-    }
+      headers: { "Content-Type": "text/plain" },
+      data: parseVikunjaJsonApiV1ImportsVikunjaParsePostBody,
+      signal,
+    },
+    options
   );
 };
 
@@ -411,46 +317,20 @@ The bucket_mapping maps Vikunja bucket IDs to task_status_id values
 in the target project.
  * @summary Import From Vikunja
  */
-export type importFromVikunjaApiV1ImportsVikunjaPostResponse200 = {
-  data: ImportResult;
-  status: 200;
-};
-
-export type importFromVikunjaApiV1ImportsVikunjaPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type importFromVikunjaApiV1ImportsVikunjaPostResponseSuccess =
-  importFromVikunjaApiV1ImportsVikunjaPostResponse200 & {
-    headers: Headers;
-  };
-export type importFromVikunjaApiV1ImportsVikunjaPostResponseError =
-  importFromVikunjaApiV1ImportsVikunjaPostResponse422 & {
-    headers: Headers;
-  };
-
-export type importFromVikunjaApiV1ImportsVikunjaPostResponse =
-  | importFromVikunjaApiV1ImportsVikunjaPostResponseSuccess
-  | importFromVikunjaApiV1ImportsVikunjaPostResponseError;
-
-export const getImportFromVikunjaApiV1ImportsVikunjaPostUrl = () => {
-  return `/api/v1/imports/vikunja`;
-};
-
-export const importFromVikunjaApiV1ImportsVikunjaPost = async (
-  vikunjaImportRequest: VikunjaImportRequest,
-  headers?: ImportFromVikunjaApiV1ImportsVikunjaPostHeaders,
-  options?: RequestInit
-): Promise<importFromVikunjaApiV1ImportsVikunjaPostResponse> => {
-  return apiMutator<importFromVikunjaApiV1ImportsVikunjaPostResponse>(
-    getImportFromVikunjaApiV1ImportsVikunjaPostUrl(),
+export const importFromVikunjaApiV1ImportsVikunjaPost = (
+  vikunjaImportRequest: BodyType<VikunjaImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportResult>(
     {
-      ...options,
+      url: `/api/v1/imports/vikunja`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(vikunjaImportRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: vikunjaImportRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -461,20 +341,14 @@ export const getImportFromVikunjaApiV1ImportsVikunjaPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof importFromVikunjaApiV1ImportsVikunjaPost>>,
     TError,
-    {
-      data: BodyType<VikunjaImportRequest>;
-      headers?: ImportFromVikunjaApiV1ImportsVikunjaPostHeaders;
-    },
+    { data: BodyType<VikunjaImportRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof importFromVikunjaApiV1ImportsVikunjaPost>>,
   TError,
-  {
-    data: BodyType<VikunjaImportRequest>;
-    headers?: ImportFromVikunjaApiV1ImportsVikunjaPostHeaders;
-  },
+  { data: BodyType<VikunjaImportRequest> },
   TContext
 > => {
   const mutationKey = ["importFromVikunjaApiV1ImportsVikunjaPost"];
@@ -486,14 +360,11 @@ export const getImportFromVikunjaApiV1ImportsVikunjaPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof importFromVikunjaApiV1ImportsVikunjaPost>>,
-    {
-      data: BodyType<VikunjaImportRequest>;
-      headers?: ImportFromVikunjaApiV1ImportsVikunjaPostHeaders;
-    }
+    { data: BodyType<VikunjaImportRequest> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return importFromVikunjaApiV1ImportsVikunjaPost(data, headers, requestOptions);
+    return importFromVikunjaApiV1ImportsVikunjaPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -516,10 +387,7 @@ export const useImportFromVikunjaApiV1ImportsVikunjaPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof importFromVikunjaApiV1ImportsVikunjaPost>>,
       TError,
-      {
-        data: BodyType<VikunjaImportRequest>;
-        headers?: ImportFromVikunjaApiV1ImportsVikunjaPostHeaders;
-      },
+      { data: BodyType<VikunjaImportRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -528,10 +396,7 @@ export const useImportFromVikunjaApiV1ImportsVikunjaPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof importFromVikunjaApiV1ImportsVikunjaPost>>,
   TError,
-  {
-    data: BodyType<VikunjaImportRequest>;
-    headers?: ImportFromVikunjaApiV1ImportsVikunjaPostHeaders;
-  },
+  { data: BodyType<VikunjaImportRequest> },
   TContext
 > => {
   return useMutation(
@@ -545,45 +410,20 @@ export const useImportFromVikunjaApiV1ImportsVikunjaPost = <
 This is a preview endpoint to help users select a list and map columns.
  * @summary Parse Ticktick Csv
  */
-export type parseTicktickCsvApiV1ImportsTicktickParsePostResponse200 = {
-  data: TickTickParseResult;
-  status: 200;
-};
-
-export type parseTicktickCsvApiV1ImportsTicktickParsePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type parseTicktickCsvApiV1ImportsTicktickParsePostResponseSuccess =
-  parseTicktickCsvApiV1ImportsTicktickParsePostResponse200 & {
-    headers: Headers;
-  };
-export type parseTicktickCsvApiV1ImportsTicktickParsePostResponseError =
-  parseTicktickCsvApiV1ImportsTicktickParsePostResponse422 & {
-    headers: Headers;
-  };
-
-export type parseTicktickCsvApiV1ImportsTicktickParsePostResponse =
-  | parseTicktickCsvApiV1ImportsTicktickParsePostResponseSuccess
-  | parseTicktickCsvApiV1ImportsTicktickParsePostResponseError;
-
-export const getParseTicktickCsvApiV1ImportsTicktickParsePostUrl = () => {
-  return `/api/v1/imports/ticktick/parse`;
-};
-
-export const parseTicktickCsvApiV1ImportsTicktickParsePost = async (
-  parseTicktickCsvApiV1ImportsTicktickParsePostBody: string,
-  options?: RequestInit
-): Promise<parseTicktickCsvApiV1ImportsTicktickParsePostResponse> => {
-  return apiMutator<parseTicktickCsvApiV1ImportsTicktickParsePostResponse>(
-    getParseTicktickCsvApiV1ImportsTicktickParsePostUrl(),
+export const parseTicktickCsvApiV1ImportsTicktickParsePost = (
+  parseTicktickCsvApiV1ImportsTicktickParsePostBody: BodyType<string>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TickTickParseResult>(
     {
-      ...options,
+      url: `/api/v1/imports/ticktick/parse`,
       method: "POST",
-      headers: { "Content-Type": "text/plain", ...options?.headers },
-      body: parseTicktickCsvApiV1ImportsTicktickParsePostBody,
-    }
+      headers: { "Content-Type": "text/plain" },
+      data: parseTicktickCsvApiV1ImportsTicktickParsePostBody,
+      signal,
+    },
+    options
   );
 };
 
@@ -665,46 +505,20 @@ The column_mapping maps TickTick column names to task_status_id values
 in the target project.
  * @summary Import From Ticktick
  */
-export type importFromTicktickApiV1ImportsTicktickPostResponse200 = {
-  data: ImportResult;
-  status: 200;
-};
-
-export type importFromTicktickApiV1ImportsTicktickPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type importFromTicktickApiV1ImportsTicktickPostResponseSuccess =
-  importFromTicktickApiV1ImportsTicktickPostResponse200 & {
-    headers: Headers;
-  };
-export type importFromTicktickApiV1ImportsTicktickPostResponseError =
-  importFromTicktickApiV1ImportsTicktickPostResponse422 & {
-    headers: Headers;
-  };
-
-export type importFromTicktickApiV1ImportsTicktickPostResponse =
-  | importFromTicktickApiV1ImportsTicktickPostResponseSuccess
-  | importFromTicktickApiV1ImportsTicktickPostResponseError;
-
-export const getImportFromTicktickApiV1ImportsTicktickPostUrl = () => {
-  return `/api/v1/imports/ticktick`;
-};
-
-export const importFromTicktickApiV1ImportsTicktickPost = async (
-  tickTickImportRequest: TickTickImportRequest,
-  headers?: ImportFromTicktickApiV1ImportsTicktickPostHeaders,
-  options?: RequestInit
-): Promise<importFromTicktickApiV1ImportsTicktickPostResponse> => {
-  return apiMutator<importFromTicktickApiV1ImportsTicktickPostResponse>(
-    getImportFromTicktickApiV1ImportsTicktickPostUrl(),
+export const importFromTicktickApiV1ImportsTicktickPost = (
+  tickTickImportRequest: BodyType<TickTickImportRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ImportResult>(
     {
-      ...options,
+      url: `/api/v1/imports/ticktick`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(tickTickImportRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: tickTickImportRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -715,20 +529,14 @@ export const getImportFromTicktickApiV1ImportsTicktickPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof importFromTicktickApiV1ImportsTicktickPost>>,
     TError,
-    {
-      data: BodyType<TickTickImportRequest>;
-      headers?: ImportFromTicktickApiV1ImportsTicktickPostHeaders;
-    },
+    { data: BodyType<TickTickImportRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof importFromTicktickApiV1ImportsTicktickPost>>,
   TError,
-  {
-    data: BodyType<TickTickImportRequest>;
-    headers?: ImportFromTicktickApiV1ImportsTicktickPostHeaders;
-  },
+  { data: BodyType<TickTickImportRequest> },
   TContext
 > => {
   const mutationKey = ["importFromTicktickApiV1ImportsTicktickPost"];
@@ -740,14 +548,11 @@ export const getImportFromTicktickApiV1ImportsTicktickPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof importFromTicktickApiV1ImportsTicktickPost>>,
-    {
-      data: BodyType<TickTickImportRequest>;
-      headers?: ImportFromTicktickApiV1ImportsTicktickPostHeaders;
-    }
+    { data: BodyType<TickTickImportRequest> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return importFromTicktickApiV1ImportsTicktickPost(data, headers, requestOptions);
+    return importFromTicktickApiV1ImportsTicktickPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -772,10 +577,7 @@ export const useImportFromTicktickApiV1ImportsTicktickPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof importFromTicktickApiV1ImportsTicktickPost>>,
       TError,
-      {
-        data: BodyType<TickTickImportRequest>;
-        headers?: ImportFromTicktickApiV1ImportsTicktickPostHeaders;
-      },
+      { data: BodyType<TickTickImportRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -784,10 +586,7 @@ export const useImportFromTicktickApiV1ImportsTicktickPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof importFromTicktickApiV1ImportsTicktickPost>>,
   TError,
-  {
-    data: BodyType<TickTickImportRequest>;
-    headers?: ImportFromTicktickApiV1ImportsTicktickPostHeaders;
-  },
+  { data: BodyType<TickTickImportRequest> },
   TContext
 > => {
   return useMutation(

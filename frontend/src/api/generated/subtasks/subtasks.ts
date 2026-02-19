@@ -12,13 +12,7 @@ import type {
   UseMutationResult,
 } from "@tanstack/react-query";
 
-import type {
-  DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders,
-  HTTPValidationError,
-  SubtaskRead,
-  SubtaskUpdate,
-  UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders,
-} from "../initiativeAPI.schemas";
+import type { HTTPValidationError, SubtaskRead, SubtaskUpdate } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
@@ -28,47 +22,21 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Update Subtask
  */
-export type updateSubtaskApiV1SubtasksSubtaskIdPatchResponse200 = {
-  data: SubtaskRead;
-  status: 200;
-};
-
-export type updateSubtaskApiV1SubtasksSubtaskIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateSubtaskApiV1SubtasksSubtaskIdPatchResponseSuccess =
-  updateSubtaskApiV1SubtasksSubtaskIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateSubtaskApiV1SubtasksSubtaskIdPatchResponseError =
-  updateSubtaskApiV1SubtasksSubtaskIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateSubtaskApiV1SubtasksSubtaskIdPatchResponse =
-  | updateSubtaskApiV1SubtasksSubtaskIdPatchResponseSuccess
-  | updateSubtaskApiV1SubtasksSubtaskIdPatchResponseError;
-
-export const getUpdateSubtaskApiV1SubtasksSubtaskIdPatchUrl = (subtaskId: number) => {
-  return `/api/v1/subtasks/${subtaskId}`;
-};
-
-export const updateSubtaskApiV1SubtasksSubtaskIdPatch = async (
+export const updateSubtaskApiV1SubtasksSubtaskIdPatch = (
   subtaskId: number,
-  subtaskUpdate: SubtaskUpdate,
-  headers?: UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateSubtaskApiV1SubtasksSubtaskIdPatchResponse> => {
-  return apiMutator<updateSubtaskApiV1SubtasksSubtaskIdPatchResponse>(
-    getUpdateSubtaskApiV1SubtasksSubtaskIdPatchUrl(subtaskId),
+  subtaskUpdate: BodyType<SubtaskUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubtaskRead>(
     {
-      ...options,
+      url: `/api/v1/subtasks/${subtaskId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(subtaskUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: subtaskUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -79,22 +47,14 @@ export const getUpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
     TError,
-    {
-      subtaskId: number;
-      data: BodyType<SubtaskUpdate>;
-      headers?: UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders;
-    },
+    { subtaskId: number; data: BodyType<SubtaskUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
   TError,
-  {
-    subtaskId: number;
-    data: BodyType<SubtaskUpdate>;
-    headers?: UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders;
-  },
+  { subtaskId: number; data: BodyType<SubtaskUpdate> },
   TContext
 > => {
   const mutationKey = ["updateSubtaskApiV1SubtasksSubtaskIdPatch"];
@@ -106,15 +66,11 @@ export const getUpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
-    {
-      subtaskId: number;
-      data: BodyType<SubtaskUpdate>;
-      headers?: UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders;
-    }
+    { subtaskId: number; data: BodyType<SubtaskUpdate> }
   > = (props) => {
-    const { subtaskId, data, headers } = props ?? {};
+    const { subtaskId, data } = props ?? {};
 
-    return updateSubtaskApiV1SubtasksSubtaskIdPatch(subtaskId, data, headers, requestOptions);
+    return updateSubtaskApiV1SubtasksSubtaskIdPatch(subtaskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -137,11 +93,7 @@ export const useUpdateSubtaskApiV1SubtasksSubtaskIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
       TError,
-      {
-        subtaskId: number;
-        data: BodyType<SubtaskUpdate>;
-        headers?: UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders;
-      },
+      { subtaskId: number; data: BodyType<SubtaskUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -150,11 +102,7 @@ export const useUpdateSubtaskApiV1SubtasksSubtaskIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
   TError,
-  {
-    subtaskId: number;
-    data: BodyType<SubtaskUpdate>;
-    headers?: UpdateSubtaskApiV1SubtasksSubtaskIdPatchHeaders;
-  },
+  { subtaskId: number; data: BodyType<SubtaskUpdate> },
   TContext
 > => {
   return useMutation(
@@ -165,45 +113,14 @@ export const useUpdateSubtaskApiV1SubtasksSubtaskIdPatch = <
 /**
  * @summary Delete Subtask
  */
-export type deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponseSuccess =
-  deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponseError =
-  deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse =
-  | deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponseSuccess
-  | deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponseError;
-
-export const getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteUrl = (subtaskId: number) => {
-  return `/api/v1/subtasks/${subtaskId}`;
-};
-
-export const deleteSubtaskApiV1SubtasksSubtaskIdDelete = async (
+export const deleteSubtaskApiV1SubtasksSubtaskIdDelete = (
   subtaskId: number,
-  headers?: DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse> => {
-  return apiMutator<deleteSubtaskApiV1SubtasksSubtaskIdDeleteResponse>(
-    getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteUrl(subtaskId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/subtasks/${subtaskId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -214,14 +131,14 @@ export const getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
     TError,
-    { subtaskId: number; headers?: DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders },
+    { subtaskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
   TError,
-  { subtaskId: number; headers?: DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders },
+  { subtaskId: number },
   TContext
 > => {
   const mutationKey = ["deleteSubtaskApiV1SubtasksSubtaskIdDelete"];
@@ -233,11 +150,11 @@ export const getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
-    { subtaskId: number; headers?: DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders }
+    { subtaskId: number }
   > = (props) => {
-    const { subtaskId, headers } = props ?? {};
+    const { subtaskId } = props ?? {};
 
-    return deleteSubtaskApiV1SubtasksSubtaskIdDelete(subtaskId, headers, requestOptions);
+    return deleteSubtaskApiV1SubtasksSubtaskIdDelete(subtaskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -260,7 +177,7 @@ export const useDeleteSubtaskApiV1SubtasksSubtaskIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
       TError,
-      { subtaskId: number; headers?: DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders },
+      { subtaskId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -269,7 +186,7 @@ export const useDeleteSubtaskApiV1SubtasksSubtaskIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
   TError,
-  { subtaskId: number; headers?: DeleteSubtaskApiV1SubtasksSubtaskIdDeleteHeaders },
+  { subtaskId: number },
   TContext
 > => {
   return useMutation(

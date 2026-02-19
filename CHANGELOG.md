@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Orval config updated to `httpClient: "axios"` for clean return types (no discriminated union wrappers)
+- API mutator updated to accept `AxiosRequestConfig` and prevent double URL prefixing with `baseURL: ""`
 - Backend Pydantic schemas now use `ConfigDict(json_schema_serialization_defaults_required=True)` so optional fields with defaults appear as required in the OpenAPI spec, producing cleaner generated types
 - `frontend/src/types/api.ts` replaced ~800 lines of hand-maintained type definitions with re-exports from Orval-generated types
 - Excluded `src/api/generated/**` from ESLint (Orval generates function overloads that trigger `no-redeclare`)

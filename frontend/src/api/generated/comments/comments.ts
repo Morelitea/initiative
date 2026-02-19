@@ -24,18 +24,12 @@ import type {
   CommentCreate,
   CommentRead,
   CommentUpdate,
-  CreateCommentApiV1CommentsPostHeaders,
-  DeleteCommentApiV1CommentsCommentIdDeleteHeaders,
   HTTPValidationError,
-  ListCommentsApiV1CommentsGetHeaders,
   ListCommentsApiV1CommentsGetParams,
   MentionSuggestion,
   RecentActivityEntry,
-  RecentCommentsApiV1CommentsRecentGetHeaders,
   RecentCommentsApiV1CommentsRecentGetParams,
-  SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
   SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  UpdateCommentApiV1CommentsCommentIdPatchHeaders,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -46,46 +40,20 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Create Comment
  */
-export type createCommentApiV1CommentsPostResponse201 = {
-  data: CommentRead;
-  status: 201;
-};
-
-export type createCommentApiV1CommentsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createCommentApiV1CommentsPostResponseSuccess =
-  createCommentApiV1CommentsPostResponse201 & {
-    headers: Headers;
-  };
-export type createCommentApiV1CommentsPostResponseError =
-  createCommentApiV1CommentsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createCommentApiV1CommentsPostResponse =
-  | createCommentApiV1CommentsPostResponseSuccess
-  | createCommentApiV1CommentsPostResponseError;
-
-export const getCreateCommentApiV1CommentsPostUrl = () => {
-  return `/api/v1/comments/`;
-};
-
-export const createCommentApiV1CommentsPost = async (
-  commentCreate: CommentCreate,
-  headers?: CreateCommentApiV1CommentsPostHeaders,
-  options?: RequestInit
-): Promise<createCommentApiV1CommentsPostResponse> => {
-  return apiMutator<createCommentApiV1CommentsPostResponse>(
-    getCreateCommentApiV1CommentsPostUrl(),
+export const createCommentApiV1CommentsPost = (
+  commentCreate: BodyType<CommentCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommentRead>(
     {
-      ...options,
+      url: `/api/v1/comments/`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(commentCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: commentCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -96,14 +64,14 @@ export const getCreateCommentApiV1CommentsPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
     TError,
-    { data: BodyType<CommentCreate>; headers?: CreateCommentApiV1CommentsPostHeaders },
+    { data: BodyType<CommentCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
   TError,
-  { data: BodyType<CommentCreate>; headers?: CreateCommentApiV1CommentsPostHeaders },
+  { data: BodyType<CommentCreate> },
   TContext
 > => {
   const mutationKey = ["createCommentApiV1CommentsPost"];
@@ -115,11 +83,11 @@ export const getCreateCommentApiV1CommentsPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
-    { data: BodyType<CommentCreate>; headers?: CreateCommentApiV1CommentsPostHeaders }
+    { data: BodyType<CommentCreate> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return createCommentApiV1CommentsPost(data, headers, requestOptions);
+    return createCommentApiV1CommentsPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -142,7 +110,7 @@ export const useCreateCommentApiV1CommentsPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
       TError,
-      { data: BodyType<CommentCreate>; headers?: CreateCommentApiV1CommentsPostHeaders },
+      { data: BodyType<CommentCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -151,7 +119,7 @@ export const useCreateCommentApiV1CommentsPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
   TError,
-  { data: BodyType<CommentCreate>; headers?: CreateCommentApiV1CommentsPostHeaders },
+  { data: BodyType<CommentCreate> },
   TContext
 > => {
   return useMutation(getCreateCommentApiV1CommentsPostMutationOptions(options), queryClient);
@@ -159,56 +127,14 @@ export const useCreateCommentApiV1CommentsPost = <
 /**
  * @summary List Comments
  */
-export type listCommentsApiV1CommentsGetResponse200 = {
-  data: CommentRead[];
-  status: 200;
-};
-
-export type listCommentsApiV1CommentsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listCommentsApiV1CommentsGetResponseSuccess =
-  listCommentsApiV1CommentsGetResponse200 & {
-    headers: Headers;
-  };
-export type listCommentsApiV1CommentsGetResponseError = listCommentsApiV1CommentsGetResponse422 & {
-  headers: Headers;
-};
-
-export type listCommentsApiV1CommentsGetResponse =
-  | listCommentsApiV1CommentsGetResponseSuccess
-  | listCommentsApiV1CommentsGetResponseError;
-
-export const getListCommentsApiV1CommentsGetUrl = (params?: ListCommentsApiV1CommentsGetParams) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/comments/?${stringifiedParams}`
-    : `/api/v1/comments/`;
-};
-
-export const listCommentsApiV1CommentsGet = async (
+export const listCommentsApiV1CommentsGet = (
   params?: ListCommentsApiV1CommentsGetParams,
-  headers?: ListCommentsApiV1CommentsGetHeaders,
-  options?: RequestInit
-): Promise<listCommentsApiV1CommentsGetResponse> => {
-  return apiMutator<listCommentsApiV1CommentsGetResponse>(
-    getListCommentsApiV1CommentsGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommentRead[]>(
+    { url: `/api/v1/comments/`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -223,7 +149,6 @@ export const getListCommentsApiV1CommentsGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListCommentsApiV1CommentsGetParams,
-  headers?: ListCommentsApiV1CommentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
@@ -237,7 +162,7 @@ export const getListCommentsApiV1CommentsGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>> = ({
     signal,
-  }) => listCommentsApiV1CommentsGet(params, headers, { signal, ...requestOptions });
+  }) => listCommentsApiV1CommentsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
@@ -256,7 +181,6 @@ export function useListCommentsApiV1CommentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: undefined | ListCommentsApiV1CommentsGetParams,
-  headers: undefined | ListCommentsApiV1CommentsGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
@@ -278,7 +202,6 @@ export function useListCommentsApiV1CommentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListCommentsApiV1CommentsGetParams,
-  headers?: ListCommentsApiV1CommentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
@@ -300,7 +223,6 @@ export function useListCommentsApiV1CommentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListCommentsApiV1CommentsGetParams,
-  headers?: ListCommentsApiV1CommentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
@@ -318,7 +240,6 @@ export function useListCommentsApiV1CommentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListCommentsApiV1CommentsGetParams,
-  headers?: ListCommentsApiV1CommentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
@@ -327,7 +248,7 @@ export function useListCommentsApiV1CommentsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCommentsApiV1CommentsGetQueryOptions(params, headers, options);
+  const queryOptions = getListCommentsApiV1CommentsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -340,59 +261,14 @@ export function useListCommentsApiV1CommentsGet<
  * Return the most recent comments across the guild.
  * @summary Recent Comments
  */
-export type recentCommentsApiV1CommentsRecentGetResponse200 = {
-  data: RecentActivityEntry[];
-  status: 200;
-};
-
-export type recentCommentsApiV1CommentsRecentGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type recentCommentsApiV1CommentsRecentGetResponseSuccess =
-  recentCommentsApiV1CommentsRecentGetResponse200 & {
-    headers: Headers;
-  };
-export type recentCommentsApiV1CommentsRecentGetResponseError =
-  recentCommentsApiV1CommentsRecentGetResponse422 & {
-    headers: Headers;
-  };
-
-export type recentCommentsApiV1CommentsRecentGetResponse =
-  | recentCommentsApiV1CommentsRecentGetResponseSuccess
-  | recentCommentsApiV1CommentsRecentGetResponseError;
-
-export const getRecentCommentsApiV1CommentsRecentGetUrl = (
-  params?: RecentCommentsApiV1CommentsRecentGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/comments/recent?${stringifiedParams}`
-    : `/api/v1/comments/recent`;
-};
-
-export const recentCommentsApiV1CommentsRecentGet = async (
+export const recentCommentsApiV1CommentsRecentGet = (
   params?: RecentCommentsApiV1CommentsRecentGetParams,
-  headers?: RecentCommentsApiV1CommentsRecentGetHeaders,
-  options?: RequestInit
-): Promise<recentCommentsApiV1CommentsRecentGetResponse> => {
-  return apiMutator<recentCommentsApiV1CommentsRecentGetResponse>(
-    getRecentCommentsApiV1CommentsRecentGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecentActivityEntry[]>(
+    { url: `/api/v1/comments/recent`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -407,7 +283,6 @@ export const getRecentCommentsApiV1CommentsRecentGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: RecentCommentsApiV1CommentsRecentGetParams,
-  headers?: RecentCommentsApiV1CommentsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -426,8 +301,7 @@ export const getRecentCommentsApiV1CommentsRecentGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>
-  > = ({ signal }) =>
-    recentCommentsApiV1CommentsRecentGet(params, headers, { signal, ...requestOptions });
+  > = ({ signal }) => recentCommentsApiV1CommentsRecentGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
@@ -446,7 +320,6 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: undefined | RecentCommentsApiV1CommentsRecentGetParams,
-  headers: undefined | RecentCommentsApiV1CommentsRecentGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -472,7 +345,6 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: RecentCommentsApiV1CommentsRecentGetParams,
-  headers?: RecentCommentsApiV1CommentsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -498,7 +370,6 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: RecentCommentsApiV1CommentsRecentGetParams,
-  headers?: RecentCommentsApiV1CommentsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -520,7 +391,6 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: RecentCommentsApiV1CommentsRecentGetParams,
-  headers?: RecentCommentsApiV1CommentsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -533,11 +403,7 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getRecentCommentsApiV1CommentsRecentGetQueryOptions(
-    params,
-    headers,
-    options
-  );
+  const queryOptions = getRecentCommentsApiV1CommentsRecentGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -550,47 +416,21 @@ export function useRecentCommentsApiV1CommentsRecentGet<
  * Update a comment. Only the original author can edit.
  * @summary Update Comment
  */
-export type updateCommentApiV1CommentsCommentIdPatchResponse200 = {
-  data: CommentRead;
-  status: 200;
-};
-
-export type updateCommentApiV1CommentsCommentIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateCommentApiV1CommentsCommentIdPatchResponseSuccess =
-  updateCommentApiV1CommentsCommentIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateCommentApiV1CommentsCommentIdPatchResponseError =
-  updateCommentApiV1CommentsCommentIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateCommentApiV1CommentsCommentIdPatchResponse =
-  | updateCommentApiV1CommentsCommentIdPatchResponseSuccess
-  | updateCommentApiV1CommentsCommentIdPatchResponseError;
-
-export const getUpdateCommentApiV1CommentsCommentIdPatchUrl = (commentId: number) => {
-  return `/api/v1/comments/${commentId}`;
-};
-
-export const updateCommentApiV1CommentsCommentIdPatch = async (
+export const updateCommentApiV1CommentsCommentIdPatch = (
   commentId: number,
-  commentUpdate: CommentUpdate,
-  headers?: UpdateCommentApiV1CommentsCommentIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateCommentApiV1CommentsCommentIdPatchResponse> => {
-  return apiMutator<updateCommentApiV1CommentsCommentIdPatchResponse>(
-    getUpdateCommentApiV1CommentsCommentIdPatchUrl(commentId),
+  commentUpdate: BodyType<CommentUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommentRead>(
     {
-      ...options,
+      url: `/api/v1/comments/${commentId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(commentUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: commentUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -601,22 +441,14 @@ export const getUpdateCommentApiV1CommentsCommentIdPatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
     TError,
-    {
-      commentId: number;
-      data: BodyType<CommentUpdate>;
-      headers?: UpdateCommentApiV1CommentsCommentIdPatchHeaders;
-    },
+    { commentId: number; data: BodyType<CommentUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
   TError,
-  {
-    commentId: number;
-    data: BodyType<CommentUpdate>;
-    headers?: UpdateCommentApiV1CommentsCommentIdPatchHeaders;
-  },
+  { commentId: number; data: BodyType<CommentUpdate> },
   TContext
 > => {
   const mutationKey = ["updateCommentApiV1CommentsCommentIdPatch"];
@@ -628,15 +460,11 @@ export const getUpdateCommentApiV1CommentsCommentIdPatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
-    {
-      commentId: number;
-      data: BodyType<CommentUpdate>;
-      headers?: UpdateCommentApiV1CommentsCommentIdPatchHeaders;
-    }
+    { commentId: number; data: BodyType<CommentUpdate> }
   > = (props) => {
-    const { commentId, data, headers } = props ?? {};
+    const { commentId, data } = props ?? {};
 
-    return updateCommentApiV1CommentsCommentIdPatch(commentId, data, headers, requestOptions);
+    return updateCommentApiV1CommentsCommentIdPatch(commentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -659,11 +487,7 @@ export const useUpdateCommentApiV1CommentsCommentIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
       TError,
-      {
-        commentId: number;
-        data: BodyType<CommentUpdate>;
-        headers?: UpdateCommentApiV1CommentsCommentIdPatchHeaders;
-      },
+      { commentId: number; data: BodyType<CommentUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -672,11 +496,7 @@ export const useUpdateCommentApiV1CommentsCommentIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
   TError,
-  {
-    commentId: number;
-    data: BodyType<CommentUpdate>;
-    headers?: UpdateCommentApiV1CommentsCommentIdPatchHeaders;
-  },
+  { commentId: number; data: BodyType<CommentUpdate> },
   TContext
 > => {
   return useMutation(
@@ -687,45 +507,14 @@ export const useUpdateCommentApiV1CommentsCommentIdPatch = <
 /**
  * @summary Delete Comment
  */
-export type deleteCommentApiV1CommentsCommentIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteCommentApiV1CommentsCommentIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteCommentApiV1CommentsCommentIdDeleteResponseSuccess =
-  deleteCommentApiV1CommentsCommentIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteCommentApiV1CommentsCommentIdDeleteResponseError =
-  deleteCommentApiV1CommentsCommentIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteCommentApiV1CommentsCommentIdDeleteResponse =
-  | deleteCommentApiV1CommentsCommentIdDeleteResponseSuccess
-  | deleteCommentApiV1CommentsCommentIdDeleteResponseError;
-
-export const getDeleteCommentApiV1CommentsCommentIdDeleteUrl = (commentId: number) => {
-  return `/api/v1/comments/${commentId}`;
-};
-
-export const deleteCommentApiV1CommentsCommentIdDelete = async (
+export const deleteCommentApiV1CommentsCommentIdDelete = (
   commentId: number,
-  headers?: DeleteCommentApiV1CommentsCommentIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteCommentApiV1CommentsCommentIdDeleteResponse> => {
-  return apiMutator<deleteCommentApiV1CommentsCommentIdDeleteResponse>(
-    getDeleteCommentApiV1CommentsCommentIdDeleteUrl(commentId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/comments/${commentId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -736,14 +525,14 @@ export const getDeleteCommentApiV1CommentsCommentIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
     TError,
-    { commentId: number; headers?: DeleteCommentApiV1CommentsCommentIdDeleteHeaders },
+    { commentId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
   TError,
-  { commentId: number; headers?: DeleteCommentApiV1CommentsCommentIdDeleteHeaders },
+  { commentId: number },
   TContext
 > => {
   const mutationKey = ["deleteCommentApiV1CommentsCommentIdDelete"];
@@ -755,11 +544,11 @@ export const getDeleteCommentApiV1CommentsCommentIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
-    { commentId: number; headers?: DeleteCommentApiV1CommentsCommentIdDeleteHeaders }
+    { commentId: number }
   > = (props) => {
-    const { commentId, headers } = props ?? {};
+    const { commentId } = props ?? {};
 
-    return deleteCommentApiV1CommentsCommentIdDelete(commentId, headers, requestOptions);
+    return deleteCommentApiV1CommentsCommentIdDelete(commentId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -782,7 +571,7 @@ export const useDeleteCommentApiV1CommentsCommentIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
       TError,
-      { commentId: number; headers?: DeleteCommentApiV1CommentsCommentIdDeleteHeaders },
+      { commentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -791,7 +580,7 @@ export const useDeleteCommentApiV1CommentsCommentIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
   TError,
-  { commentId: number; headers?: DeleteCommentApiV1CommentsCommentIdDeleteHeaders },
+  { commentId: number },
   TContext
 > => {
   return useMutation(
@@ -803,59 +592,14 @@ export const useDeleteCommentApiV1CommentsCommentIdDelete = <
  * Search for mentionable entities within an initiative.
  * @summary Search Mentionables
  */
-export type searchMentionablesApiV1CommentsMentionsSearchGetResponse200 = {
-  data: MentionSuggestion[];
-  status: 200;
-};
-
-export type searchMentionablesApiV1CommentsMentionsSearchGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type searchMentionablesApiV1CommentsMentionsSearchGetResponseSuccess =
-  searchMentionablesApiV1CommentsMentionsSearchGetResponse200 & {
-    headers: Headers;
-  };
-export type searchMentionablesApiV1CommentsMentionsSearchGetResponseError =
-  searchMentionablesApiV1CommentsMentionsSearchGetResponse422 & {
-    headers: Headers;
-  };
-
-export type searchMentionablesApiV1CommentsMentionsSearchGetResponse =
-  | searchMentionablesApiV1CommentsMentionsSearchGetResponseSuccess
-  | searchMentionablesApiV1CommentsMentionsSearchGetResponseError;
-
-export const getSearchMentionablesApiV1CommentsMentionsSearchGetUrl = (
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/comments/mentions/search?${stringifiedParams}`
-    : `/api/v1/comments/mentions/search`;
-};
-
-export const searchMentionablesApiV1CommentsMentionsSearchGet = async (
+export const searchMentionablesApiV1CommentsMentionsSearchGet = (
   params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  headers?: SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
-  options?: RequestInit
-): Promise<searchMentionablesApiV1CommentsMentionsSearchGetResponse> => {
-  return apiMutator<searchMentionablesApiV1CommentsMentionsSearchGetResponse>(
-    getSearchMentionablesApiV1CommentsMentionsSearchGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MentionSuggestion[]>(
+    { url: `/api/v1/comments/mentions/search`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -870,7 +614,6 @@ export const getSearchMentionablesApiV1CommentsMentionsSearchGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  headers?: SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -890,10 +633,7 @@ export const getSearchMentionablesApiV1CommentsMentionsSearchGetQueryOptions = <
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>
   > = ({ signal }) =>
-    searchMentionablesApiV1CommentsMentionsSearchGet(params, headers, {
-      signal,
-      ...requestOptions,
-    });
+    searchMentionablesApiV1CommentsMentionsSearchGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
@@ -913,7 +653,6 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  headers: undefined | SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -939,7 +678,6 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  headers?: SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -965,7 +703,6 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  headers?: SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -987,7 +724,6 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
-  headers?: SearchMentionablesApiV1CommentsMentionsSearchGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1002,7 +738,6 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getSearchMentionablesApiV1CommentsMentionsSearchGetQueryOptions(
     params,
-    headers,
     options
   );
 

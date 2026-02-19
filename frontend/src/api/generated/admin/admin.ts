@@ -42,31 +42,11 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * List all users in the platform (admin only).
  * @summary List All Users
  */
-export type listAllUsersApiV1AdminUsersGetResponse200 = {
-  data: UserRead[];
-  status: 200;
-};
-
-export type listAllUsersApiV1AdminUsersGetResponseSuccess =
-  listAllUsersApiV1AdminUsersGetResponse200 & {
-    headers: Headers;
-  };
-export type listAllUsersApiV1AdminUsersGetResponse = listAllUsersApiV1AdminUsersGetResponseSuccess;
-
-export const getListAllUsersApiV1AdminUsersGetUrl = () => {
-  return `/api/v1/admin/users`;
-};
-
-export const listAllUsersApiV1AdminUsersGet = async (
-  options?: RequestInit
-): Promise<listAllUsersApiV1AdminUsersGetResponse> => {
-  return apiMutator<listAllUsersApiV1AdminUsersGetResponse>(
-    getListAllUsersApiV1AdminUsersGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
-  );
+export const listAllUsersApiV1AdminUsersGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead[]>({ url: `/api/v1/admin/users`, method: "GET", signal }, options);
 };
 
 export const getListAllUsersApiV1AdminUsersGetQueryKey = () => {
@@ -88,7 +68,7 @@ export const getListAllUsersApiV1AdminUsersGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>> = ({
     signal,
-  }) => listAllUsersApiV1AdminUsersGet({ signal, ...requestOptions });
+  }) => listAllUsersApiV1AdminUsersGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listAllUsersApiV1AdminUsersGet>>,
@@ -183,45 +163,14 @@ export function useListAllUsersApiV1AdminUsersGet<
  * Trigger a password reset email for a user (admin only).
  * @summary Trigger Password Reset
  */
-export type triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse200 = {
-  data: VerificationSendResponse;
-  status: 200;
-};
-
-export type triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponseSuccess =
-  triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse200 & {
-    headers: Headers;
-  };
-export type triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponseError =
-  triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse422 & {
-    headers: Headers;
-  };
-
-export type triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse =
-  | triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponseSuccess
-  | triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponseError;
-
-export const getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostUrl = (
-  userId: number
-) => {
-  return `/api/v1/admin/users/${userId}/reset-password`;
-};
-
-export const triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost = async (
+export const triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost = (
   userId: number,
-  options?: RequestInit
-): Promise<triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse> => {
-  return apiMutator<triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostResponse>(
-    getTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPostUrl(userId),
-    {
-      ...options,
-      method: "POST",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    { url: `/api/v1/admin/users/${userId}/reset-password`, method: "POST", signal },
+    options
   );
 };
 
@@ -300,43 +249,14 @@ export const useTriggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost = <
  * Reactivate a deactivated user account (admin only).
  * @summary Reactivate User
  */
-export type reactivateUserApiV1AdminUsersUserIdReactivatePostResponse200 = {
-  data: UserRead;
-  status: 200;
-};
-
-export type reactivateUserApiV1AdminUsersUserIdReactivatePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type reactivateUserApiV1AdminUsersUserIdReactivatePostResponseSuccess =
-  reactivateUserApiV1AdminUsersUserIdReactivatePostResponse200 & {
-    headers: Headers;
-  };
-export type reactivateUserApiV1AdminUsersUserIdReactivatePostResponseError =
-  reactivateUserApiV1AdminUsersUserIdReactivatePostResponse422 & {
-    headers: Headers;
-  };
-
-export type reactivateUserApiV1AdminUsersUserIdReactivatePostResponse =
-  | reactivateUserApiV1AdminUsersUserIdReactivatePostResponseSuccess
-  | reactivateUserApiV1AdminUsersUserIdReactivatePostResponseError;
-
-export const getReactivateUserApiV1AdminUsersUserIdReactivatePostUrl = (userId: number) => {
-  return `/api/v1/admin/users/${userId}/reactivate`;
-};
-
-export const reactivateUserApiV1AdminUsersUserIdReactivatePost = async (
+export const reactivateUserApiV1AdminUsersUserIdReactivatePost = (
   userId: number,
-  options?: RequestInit
-): Promise<reactivateUserApiV1AdminUsersUserIdReactivatePostResponse> => {
-  return apiMutator<reactivateUserApiV1AdminUsersUserIdReactivatePostResponse>(
-    getReactivateUserApiV1AdminUsersUserIdReactivatePostUrl(userId),
-    {
-      ...options,
-      method: "POST",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    { url: `/api/v1/admin/users/${userId}/reactivate`, method: "POST", signal },
+    options
   );
 };
 
@@ -415,31 +335,13 @@ export const useReactivateUserApiV1AdminUsersUserIdReactivatePost = <
  * Get the count of platform admins (admin only).
  * @summary Get Platform Admin Count
  */
-export type getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponse200 = {
-  data: PlatformAdminCountResponse;
-  status: 200;
-};
-
-export type getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponseSuccess =
-  getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponse200 & {
-    headers: Headers;
-  };
-export type getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponse =
-  getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponseSuccess;
-
-export const getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetUrl = () => {
-  return `/api/v1/admin/platform-admin-count`;
-};
-
-export const getPlatformAdminCountApiV1AdminPlatformAdminCountGet = async (
-  options?: RequestInit
-): Promise<getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponse> => {
-  return apiMutator<getPlatformAdminCountApiV1AdminPlatformAdminCountGetResponse>(
-    getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const getPlatformAdminCountApiV1AdminPlatformAdminCountGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformAdminCountResponse>(
+    { url: `/api/v1/admin/platform-admin-count`, method: "GET", signal },
+    options
   );
 };
 
@@ -467,8 +369,7 @@ export const getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryOptions
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>
-  > = ({ signal }) =>
-    getPlatformAdminCountApiV1AdminPlatformAdminCountGet({ signal, ...requestOptions });
+  > = ({ signal }) => getPlatformAdminCountApiV1AdminPlatformAdminCountGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getPlatformAdminCountApiV1AdminPlatformAdminCountGet>>,
@@ -583,46 +484,21 @@ Restrictions:
 - Cannot demote the last platform admin
  * @summary Update Platform Role
  */
-export type updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse200 = {
-  data: UserRead;
-  status: 200;
-};
-
-export type updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponseSuccess =
-  updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse200 & {
-    headers: Headers;
-  };
-export type updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponseError =
-  updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse =
-  | updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponseSuccess
-  | updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponseError;
-
-export const getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchUrl = (userId: number) => {
-  return `/api/v1/admin/users/${userId}/platform-role`;
-};
-
-export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = async (
+export const updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch = (
   userId: number,
-  platformRoleUpdate: PlatformRoleUpdate,
-  options?: RequestInit
-): Promise<updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse> => {
-  return apiMutator<updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchResponse>(
-    getUpdatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatchUrl(userId),
+  platformRoleUpdate: BodyType<PlatformRoleUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
     {
-      ...options,
+      url: `/api/v1/admin/users/${userId}/platform-role`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(platformRoleUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: platformRoleUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -705,45 +581,14 @@ Returns blockers, warnings, owned projects, and detailed blocker info
 with lists of members who could be promoted to resolve blockers.
  * @summary Check User Deletion Eligibility
  */
-export type checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse200 = {
-  data: AdminDeletionEligibilityResponse;
-  status: 200;
-};
-
-export type checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponseSuccess =
-  checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse200 & {
-    headers: Headers;
-  };
-export type checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponseError =
-  checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse422 & {
-    headers: Headers;
-  };
-
-export type checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse =
-  | checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponseSuccess
-  | checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponseError;
-
-export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetUrl = (
-  userId: number
-) => {
-  return `/api/v1/admin/users/${userId}/deletion-eligibility`;
-};
-
-export const checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet = async (
+export const checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet = (
   userId: number,
-  options?: RequestInit
-): Promise<checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse> => {
-  return apiMutator<checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetResponse>(
-    getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetUrl(userId),
-    {
-      ...options,
-      method: "GET",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AdminDeletionEligibilityResponse>(
+    { url: `/api/v1/admin/users/${userId}/deletion-eligibility`, method: "GET", signal },
+    options
   );
 };
 
@@ -787,10 +632,11 @@ export const getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibi
         ReturnType<typeof checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet>
       >
     > = ({ signal }) =>
-      checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(userId, {
-        signal,
-        ...requestOptions,
-      });
+      checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(
+        userId,
+        requestOptions,
+        signal
+      );
 
     return { queryKey, queryFn, enabled: !!userId, ...queryOptions } as UseQueryOptions<
       Awaited<
@@ -953,46 +799,21 @@ Restrictions:
 - Cannot delete the last platform admin
  * @summary Delete User
  */
-export type deleteUserApiV1AdminUsersUserIdDeleteResponse200 = {
-  data: AccountDeletionResponse;
-  status: 200;
-};
-
-export type deleteUserApiV1AdminUsersUserIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteUserApiV1AdminUsersUserIdDeleteResponseSuccess =
-  deleteUserApiV1AdminUsersUserIdDeleteResponse200 & {
-    headers: Headers;
-  };
-export type deleteUserApiV1AdminUsersUserIdDeleteResponseError =
-  deleteUserApiV1AdminUsersUserIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteUserApiV1AdminUsersUserIdDeleteResponse =
-  | deleteUserApiV1AdminUsersUserIdDeleteResponseSuccess
-  | deleteUserApiV1AdminUsersUserIdDeleteResponseError;
-
-export const getDeleteUserApiV1AdminUsersUserIdDeleteUrl = (userId: number) => {
-  return `/api/v1/admin/users/${userId}`;
-};
-
-export const deleteUserApiV1AdminUsersUserIdDelete = async (
+export const deleteUserApiV1AdminUsersUserIdDelete = (
   userId: number,
-  adminUserDeleteRequest: AdminUserDeleteRequest,
-  options?: RequestInit
-): Promise<deleteUserApiV1AdminUsersUserIdDeleteResponse> => {
-  return apiMutator<deleteUserApiV1AdminUsersUserIdDeleteResponse>(
-    getDeleteUserApiV1AdminUsersUserIdDeleteUrl(userId),
+  adminUserDeleteRequest: BodyType<AdminUserDeleteRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AccountDeletionResponse>(
     {
-      ...options,
+      url: `/api/v1/admin/users/${userId}`,
       method: "DELETE",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(adminUserDeleteRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: adminUserDeleteRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1070,43 +891,14 @@ This allows platform admins to delete any guild, even if they're not a member.
 All initiatives, projects, tasks, and memberships within the guild will be deleted.
  * @summary Admin Delete Guild
  */
-export type adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponseSuccess =
-  adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponseError =
-  adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse =
-  | adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponseSuccess
-  | adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponseError;
-
-export const getAdminDeleteGuildApiV1AdminGuildsGuildIdDeleteUrl = (guildId: number) => {
-  return `/api/v1/admin/guilds/${guildId}`;
-};
-
-export const adminDeleteGuildApiV1AdminGuildsGuildIdDelete = async (
+export const adminDeleteGuildApiV1AdminGuildsGuildIdDelete = (
   guildId: number,
-  options?: RequestInit
-): Promise<adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse> => {
-  return apiMutator<adminDeleteGuildApiV1AdminGuildsGuildIdDeleteResponse>(
-    getAdminDeleteGuildApiV1AdminGuildsGuildIdDeleteUrl(guildId),
-    {
-      ...options,
-      method: "DELETE",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/admin/guilds/${guildId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -1191,50 +983,22 @@ Restrictions:
 - Cannot demote the last guild admin
  * @summary Admin Update Guild Member Role
  */
-export type adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponseSuccess =
-  adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse204 & {
-    headers: Headers;
-  };
-export type adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponseError =
-  adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse422 & {
-    headers: Headers;
-  };
-
-export type adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse =
-  | adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponseSuccess
-  | adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponseError;
-
-export const getAdminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchUrl = (
-  guildId: number,
-  userId: number
-) => {
-  return `/api/v1/admin/guilds/${guildId}/members/${userId}/role`;
-};
-
-export const adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch = async (
+export const adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch = (
   guildId: number,
   userId: number,
-  adminGuildRoleUpdate: AdminGuildRoleUpdate,
-  options?: RequestInit
-): Promise<adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse> => {
-  return apiMutator<adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchResponse>(
-    getAdminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatchUrl(guildId, userId),
+  adminGuildRoleUpdate: BodyType<AdminGuildRoleUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
     {
-      ...options,
+      url: `/api/v1/admin/guilds/${guildId}/members/${userId}/role`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(adminGuildRoleUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: adminGuildRoleUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1338,55 +1102,23 @@ Restrictions:
 - Cannot demote the last project manager
  * @summary Admin Update Initiative Member Role
  */
-export type adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse204 =
-  {
-    data: void;
-    status: 204;
-  };
-
-export type adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse422 =
-  {
-    data: HTTPValidationError;
-    status: 422;
-  };
-
-export type adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponseSuccess =
-  adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse204 & {
-    headers: Headers;
-  };
-export type adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponseError =
-  adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse422 & {
-    headers: Headers;
-  };
-
-export type adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse =
-
-    | adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponseSuccess
-    | adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponseError;
-
-export const getAdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchUrl =
-  (initiativeId: number, userId: number) => {
-    return `/api/v1/admin/initiatives/${initiativeId}/members/${userId}/role`;
-  };
-
 export const adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch =
-  async (
+  (
     initiativeId: number,
     userId: number,
-    adminInitiativeRoleUpdate: AdminInitiativeRoleUpdate,
-    options?: RequestInit
-  ): Promise<adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse> => {
-    return apiMutator<adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchResponse>(
-      getAdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchUrl(
-        initiativeId,
-        userId
-      ),
+    adminInitiativeRoleUpdate: BodyType<AdminInitiativeRoleUpdate>,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<void>(
       {
-        ...options,
+        url: `/api/v1/admin/initiatives/${initiativeId}/members/${userId}/role`,
         method: "PATCH",
-        headers: { "Content-Type": "application/json", ...options?.headers },
-        body: JSON.stringify(adminInitiativeRoleUpdate),
-      }
+        headers: { "Content-Type": "application/json" },
+        data: adminInitiativeRoleUpdate,
+        signal,
+      },
+      options
     );
   };
 
