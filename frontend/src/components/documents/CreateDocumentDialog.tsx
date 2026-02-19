@@ -16,6 +16,7 @@ import {
   getInitiativeApiV1InitiativesInitiativeIdGet,
 } from "@/api/generated/initiatives/initiatives";
 import { attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
+import { apiClient } from "@/api/client";
 import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {

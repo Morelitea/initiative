@@ -422,17 +422,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
         payload.template_id = Number(selectedTemplateId);
       }
-      return createProjectApiV1ProjectsPost(
-        payload as Parameters<typeof createProjectApiV1ProjectsPost>[0]
-      ) as unknown as Promise<Project>;
       if (roleGrants.length > 0) {
         payload.role_permissions = roleGrants;
       }
       if (userGrants.length > 0) {
         payload.user_permissions = userGrants;
       }
-      const response = await apiClient.post<Project>("/projects/", payload);
-      return response.data;
+      return createProjectApiV1ProjectsPost(
+        payload as unknown as Parameters<typeof createProjectApiV1ProjectsPost>[0]
+      ) as unknown as Promise<Project>;
     },
     onSuccess: () => {
       setName("");

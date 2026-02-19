@@ -43,6 +43,7 @@ import type {
   AdminDeletionEligibilityResponse,
   ProjectDocumentSummary,
   ProjectTaskSummary as GenProjectTaskSummary,
+  DocumentSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 
 // --- Simple renames (no shape changes) ---
@@ -113,6 +114,30 @@ export type DeletionEligibilityResponse = AdminDeletionEligibilityResponse;
 
 /** Backward compat alias */
 export type ProjectDocumentLink = ProjectDocumentSummary;
+
+// --- Paginated response wrappers (frontend-only; backend returns these shapes but they're not in the OpenAPI spec) ---
+
+export type TaskListResponse = {
+  items: Task[];
+  total_count: number;
+  page: number;
+  page_size: number;
+};
+
+export type ProjectListResponse = {
+  items: ProjectRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+};
+
+export type DocumentListResponse = {
+  items: DocumentSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next?: boolean;
+};
 
 // --- Types not in the OpenAPI spec (frontend-only constructs) ---
 

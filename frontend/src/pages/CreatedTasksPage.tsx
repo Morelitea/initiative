@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 
+import { invalidateAllTasks } from "@/api/query-keys";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
@@ -17,8 +18,8 @@ export const CreatedTasksPage = () => {
   const table = useGlobalTasksTable({ scope: "global_created", storageKeyPrefix: "created-tasks" });
 
   const handleRefresh = useCallback(async () => {
-    await table.localQueryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
-  }, [table.localQueryClient]);
+    await invalidateAllTasks();
+  }, []);
 
   const columns = useMemo(
     () =>
