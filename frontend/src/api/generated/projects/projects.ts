@@ -21,25 +21,11 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders,
-  AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders,
-  AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders,
-  ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders,
-  AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders,
-  ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders,
-  CreateProjectApiV1ProjectsPostHeaders,
-  DeleteProjectApiV1ProjectsProjectIdDeleteHeaders,
-  DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders,
-  DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders,
-  FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders,
-  FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
   HTTPValidationError,
   ListGlobalProjectsApiV1ProjectsGlobalGetHeaders,
   ListGlobalProjectsApiV1ProjectsGlobalGetParams,
   ListProjectsApiV1ProjectsGetHeaders,
   ListProjectsApiV1ProjectsGetParams,
-  ListWritableProjectsApiV1ProjectsWritableGetHeaders,
-  ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
   ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
   ProjectActivityResponse,
   ProjectCreate,
@@ -58,20 +44,7 @@ import type {
   ProjectRolePermissionRead,
   ProjectRolePermissionUpdate,
   ProjectUpdate,
-  ReadProjectApiV1ProjectsProjectIdGetHeaders,
-  RecentProjectsApiV1ProjectsRecentGetHeaders,
-  RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders,
-  RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders,
-  RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders,
-  RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders,
-  ReorderProjectsApiV1ProjectsReorderPostHeaders,
-  SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders,
   TagSetRequest,
-  UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders,
-  UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders,
-  UpdateProjectApiV1ProjectsProjectIdPatchHeaders,
-  UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders,
-  UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -82,56 +55,14 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary List Projects
  */
-export type listProjectsApiV1ProjectsGetResponse200 = {
-  data: ProjectRead[];
-  status: 200;
-};
-
-export type listProjectsApiV1ProjectsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listProjectsApiV1ProjectsGetResponseSuccess =
-  listProjectsApiV1ProjectsGetResponse200 & {
-    headers: Headers;
-  };
-export type listProjectsApiV1ProjectsGetResponseError = listProjectsApiV1ProjectsGetResponse422 & {
-  headers: Headers;
-};
-
-export type listProjectsApiV1ProjectsGetResponse =
-  | listProjectsApiV1ProjectsGetResponseSuccess
-  | listProjectsApiV1ProjectsGetResponseError;
-
-export const getListProjectsApiV1ProjectsGetUrl = (params?: ListProjectsApiV1ProjectsGetParams) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/projects/?${stringifiedParams}`
-    : `/api/v1/projects/`;
-};
-
-export const listProjectsApiV1ProjectsGet = async (
+export const listProjectsApiV1ProjectsGet = (
   params?: ListProjectsApiV1ProjectsGetParams,
-  headers?: ListProjectsApiV1ProjectsGetHeaders,
-  options?: RequestInit
-): Promise<listProjectsApiV1ProjectsGetResponse> => {
-  return apiMutator<listProjectsApiV1ProjectsGetResponse>(
-    getListProjectsApiV1ProjectsGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead[]>(
+    { url: `/api/v1/projects/`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -146,7 +77,6 @@ export const getListProjectsApiV1ProjectsGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListProjectsApiV1ProjectsGetParams,
-  headers?: ListProjectsApiV1ProjectsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>, TError, TData>
@@ -160,7 +90,7 @@ export const getListProjectsApiV1ProjectsGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>> = ({
     signal,
-  }) => listProjectsApiV1ProjectsGet(params, headers, { signal, ...requestOptions });
+  }) => listProjectsApiV1ProjectsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>,
@@ -179,7 +109,6 @@ export function useListProjectsApiV1ProjectsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: undefined | ListProjectsApiV1ProjectsGetParams,
-  headers: undefined | ListProjectsApiV1ProjectsGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>, TError, TData>
@@ -201,7 +130,6 @@ export function useListProjectsApiV1ProjectsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListProjectsApiV1ProjectsGetParams,
-  headers?: ListProjectsApiV1ProjectsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>, TError, TData>
@@ -223,7 +151,6 @@ export function useListProjectsApiV1ProjectsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListProjectsApiV1ProjectsGetParams,
-  headers?: ListProjectsApiV1ProjectsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>, TError, TData>
@@ -241,7 +168,6 @@ export function useListProjectsApiV1ProjectsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListProjectsApiV1ProjectsGetParams,
-  headers?: ListProjectsApiV1ProjectsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listProjectsApiV1ProjectsGet>>, TError, TData>
@@ -250,7 +176,7 @@ export function useListProjectsApiV1ProjectsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListProjectsApiV1ProjectsGetQueryOptions(params, headers, options);
+  const queryOptions = getListProjectsApiV1ProjectsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -262,46 +188,20 @@ export function useListProjectsApiV1ProjectsGet<
 /**
  * @summary Create Project
  */
-export type createProjectApiV1ProjectsPostResponse201 = {
-  data: ProjectRead;
-  status: 201;
-};
-
-export type createProjectApiV1ProjectsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createProjectApiV1ProjectsPostResponseSuccess =
-  createProjectApiV1ProjectsPostResponse201 & {
-    headers: Headers;
-  };
-export type createProjectApiV1ProjectsPostResponseError =
-  createProjectApiV1ProjectsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createProjectApiV1ProjectsPostResponse =
-  | createProjectApiV1ProjectsPostResponseSuccess
-  | createProjectApiV1ProjectsPostResponseError;
-
-export const getCreateProjectApiV1ProjectsPostUrl = () => {
-  return `/api/v1/projects/`;
-};
-
-export const createProjectApiV1ProjectsPost = async (
-  projectCreate: ProjectCreate,
-  headers?: CreateProjectApiV1ProjectsPostHeaders,
-  options?: RequestInit
-): Promise<createProjectApiV1ProjectsPostResponse> => {
-  return apiMutator<createProjectApiV1ProjectsPostResponse>(
-    getCreateProjectApiV1ProjectsPostUrl(),
+export const createProjectApiV1ProjectsPost = (
+  projectCreate: BodyType<ProjectCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
     {
-      ...options,
+      url: `/api/v1/projects/`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -312,14 +212,14 @@ export const getCreateProjectApiV1ProjectsPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createProjectApiV1ProjectsPost>>,
     TError,
-    { data: BodyType<ProjectCreate>; headers?: CreateProjectApiV1ProjectsPostHeaders },
+    { data: BodyType<ProjectCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createProjectApiV1ProjectsPost>>,
   TError,
-  { data: BodyType<ProjectCreate>; headers?: CreateProjectApiV1ProjectsPostHeaders },
+  { data: BodyType<ProjectCreate> },
   TContext
 > => {
   const mutationKey = ["createProjectApiV1ProjectsPost"];
@@ -331,11 +231,11 @@ export const getCreateProjectApiV1ProjectsPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createProjectApiV1ProjectsPost>>,
-    { data: BodyType<ProjectCreate>; headers?: CreateProjectApiV1ProjectsPostHeaders }
+    { data: BodyType<ProjectCreate> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return createProjectApiV1ProjectsPost(data, headers, requestOptions);
+    return createProjectApiV1ProjectsPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -358,7 +258,7 @@ export const useCreateProjectApiV1ProjectsPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createProjectApiV1ProjectsPost>>,
       TError,
-      { data: BodyType<ProjectCreate>; headers?: CreateProjectApiV1ProjectsPostHeaders },
+      { data: BodyType<ProjectCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -367,7 +267,7 @@ export const useCreateProjectApiV1ProjectsPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createProjectApiV1ProjectsPost>>,
   TError,
-  { data: BodyType<ProjectCreate>; headers?: CreateProjectApiV1ProjectsPostHeaders },
+  { data: BodyType<ProjectCreate> },
   TContext
 > => {
   return useMutation(getCreateProjectApiV1ProjectsPostMutationOptions(options), queryClient);
@@ -375,44 +275,13 @@ export const useCreateProjectApiV1ProjectsPost = <
 /**
  * @summary List Writable Projects
  */
-export type listWritableProjectsApiV1ProjectsWritableGetResponse200 = {
-  data: ProjectRead[];
-  status: 200;
-};
-
-export type listWritableProjectsApiV1ProjectsWritableGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listWritableProjectsApiV1ProjectsWritableGetResponseSuccess =
-  listWritableProjectsApiV1ProjectsWritableGetResponse200 & {
-    headers: Headers;
-  };
-export type listWritableProjectsApiV1ProjectsWritableGetResponseError =
-  listWritableProjectsApiV1ProjectsWritableGetResponse422 & {
-    headers: Headers;
-  };
-
-export type listWritableProjectsApiV1ProjectsWritableGetResponse =
-  | listWritableProjectsApiV1ProjectsWritableGetResponseSuccess
-  | listWritableProjectsApiV1ProjectsWritableGetResponseError;
-
-export const getListWritableProjectsApiV1ProjectsWritableGetUrl = () => {
-  return `/api/v1/projects/writable`;
-};
-
-export const listWritableProjectsApiV1ProjectsWritableGet = async (
-  headers?: ListWritableProjectsApiV1ProjectsWritableGetHeaders,
-  options?: RequestInit
-): Promise<listWritableProjectsApiV1ProjectsWritableGetResponse> => {
-  return apiMutator<listWritableProjectsApiV1ProjectsWritableGetResponse>(
-    getListWritableProjectsApiV1ProjectsWritableGetUrl(),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+export const listWritableProjectsApiV1ProjectsWritableGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead[]>(
+    { url: `/api/v1/projects/writable`, method: "GET", signal },
+    options
   );
 };
 
@@ -423,19 +292,16 @@ export const getListWritableProjectsApiV1ProjectsWritableGetQueryKey = () => {
 export const getListWritableProjectsApiV1ProjectsWritableGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
->(
-  headers?: ListWritableProjectsApiV1ProjectsWritableGetHeaders,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
@@ -443,8 +309,7 @@ export const getListWritableProjectsApiV1ProjectsWritableGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>
-  > = ({ signal }) =>
-    listWritableProjectsApiV1ProjectsWritableGet(headers, { signal, ...requestOptions });
+  > = ({ signal }) => listWritableProjectsApiV1ProjectsWritableGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
@@ -462,7 +327,6 @@ export function useListWritableProjectsApiV1ProjectsWritableGet<
   TData = Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers: undefined | ListWritableProjectsApiV1ProjectsWritableGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -487,7 +351,6 @@ export function useListWritableProjectsApiV1ProjectsWritableGet<
   TData = Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListWritableProjectsApiV1ProjectsWritableGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -512,7 +375,6 @@ export function useListWritableProjectsApiV1ProjectsWritableGet<
   TData = Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListWritableProjectsApiV1ProjectsWritableGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -533,7 +395,6 @@ export function useListWritableProjectsApiV1ProjectsWritableGet<
   TData = Awaited<ReturnType<typeof listWritableProjectsApiV1ProjectsWritableGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListWritableProjectsApiV1ProjectsWritableGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -546,10 +407,7 @@ export function useListWritableProjectsApiV1ProjectsWritableGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListWritableProjectsApiV1ProjectsWritableGetQueryOptions(
-    headers,
-    options
-  );
+  const queryOptions = getListWritableProjectsApiV1ProjectsWritableGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -775,45 +633,14 @@ export function useListGlobalProjectsApiV1ProjectsGlobalGet<
 /**
  * @summary Archive Project
  */
-export type archiveProjectApiV1ProjectsProjectIdArchivePostResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type archiveProjectApiV1ProjectsProjectIdArchivePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type archiveProjectApiV1ProjectsProjectIdArchivePostResponseSuccess =
-  archiveProjectApiV1ProjectsProjectIdArchivePostResponse200 & {
-    headers: Headers;
-  };
-export type archiveProjectApiV1ProjectsProjectIdArchivePostResponseError =
-  archiveProjectApiV1ProjectsProjectIdArchivePostResponse422 & {
-    headers: Headers;
-  };
-
-export type archiveProjectApiV1ProjectsProjectIdArchivePostResponse =
-  | archiveProjectApiV1ProjectsProjectIdArchivePostResponseSuccess
-  | archiveProjectApiV1ProjectsProjectIdArchivePostResponseError;
-
-export const getArchiveProjectApiV1ProjectsProjectIdArchivePostUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/archive`;
-};
-
-export const archiveProjectApiV1ProjectsProjectIdArchivePost = async (
+export const archiveProjectApiV1ProjectsProjectIdArchivePost = (
   projectId: number,
-  headers?: ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders,
-  options?: RequestInit
-): Promise<archiveProjectApiV1ProjectsProjectIdArchivePostResponse> => {
-  return apiMutator<archiveProjectApiV1ProjectsProjectIdArchivePostResponse>(
-    getArchiveProjectApiV1ProjectsProjectIdArchivePostUrl(projectId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
+    { url: `/api/v1/projects/${projectId}/archive`, method: "POST", signal },
+    options
   );
 };
 
@@ -824,14 +651,14 @@ export const getArchiveProjectApiV1ProjectsProjectIdArchivePostMutationOptions =
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof archiveProjectApiV1ProjectsProjectIdArchivePost>>,
     TError,
-    { projectId: number; headers?: ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof archiveProjectApiV1ProjectsProjectIdArchivePost>>,
   TError,
-  { projectId: number; headers?: ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["archiveProjectApiV1ProjectsProjectIdArchivePost"];
@@ -843,11 +670,11 @@ export const getArchiveProjectApiV1ProjectsProjectIdArchivePostMutationOptions =
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof archiveProjectApiV1ProjectsProjectIdArchivePost>>,
-    { projectId: number; headers?: ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return archiveProjectApiV1ProjectsProjectIdArchivePost(projectId, headers, requestOptions);
+    return archiveProjectApiV1ProjectsProjectIdArchivePost(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -871,7 +698,7 @@ export const useArchiveProjectApiV1ProjectsProjectIdArchivePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof archiveProjectApiV1ProjectsProjectIdArchivePost>>,
       TError,
-      { projectId: number; headers?: ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -880,7 +707,7 @@ export const useArchiveProjectApiV1ProjectsProjectIdArchivePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof archiveProjectApiV1ProjectsProjectIdArchivePost>>,
   TError,
-  { projectId: number; headers?: ArchiveProjectApiV1ProjectsProjectIdArchivePostHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -891,47 +718,21 @@ export const useArchiveProjectApiV1ProjectsProjectIdArchivePost = <
 /**
  * @summary Duplicate Project
  */
-export type duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse201 = {
-  data: ProjectRead;
-  status: 201;
-};
-
-export type duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponseSuccess =
-  duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse201 & {
-    headers: Headers;
-  };
-export type duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponseError =
-  duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse422 & {
-    headers: Headers;
-  };
-
-export type duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse =
-  | duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponseSuccess
-  | duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponseError;
-
-export const getDuplicateProjectApiV1ProjectsProjectIdDuplicatePostUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/duplicate`;
-};
-
-export const duplicateProjectApiV1ProjectsProjectIdDuplicatePost = async (
+export const duplicateProjectApiV1ProjectsProjectIdDuplicatePost = (
   projectId: number,
-  projectDuplicateRequest: ProjectDuplicateRequest,
-  headers?: DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders,
-  options?: RequestInit
-): Promise<duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse> => {
-  return apiMutator<duplicateProjectApiV1ProjectsProjectIdDuplicatePostResponse>(
-    getDuplicateProjectApiV1ProjectsProjectIdDuplicatePostUrl(projectId),
+  projectDuplicateRequest: BodyType<ProjectDuplicateRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/duplicate`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectDuplicateRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectDuplicateRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -942,22 +743,14 @@ export const getDuplicateProjectApiV1ProjectsProjectIdDuplicatePostMutationOptio
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<ProjectDuplicateRequest>;
-      headers?: DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders;
-    },
+    { projectId: number; data: BodyType<ProjectDuplicateRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectDuplicateRequest>;
-    headers?: DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectDuplicateRequest> },
   TContext
 > => {
   const mutationKey = ["duplicateProjectApiV1ProjectsProjectIdDuplicatePost"];
@@ -969,20 +762,11 @@ export const getDuplicateProjectApiV1ProjectsProjectIdDuplicatePostMutationOptio
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>>,
-    {
-      projectId: number;
-      data: BodyType<ProjectDuplicateRequest>;
-      headers?: DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders;
-    }
+    { projectId: number; data: BodyType<ProjectDuplicateRequest> }
   > = (props) => {
-    const { projectId, data, headers } = props ?? {};
+    const { projectId, data } = props ?? {};
 
-    return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(
-      projectId,
-      data,
-      headers,
-      requestOptions
-    );
+    return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(projectId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1007,11 +791,7 @@ export const useDuplicateProjectApiV1ProjectsProjectIdDuplicatePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>>,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectDuplicateRequest>;
-        headers?: DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectDuplicateRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1020,11 +800,7 @@ export const useDuplicateProjectApiV1ProjectsProjectIdDuplicatePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectDuplicateRequest>;
-    headers?: DuplicateProjectApiV1ProjectsProjectIdDuplicatePostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectDuplicateRequest> },
   TContext
 > => {
   return useMutation(
@@ -1035,45 +811,14 @@ export const useDuplicateProjectApiV1ProjectsProjectIdDuplicatePost = <
 /**
  * @summary Unarchive Project
  */
-export type unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponseSuccess =
-  unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse200 & {
-    headers: Headers;
-  };
-export type unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponseError =
-  unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse422 & {
-    headers: Headers;
-  };
-
-export type unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse =
-  | unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponseSuccess
-  | unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponseError;
-
-export const getUnarchiveProjectApiV1ProjectsProjectIdUnarchivePostUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/unarchive`;
-};
-
-export const unarchiveProjectApiV1ProjectsProjectIdUnarchivePost = async (
+export const unarchiveProjectApiV1ProjectsProjectIdUnarchivePost = (
   projectId: number,
-  headers?: UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders,
-  options?: RequestInit
-): Promise<unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse> => {
-  return apiMutator<unarchiveProjectApiV1ProjectsProjectIdUnarchivePostResponse>(
-    getUnarchiveProjectApiV1ProjectsProjectIdUnarchivePostUrl(projectId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
+    { url: `/api/v1/projects/${projectId}/unarchive`, method: "POST", signal },
+    options
   );
 };
 
@@ -1084,14 +829,14 @@ export const getUnarchiveProjectApiV1ProjectsProjectIdUnarchivePostMutationOptio
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof unarchiveProjectApiV1ProjectsProjectIdUnarchivePost>>,
     TError,
-    { projectId: number; headers?: UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof unarchiveProjectApiV1ProjectsProjectIdUnarchivePost>>,
   TError,
-  { projectId: number; headers?: UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["unarchiveProjectApiV1ProjectsProjectIdUnarchivePost"];
@@ -1103,11 +848,11 @@ export const getUnarchiveProjectApiV1ProjectsProjectIdUnarchivePostMutationOptio
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof unarchiveProjectApiV1ProjectsProjectIdUnarchivePost>>,
-    { projectId: number; headers?: UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(projectId, headers, requestOptions);
+    return unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1131,7 +876,7 @@ export const useUnarchiveProjectApiV1ProjectsProjectIdUnarchivePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof unarchiveProjectApiV1ProjectsProjectIdUnarchivePost>>,
       TError,
-      { projectId: number; headers?: UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1140,7 +885,7 @@ export const useUnarchiveProjectApiV1ProjectsProjectIdUnarchivePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof unarchiveProjectApiV1ProjectsProjectIdUnarchivePost>>,
   TError,
-  { projectId: number; headers?: UnarchiveProjectApiV1ProjectsProjectIdUnarchivePostHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -1151,44 +896,13 @@ export const useUnarchiveProjectApiV1ProjectsProjectIdUnarchivePost = <
 /**
  * @summary Recent Projects
  */
-export type recentProjectsApiV1ProjectsRecentGetResponse200 = {
-  data: ProjectRead[];
-  status: 200;
-};
-
-export type recentProjectsApiV1ProjectsRecentGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type recentProjectsApiV1ProjectsRecentGetResponseSuccess =
-  recentProjectsApiV1ProjectsRecentGetResponse200 & {
-    headers: Headers;
-  };
-export type recentProjectsApiV1ProjectsRecentGetResponseError =
-  recentProjectsApiV1ProjectsRecentGetResponse422 & {
-    headers: Headers;
-  };
-
-export type recentProjectsApiV1ProjectsRecentGetResponse =
-  | recentProjectsApiV1ProjectsRecentGetResponseSuccess
-  | recentProjectsApiV1ProjectsRecentGetResponseError;
-
-export const getRecentProjectsApiV1ProjectsRecentGetUrl = () => {
-  return `/api/v1/projects/recent`;
-};
-
-export const recentProjectsApiV1ProjectsRecentGet = async (
-  headers?: RecentProjectsApiV1ProjectsRecentGetHeaders,
-  options?: RequestInit
-): Promise<recentProjectsApiV1ProjectsRecentGetResponse> => {
-  return apiMutator<recentProjectsApiV1ProjectsRecentGetResponse>(
-    getRecentProjectsApiV1ProjectsRecentGetUrl(),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+export const recentProjectsApiV1ProjectsRecentGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead[]>(
+    { url: `/api/v1/projects/recent`, method: "GET", signal },
+    options
   );
 };
 
@@ -1199,26 +913,19 @@ export const getRecentProjectsApiV1ProjectsRecentGetQueryKey = () => {
 export const getRecentProjectsApiV1ProjectsRecentGetQueryOptions = <
   TData = Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
->(
-  headers?: RecentProjectsApiV1ProjectsRecentGetHeaders,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey = queryOptions?.queryKey ?? getRecentProjectsApiV1ProjectsRecentGetQueryKey();
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>
-  > = ({ signal }) => recentProjectsApiV1ProjectsRecentGet(headers, { signal, ...requestOptions });
+  > = ({ signal }) => recentProjectsApiV1ProjectsRecentGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
@@ -1236,7 +943,6 @@ export function useRecentProjectsApiV1ProjectsRecentGet<
   TData = Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers: undefined | RecentProjectsApiV1ProjectsRecentGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1261,7 +967,6 @@ export function useRecentProjectsApiV1ProjectsRecentGet<
   TData = Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: RecentProjectsApiV1ProjectsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1286,7 +991,6 @@ export function useRecentProjectsApiV1ProjectsRecentGet<
   TData = Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: RecentProjectsApiV1ProjectsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1307,7 +1011,6 @@ export function useRecentProjectsApiV1ProjectsRecentGet<
   TData = Awaited<ReturnType<typeof recentProjectsApiV1ProjectsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: RecentProjectsApiV1ProjectsRecentGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1320,7 +1023,7 @@ export function useRecentProjectsApiV1ProjectsRecentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getRecentProjectsApiV1ProjectsRecentGetQueryOptions(headers, options);
+  const queryOptions = getRecentProjectsApiV1ProjectsRecentGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1332,44 +1035,13 @@ export function useRecentProjectsApiV1ProjectsRecentGet<
 /**
  * @summary Favorite Projects
  */
-export type favoriteProjectsApiV1ProjectsFavoritesGetResponse200 = {
-  data: ProjectRead[];
-  status: 200;
-};
-
-export type favoriteProjectsApiV1ProjectsFavoritesGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type favoriteProjectsApiV1ProjectsFavoritesGetResponseSuccess =
-  favoriteProjectsApiV1ProjectsFavoritesGetResponse200 & {
-    headers: Headers;
-  };
-export type favoriteProjectsApiV1ProjectsFavoritesGetResponseError =
-  favoriteProjectsApiV1ProjectsFavoritesGetResponse422 & {
-    headers: Headers;
-  };
-
-export type favoriteProjectsApiV1ProjectsFavoritesGetResponse =
-  | favoriteProjectsApiV1ProjectsFavoritesGetResponseSuccess
-  | favoriteProjectsApiV1ProjectsFavoritesGetResponseError;
-
-export const getFavoriteProjectsApiV1ProjectsFavoritesGetUrl = () => {
-  return `/api/v1/projects/favorites`;
-};
-
-export const favoriteProjectsApiV1ProjectsFavoritesGet = async (
-  headers?: FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
-  options?: RequestInit
-): Promise<favoriteProjectsApiV1ProjectsFavoritesGetResponse> => {
-  return apiMutator<favoriteProjectsApiV1ProjectsFavoritesGetResponse>(
-    getFavoriteProjectsApiV1ProjectsFavoritesGetUrl(),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+export const favoriteProjectsApiV1ProjectsFavoritesGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead[]>(
+    { url: `/api/v1/projects/favorites`, method: "GET", signal },
+    options
   );
 };
 
@@ -1380,27 +1052,23 @@ export const getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey = () => {
 export const getFavoriteProjectsApiV1ProjectsFavoritesGetQueryOptions = <
   TData = Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
->(
-  headers?: FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey = queryOptions?.queryKey ?? getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey();
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>
-  > = ({ signal }) =>
-    favoriteProjectsApiV1ProjectsFavoritesGet(headers, { signal, ...requestOptions });
+  > = ({ signal }) => favoriteProjectsApiV1ProjectsFavoritesGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
@@ -1418,7 +1086,6 @@ export function useFavoriteProjectsApiV1ProjectsFavoritesGet<
   TData = Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers: undefined | FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1443,7 +1110,6 @@ export function useFavoriteProjectsApiV1ProjectsFavoritesGet<
   TData = Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1468,7 +1134,6 @@ export function useFavoriteProjectsApiV1ProjectsFavoritesGet<
   TData = Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1489,7 +1154,6 @@ export function useFavoriteProjectsApiV1ProjectsFavoritesGet<
   TData = Awaited<ReturnType<typeof favoriteProjectsApiV1ProjectsFavoritesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: FavoriteProjectsApiV1ProjectsFavoritesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1502,7 +1166,7 @@ export function useFavoriteProjectsApiV1ProjectsFavoritesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getFavoriteProjectsApiV1ProjectsFavoritesGetQueryOptions(headers, options);
+  const queryOptions = getFavoriteProjectsApiV1ProjectsFavoritesGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1514,45 +1178,14 @@ export function useFavoriteProjectsApiV1ProjectsFavoritesGet<
 /**
  * @summary Record Project View
  */
-export type recordProjectViewApiV1ProjectsProjectIdViewPostResponse200 = {
-  data: ProjectRecentViewRead;
-  status: 200;
-};
-
-export type recordProjectViewApiV1ProjectsProjectIdViewPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type recordProjectViewApiV1ProjectsProjectIdViewPostResponseSuccess =
-  recordProjectViewApiV1ProjectsProjectIdViewPostResponse200 & {
-    headers: Headers;
-  };
-export type recordProjectViewApiV1ProjectsProjectIdViewPostResponseError =
-  recordProjectViewApiV1ProjectsProjectIdViewPostResponse422 & {
-    headers: Headers;
-  };
-
-export type recordProjectViewApiV1ProjectsProjectIdViewPostResponse =
-  | recordProjectViewApiV1ProjectsProjectIdViewPostResponseSuccess
-  | recordProjectViewApiV1ProjectsProjectIdViewPostResponseError;
-
-export const getRecordProjectViewApiV1ProjectsProjectIdViewPostUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/view`;
-};
-
-export const recordProjectViewApiV1ProjectsProjectIdViewPost = async (
+export const recordProjectViewApiV1ProjectsProjectIdViewPost = (
   projectId: number,
-  headers?: RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders,
-  options?: RequestInit
-): Promise<recordProjectViewApiV1ProjectsProjectIdViewPostResponse> => {
-  return apiMutator<recordProjectViewApiV1ProjectsProjectIdViewPostResponse>(
-    getRecordProjectViewApiV1ProjectsProjectIdViewPostUrl(projectId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRecentViewRead>(
+    { url: `/api/v1/projects/${projectId}/view`, method: "POST", signal },
+    options
   );
 };
 
@@ -1563,14 +1196,14 @@ export const getRecordProjectViewApiV1ProjectsProjectIdViewPostMutationOptions =
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof recordProjectViewApiV1ProjectsProjectIdViewPost>>,
     TError,
-    { projectId: number; headers?: RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof recordProjectViewApiV1ProjectsProjectIdViewPost>>,
   TError,
-  { projectId: number; headers?: RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["recordProjectViewApiV1ProjectsProjectIdViewPost"];
@@ -1582,11 +1215,11 @@ export const getRecordProjectViewApiV1ProjectsProjectIdViewPostMutationOptions =
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof recordProjectViewApiV1ProjectsProjectIdViewPost>>,
-    { projectId: number; headers?: RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return recordProjectViewApiV1ProjectsProjectIdViewPost(projectId, headers, requestOptions);
+    return recordProjectViewApiV1ProjectsProjectIdViewPost(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1610,7 +1243,7 @@ export const useRecordProjectViewApiV1ProjectsProjectIdViewPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof recordProjectViewApiV1ProjectsProjectIdViewPost>>,
       TError,
-      { projectId: number; headers?: RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1619,7 +1252,7 @@ export const useRecordProjectViewApiV1ProjectsProjectIdViewPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof recordProjectViewApiV1ProjectsProjectIdViewPost>>,
   TError,
-  { projectId: number; headers?: RecordProjectViewApiV1ProjectsProjectIdViewPostHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -1630,45 +1263,14 @@ export const useRecordProjectViewApiV1ProjectsProjectIdViewPost = <
 /**
  * @summary Clear Project View
  */
-export type clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type clearProjectViewApiV1ProjectsProjectIdViewDeleteResponseSuccess =
-  clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse204 & {
-    headers: Headers;
-  };
-export type clearProjectViewApiV1ProjectsProjectIdViewDeleteResponseError =
-  clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse =
-  | clearProjectViewApiV1ProjectsProjectIdViewDeleteResponseSuccess
-  | clearProjectViewApiV1ProjectsProjectIdViewDeleteResponseError;
-
-export const getClearProjectViewApiV1ProjectsProjectIdViewDeleteUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/view`;
-};
-
-export const clearProjectViewApiV1ProjectsProjectIdViewDelete = async (
+export const clearProjectViewApiV1ProjectsProjectIdViewDelete = (
   projectId: number,
-  headers?: ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders,
-  options?: RequestInit
-): Promise<clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse> => {
-  return apiMutator<clearProjectViewApiV1ProjectsProjectIdViewDeleteResponse>(
-    getClearProjectViewApiV1ProjectsProjectIdViewDeleteUrl(projectId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/projects/${projectId}/view`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -1679,14 +1281,14 @@ export const getClearProjectViewApiV1ProjectsProjectIdViewDeleteMutationOptions 
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof clearProjectViewApiV1ProjectsProjectIdViewDelete>>,
     TError,
-    { projectId: number; headers?: ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof clearProjectViewApiV1ProjectsProjectIdViewDelete>>,
   TError,
-  { projectId: number; headers?: ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["clearProjectViewApiV1ProjectsProjectIdViewDelete"];
@@ -1698,11 +1300,11 @@ export const getClearProjectViewApiV1ProjectsProjectIdViewDeleteMutationOptions 
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof clearProjectViewApiV1ProjectsProjectIdViewDelete>>,
-    { projectId: number; headers?: ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return clearProjectViewApiV1ProjectsProjectIdViewDelete(projectId, headers, requestOptions);
+    return clearProjectViewApiV1ProjectsProjectIdViewDelete(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1726,7 +1328,7 @@ export const useClearProjectViewApiV1ProjectsProjectIdViewDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof clearProjectViewApiV1ProjectsProjectIdViewDelete>>,
       TError,
-      { projectId: number; headers?: ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1735,7 +1337,7 @@ export const useClearProjectViewApiV1ProjectsProjectIdViewDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof clearProjectViewApiV1ProjectsProjectIdViewDelete>>,
   TError,
-  { projectId: number; headers?: ClearProjectViewApiV1ProjectsProjectIdViewDeleteHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -1746,45 +1348,14 @@ export const useClearProjectViewApiV1ProjectsProjectIdViewDelete = <
 /**
  * @summary Favorite Project
  */
-export type favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse200 = {
-  data: ProjectFavoriteStatus;
-  status: 200;
-};
-
-export type favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type favoriteProjectApiV1ProjectsProjectIdFavoritePostResponseSuccess =
-  favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse200 & {
-    headers: Headers;
-  };
-export type favoriteProjectApiV1ProjectsProjectIdFavoritePostResponseError =
-  favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse422 & {
-    headers: Headers;
-  };
-
-export type favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse =
-  | favoriteProjectApiV1ProjectsProjectIdFavoritePostResponseSuccess
-  | favoriteProjectApiV1ProjectsProjectIdFavoritePostResponseError;
-
-export const getFavoriteProjectApiV1ProjectsProjectIdFavoritePostUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/favorite`;
-};
-
-export const favoriteProjectApiV1ProjectsProjectIdFavoritePost = async (
+export const favoriteProjectApiV1ProjectsProjectIdFavoritePost = (
   projectId: number,
-  headers?: FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders,
-  options?: RequestInit
-): Promise<favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse> => {
-  return apiMutator<favoriteProjectApiV1ProjectsProjectIdFavoritePostResponse>(
-    getFavoriteProjectApiV1ProjectsProjectIdFavoritePostUrl(projectId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectFavoriteStatus>(
+    { url: `/api/v1/projects/${projectId}/favorite`, method: "POST", signal },
+    options
   );
 };
 
@@ -1795,14 +1366,14 @@ export const getFavoriteProjectApiV1ProjectsProjectIdFavoritePostMutationOptions
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof favoriteProjectApiV1ProjectsProjectIdFavoritePost>>,
     TError,
-    { projectId: number; headers?: FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof favoriteProjectApiV1ProjectsProjectIdFavoritePost>>,
   TError,
-  { projectId: number; headers?: FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["favoriteProjectApiV1ProjectsProjectIdFavoritePost"];
@@ -1814,11 +1385,11 @@ export const getFavoriteProjectApiV1ProjectsProjectIdFavoritePostMutationOptions
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof favoriteProjectApiV1ProjectsProjectIdFavoritePost>>,
-    { projectId: number; headers?: FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return favoriteProjectApiV1ProjectsProjectIdFavoritePost(projectId, headers, requestOptions);
+    return favoriteProjectApiV1ProjectsProjectIdFavoritePost(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1842,7 +1413,7 @@ export const useFavoriteProjectApiV1ProjectsProjectIdFavoritePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof favoriteProjectApiV1ProjectsProjectIdFavoritePost>>,
       TError,
-      { projectId: number; headers?: FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1851,7 +1422,7 @@ export const useFavoriteProjectApiV1ProjectsProjectIdFavoritePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof favoriteProjectApiV1ProjectsProjectIdFavoritePost>>,
   TError,
-  { projectId: number; headers?: FavoriteProjectApiV1ProjectsProjectIdFavoritePostHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -1862,45 +1433,14 @@ export const useFavoriteProjectApiV1ProjectsProjectIdFavoritePost = <
 /**
  * @summary Unfavorite Project
  */
-export type unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse200 = {
-  data: ProjectFavoriteStatus;
-  status: 200;
-};
-
-export type unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponseSuccess =
-  unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse200 & {
-    headers: Headers;
-  };
-export type unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponseError =
-  unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse =
-  | unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponseSuccess
-  | unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponseError;
-
-export const getUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/favorite`;
-};
-
-export const unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete = async (
+export const unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete = (
   projectId: number,
-  headers?: UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders,
-  options?: RequestInit
-): Promise<unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse> => {
-  return apiMutator<unfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteResponse>(
-    getUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteUrl(projectId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectFavoriteStatus>(
+    { url: `/api/v1/projects/${projectId}/favorite`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -1911,14 +1451,14 @@ export const getUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteMutationOpt
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete>>,
     TError,
-    { projectId: number; headers?: UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete>>,
   TError,
-  { projectId: number; headers?: UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete"];
@@ -1930,15 +1470,11 @@ export const getUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteMutationOpt
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete>>,
-    { projectId: number; headers?: UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete(
-      projectId,
-      headers,
-      requestOptions
-    );
+    return unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1962,7 +1498,7 @@ export const useUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete>>,
       TError,
-      { projectId: number; headers?: UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1971,7 +1507,7 @@ export const useUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete>>,
   TError,
-  { projectId: number; headers?: UnfavoriteProjectApiV1ProjectsProjectIdFavoriteDeleteHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -1982,61 +1518,15 @@ export const useUnfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete = <
 /**
  * @summary Project Activity Feed
  */
-export type projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse200 = {
-  data: ProjectActivityResponse;
-  status: 200;
-};
-
-export type projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type projectActivityFeedApiV1ProjectsProjectIdActivityGetResponseSuccess =
-  projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse200 & {
-    headers: Headers;
-  };
-export type projectActivityFeedApiV1ProjectsProjectIdActivityGetResponseError =
-  projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse422 & {
-    headers: Headers;
-  };
-
-export type projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse =
-  | projectActivityFeedApiV1ProjectsProjectIdActivityGetResponseSuccess
-  | projectActivityFeedApiV1ProjectsProjectIdActivityGetResponseError;
-
-export const getProjectActivityFeedApiV1ProjectsProjectIdActivityGetUrl = (
-  projectId: number,
-  params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/projects/${projectId}/activity?${stringifiedParams}`
-    : `/api/v1/projects/${projectId}/activity`;
-};
-
-export const projectActivityFeedApiV1ProjectsProjectIdActivityGet = async (
+export const projectActivityFeedApiV1ProjectsProjectIdActivityGet = (
   projectId: number,
   params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
-  headers?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
-  options?: RequestInit
-): Promise<projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse> => {
-  return apiMutator<projectActivityFeedApiV1ProjectsProjectIdActivityGetResponse>(
-    getProjectActivityFeedApiV1ProjectsProjectIdActivityGetUrl(projectId, params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectActivityResponse>(
+    { url: `/api/v1/projects/${projectId}/activity`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -2053,7 +1543,6 @@ export const getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryOptions
 >(
   projectId: number,
   params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
-  headers?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2074,10 +1563,7 @@ export const getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryOptions
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof projectActivityFeedApiV1ProjectsProjectIdActivityGet>>
   > = ({ signal }) =>
-    projectActivityFeedApiV1ProjectsProjectIdActivityGet(projectId, params, headers, {
-      signal,
-      ...requestOptions,
-    });
+    projectActivityFeedApiV1ProjectsProjectIdActivityGet(projectId, params, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!projectId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof projectActivityFeedApiV1ProjectsProjectIdActivityGet>>,
@@ -2098,7 +1584,6 @@ export function useProjectActivityFeedApiV1ProjectsProjectIdActivityGet<
 >(
   projectId: number,
   params: undefined | ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
-  headers: undefined | ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -2125,7 +1610,6 @@ export function useProjectActivityFeedApiV1ProjectsProjectIdActivityGet<
 >(
   projectId: number,
   params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
-  headers?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2152,7 +1636,6 @@ export function useProjectActivityFeedApiV1ProjectsProjectIdActivityGet<
 >(
   projectId: number,
   params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
-  headers?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2175,7 +1658,6 @@ export function useProjectActivityFeedApiV1ProjectsProjectIdActivityGet<
 >(
   projectId: number,
   params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
-  headers?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2191,7 +1673,6 @@ export function useProjectActivityFeedApiV1ProjectsProjectIdActivityGet<
   const queryOptions = getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryOptions(
     projectId,
     params,
-    headers,
     options
   );
 
@@ -2205,45 +1686,14 @@ export function useProjectActivityFeedApiV1ProjectsProjectIdActivityGet<
 /**
  * @summary Read Project
  */
-export type readProjectApiV1ProjectsProjectIdGetResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type readProjectApiV1ProjectsProjectIdGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type readProjectApiV1ProjectsProjectIdGetResponseSuccess =
-  readProjectApiV1ProjectsProjectIdGetResponse200 & {
-    headers: Headers;
-  };
-export type readProjectApiV1ProjectsProjectIdGetResponseError =
-  readProjectApiV1ProjectsProjectIdGetResponse422 & {
-    headers: Headers;
-  };
-
-export type readProjectApiV1ProjectsProjectIdGetResponse =
-  | readProjectApiV1ProjectsProjectIdGetResponseSuccess
-  | readProjectApiV1ProjectsProjectIdGetResponseError;
-
-export const getReadProjectApiV1ProjectsProjectIdGetUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}`;
-};
-
-export const readProjectApiV1ProjectsProjectIdGet = async (
+export const readProjectApiV1ProjectsProjectIdGet = (
   projectId: number,
-  headers?: ReadProjectApiV1ProjectsProjectIdGetHeaders,
-  options?: RequestInit
-): Promise<readProjectApiV1ProjectsProjectIdGetResponse> => {
-  return apiMutator<readProjectApiV1ProjectsProjectIdGetResponse>(
-    getReadProjectApiV1ProjectsProjectIdGetUrl(projectId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
+    { url: `/api/v1/projects/${projectId}`, method: "GET", signal },
+    options
   );
 };
 
@@ -2256,7 +1706,6 @@ export const getReadProjectApiV1ProjectsProjectIdGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   projectId: number,
-  headers?: ReadProjectApiV1ProjectsProjectIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2275,8 +1724,7 @@ export const getReadProjectApiV1ProjectsProjectIdGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof readProjectApiV1ProjectsProjectIdGet>>
-  > = ({ signal }) =>
-    readProjectApiV1ProjectsProjectIdGet(projectId, headers, { signal, ...requestOptions });
+  > = ({ signal }) => readProjectApiV1ProjectsProjectIdGet(projectId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!projectId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof readProjectApiV1ProjectsProjectIdGet>>,
@@ -2295,7 +1743,6 @@ export function useReadProjectApiV1ProjectsProjectIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   projectId: number,
-  headers: undefined | ReadProjectApiV1ProjectsProjectIdGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -2321,7 +1768,6 @@ export function useReadProjectApiV1ProjectsProjectIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   projectId: number,
-  headers?: ReadProjectApiV1ProjectsProjectIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2347,7 +1793,6 @@ export function useReadProjectApiV1ProjectsProjectIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   projectId: number,
-  headers?: ReadProjectApiV1ProjectsProjectIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2369,7 +1814,6 @@ export function useReadProjectApiV1ProjectsProjectIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   projectId: number,
-  headers?: ReadProjectApiV1ProjectsProjectIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2382,11 +1826,7 @@ export function useReadProjectApiV1ProjectsProjectIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadProjectApiV1ProjectsProjectIdGetQueryOptions(
-    projectId,
-    headers,
-    options
-  );
+  const queryOptions = getReadProjectApiV1ProjectsProjectIdGetQueryOptions(projectId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -2398,47 +1838,21 @@ export function useReadProjectApiV1ProjectsProjectIdGet<
 /**
  * @summary Update Project
  */
-export type updateProjectApiV1ProjectsProjectIdPatchResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type updateProjectApiV1ProjectsProjectIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateProjectApiV1ProjectsProjectIdPatchResponseSuccess =
-  updateProjectApiV1ProjectsProjectIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateProjectApiV1ProjectsProjectIdPatchResponseError =
-  updateProjectApiV1ProjectsProjectIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateProjectApiV1ProjectsProjectIdPatchResponse =
-  | updateProjectApiV1ProjectsProjectIdPatchResponseSuccess
-  | updateProjectApiV1ProjectsProjectIdPatchResponseError;
-
-export const getUpdateProjectApiV1ProjectsProjectIdPatchUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}`;
-};
-
-export const updateProjectApiV1ProjectsProjectIdPatch = async (
+export const updateProjectApiV1ProjectsProjectIdPatch = (
   projectId: number,
-  projectUpdate: ProjectUpdate,
-  headers?: UpdateProjectApiV1ProjectsProjectIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateProjectApiV1ProjectsProjectIdPatchResponse> => {
-  return apiMutator<updateProjectApiV1ProjectsProjectIdPatchResponse>(
-    getUpdateProjectApiV1ProjectsProjectIdPatchUrl(projectId),
+  projectUpdate: BodyType<ProjectUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -2449,22 +1863,14 @@ export const getUpdateProjectApiV1ProjectsProjectIdPatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateProjectApiV1ProjectsProjectIdPatch>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<ProjectUpdate>;
-      headers?: UpdateProjectApiV1ProjectsProjectIdPatchHeaders;
-    },
+    { projectId: number; data: BodyType<ProjectUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateProjectApiV1ProjectsProjectIdPatch>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectUpdate>;
-    headers?: UpdateProjectApiV1ProjectsProjectIdPatchHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectUpdate> },
   TContext
 > => {
   const mutationKey = ["updateProjectApiV1ProjectsProjectIdPatch"];
@@ -2476,15 +1882,11 @@ export const getUpdateProjectApiV1ProjectsProjectIdPatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateProjectApiV1ProjectsProjectIdPatch>>,
-    {
-      projectId: number;
-      data: BodyType<ProjectUpdate>;
-      headers?: UpdateProjectApiV1ProjectsProjectIdPatchHeaders;
-    }
+    { projectId: number; data: BodyType<ProjectUpdate> }
   > = (props) => {
-    const { projectId, data, headers } = props ?? {};
+    const { projectId, data } = props ?? {};
 
-    return updateProjectApiV1ProjectsProjectIdPatch(projectId, data, headers, requestOptions);
+    return updateProjectApiV1ProjectsProjectIdPatch(projectId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2507,11 +1909,7 @@ export const useUpdateProjectApiV1ProjectsProjectIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateProjectApiV1ProjectsProjectIdPatch>>,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectUpdate>;
-        headers?: UpdateProjectApiV1ProjectsProjectIdPatchHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2520,11 +1918,7 @@ export const useUpdateProjectApiV1ProjectsProjectIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateProjectApiV1ProjectsProjectIdPatch>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectUpdate>;
-    headers?: UpdateProjectApiV1ProjectsProjectIdPatchHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectUpdate> },
   TContext
 > => {
   return useMutation(
@@ -2535,45 +1929,14 @@ export const useUpdateProjectApiV1ProjectsProjectIdPatch = <
 /**
  * @summary Delete Project
  */
-export type deleteProjectApiV1ProjectsProjectIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteProjectApiV1ProjectsProjectIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteProjectApiV1ProjectsProjectIdDeleteResponseSuccess =
-  deleteProjectApiV1ProjectsProjectIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteProjectApiV1ProjectsProjectIdDeleteResponseError =
-  deleteProjectApiV1ProjectsProjectIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteProjectApiV1ProjectsProjectIdDeleteResponse =
-  | deleteProjectApiV1ProjectsProjectIdDeleteResponseSuccess
-  | deleteProjectApiV1ProjectsProjectIdDeleteResponseError;
-
-export const getDeleteProjectApiV1ProjectsProjectIdDeleteUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}`;
-};
-
-export const deleteProjectApiV1ProjectsProjectIdDelete = async (
+export const deleteProjectApiV1ProjectsProjectIdDelete = (
   projectId: number,
-  headers?: DeleteProjectApiV1ProjectsProjectIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteProjectApiV1ProjectsProjectIdDeleteResponse> => {
-  return apiMutator<deleteProjectApiV1ProjectsProjectIdDeleteResponse>(
-    getDeleteProjectApiV1ProjectsProjectIdDeleteUrl(projectId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/projects/${projectId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -2584,14 +1947,14 @@ export const getDeleteProjectApiV1ProjectsProjectIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteProjectApiV1ProjectsProjectIdDelete>>,
     TError,
-    { projectId: number; headers?: DeleteProjectApiV1ProjectsProjectIdDeleteHeaders },
+    { projectId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteProjectApiV1ProjectsProjectIdDelete>>,
   TError,
-  { projectId: number; headers?: DeleteProjectApiV1ProjectsProjectIdDeleteHeaders },
+  { projectId: number },
   TContext
 > => {
   const mutationKey = ["deleteProjectApiV1ProjectsProjectIdDelete"];
@@ -2603,11 +1966,11 @@ export const getDeleteProjectApiV1ProjectsProjectIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteProjectApiV1ProjectsProjectIdDelete>>,
-    { projectId: number; headers?: DeleteProjectApiV1ProjectsProjectIdDeleteHeaders }
+    { projectId: number }
   > = (props) => {
-    const { projectId, headers } = props ?? {};
+    const { projectId } = props ?? {};
 
-    return deleteProjectApiV1ProjectsProjectIdDelete(projectId, headers, requestOptions);
+    return deleteProjectApiV1ProjectsProjectIdDelete(projectId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2630,7 +1993,7 @@ export const useDeleteProjectApiV1ProjectsProjectIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteProjectApiV1ProjectsProjectIdDelete>>,
       TError,
-      { projectId: number; headers?: DeleteProjectApiV1ProjectsProjectIdDeleteHeaders },
+      { projectId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2639,7 +2002,7 @@ export const useDeleteProjectApiV1ProjectsProjectIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteProjectApiV1ProjectsProjectIdDelete>>,
   TError,
-  { projectId: number; headers?: DeleteProjectApiV1ProjectsProjectIdDeleteHeaders },
+  { projectId: number },
   TContext
 > => {
   return useMutation(
@@ -2650,49 +2013,15 @@ export const useDeleteProjectApiV1ProjectsProjectIdDelete = <
 /**
  * @summary Attach Project Document
  */
-export type attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponseSuccess =
-  attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse200 & {
-    headers: Headers;
-  };
-export type attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponseError =
-  attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse422 & {
-    headers: Headers;
-  };
-
-export type attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse =
-  | attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponseSuccess
-  | attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponseError;
-
-export const getAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostUrl = (
-  projectId: number,
-  documentId: number
-) => {
-  return `/api/v1/projects/${projectId}/documents/${documentId}`;
-};
-
-export const attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost = async (
+export const attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost = (
   projectId: number,
   documentId: number,
-  headers?: AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders,
-  options?: RequestInit
-): Promise<attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse> => {
-  return apiMutator<attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostResponse>(
-    getAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostUrl(projectId, documentId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
+    { url: `/api/v1/projects/${projectId}/documents/${documentId}`, method: "POST", signal },
+    options
   );
 };
 
@@ -2703,22 +2032,14 @@ export const getAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPo
         ReturnType<typeof attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost>
       >,
       TError,
-      {
-        projectId: number;
-        documentId: number;
-        headers?: AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders;
-      },
+      { projectId: number; documentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<ReturnType<typeof attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost>>,
     TError,
-    {
-      projectId: number;
-      documentId: number;
-      headers?: AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders;
-    },
+    { projectId: number; documentId: number },
     TContext
   > => {
     const mutationKey = ["attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost"];
@@ -2732,18 +2053,13 @@ export const getAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPo
       Awaited<
         ReturnType<typeof attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost>
       >,
-      {
-        projectId: number;
-        documentId: number;
-        headers?: AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders;
-      }
+      { projectId: number; documentId: number }
     > = (props) => {
-      const { projectId, documentId, headers } = props ?? {};
+      const { projectId, documentId } = props ?? {};
 
       return attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
         projectId,
         documentId,
-        headers,
         requestOptions
       );
     };
@@ -2772,11 +2088,7 @@ export const useAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPo
         ReturnType<typeof attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost>
       >,
       TError,
-      {
-        projectId: number;
-        documentId: number;
-        headers?: AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders;
-      },
+      { projectId: number; documentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2785,11 +2097,7 @@ export const useAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPo
 ): UseMutationResult<
   Awaited<ReturnType<typeof attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost>>,
   TError,
-  {
-    projectId: number;
-    documentId: number;
-    headers?: AttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPostHeaders;
-  },
+  { projectId: number; documentId: number },
   TContext
 > => {
   return useMutation(
@@ -2800,52 +2108,15 @@ export const useAttachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPo
 /**
  * @summary Detach Project Document
  */
-export type detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponseSuccess =
-  detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse200 & {
-    headers: Headers;
-  };
-export type detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponseError =
-  detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse =
-  | detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponseSuccess
-  | detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponseError;
-
-export const getDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteUrl = (
-  projectId: number,
-  documentId: number
-) => {
-  return `/api/v1/projects/${projectId}/documents/${documentId}`;
-};
-
-export const detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete = async (
+export const detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete = (
   projectId: number,
   documentId: number,
-  headers?: DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders,
-  options?: RequestInit
-): Promise<detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse> => {
-  return apiMutator<detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteResponse>(
-    getDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteUrl(
-      projectId,
-      documentId
-    ),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
+    { url: `/api/v1/projects/${projectId}/documents/${documentId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -2856,11 +2127,7 @@ export const getDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDe
         ReturnType<typeof detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete>
       >,
       TError,
-      {
-        projectId: number;
-        documentId: number;
-        headers?: DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders;
-      },
+      { projectId: number; documentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2869,11 +2136,7 @@ export const getDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDe
       ReturnType<typeof detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete>
     >,
     TError,
-    {
-      projectId: number;
-      documentId: number;
-      headers?: DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders;
-    },
+    { projectId: number; documentId: number },
     TContext
   > => {
     const mutationKey = ["detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete"];
@@ -2887,18 +2150,13 @@ export const getDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDe
       Awaited<
         ReturnType<typeof detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete>
       >,
-      {
-        projectId: number;
-        documentId: number;
-        headers?: DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders;
-      }
+      { projectId: number; documentId: number }
     > = (props) => {
-      const { projectId, documentId, headers } = props ?? {};
+      const { projectId, documentId } = props ?? {};
 
       return detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete(
         projectId,
         documentId,
-        headers,
         requestOptions
       );
     };
@@ -2927,11 +2185,7 @@ export const useDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDe
         ReturnType<typeof detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete>
       >,
       TError,
-      {
-        projectId: number;
-        documentId: number;
-        headers?: DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders;
-      },
+      { projectId: number; documentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2940,11 +2194,7 @@ export const useDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDe
 ): UseMutationResult<
   Awaited<ReturnType<typeof detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete>>,
   TError,
-  {
-    projectId: number;
-    documentId: number;
-    headers?: DetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDeleteHeaders;
-  },
+  { projectId: number; documentId: number },
   TContext
 > => {
   return useMutation(
@@ -2955,47 +2205,21 @@ export const useDetachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDe
 /**
  * @summary Add Project Member
  */
-export type addProjectMemberApiV1ProjectsProjectIdMembersPostResponse201 = {
-  data: ProjectPermissionRead;
-  status: 201;
-};
-
-export type addProjectMemberApiV1ProjectsProjectIdMembersPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addProjectMemberApiV1ProjectsProjectIdMembersPostResponseSuccess =
-  addProjectMemberApiV1ProjectsProjectIdMembersPostResponse201 & {
-    headers: Headers;
-  };
-export type addProjectMemberApiV1ProjectsProjectIdMembersPostResponseError =
-  addProjectMemberApiV1ProjectsProjectIdMembersPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addProjectMemberApiV1ProjectsProjectIdMembersPostResponse =
-  | addProjectMemberApiV1ProjectsProjectIdMembersPostResponseSuccess
-  | addProjectMemberApiV1ProjectsProjectIdMembersPostResponseError;
-
-export const getAddProjectMemberApiV1ProjectsProjectIdMembersPostUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/members`;
-};
-
-export const addProjectMemberApiV1ProjectsProjectIdMembersPost = async (
+export const addProjectMemberApiV1ProjectsProjectIdMembersPost = (
   projectId: number,
-  projectPermissionCreate: ProjectPermissionCreate,
-  headers?: AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders,
-  options?: RequestInit
-): Promise<addProjectMemberApiV1ProjectsProjectIdMembersPostResponse> => {
-  return apiMutator<addProjectMemberApiV1ProjectsProjectIdMembersPostResponse>(
-    getAddProjectMemberApiV1ProjectsProjectIdMembersPostUrl(projectId),
+  projectPermissionCreate: BodyType<ProjectPermissionCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectPermissionRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/members`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectPermissionCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectPermissionCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -3006,22 +2230,14 @@ export const getAddProjectMemberApiV1ProjectsProjectIdMembersPostMutationOptions
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof addProjectMemberApiV1ProjectsProjectIdMembersPost>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<ProjectPermissionCreate>;
-      headers?: AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders;
-    },
+    { projectId: number; data: BodyType<ProjectPermissionCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof addProjectMemberApiV1ProjectsProjectIdMembersPost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectPermissionCreate>;
-    headers?: AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectPermissionCreate> },
   TContext
 > => {
   const mutationKey = ["addProjectMemberApiV1ProjectsProjectIdMembersPost"];
@@ -3033,20 +2249,11 @@ export const getAddProjectMemberApiV1ProjectsProjectIdMembersPostMutationOptions
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof addProjectMemberApiV1ProjectsProjectIdMembersPost>>,
-    {
-      projectId: number;
-      data: BodyType<ProjectPermissionCreate>;
-      headers?: AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders;
-    }
+    { projectId: number; data: BodyType<ProjectPermissionCreate> }
   > = (props) => {
-    const { projectId, data, headers } = props ?? {};
+    const { projectId, data } = props ?? {};
 
-    return addProjectMemberApiV1ProjectsProjectIdMembersPost(
-      projectId,
-      data,
-      headers,
-      requestOptions
-    );
+    return addProjectMemberApiV1ProjectsProjectIdMembersPost(projectId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3071,11 +2278,7 @@ export const useAddProjectMemberApiV1ProjectsProjectIdMembersPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof addProjectMemberApiV1ProjectsProjectIdMembersPost>>,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectPermissionCreate>;
-        headers?: AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectPermissionCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3084,11 +2287,7 @@ export const useAddProjectMemberApiV1ProjectsProjectIdMembersPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof addProjectMemberApiV1ProjectsProjectIdMembersPost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectPermissionCreate>;
-    headers?: AddProjectMemberApiV1ProjectsProjectIdMembersPostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectPermissionCreate> },
   TContext
 > => {
   return useMutation(
@@ -3100,49 +2299,21 @@ export const useAddProjectMemberApiV1ProjectsProjectIdMembersPost = <
  * Add multiple members to a project with the same permission level.
  * @summary Add Project Members Bulk
  */
-export type addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse201 = {
-  data: ProjectPermissionRead[];
-  status: 201;
-};
-
-export type addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponseSuccess =
-  addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse201 & {
-    headers: Headers;
-  };
-export type addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponseError =
-  addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse =
-  | addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponseSuccess
-  | addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponseError;
-
-export const getAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostUrl = (
-  projectId: number
-) => {
-  return `/api/v1/projects/${projectId}/members/bulk`;
-};
-
-export const addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost = async (
+export const addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost = (
   projectId: number,
-  projectPermissionBulkCreate: ProjectPermissionBulkCreate,
-  headers?: AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders,
-  options?: RequestInit
-): Promise<addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse> => {
-  return apiMutator<addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostResponse>(
-    getAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostUrl(projectId),
+  projectPermissionBulkCreate: BodyType<ProjectPermissionBulkCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectPermissionRead[]>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/members/bulk`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectPermissionBulkCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectPermissionBulkCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -3153,22 +2324,14 @@ export const getAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostMutati
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<ProjectPermissionBulkCreate>;
-      headers?: AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders;
-    },
+    { projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectPermissionBulkCreate>;
-    headers?: AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
   TContext
 > => {
   const mutationKey = ["addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost"];
@@ -3180,18 +2343,13 @@ export const getAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostMutati
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost>>,
-    {
-      projectId: number;
-      data: BodyType<ProjectPermissionBulkCreate>;
-      headers?: AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders;
-    }
+    { projectId: number; data: BodyType<ProjectPermissionBulkCreate> }
   > = (props) => {
-    const { projectId, data, headers } = props ?? {};
+    const { projectId, data } = props ?? {};
 
     return addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost(
       projectId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -3218,11 +2376,7 @@ export const useAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost>>,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectPermissionBulkCreate>;
-        headers?: AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3231,11 +2385,7 @@ export const useAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectPermissionBulkCreate>;
-    headers?: AddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
   TContext
 > => {
   return useMutation(
@@ -3247,49 +2397,21 @@ export const useAddProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost = <
  * Remove multiple members from a project.
  * @summary Remove Project Members Bulk
  */
-export type removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponseSuccess =
-  removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse204 & {
-    headers: Headers;
-  };
-export type removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponseError =
-  removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse422 & {
-    headers: Headers;
-  };
-
-export type removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse =
-  | removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponseSuccess
-  | removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponseError;
-
-export const getRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostUrl = (
-  projectId: number
-) => {
-  return `/api/v1/projects/${projectId}/members/bulk-delete`;
-};
-
-export const removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost = async (
+export const removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost = (
   projectId: number,
-  projectPermissionBulkDelete: ProjectPermissionBulkDelete,
-  headers?: RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders,
-  options?: RequestInit
-): Promise<removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse> => {
-  return apiMutator<removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostResponse>(
-    getRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostUrl(projectId),
+  projectPermissionBulkDelete: BodyType<ProjectPermissionBulkDelete>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/members/bulk-delete`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectPermissionBulkDelete),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectPermissionBulkDelete,
+      signal,
+    },
+    options
   );
 };
 
@@ -3300,22 +2422,14 @@ export const getRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeleteP
         ReturnType<typeof removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost>
       >,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectPermissionBulkDelete>;
-        headers?: RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<ReturnType<typeof removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<ProjectPermissionBulkDelete>;
-      headers?: RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders;
-    },
+    { projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
     TContext
   > => {
     const mutationKey = ["removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost"];
@@ -3329,18 +2443,13 @@ export const getRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeleteP
       Awaited<
         ReturnType<typeof removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost>
       >,
-      {
-        projectId: number;
-        data: BodyType<ProjectPermissionBulkDelete>;
-        headers?: RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders;
-      }
+      { projectId: number; data: BodyType<ProjectPermissionBulkDelete> }
     > = (props) => {
-      const { projectId, data, headers } = props ?? {};
+      const { projectId, data } = props ?? {};
 
       return removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost(
         projectId,
         data,
-        headers,
         requestOptions
       );
     };
@@ -3370,11 +2479,7 @@ export const useRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeleteP
         ReturnType<typeof removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost>
       >,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectPermissionBulkDelete>;
-        headers?: RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3383,11 +2488,7 @@ export const useRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeleteP
 ): UseMutationResult<
   Awaited<ReturnType<typeof removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectPermissionBulkDelete>;
-    headers?: RemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
   TContext
 > => {
   return useMutation(
@@ -3399,51 +2500,22 @@ export const useRemoveProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeleteP
  * Update a project member's permission level.
  * @summary Update Project Member
  */
-export type updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse200 = {
-  data: ProjectPermissionRead;
-  status: 200;
-};
-
-export type updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponseSuccess =
-  updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponseError =
-  updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse =
-  | updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponseSuccess
-  | updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponseError;
-
-export const getUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchUrl = (
-  projectId: number,
-  userId: number
-) => {
-  return `/api/v1/projects/${projectId}/members/${userId}`;
-};
-
-export const updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch = async (
+export const updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch = (
   projectId: number,
   userId: number,
-  projectPermissionUpdate: ProjectPermissionUpdate,
-  headers?: UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse> => {
-  return apiMutator<updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchResponse>(
-    getUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchUrl(projectId, userId),
+  projectPermissionUpdate: BodyType<ProjectPermissionUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectPermissionRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/members/${userId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectPermissionUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectPermissionUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -3454,24 +2526,14 @@ export const getUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchMutat
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch>>,
     TError,
-    {
-      projectId: number;
-      userId: number;
-      data: BodyType<ProjectPermissionUpdate>;
-      headers?: UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders;
-    },
+    { projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch>>,
   TError,
-  {
-    projectId: number;
-    userId: number;
-    data: BodyType<ProjectPermissionUpdate>;
-    headers?: UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders;
-  },
+  { projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> },
   TContext
 > => {
   const mutationKey = ["updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch"];
@@ -3483,20 +2545,14 @@ export const getUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchMutat
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch>>,
-    {
-      projectId: number;
-      userId: number;
-      data: BodyType<ProjectPermissionUpdate>;
-      headers?: UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders;
-    }
+    { projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> }
   > = (props) => {
-    const { projectId, userId, data, headers } = props ?? {};
+    const { projectId, userId, data } = props ?? {};
 
     return updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch(
       projectId,
       userId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -3523,12 +2579,7 @@ export const useUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch>>,
       TError,
-      {
-        projectId: number;
-        userId: number;
-        data: BodyType<ProjectPermissionUpdate>;
-        headers?: UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders;
-      },
+      { projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3537,12 +2588,7 @@ export const useUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch>>,
   TError,
-  {
-    projectId: number;
-    userId: number;
-    data: BodyType<ProjectPermissionUpdate>;
-    headers?: UpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatchHeaders;
-  },
+  { projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> },
   TContext
 > => {
   return useMutation(
@@ -3553,49 +2599,15 @@ export const useUpdateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch = <
 /**
  * @summary Remove Project Member
  */
-export type removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponseSuccess =
-  removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponseError =
-  removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse =
-  | removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponseSuccess
-  | removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponseError;
-
-export const getRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteUrl = (
-  projectId: number,
-  userId: number
-) => {
-  return `/api/v1/projects/${projectId}/members/${userId}`;
-};
-
-export const removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete = async (
+export const removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete = (
   projectId: number,
   userId: number,
-  headers?: RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders,
-  options?: RequestInit
-): Promise<removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse> => {
-  return apiMutator<removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteResponse>(
-    getRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteUrl(projectId, userId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/projects/${projectId}/members/${userId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -3606,22 +2618,14 @@ export const getRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteMuta
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete>>,
     TError,
-    {
-      projectId: number;
-      userId: number;
-      headers?: RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders;
-    },
+    { projectId: number; userId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete>>,
   TError,
-  {
-    projectId: number;
-    userId: number;
-    headers?: RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders;
-  },
+  { projectId: number; userId: number },
   TContext
 > => {
   const mutationKey = ["removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete"];
@@ -3633,18 +2637,13 @@ export const getRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteMuta
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete>>,
-    {
-      projectId: number;
-      userId: number;
-      headers?: RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders;
-    }
+    { projectId: number; userId: number }
   > = (props) => {
-    const { projectId, userId, headers } = props ?? {};
+    const { projectId, userId } = props ?? {};
 
     return removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete(
       projectId,
       userId,
-      headers,
       requestOptions
     );
   };
@@ -3671,11 +2670,7 @@ export const useRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete>>,
       TError,
-      {
-        projectId: number;
-        userId: number;
-        headers?: RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders;
-      },
+      { projectId: number; userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3684,11 +2679,7 @@ export const useRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete>>,
   TError,
-  {
-    projectId: number;
-    userId: number;
-    headers?: RemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDeleteHeaders;
-  },
+  { projectId: number; userId: number },
   TContext
 > => {
   return useMutation(
@@ -3699,46 +2690,20 @@ export const useRemoveProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete = <
 /**
  * @summary Reorder Projects
  */
-export type reorderProjectsApiV1ProjectsReorderPostResponse200 = {
-  data: ProjectRead[];
-  status: 200;
-};
-
-export type reorderProjectsApiV1ProjectsReorderPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type reorderProjectsApiV1ProjectsReorderPostResponseSuccess =
-  reorderProjectsApiV1ProjectsReorderPostResponse200 & {
-    headers: Headers;
-  };
-export type reorderProjectsApiV1ProjectsReorderPostResponseError =
-  reorderProjectsApiV1ProjectsReorderPostResponse422 & {
-    headers: Headers;
-  };
-
-export type reorderProjectsApiV1ProjectsReorderPostResponse =
-  | reorderProjectsApiV1ProjectsReorderPostResponseSuccess
-  | reorderProjectsApiV1ProjectsReorderPostResponseError;
-
-export const getReorderProjectsApiV1ProjectsReorderPostUrl = () => {
-  return `/api/v1/projects/reorder`;
-};
-
-export const reorderProjectsApiV1ProjectsReorderPost = async (
-  projectReorderRequest: ProjectReorderRequest,
-  headers?: ReorderProjectsApiV1ProjectsReorderPostHeaders,
-  options?: RequestInit
-): Promise<reorderProjectsApiV1ProjectsReorderPostResponse> => {
-  return apiMutator<reorderProjectsApiV1ProjectsReorderPostResponse>(
-    getReorderProjectsApiV1ProjectsReorderPostUrl(),
+export const reorderProjectsApiV1ProjectsReorderPost = (
+  projectReorderRequest: BodyType<ProjectReorderRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead[]>(
     {
-      ...options,
+      url: `/api/v1/projects/reorder`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectReorderRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectReorderRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -3749,20 +2714,14 @@ export const getReorderProjectsApiV1ProjectsReorderPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reorderProjectsApiV1ProjectsReorderPost>>,
     TError,
-    {
-      data: BodyType<ProjectReorderRequest>;
-      headers?: ReorderProjectsApiV1ProjectsReorderPostHeaders;
-    },
+    { data: BodyType<ProjectReorderRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof reorderProjectsApiV1ProjectsReorderPost>>,
   TError,
-  {
-    data: BodyType<ProjectReorderRequest>;
-    headers?: ReorderProjectsApiV1ProjectsReorderPostHeaders;
-  },
+  { data: BodyType<ProjectReorderRequest> },
   TContext
 > => {
   const mutationKey = ["reorderProjectsApiV1ProjectsReorderPost"];
@@ -3774,14 +2733,11 @@ export const getReorderProjectsApiV1ProjectsReorderPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof reorderProjectsApiV1ProjectsReorderPost>>,
-    {
-      data: BodyType<ProjectReorderRequest>;
-      headers?: ReorderProjectsApiV1ProjectsReorderPostHeaders;
-    }
+    { data: BodyType<ProjectReorderRequest> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return reorderProjectsApiV1ProjectsReorderPost(data, headers, requestOptions);
+    return reorderProjectsApiV1ProjectsReorderPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3804,10 +2760,7 @@ export const useReorderProjectsApiV1ProjectsReorderPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof reorderProjectsApiV1ProjectsReorderPost>>,
       TError,
-      {
-        data: BodyType<ProjectReorderRequest>;
-        headers?: ReorderProjectsApiV1ProjectsReorderPostHeaders;
-      },
+      { data: BodyType<ProjectReorderRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3816,10 +2769,7 @@ export const useReorderProjectsApiV1ProjectsReorderPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof reorderProjectsApiV1ProjectsReorderPost>>,
   TError,
-  {
-    data: BodyType<ProjectReorderRequest>;
-    headers?: ReorderProjectsApiV1ProjectsReorderPostHeaders;
-  },
+  { data: BodyType<ProjectReorderRequest> },
   TContext
 > => {
   return useMutation(
@@ -3831,47 +2781,21 @@ export const useReorderProjectsApiV1ProjectsReorderPost = <
  * Set tags on a project. Replaces all existing tags with the provided list.
  * @summary Set Project Tags
  */
-export type setProjectTagsApiV1ProjectsProjectIdTagsPutResponse200 = {
-  data: ProjectRead;
-  status: 200;
-};
-
-export type setProjectTagsApiV1ProjectsProjectIdTagsPutResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type setProjectTagsApiV1ProjectsProjectIdTagsPutResponseSuccess =
-  setProjectTagsApiV1ProjectsProjectIdTagsPutResponse200 & {
-    headers: Headers;
-  };
-export type setProjectTagsApiV1ProjectsProjectIdTagsPutResponseError =
-  setProjectTagsApiV1ProjectsProjectIdTagsPutResponse422 & {
-    headers: Headers;
-  };
-
-export type setProjectTagsApiV1ProjectsProjectIdTagsPutResponse =
-  | setProjectTagsApiV1ProjectsProjectIdTagsPutResponseSuccess
-  | setProjectTagsApiV1ProjectsProjectIdTagsPutResponseError;
-
-export const getSetProjectTagsApiV1ProjectsProjectIdTagsPutUrl = (projectId: number) => {
-  return `/api/v1/projects/${projectId}/tags`;
-};
-
-export const setProjectTagsApiV1ProjectsProjectIdTagsPut = async (
+export const setProjectTagsApiV1ProjectsProjectIdTagsPut = (
   projectId: number,
-  tagSetRequest: TagSetRequest,
-  headers?: SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders,
-  options?: RequestInit
-): Promise<setProjectTagsApiV1ProjectsProjectIdTagsPutResponse> => {
-  return apiMutator<setProjectTagsApiV1ProjectsProjectIdTagsPutResponse>(
-    getSetProjectTagsApiV1ProjectsProjectIdTagsPutUrl(projectId),
+  tagSetRequest: BodyType<TagSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/tags`,
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(tagSetRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: tagSetRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -3882,22 +2806,14 @@ export const getSetProjectTagsApiV1ProjectsProjectIdTagsPutMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setProjectTagsApiV1ProjectsProjectIdTagsPut>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<TagSetRequest>;
-      headers?: SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders;
-    },
+    { projectId: number; data: BodyType<TagSetRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setProjectTagsApiV1ProjectsProjectIdTagsPut>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<TagSetRequest>;
-    headers?: SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders;
-  },
+  { projectId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   const mutationKey = ["setProjectTagsApiV1ProjectsProjectIdTagsPut"];
@@ -3909,15 +2825,11 @@ export const getSetProjectTagsApiV1ProjectsProjectIdTagsPutMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setProjectTagsApiV1ProjectsProjectIdTagsPut>>,
-    {
-      projectId: number;
-      data: BodyType<TagSetRequest>;
-      headers?: SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders;
-    }
+    { projectId: number; data: BodyType<TagSetRequest> }
   > = (props) => {
-    const { projectId, data, headers } = props ?? {};
+    const { projectId, data } = props ?? {};
 
-    return setProjectTagsApiV1ProjectsProjectIdTagsPut(projectId, data, headers, requestOptions);
+    return setProjectTagsApiV1ProjectsProjectIdTagsPut(projectId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3941,11 +2853,7 @@ export const useSetProjectTagsApiV1ProjectsProjectIdTagsPut = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof setProjectTagsApiV1ProjectsProjectIdTagsPut>>,
       TError,
-      {
-        projectId: number;
-        data: BodyType<TagSetRequest>;
-        headers?: SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders;
-      },
+      { projectId: number; data: BodyType<TagSetRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3954,11 +2862,7 @@ export const useSetProjectTagsApiV1ProjectsProjectIdTagsPut = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof setProjectTagsApiV1ProjectsProjectIdTagsPut>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<TagSetRequest>;
-    headers?: SetProjectTagsApiV1ProjectsProjectIdTagsPutHeaders;
-  },
+  { projectId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   return useMutation(
@@ -3970,49 +2874,21 @@ export const useSetProjectTagsApiV1ProjectsProjectIdTagsPut = <
  * Add a role-based permission to a project.
  * @summary Add Project Role Permission
  */
-export type addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse201 = {
-  data: ProjectRolePermissionRead;
-  status: 201;
-};
-
-export type addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponseSuccess =
-  addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse201 & {
-    headers: Headers;
-  };
-export type addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponseError =
-  addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse =
-  | addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponseSuccess
-  | addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponseError;
-
-export const getAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostUrl = (
-  projectId: number
-) => {
-  return `/api/v1/projects/${projectId}/role-permissions`;
-};
-
-export const addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost = async (
+export const addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost = (
   projectId: number,
-  projectRolePermissionCreate: ProjectRolePermissionCreate,
-  headers?: AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders,
-  options?: RequestInit
-): Promise<addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse> => {
-  return apiMutator<addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostResponse>(
-    getAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostUrl(projectId),
+  projectRolePermissionCreate: BodyType<ProjectRolePermissionCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRolePermissionRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/role-permissions`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectRolePermissionCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectRolePermissionCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -4023,22 +2899,14 @@ export const getAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPos
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost>>,
     TError,
-    {
-      projectId: number;
-      data: BodyType<ProjectRolePermissionCreate>;
-      headers?: AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders;
-    },
+    { projectId: number; data: BodyType<ProjectRolePermissionCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectRolePermissionCreate>;
-    headers?: AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectRolePermissionCreate> },
   TContext
 > => {
   const mutationKey = ["addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost"];
@@ -4050,18 +2918,13 @@ export const getAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPos
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost>>,
-    {
-      projectId: number;
-      data: BodyType<ProjectRolePermissionCreate>;
-      headers?: AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders;
-    }
+    { projectId: number; data: BodyType<ProjectRolePermissionCreate> }
   > = (props) => {
-    const { projectId, data, headers } = props ?? {};
+    const { projectId, data } = props ?? {};
 
     return addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost(
       projectId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -4089,11 +2952,7 @@ export const useAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPos
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost>>,
       TError,
-      {
-        projectId: number;
-        data: BodyType<ProjectRolePermissionCreate>;
-        headers?: AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders;
-      },
+      { projectId: number; data: BodyType<ProjectRolePermissionCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -4102,11 +2961,7 @@ export const useAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPos
 ): UseMutationResult<
   Awaited<ReturnType<typeof addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost>>,
   TError,
-  {
-    projectId: number;
-    data: BodyType<ProjectRolePermissionCreate>;
-    headers?: AddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPostHeaders;
-  },
+  { projectId: number; data: BodyType<ProjectRolePermissionCreate> },
   TContext
 > => {
   return useMutation(
@@ -4118,56 +2973,22 @@ export const useAddProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPos
  * Update a role-based permission level on a project.
  * @summary Update Project Role Permission
  */
-export type updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse200 =
-  {
-    data: ProjectRolePermissionRead;
-    status: 200;
-  };
-
-export type updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse422 =
-  {
-    data: HTTPValidationError;
-    status: 422;
-  };
-
-export type updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponseSuccess =
-  updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponseError =
-  updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse =
-  | updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponseSuccess
-  | updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponseError;
-
-export const getUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchUrl = (
-  projectId: number,
-  roleId: number
-) => {
-  return `/api/v1/projects/${projectId}/role-permissions/${roleId}`;
-};
-
-export const updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch = async (
+export const updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch = (
   projectId: number,
   roleId: number,
-  projectRolePermissionUpdate: ProjectRolePermissionUpdate,
-  headers?: UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse> => {
-  return apiMutator<updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchResponse>(
-    getUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchUrl(
-      projectId,
-      roleId
-    ),
+  projectRolePermissionUpdate: BodyType<ProjectRolePermissionUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRolePermissionRead>(
     {
-      ...options,
+      url: `/api/v1/projects/${projectId}/role-permissions/${roleId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(projectRolePermissionUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: projectRolePermissionUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -4180,12 +3001,7 @@ export const getUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
         >
       >,
       TError,
-      {
-        projectId: number;
-        roleId: number;
-        data: BodyType<ProjectRolePermissionUpdate>;
-        headers?: UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders;
-      },
+      { projectId: number; roleId: number; data: BodyType<ProjectRolePermissionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -4194,12 +3010,7 @@ export const getUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
       ReturnType<typeof updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch>
     >,
     TError,
-    {
-      projectId: number;
-      roleId: number;
-      data: BodyType<ProjectRolePermissionUpdate>;
-      headers?: UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders;
-    },
+    { projectId: number; roleId: number; data: BodyType<ProjectRolePermissionUpdate> },
     TContext
   > => {
     const mutationKey = [
@@ -4217,20 +3028,14 @@ export const getUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
           typeof updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch
         >
       >,
-      {
-        projectId: number;
-        roleId: number;
-        data: BodyType<ProjectRolePermissionUpdate>;
-        headers?: UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders;
-      }
+      { projectId: number; roleId: number; data: BodyType<ProjectRolePermissionUpdate> }
     > = (props) => {
-      const { projectId, roleId, data, headers } = props ?? {};
+      const { projectId, roleId, data } = props ?? {};
 
       return updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch(
         projectId,
         roleId,
         data,
-        headers,
         requestOptions
       );
     };
@@ -4264,12 +3069,7 @@ export const useUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
         >
       >,
       TError,
-      {
-        projectId: number;
-        roleId: number;
-        data: BodyType<ProjectRolePermissionUpdate>;
-        headers?: UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders;
-      },
+      { projectId: number; roleId: number; data: BodyType<ProjectRolePermissionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -4280,12 +3080,7 @@ export const useUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
     ReturnType<typeof updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch>
   >,
   TError,
-  {
-    projectId: number;
-    roleId: number;
-    data: BodyType<ProjectRolePermissionUpdate>;
-    headers?: UpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatchHeaders;
-  },
+  { projectId: number; roleId: number; data: BodyType<ProjectRolePermissionUpdate> },
   TContext
 > => {
   return useMutation(
@@ -4299,54 +3094,15 @@ export const useUpdateProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
  * Remove a role-based permission from a project.
  * @summary Remove Project Role Permission
  */
-export type removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse204 =
-  {
-    data: void;
-    status: 204;
-  };
-
-export type removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse422 =
-  {
-    data: HTTPValidationError;
-    status: 422;
-  };
-
-export type removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponseSuccess =
-  removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponseError =
-  removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse =
-  | removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponseSuccess
-  | removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponseError;
-
-export const getRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteUrl = (
-  projectId: number,
-  roleId: number
-) => {
-  return `/api/v1/projects/${projectId}/role-permissions/${roleId}`;
-};
-
-export const removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete = async (
+export const removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete = (
   projectId: number,
   roleId: number,
-  headers?: RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders,
-  options?: RequestInit
-): Promise<removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse> => {
-  return apiMutator<removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteResponse>(
-    getRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteUrl(
-      projectId,
-      roleId
-    ),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/projects/${projectId}/role-permissions/${roleId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -4359,11 +3115,7 @@ export const getRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
         >
       >,
       TError,
-      {
-        projectId: number;
-        roleId: number;
-        headers?: RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders;
-      },
+      { projectId: number; roleId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -4374,11 +3126,7 @@ export const getRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
       >
     >,
     TError,
-    {
-      projectId: number;
-      roleId: number;
-      headers?: RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders;
-    },
+    { projectId: number; roleId: number },
     TContext
   > => {
     const mutationKey = [
@@ -4396,18 +3144,13 @@ export const getRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
           typeof removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete
         >
       >,
-      {
-        projectId: number;
-        roleId: number;
-        headers?: RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders;
-      }
+      { projectId: number; roleId: number }
     > = (props) => {
-      const { projectId, roleId, headers } = props ?? {};
+      const { projectId, roleId } = props ?? {};
 
       return removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete(
         projectId,
         roleId,
-        headers,
         requestOptions
       );
     };
@@ -4442,11 +3185,7 @@ export const useRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
         >
       >,
       TError,
-      {
-        projectId: number;
-        roleId: number;
-        headers?: RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders;
-      },
+      { projectId: number; roleId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -4457,11 +3196,7 @@ export const useRemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissions
     ReturnType<typeof removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete>
   >,
   TError,
-  {
-    projectId: number;
-    roleId: number;
-    headers?: RemoveProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDeleteHeaders;
-  },
+  { projectId: number; roleId: number },
   TContext
 > => {
   return useMutation(

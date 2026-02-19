@@ -31,45 +31,20 @@ This endpoint registers a new push token or updates an existing one.
 The token will be used to send push notifications to the user's device.
  * @summary Register Push Token
  */
-export type registerPushTokenApiV1PushRegisterPostResponse200 = {
-  data: PushTokenResponse;
-  status: 200;
-};
-
-export type registerPushTokenApiV1PushRegisterPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type registerPushTokenApiV1PushRegisterPostResponseSuccess =
-  registerPushTokenApiV1PushRegisterPostResponse200 & {
-    headers: Headers;
-  };
-export type registerPushTokenApiV1PushRegisterPostResponseError =
-  registerPushTokenApiV1PushRegisterPostResponse422 & {
-    headers: Headers;
-  };
-
-export type registerPushTokenApiV1PushRegisterPostResponse =
-  | registerPushTokenApiV1PushRegisterPostResponseSuccess
-  | registerPushTokenApiV1PushRegisterPostResponseError;
-
-export const getRegisterPushTokenApiV1PushRegisterPostUrl = () => {
-  return `/api/v1/push/register`;
-};
-
-export const registerPushTokenApiV1PushRegisterPost = async (
-  pushTokenRegisterRequest: PushTokenRegisterRequest,
-  options?: RequestInit
-): Promise<registerPushTokenApiV1PushRegisterPostResponse> => {
-  return apiMutator<registerPushTokenApiV1PushRegisterPostResponse>(
-    getRegisterPushTokenApiV1PushRegisterPostUrl(),
+export const registerPushTokenApiV1PushRegisterPost = (
+  pushTokenRegisterRequest: BodyType<PushTokenRegisterRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PushTokenResponse>(
     {
-      ...options,
+      url: `/api/v1/push/register`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(pushTokenRegisterRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: pushTokenRegisterRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -150,45 +125,20 @@ This endpoint removes a push token from the database. The device will
 no longer receive push notifications.
  * @summary Unregister Push Token
  */
-export type unregisterPushTokenApiV1PushUnregisterDeleteResponse200 = {
-  data: PushTokenResponse;
-  status: 200;
-};
-
-export type unregisterPushTokenApiV1PushUnregisterDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type unregisterPushTokenApiV1PushUnregisterDeleteResponseSuccess =
-  unregisterPushTokenApiV1PushUnregisterDeleteResponse200 & {
-    headers: Headers;
-  };
-export type unregisterPushTokenApiV1PushUnregisterDeleteResponseError =
-  unregisterPushTokenApiV1PushUnregisterDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type unregisterPushTokenApiV1PushUnregisterDeleteResponse =
-  | unregisterPushTokenApiV1PushUnregisterDeleteResponseSuccess
-  | unregisterPushTokenApiV1PushUnregisterDeleteResponseError;
-
-export const getUnregisterPushTokenApiV1PushUnregisterDeleteUrl = () => {
-  return `/api/v1/push/unregister`;
-};
-
-export const unregisterPushTokenApiV1PushUnregisterDelete = async (
-  pushTokenUnregisterRequest: PushTokenUnregisterRequest,
-  options?: RequestInit
-): Promise<unregisterPushTokenApiV1PushUnregisterDeleteResponse> => {
-  return apiMutator<unregisterPushTokenApiV1PushUnregisterDeleteResponse>(
-    getUnregisterPushTokenApiV1PushUnregisterDeleteUrl(),
+export const unregisterPushTokenApiV1PushUnregisterDelete = (
+  pushTokenUnregisterRequest: BodyType<PushTokenUnregisterRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PushTokenResponse>(
     {
-      ...options,
+      url: `/api/v1/push/unregister`,
       method: "DELETE",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(pushTokenUnregisterRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: pushTokenUnregisterRequest,
+      signal,
+    },
+    options
   );
 };
 

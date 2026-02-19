@@ -1,14 +1,8 @@
+import { uploadAttachmentApiV1AttachmentsPost } from "@/api/generated/attachments/attachments";
 import type { AttachmentUploadResponse } from "@/types/api";
-import { apiClient } from "@/api/client";
 
 export const uploadAttachment = async (file: File): Promise<AttachmentUploadResponse> => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await apiClient.post<AttachmentUploadResponse>("/attachments/", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
-  return response.data;
+  return uploadAttachmentApiV1AttachmentsPost({
+    file,
+  }) as unknown as Promise<AttachmentUploadResponse>;
 };

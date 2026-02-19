@@ -22,26 +22,11 @@ import type {
 
 import type {
   ArchiveDoneResponse,
-  ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders,
   ArchiveDoneTasksApiV1TasksArchiveDonePostParams,
-  CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders,
-  CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders,
-  CreateTaskApiV1TasksPostHeaders,
-  DeleteTaskApiV1TasksTaskIdDeleteHeaders,
-  DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders,
   GenerateDescriptionResponse,
   GenerateSubtasksResponse,
-  GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders,
-  GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders,
   HTTPValidationError,
-  ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
-  ListTasksApiV1TasksGetHeaders,
   ListTasksApiV1TasksGetParams,
-  MoveTaskApiV1TasksTaskIdMovePostHeaders,
-  ReadTaskApiV1TasksTaskIdGetHeaders,
-  ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders,
-  ReorderTasksApiV1TasksReorderPostHeaders,
-  SetTaskTagsApiV1TasksTaskIdTagsPutHeaders,
   SubtaskBatchCreate,
   SubtaskCreate,
   SubtaskRead,
@@ -53,7 +38,6 @@ import type {
   TaskRead,
   TaskReorderRequest,
   TaskUpdate,
-  UpdateTaskApiV1TasksTaskIdPatchHeaders,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -64,51 +48,15 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary List Tasks
  */
-export type listTasksApiV1TasksGetResponse200 = {
-  data: TaskListResponse;
-  status: 200;
-};
-
-export type listTasksApiV1TasksGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listTasksApiV1TasksGetResponseSuccess = listTasksApiV1TasksGetResponse200 & {
-  headers: Headers;
-};
-export type listTasksApiV1TasksGetResponseError = listTasksApiV1TasksGetResponse422 & {
-  headers: Headers;
-};
-
-export type listTasksApiV1TasksGetResponse =
-  | listTasksApiV1TasksGetResponseSuccess
-  | listTasksApiV1TasksGetResponseError;
-
-export const getListTasksApiV1TasksGetUrl = (params?: ListTasksApiV1TasksGetParams) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/v1/tasks/?${stringifiedParams}` : `/api/v1/tasks/`;
-};
-
-export const listTasksApiV1TasksGet = async (
+export const listTasksApiV1TasksGet = (
   params?: ListTasksApiV1TasksGetParams,
-  headers?: ListTasksApiV1TasksGetHeaders,
-  options?: RequestInit
-): Promise<listTasksApiV1TasksGetResponse> => {
-  return apiMutator<listTasksApiV1TasksGetResponse>(getListTasksApiV1TasksGetUrl(params), {
-    ...options,
-    method: "GET",
-    headers: { ...headers, ...options?.headers },
-  });
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskListResponse>(
+    { url: `/api/v1/tasks/`, method: "GET", params, signal },
+    options
+  );
 };
 
 export const getListTasksApiV1TasksGetQueryKey = (params?: ListTasksApiV1TasksGetParams) => {
@@ -120,7 +68,6 @@ export const getListTasksApiV1TasksGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListTasksApiV1TasksGetParams,
-  headers?: ListTasksApiV1TasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1TasksGet>>, TError, TData>
@@ -133,7 +80,7 @@ export const getListTasksApiV1TasksGetQueryOptions = <
   const queryKey = queryOptions?.queryKey ?? getListTasksApiV1TasksGetQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listTasksApiV1TasksGet>>> = ({ signal }) =>
-    listTasksApiV1TasksGet(params, headers, { signal, ...requestOptions });
+    listTasksApiV1TasksGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listTasksApiV1TasksGet>>,
@@ -152,7 +99,6 @@ export function useListTasksApiV1TasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: undefined | ListTasksApiV1TasksGetParams,
-  headers: undefined | ListTasksApiV1TasksGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1TasksGet>>, TError, TData>
@@ -174,7 +120,6 @@ export function useListTasksApiV1TasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListTasksApiV1TasksGetParams,
-  headers?: ListTasksApiV1TasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1TasksGet>>, TError, TData>
@@ -196,7 +141,6 @@ export function useListTasksApiV1TasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListTasksApiV1TasksGetParams,
-  headers?: ListTasksApiV1TasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1TasksGet>>, TError, TData>
@@ -214,7 +158,6 @@ export function useListTasksApiV1TasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListTasksApiV1TasksGetParams,
-  headers?: ListTasksApiV1TasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listTasksApiV1TasksGet>>, TError, TData>
@@ -223,7 +166,7 @@ export function useListTasksApiV1TasksGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListTasksApiV1TasksGetQueryOptions(params, headers, options);
+  const queryOptions = getListTasksApiV1TasksGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -235,42 +178,21 @@ export function useListTasksApiV1TasksGet<
 /**
  * @summary Create Task
  */
-export type createTaskApiV1TasksPostResponse201 = {
-  data: TaskRead;
-  status: 201;
-};
-
-export type createTaskApiV1TasksPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createTaskApiV1TasksPostResponseSuccess = createTaskApiV1TasksPostResponse201 & {
-  headers: Headers;
-};
-export type createTaskApiV1TasksPostResponseError = createTaskApiV1TasksPostResponse422 & {
-  headers: Headers;
-};
-
-export type createTaskApiV1TasksPostResponse =
-  | createTaskApiV1TasksPostResponseSuccess
-  | createTaskApiV1TasksPostResponseError;
-
-export const getCreateTaskApiV1TasksPostUrl = () => {
-  return `/api/v1/tasks/`;
-};
-
-export const createTaskApiV1TasksPost = async (
-  taskCreate: TaskCreate,
-  headers?: CreateTaskApiV1TasksPostHeaders,
-  options?: RequestInit
-): Promise<createTaskApiV1TasksPostResponse> => {
-  return apiMutator<createTaskApiV1TasksPostResponse>(getCreateTaskApiV1TasksPostUrl(), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-    body: JSON.stringify(taskCreate),
-  });
+export const createTaskApiV1TasksPost = (
+  taskCreate: BodyType<TaskCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
+    {
+      url: `/api/v1/tasks/`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: taskCreate,
+      signal,
+    },
+    options
+  );
 };
 
 export const getCreateTaskApiV1TasksPostMutationOptions = <
@@ -280,14 +202,14 @@ export const getCreateTaskApiV1TasksPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createTaskApiV1TasksPost>>,
     TError,
-    { data: BodyType<TaskCreate>; headers?: CreateTaskApiV1TasksPostHeaders },
+    { data: BodyType<TaskCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createTaskApiV1TasksPost>>,
   TError,
-  { data: BodyType<TaskCreate>; headers?: CreateTaskApiV1TasksPostHeaders },
+  { data: BodyType<TaskCreate> },
   TContext
 > => {
   const mutationKey = ["createTaskApiV1TasksPost"];
@@ -299,11 +221,11 @@ export const getCreateTaskApiV1TasksPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createTaskApiV1TasksPost>>,
-    { data: BodyType<TaskCreate>; headers?: CreateTaskApiV1TasksPostHeaders }
+    { data: BodyType<TaskCreate> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return createTaskApiV1TasksPost(data, headers, requestOptions);
+    return createTaskApiV1TasksPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -326,7 +248,7 @@ export const useCreateTaskApiV1TasksPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createTaskApiV1TasksPost>>,
       TError,
-      { data: BodyType<TaskCreate>; headers?: CreateTaskApiV1TasksPostHeaders },
+      { data: BodyType<TaskCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -335,7 +257,7 @@ export const useCreateTaskApiV1TasksPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createTaskApiV1TasksPost>>,
   TError,
-  { data: BodyType<TaskCreate>; headers?: CreateTaskApiV1TasksPostHeaders },
+  { data: BodyType<TaskCreate> },
   TContext
 > => {
   return useMutation(getCreateTaskApiV1TasksPostMutationOptions(options), queryClient);
@@ -343,44 +265,12 @@ export const useCreateTaskApiV1TasksPost = <
 /**
  * @summary Read Task
  */
-export type readTaskApiV1TasksTaskIdGetResponse200 = {
-  data: TaskRead;
-  status: 200;
-};
-
-export type readTaskApiV1TasksTaskIdGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type readTaskApiV1TasksTaskIdGetResponseSuccess = readTaskApiV1TasksTaskIdGetResponse200 & {
-  headers: Headers;
-};
-export type readTaskApiV1TasksTaskIdGetResponseError = readTaskApiV1TasksTaskIdGetResponse422 & {
-  headers: Headers;
-};
-
-export type readTaskApiV1TasksTaskIdGetResponse =
-  | readTaskApiV1TasksTaskIdGetResponseSuccess
-  | readTaskApiV1TasksTaskIdGetResponseError;
-
-export const getReadTaskApiV1TasksTaskIdGetUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}`;
-};
-
-export const readTaskApiV1TasksTaskIdGet = async (
+export const readTaskApiV1TasksTaskIdGet = (
   taskId: number,
-  headers?: ReadTaskApiV1TasksTaskIdGetHeaders,
-  options?: RequestInit
-): Promise<readTaskApiV1TasksTaskIdGetResponse> => {
-  return apiMutator<readTaskApiV1TasksTaskIdGetResponse>(
-    getReadTaskApiV1TasksTaskIdGetUrl(taskId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
-  );
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>({ url: `/api/v1/tasks/${taskId}`, method: "GET", signal }, options);
 };
 
 export const getReadTaskApiV1TasksTaskIdGetQueryKey = (taskId: number) => {
@@ -392,7 +282,6 @@ export const getReadTaskApiV1TasksTaskIdGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ReadTaskApiV1TasksTaskIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>, TError, TData>
@@ -406,7 +295,7 @@ export const getReadTaskApiV1TasksTaskIdGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>> = ({
     signal,
-  }) => readTaskApiV1TasksTaskIdGet(taskId, headers, { signal, ...requestOptions });
+  }) => readTaskApiV1TasksTaskIdGet(taskId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!taskId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>,
@@ -425,7 +314,6 @@ export function useReadTaskApiV1TasksTaskIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers: undefined | ReadTaskApiV1TasksTaskIdGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>, TError, TData>
@@ -447,7 +335,6 @@ export function useReadTaskApiV1TasksTaskIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ReadTaskApiV1TasksTaskIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>, TError, TData>
@@ -469,7 +356,6 @@ export function useReadTaskApiV1TasksTaskIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ReadTaskApiV1TasksTaskIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>, TError, TData>
@@ -487,7 +373,6 @@ export function useReadTaskApiV1TasksTaskIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ReadTaskApiV1TasksTaskIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof readTaskApiV1TasksTaskIdGet>>, TError, TData>
@@ -496,7 +381,7 @@ export function useReadTaskApiV1TasksTaskIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadTaskApiV1TasksTaskIdGetQueryOptions(taskId, headers, options);
+  const queryOptions = getReadTaskApiV1TasksTaskIdGetQueryOptions(taskId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -508,47 +393,21 @@ export function useReadTaskApiV1TasksTaskIdGet<
 /**
  * @summary Update Task
  */
-export type updateTaskApiV1TasksTaskIdPatchResponse200 = {
-  data: TaskRead;
-  status: 200;
-};
-
-export type updateTaskApiV1TasksTaskIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateTaskApiV1TasksTaskIdPatchResponseSuccess =
-  updateTaskApiV1TasksTaskIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateTaskApiV1TasksTaskIdPatchResponseError =
-  updateTaskApiV1TasksTaskIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateTaskApiV1TasksTaskIdPatchResponse =
-  | updateTaskApiV1TasksTaskIdPatchResponseSuccess
-  | updateTaskApiV1TasksTaskIdPatchResponseError;
-
-export const getUpdateTaskApiV1TasksTaskIdPatchUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}`;
-};
-
-export const updateTaskApiV1TasksTaskIdPatch = async (
+export const updateTaskApiV1TasksTaskIdPatch = (
   taskId: number,
-  taskUpdate: TaskUpdate,
-  headers?: UpdateTaskApiV1TasksTaskIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateTaskApiV1TasksTaskIdPatchResponse> => {
-  return apiMutator<updateTaskApiV1TasksTaskIdPatchResponse>(
-    getUpdateTaskApiV1TasksTaskIdPatchUrl(taskId),
+  taskUpdate: BodyType<TaskUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
     {
-      ...options,
+      url: `/api/v1/tasks/${taskId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(taskUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: taskUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -559,18 +418,14 @@ export const getUpdateTaskApiV1TasksTaskIdPatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateTaskApiV1TasksTaskIdPatch>>,
     TError,
-    {
-      taskId: number;
-      data: BodyType<TaskUpdate>;
-      headers?: UpdateTaskApiV1TasksTaskIdPatchHeaders;
-    },
+    { taskId: number; data: BodyType<TaskUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateTaskApiV1TasksTaskIdPatch>>,
   TError,
-  { taskId: number; data: BodyType<TaskUpdate>; headers?: UpdateTaskApiV1TasksTaskIdPatchHeaders },
+  { taskId: number; data: BodyType<TaskUpdate> },
   TContext
 > => {
   const mutationKey = ["updateTaskApiV1TasksTaskIdPatch"];
@@ -582,11 +437,11 @@ export const getUpdateTaskApiV1TasksTaskIdPatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateTaskApiV1TasksTaskIdPatch>>,
-    { taskId: number; data: BodyType<TaskUpdate>; headers?: UpdateTaskApiV1TasksTaskIdPatchHeaders }
+    { taskId: number; data: BodyType<TaskUpdate> }
   > = (props) => {
-    const { taskId, data, headers } = props ?? {};
+    const { taskId, data } = props ?? {};
 
-    return updateTaskApiV1TasksTaskIdPatch(taskId, data, headers, requestOptions);
+    return updateTaskApiV1TasksTaskIdPatch(taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -609,11 +464,7 @@ export const useUpdateTaskApiV1TasksTaskIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateTaskApiV1TasksTaskIdPatch>>,
       TError,
-      {
-        taskId: number;
-        data: BodyType<TaskUpdate>;
-        headers?: UpdateTaskApiV1TasksTaskIdPatchHeaders;
-      },
+      { taskId: number; data: BodyType<TaskUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -622,7 +473,7 @@ export const useUpdateTaskApiV1TasksTaskIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateTaskApiV1TasksTaskIdPatch>>,
   TError,
-  { taskId: number; data: BodyType<TaskUpdate>; headers?: UpdateTaskApiV1TasksTaskIdPatchHeaders },
+  { taskId: number; data: BodyType<TaskUpdate> },
   TContext
 > => {
   return useMutation(getUpdateTaskApiV1TasksTaskIdPatchMutationOptions(options), queryClient);
@@ -630,46 +481,12 @@ export const useUpdateTaskApiV1TasksTaskIdPatch = <
 /**
  * @summary Delete Task
  */
-export type deleteTaskApiV1TasksTaskIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteTaskApiV1TasksTaskIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteTaskApiV1TasksTaskIdDeleteResponseSuccess =
-  deleteTaskApiV1TasksTaskIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteTaskApiV1TasksTaskIdDeleteResponseError =
-  deleteTaskApiV1TasksTaskIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteTaskApiV1TasksTaskIdDeleteResponse =
-  | deleteTaskApiV1TasksTaskIdDeleteResponseSuccess
-  | deleteTaskApiV1TasksTaskIdDeleteResponseError;
-
-export const getDeleteTaskApiV1TasksTaskIdDeleteUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}`;
-};
-
-export const deleteTaskApiV1TasksTaskIdDelete = async (
+export const deleteTaskApiV1TasksTaskIdDelete = (
   taskId: number,
-  headers?: DeleteTaskApiV1TasksTaskIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteTaskApiV1TasksTaskIdDeleteResponse> => {
-  return apiMutator<deleteTaskApiV1TasksTaskIdDeleteResponse>(
-    getDeleteTaskApiV1TasksTaskIdDeleteUrl(taskId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
-  );
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>({ url: `/api/v1/tasks/${taskId}`, method: "DELETE", signal }, options);
 };
 
 export const getDeleteTaskApiV1TasksTaskIdDeleteMutationOptions = <
@@ -679,14 +496,14 @@ export const getDeleteTaskApiV1TasksTaskIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteTaskApiV1TasksTaskIdDelete>>,
     TError,
-    { taskId: number; headers?: DeleteTaskApiV1TasksTaskIdDeleteHeaders },
+    { taskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteTaskApiV1TasksTaskIdDelete>>,
   TError,
-  { taskId: number; headers?: DeleteTaskApiV1TasksTaskIdDeleteHeaders },
+  { taskId: number },
   TContext
 > => {
   const mutationKey = ["deleteTaskApiV1TasksTaskIdDelete"];
@@ -698,11 +515,11 @@ export const getDeleteTaskApiV1TasksTaskIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteTaskApiV1TasksTaskIdDelete>>,
-    { taskId: number; headers?: DeleteTaskApiV1TasksTaskIdDeleteHeaders }
+    { taskId: number }
   > = (props) => {
-    const { taskId, headers } = props ?? {};
+    const { taskId } = props ?? {};
 
-    return deleteTaskApiV1TasksTaskIdDelete(taskId, headers, requestOptions);
+    return deleteTaskApiV1TasksTaskIdDelete(taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -725,7 +542,7 @@ export const useDeleteTaskApiV1TasksTaskIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteTaskApiV1TasksTaskIdDelete>>,
       TError,
-      { taskId: number; headers?: DeleteTaskApiV1TasksTaskIdDeleteHeaders },
+      { taskId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -734,7 +551,7 @@ export const useDeleteTaskApiV1TasksTaskIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteTaskApiV1TasksTaskIdDelete>>,
   TError,
-  { taskId: number; headers?: DeleteTaskApiV1TasksTaskIdDeleteHeaders },
+  { taskId: number },
   TContext
 > => {
   return useMutation(getDeleteTaskApiV1TasksTaskIdDeleteMutationOptions(options), queryClient);
@@ -742,47 +559,21 @@ export const useDeleteTaskApiV1TasksTaskIdDelete = <
 /**
  * @summary Move Task
  */
-export type moveTaskApiV1TasksTaskIdMovePostResponse200 = {
-  data: TaskRead;
-  status: 200;
-};
-
-export type moveTaskApiV1TasksTaskIdMovePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type moveTaskApiV1TasksTaskIdMovePostResponseSuccess =
-  moveTaskApiV1TasksTaskIdMovePostResponse200 & {
-    headers: Headers;
-  };
-export type moveTaskApiV1TasksTaskIdMovePostResponseError =
-  moveTaskApiV1TasksTaskIdMovePostResponse422 & {
-    headers: Headers;
-  };
-
-export type moveTaskApiV1TasksTaskIdMovePostResponse =
-  | moveTaskApiV1TasksTaskIdMovePostResponseSuccess
-  | moveTaskApiV1TasksTaskIdMovePostResponseError;
-
-export const getMoveTaskApiV1TasksTaskIdMovePostUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/move`;
-};
-
-export const moveTaskApiV1TasksTaskIdMovePost = async (
+export const moveTaskApiV1TasksTaskIdMovePost = (
   taskId: number,
-  taskMoveRequest: TaskMoveRequest,
-  headers?: MoveTaskApiV1TasksTaskIdMovePostHeaders,
-  options?: RequestInit
-): Promise<moveTaskApiV1TasksTaskIdMovePostResponse> => {
-  return apiMutator<moveTaskApiV1TasksTaskIdMovePostResponse>(
-    getMoveTaskApiV1TasksTaskIdMovePostUrl(taskId),
+  taskMoveRequest: BodyType<TaskMoveRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
     {
-      ...options,
+      url: `/api/v1/tasks/${taskId}/move`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(taskMoveRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: taskMoveRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -793,22 +584,14 @@ export const getMoveTaskApiV1TasksTaskIdMovePostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof moveTaskApiV1TasksTaskIdMovePost>>,
     TError,
-    {
-      taskId: number;
-      data: BodyType<TaskMoveRequest>;
-      headers?: MoveTaskApiV1TasksTaskIdMovePostHeaders;
-    },
+    { taskId: number; data: BodyType<TaskMoveRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof moveTaskApiV1TasksTaskIdMovePost>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<TaskMoveRequest>;
-    headers?: MoveTaskApiV1TasksTaskIdMovePostHeaders;
-  },
+  { taskId: number; data: BodyType<TaskMoveRequest> },
   TContext
 > => {
   const mutationKey = ["moveTaskApiV1TasksTaskIdMovePost"];
@@ -820,15 +603,11 @@ export const getMoveTaskApiV1TasksTaskIdMovePostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof moveTaskApiV1TasksTaskIdMovePost>>,
-    {
-      taskId: number;
-      data: BodyType<TaskMoveRequest>;
-      headers?: MoveTaskApiV1TasksTaskIdMovePostHeaders;
-    }
+    { taskId: number; data: BodyType<TaskMoveRequest> }
   > = (props) => {
-    const { taskId, data, headers } = props ?? {};
+    const { taskId, data } = props ?? {};
 
-    return moveTaskApiV1TasksTaskIdMovePost(taskId, data, headers, requestOptions);
+    return moveTaskApiV1TasksTaskIdMovePost(taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -851,11 +630,7 @@ export const useMoveTaskApiV1TasksTaskIdMovePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof moveTaskApiV1TasksTaskIdMovePost>>,
       TError,
-      {
-        taskId: number;
-        data: BodyType<TaskMoveRequest>;
-        headers?: MoveTaskApiV1TasksTaskIdMovePostHeaders;
-      },
+      { taskId: number; data: BodyType<TaskMoveRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -864,11 +639,7 @@ export const useMoveTaskApiV1TasksTaskIdMovePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof moveTaskApiV1TasksTaskIdMovePost>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<TaskMoveRequest>;
-    headers?: MoveTaskApiV1TasksTaskIdMovePostHeaders;
-  },
+  { taskId: number; data: BodyType<TaskMoveRequest> },
   TContext
 > => {
   return useMutation(getMoveTaskApiV1TasksTaskIdMovePostMutationOptions(options), queryClient);
@@ -876,45 +647,14 @@ export const useMoveTaskApiV1TasksTaskIdMovePost = <
 /**
  * @summary Duplicate Task
  */
-export type duplicateTaskApiV1TasksTaskIdDuplicatePostResponse201 = {
-  data: TaskRead;
-  status: 201;
-};
-
-export type duplicateTaskApiV1TasksTaskIdDuplicatePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type duplicateTaskApiV1TasksTaskIdDuplicatePostResponseSuccess =
-  duplicateTaskApiV1TasksTaskIdDuplicatePostResponse201 & {
-    headers: Headers;
-  };
-export type duplicateTaskApiV1TasksTaskIdDuplicatePostResponseError =
-  duplicateTaskApiV1TasksTaskIdDuplicatePostResponse422 & {
-    headers: Headers;
-  };
-
-export type duplicateTaskApiV1TasksTaskIdDuplicatePostResponse =
-  | duplicateTaskApiV1TasksTaskIdDuplicatePostResponseSuccess
-  | duplicateTaskApiV1TasksTaskIdDuplicatePostResponseError;
-
-export const getDuplicateTaskApiV1TasksTaskIdDuplicatePostUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/duplicate`;
-};
-
-export const duplicateTaskApiV1TasksTaskIdDuplicatePost = async (
+export const duplicateTaskApiV1TasksTaskIdDuplicatePost = (
   taskId: number,
-  headers?: DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders,
-  options?: RequestInit
-): Promise<duplicateTaskApiV1TasksTaskIdDuplicatePostResponse> => {
-  return apiMutator<duplicateTaskApiV1TasksTaskIdDuplicatePostResponse>(
-    getDuplicateTaskApiV1TasksTaskIdDuplicatePostUrl(taskId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
+    { url: `/api/v1/tasks/${taskId}/duplicate`, method: "POST", signal },
+    options
   );
 };
 
@@ -925,14 +665,14 @@ export const getDuplicateTaskApiV1TasksTaskIdDuplicatePostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof duplicateTaskApiV1TasksTaskIdDuplicatePost>>,
     TError,
-    { taskId: number; headers?: DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders },
+    { taskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof duplicateTaskApiV1TasksTaskIdDuplicatePost>>,
   TError,
-  { taskId: number; headers?: DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders },
+  { taskId: number },
   TContext
 > => {
   const mutationKey = ["duplicateTaskApiV1TasksTaskIdDuplicatePost"];
@@ -944,11 +684,11 @@ export const getDuplicateTaskApiV1TasksTaskIdDuplicatePostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof duplicateTaskApiV1TasksTaskIdDuplicatePost>>,
-    { taskId: number; headers?: DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders }
+    { taskId: number }
   > = (props) => {
-    const { taskId, headers } = props ?? {};
+    const { taskId } = props ?? {};
 
-    return duplicateTaskApiV1TasksTaskIdDuplicatePost(taskId, headers, requestOptions);
+    return duplicateTaskApiV1TasksTaskIdDuplicatePost(taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -972,7 +712,7 @@ export const useDuplicateTaskApiV1TasksTaskIdDuplicatePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof duplicateTaskApiV1TasksTaskIdDuplicatePost>>,
       TError,
-      { taskId: number; headers?: DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders },
+      { taskId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -981,7 +721,7 @@ export const useDuplicateTaskApiV1TasksTaskIdDuplicatePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof duplicateTaskApiV1TasksTaskIdDuplicatePost>>,
   TError,
-  { taskId: number; headers?: DuplicateTaskApiV1TasksTaskIdDuplicatePostHeaders },
+  { taskId: number },
   TContext
 > => {
   return useMutation(
@@ -992,46 +732,20 @@ export const useDuplicateTaskApiV1TasksTaskIdDuplicatePost = <
 /**
  * @summary Reorder Tasks
  */
-export type reorderTasksApiV1TasksReorderPostResponse200 = {
-  data: TaskRead[];
-  status: 200;
-};
-
-export type reorderTasksApiV1TasksReorderPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type reorderTasksApiV1TasksReorderPostResponseSuccess =
-  reorderTasksApiV1TasksReorderPostResponse200 & {
-    headers: Headers;
-  };
-export type reorderTasksApiV1TasksReorderPostResponseError =
-  reorderTasksApiV1TasksReorderPostResponse422 & {
-    headers: Headers;
-  };
-
-export type reorderTasksApiV1TasksReorderPostResponse =
-  | reorderTasksApiV1TasksReorderPostResponseSuccess
-  | reorderTasksApiV1TasksReorderPostResponseError;
-
-export const getReorderTasksApiV1TasksReorderPostUrl = () => {
-  return `/api/v1/tasks/reorder`;
-};
-
-export const reorderTasksApiV1TasksReorderPost = async (
-  taskReorderRequest: TaskReorderRequest,
-  headers?: ReorderTasksApiV1TasksReorderPostHeaders,
-  options?: RequestInit
-): Promise<reorderTasksApiV1TasksReorderPostResponse> => {
-  return apiMutator<reorderTasksApiV1TasksReorderPostResponse>(
-    getReorderTasksApiV1TasksReorderPostUrl(),
+export const reorderTasksApiV1TasksReorderPost = (
+  taskReorderRequest: BodyType<TaskReorderRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead[]>(
     {
-      ...options,
+      url: `/api/v1/tasks/reorder`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(taskReorderRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: taskReorderRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1042,14 +756,14 @@ export const getReorderTasksApiV1TasksReorderPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reorderTasksApiV1TasksReorderPost>>,
     TError,
-    { data: BodyType<TaskReorderRequest>; headers?: ReorderTasksApiV1TasksReorderPostHeaders },
+    { data: BodyType<TaskReorderRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof reorderTasksApiV1TasksReorderPost>>,
   TError,
-  { data: BodyType<TaskReorderRequest>; headers?: ReorderTasksApiV1TasksReorderPostHeaders },
+  { data: BodyType<TaskReorderRequest> },
   TContext
 > => {
   const mutationKey = ["reorderTasksApiV1TasksReorderPost"];
@@ -1061,11 +775,11 @@ export const getReorderTasksApiV1TasksReorderPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof reorderTasksApiV1TasksReorderPost>>,
-    { data: BodyType<TaskReorderRequest>; headers?: ReorderTasksApiV1TasksReorderPostHeaders }
+    { data: BodyType<TaskReorderRequest> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return reorderTasksApiV1TasksReorderPost(data, headers, requestOptions);
+    return reorderTasksApiV1TasksReorderPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1088,7 +802,7 @@ export const useReorderTasksApiV1TasksReorderPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof reorderTasksApiV1TasksReorderPost>>,
       TError,
-      { data: BodyType<TaskReorderRequest>; headers?: ReorderTasksApiV1TasksReorderPostHeaders },
+      { data: BodyType<TaskReorderRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1097,7 +811,7 @@ export const useReorderTasksApiV1TasksReorderPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof reorderTasksApiV1TasksReorderPost>>,
   TError,
-  { data: BodyType<TaskReorderRequest>; headers?: ReorderTasksApiV1TasksReorderPostHeaders },
+  { data: BodyType<TaskReorderRequest> },
   TContext
 > => {
   return useMutation(getReorderTasksApiV1TasksReorderPostMutationOptions(options), queryClient);
@@ -1106,59 +820,14 @@ export const useReorderTasksApiV1TasksReorderPost = <
  * Archive all tasks in 'done' status category for a project.
  * @summary Archive Done Tasks
  */
-export type archiveDoneTasksApiV1TasksArchiveDonePostResponse200 = {
-  data: ArchiveDoneResponse;
-  status: 200;
-};
-
-export type archiveDoneTasksApiV1TasksArchiveDonePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type archiveDoneTasksApiV1TasksArchiveDonePostResponseSuccess =
-  archiveDoneTasksApiV1TasksArchiveDonePostResponse200 & {
-    headers: Headers;
-  };
-export type archiveDoneTasksApiV1TasksArchiveDonePostResponseError =
-  archiveDoneTasksApiV1TasksArchiveDonePostResponse422 & {
-    headers: Headers;
-  };
-
-export type archiveDoneTasksApiV1TasksArchiveDonePostResponse =
-  | archiveDoneTasksApiV1TasksArchiveDonePostResponseSuccess
-  | archiveDoneTasksApiV1TasksArchiveDonePostResponseError;
-
-export const getArchiveDoneTasksApiV1TasksArchiveDonePostUrl = (
-  params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/tasks/archive-done?${stringifiedParams}`
-    : `/api/v1/tasks/archive-done`;
-};
-
-export const archiveDoneTasksApiV1TasksArchiveDonePost = async (
+export const archiveDoneTasksApiV1TasksArchiveDonePost = (
   params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams,
-  headers?: ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders,
-  options?: RequestInit
-): Promise<archiveDoneTasksApiV1TasksArchiveDonePostResponse> => {
-  return apiMutator<archiveDoneTasksApiV1TasksArchiveDonePostResponse>(
-    getArchiveDoneTasksApiV1TasksArchiveDonePostUrl(params),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ArchiveDoneResponse>(
+    { url: `/api/v1/tasks/archive-done`, method: "POST", params, signal },
+    options
   );
 };
 
@@ -1169,20 +838,14 @@ export const getArchiveDoneTasksApiV1TasksArchiveDonePostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof archiveDoneTasksApiV1TasksArchiveDonePost>>,
     TError,
-    {
-      params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams;
-      headers?: ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders;
-    },
+    { params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof archiveDoneTasksApiV1TasksArchiveDonePost>>,
   TError,
-  {
-    params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams;
-    headers?: ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders;
-  },
+  { params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams },
   TContext
 > => {
   const mutationKey = ["archiveDoneTasksApiV1TasksArchiveDonePost"];
@@ -1194,14 +857,11 @@ export const getArchiveDoneTasksApiV1TasksArchiveDonePostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof archiveDoneTasksApiV1TasksArchiveDonePost>>,
-    {
-      params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams;
-      headers?: ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders;
-    }
+    { params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams }
   > = (props) => {
-    const { params, headers } = props ?? {};
+    const { params } = props ?? {};
 
-    return archiveDoneTasksApiV1TasksArchiveDonePost(params, headers, requestOptions);
+    return archiveDoneTasksApiV1TasksArchiveDonePost(params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1224,10 +884,7 @@ export const useArchiveDoneTasksApiV1TasksArchiveDonePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof archiveDoneTasksApiV1TasksArchiveDonePost>>,
       TError,
-      {
-        params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams;
-        headers?: ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders;
-      },
+      { params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1236,10 +893,7 @@ export const useArchiveDoneTasksApiV1TasksArchiveDonePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof archiveDoneTasksApiV1TasksArchiveDonePost>>,
   TError,
-  {
-    params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams;
-    headers?: ArchiveDoneTasksApiV1TasksArchiveDonePostHeaders;
-  },
+  { params: ArchiveDoneTasksApiV1TasksArchiveDonePostParams },
   TContext
 > => {
   return useMutation(
@@ -1250,45 +904,14 @@ export const useArchiveDoneTasksApiV1TasksArchiveDonePost = <
 /**
  * @summary List Subtasks
  */
-export type listSubtasksApiV1TasksTaskIdSubtasksGetResponse200 = {
-  data: SubtaskRead[];
-  status: 200;
-};
-
-export type listSubtasksApiV1TasksTaskIdSubtasksGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listSubtasksApiV1TasksTaskIdSubtasksGetResponseSuccess =
-  listSubtasksApiV1TasksTaskIdSubtasksGetResponse200 & {
-    headers: Headers;
-  };
-export type listSubtasksApiV1TasksTaskIdSubtasksGetResponseError =
-  listSubtasksApiV1TasksTaskIdSubtasksGetResponse422 & {
-    headers: Headers;
-  };
-
-export type listSubtasksApiV1TasksTaskIdSubtasksGetResponse =
-  | listSubtasksApiV1TasksTaskIdSubtasksGetResponseSuccess
-  | listSubtasksApiV1TasksTaskIdSubtasksGetResponseError;
-
-export const getListSubtasksApiV1TasksTaskIdSubtasksGetUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/subtasks`;
-};
-
-export const listSubtasksApiV1TasksTaskIdSubtasksGet = async (
+export const listSubtasksApiV1TasksTaskIdSubtasksGet = (
   taskId: number,
-  headers?: ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
-  options?: RequestInit
-): Promise<listSubtasksApiV1TasksTaskIdSubtasksGetResponse> => {
-  return apiMutator<listSubtasksApiV1TasksTaskIdSubtasksGetResponse>(
-    getListSubtasksApiV1TasksTaskIdSubtasksGetUrl(taskId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubtaskRead[]>(
+    { url: `/api/v1/tasks/${taskId}/subtasks`, method: "GET", signal },
+    options
   );
 };
 
@@ -1301,7 +924,6 @@ export const getListSubtasksApiV1TasksTaskIdSubtasksGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1320,8 +942,7 @@ export const getListSubtasksApiV1TasksTaskIdSubtasksGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listSubtasksApiV1TasksTaskIdSubtasksGet>>
-  > = ({ signal }) =>
-    listSubtasksApiV1TasksTaskIdSubtasksGet(taskId, headers, { signal, ...requestOptions });
+  > = ({ signal }) => listSubtasksApiV1TasksTaskIdSubtasksGet(taskId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!taskId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listSubtasksApiV1TasksTaskIdSubtasksGet>>,
@@ -1340,7 +961,6 @@ export function useListSubtasksApiV1TasksTaskIdSubtasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers: undefined | ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1366,7 +986,6 @@ export function useListSubtasksApiV1TasksTaskIdSubtasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1392,7 +1011,6 @@ export function useListSubtasksApiV1TasksTaskIdSubtasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1414,7 +1032,6 @@ export function useListSubtasksApiV1TasksTaskIdSubtasksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   taskId: number,
-  headers?: ListSubtasksApiV1TasksTaskIdSubtasksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1427,11 +1044,7 @@ export function useListSubtasksApiV1TasksTaskIdSubtasksGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListSubtasksApiV1TasksTaskIdSubtasksGetQueryOptions(
-    taskId,
-    headers,
-    options
-  );
+  const queryOptions = getListSubtasksApiV1TasksTaskIdSubtasksGetQueryOptions(taskId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1443,47 +1056,21 @@ export function useListSubtasksApiV1TasksTaskIdSubtasksGet<
 /**
  * @summary Create Subtask
  */
-export type createSubtaskApiV1TasksTaskIdSubtasksPostResponse201 = {
-  data: SubtaskRead;
-  status: 201;
-};
-
-export type createSubtaskApiV1TasksTaskIdSubtasksPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createSubtaskApiV1TasksTaskIdSubtasksPostResponseSuccess =
-  createSubtaskApiV1TasksTaskIdSubtasksPostResponse201 & {
-    headers: Headers;
-  };
-export type createSubtaskApiV1TasksTaskIdSubtasksPostResponseError =
-  createSubtaskApiV1TasksTaskIdSubtasksPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createSubtaskApiV1TasksTaskIdSubtasksPostResponse =
-  | createSubtaskApiV1TasksTaskIdSubtasksPostResponseSuccess
-  | createSubtaskApiV1TasksTaskIdSubtasksPostResponseError;
-
-export const getCreateSubtaskApiV1TasksTaskIdSubtasksPostUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/subtasks`;
-};
-
-export const createSubtaskApiV1TasksTaskIdSubtasksPost = async (
+export const createSubtaskApiV1TasksTaskIdSubtasksPost = (
   taskId: number,
-  subtaskCreate: SubtaskCreate,
-  headers?: CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders,
-  options?: RequestInit
-): Promise<createSubtaskApiV1TasksTaskIdSubtasksPostResponse> => {
-  return apiMutator<createSubtaskApiV1TasksTaskIdSubtasksPostResponse>(
-    getCreateSubtaskApiV1TasksTaskIdSubtasksPostUrl(taskId),
+  subtaskCreate: BodyType<SubtaskCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubtaskRead>(
     {
-      ...options,
+      url: `/api/v1/tasks/${taskId}/subtasks`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(subtaskCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: subtaskCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1494,22 +1081,14 @@ export const getCreateSubtaskApiV1TasksTaskIdSubtasksPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createSubtaskApiV1TasksTaskIdSubtasksPost>>,
     TError,
-    {
-      taskId: number;
-      data: BodyType<SubtaskCreate>;
-      headers?: CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders;
-    },
+    { taskId: number; data: BodyType<SubtaskCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createSubtaskApiV1TasksTaskIdSubtasksPost>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<SubtaskCreate>;
-    headers?: CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders;
-  },
+  { taskId: number; data: BodyType<SubtaskCreate> },
   TContext
 > => {
   const mutationKey = ["createSubtaskApiV1TasksTaskIdSubtasksPost"];
@@ -1521,15 +1100,11 @@ export const getCreateSubtaskApiV1TasksTaskIdSubtasksPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createSubtaskApiV1TasksTaskIdSubtasksPost>>,
-    {
-      taskId: number;
-      data: BodyType<SubtaskCreate>;
-      headers?: CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders;
-    }
+    { taskId: number; data: BodyType<SubtaskCreate> }
   > = (props) => {
-    const { taskId, data, headers } = props ?? {};
+    const { taskId, data } = props ?? {};
 
-    return createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, data, headers, requestOptions);
+    return createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1552,11 +1127,7 @@ export const useCreateSubtaskApiV1TasksTaskIdSubtasksPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createSubtaskApiV1TasksTaskIdSubtasksPost>>,
       TError,
-      {
-        taskId: number;
-        data: BodyType<SubtaskCreate>;
-        headers?: CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders;
-      },
+      { taskId: number; data: BodyType<SubtaskCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1565,11 +1136,7 @@ export const useCreateSubtaskApiV1TasksTaskIdSubtasksPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createSubtaskApiV1TasksTaskIdSubtasksPost>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<SubtaskCreate>;
-    headers?: CreateSubtaskApiV1TasksTaskIdSubtasksPostHeaders;
-  },
+  { taskId: number; data: BodyType<SubtaskCreate> },
   TContext
 > => {
   return useMutation(
@@ -1581,47 +1148,21 @@ export const useCreateSubtaskApiV1TasksTaskIdSubtasksPost = <
  * Create multiple subtasks at once.
  * @summary Create Subtasks Batch
  */
-export type createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse200 = {
-  data: SubtaskRead[];
-  status: 200;
-};
-
-export type createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponseSuccess =
-  createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse200 & {
-    headers: Headers;
-  };
-export type createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponseError =
-  createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse =
-  | createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponseSuccess
-  | createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponseError;
-
-export const getCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/subtasks/batch`;
-};
-
-export const createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost = async (
+export const createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost = (
   taskId: number,
-  subtaskBatchCreate: SubtaskBatchCreate,
-  headers?: CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders,
-  options?: RequestInit
-): Promise<createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse> => {
-  return apiMutator<createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostResponse>(
-    getCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostUrl(taskId),
+  subtaskBatchCreate: BodyType<SubtaskBatchCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubtaskRead[]>(
     {
-      ...options,
+      url: `/api/v1/tasks/${taskId}/subtasks/batch`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(subtaskBatchCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: subtaskBatchCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1632,22 +1173,14 @@ export const getCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostMutationOpti
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost>>,
     TError,
-    {
-      taskId: number;
-      data: BodyType<SubtaskBatchCreate>;
-      headers?: CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders;
-    },
+    { taskId: number; data: BodyType<SubtaskBatchCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<SubtaskBatchCreate>;
-    headers?: CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders;
-  },
+  { taskId: number; data: BodyType<SubtaskBatchCreate> },
   TContext
 > => {
   const mutationKey = ["createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost"];
@@ -1659,20 +1192,11 @@ export const getCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostMutationOpti
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost>>,
-    {
-      taskId: number;
-      data: BodyType<SubtaskBatchCreate>;
-      headers?: CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders;
-    }
+    { taskId: number; data: BodyType<SubtaskBatchCreate> }
   > = (props) => {
-    const { taskId, data, headers } = props ?? {};
+    const { taskId, data } = props ?? {};
 
-    return createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost(
-      taskId,
-      data,
-      headers,
-      requestOptions
-    );
+    return createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost(taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1697,11 +1221,7 @@ export const useCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost>>,
       TError,
-      {
-        taskId: number;
-        data: BodyType<SubtaskBatchCreate>;
-        headers?: CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders;
-      },
+      { taskId: number; data: BodyType<SubtaskBatchCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1710,11 +1230,7 @@ export const useCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<SubtaskBatchCreate>;
-    headers?: CreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPostHeaders;
-  },
+  { taskId: number; data: BodyType<SubtaskBatchCreate> },
   TContext
 > => {
   return useMutation(
@@ -1725,47 +1241,21 @@ export const useCreateSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost = <
 /**
  * @summary Reorder Subtasks
  */
-export type reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse200 = {
-  data: SubtaskRead[];
-  status: 200;
-};
-
-export type reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponseSuccess =
-  reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse200 & {
-    headers: Headers;
-  };
-export type reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponseError =
-  reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse422 & {
-    headers: Headers;
-  };
-
-export type reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse =
-  | reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponseSuccess
-  | reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponseError;
-
-export const getReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/subtasks/order`;
-};
-
-export const reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut = async (
+export const reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut = (
   taskId: number,
-  subtaskReorderRequest: SubtaskReorderRequest,
-  headers?: ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders,
-  options?: RequestInit
-): Promise<reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse> => {
-  return apiMutator<reorderSubtasksApiV1TasksTaskIdSubtasksOrderPutResponse>(
-    getReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutUrl(taskId),
+  subtaskReorderRequest: BodyType<SubtaskReorderRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubtaskRead[]>(
     {
-      ...options,
+      url: `/api/v1/tasks/${taskId}/subtasks/order`,
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(subtaskReorderRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: subtaskReorderRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1776,22 +1266,14 @@ export const getReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutMutationOptions =
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut>>,
     TError,
-    {
-      taskId: number;
-      data: BodyType<SubtaskReorderRequest>;
-      headers?: ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders;
-    },
+    { taskId: number; data: BodyType<SubtaskReorderRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<SubtaskReorderRequest>;
-    headers?: ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders;
-  },
+  { taskId: number; data: BodyType<SubtaskReorderRequest> },
   TContext
 > => {
   const mutationKey = ["reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut"];
@@ -1803,15 +1285,11 @@ export const getReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutMutationOptions =
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut>>,
-    {
-      taskId: number;
-      data: BodyType<SubtaskReorderRequest>;
-      headers?: ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders;
-    }
+    { taskId: number; data: BodyType<SubtaskReorderRequest> }
   > = (props) => {
-    const { taskId, data, headers } = props ?? {};
+    const { taskId, data } = props ?? {};
 
-    return reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, data, headers, requestOptions);
+    return reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1836,11 +1314,7 @@ export const useReorderSubtasksApiV1TasksTaskIdSubtasksOrderPut = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut>>,
       TError,
-      {
-        taskId: number;
-        data: BodyType<SubtaskReorderRequest>;
-        headers?: ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders;
-      },
+      { taskId: number; data: BodyType<SubtaskReorderRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1849,11 +1323,7 @@ export const useReorderSubtasksApiV1TasksTaskIdSubtasksOrderPut = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<SubtaskReorderRequest>;
-    headers?: ReorderSubtasksApiV1TasksTaskIdSubtasksOrderPutHeaders;
-  },
+  { taskId: number; data: BodyType<SubtaskReorderRequest> },
   TContext
 > => {
   return useMutation(
@@ -1865,45 +1335,14 @@ export const useReorderSubtasksApiV1TasksTaskIdSubtasksOrderPut = <
  * Generate AI-powered subtask suggestions for a task.
  * @summary Generate Task Subtasks
  */
-export type generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse200 = {
-  data: GenerateSubtasksResponse;
-  status: 200;
-};
-
-export type generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponseSuccess =
-  generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse200 & {
-    headers: Headers;
-  };
-export type generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponseError =
-  generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse422 & {
-    headers: Headers;
-  };
-
-export type generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse =
-  | generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponseSuccess
-  | generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponseError;
-
-export const getGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/ai/subtasks`;
-};
-
-export const generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost = async (
+export const generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost = (
   taskId: number,
-  headers?: GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders,
-  options?: RequestInit
-): Promise<generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse> => {
-  return apiMutator<generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostResponse>(
-    getGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostUrl(taskId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GenerateSubtasksResponse>(
+    { url: `/api/v1/tasks/${taskId}/ai/subtasks`, method: "POST", signal },
+    options
   );
 };
 
@@ -1914,14 +1353,14 @@ export const getGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostMutationOption
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost>>,
     TError,
-    { taskId: number; headers?: GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders },
+    { taskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost>>,
   TError,
-  { taskId: number; headers?: GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders },
+  { taskId: number },
   TContext
 > => {
   const mutationKey = ["generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost"];
@@ -1933,11 +1372,11 @@ export const getGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostMutationOption
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost>>,
-    { taskId: number; headers?: GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders }
+    { taskId: number }
   > = (props) => {
-    const { taskId, headers } = props ?? {};
+    const { taskId } = props ?? {};
 
-    return generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(taskId, headers, requestOptions);
+    return generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1961,7 +1400,7 @@ export const useGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost>>,
       TError,
-      { taskId: number; headers?: GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders },
+      { taskId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1970,7 +1409,7 @@ export const useGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost>>,
   TError,
-  { taskId: number; headers?: GenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPostHeaders },
+  { taskId: number },
   TContext
 > => {
   return useMutation(
@@ -1982,45 +1421,14 @@ export const useGenerateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost = <
  * Generate AI-powered description for a task.
  * @summary Generate Task Description
  */
-export type generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse200 = {
-  data: GenerateDescriptionResponse;
-  status: 200;
-};
-
-export type generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponseSuccess =
-  generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse200 & {
-    headers: Headers;
-  };
-export type generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponseError =
-  generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse422 & {
-    headers: Headers;
-  };
-
-export type generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse =
-  | generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponseSuccess
-  | generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponseError;
-
-export const getGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/ai/description`;
-};
-
-export const generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost = async (
+export const generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost = (
   taskId: number,
-  headers?: GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders,
-  options?: RequestInit
-): Promise<generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse> => {
-  return apiMutator<generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostResponse>(
-    getGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostUrl(taskId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GenerateDescriptionResponse>(
+    { url: `/api/v1/tasks/${taskId}/ai/description`, method: "POST", signal },
+    options
   );
 };
 
@@ -2031,14 +1439,14 @@ export const getGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostMutation
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost>>,
     TError,
-    { taskId: number; headers?: GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders },
+    { taskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost>>,
   TError,
-  { taskId: number; headers?: GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders },
+  { taskId: number },
   TContext
 > => {
   const mutationKey = ["generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost"];
@@ -2050,15 +1458,11 @@ export const getGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostMutation
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost>>,
-    { taskId: number; headers?: GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders }
+    { taskId: number }
   > = (props) => {
-    const { taskId, headers } = props ?? {};
+    const { taskId } = props ?? {};
 
-    return generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost(
-      taskId,
-      headers,
-      requestOptions
-    );
+    return generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost(taskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2082,7 +1486,7 @@ export const useGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost>>,
       TError,
-      { taskId: number; headers?: GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders },
+      { taskId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2091,7 +1495,7 @@ export const useGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost>>,
   TError,
-  { taskId: number; headers?: GenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPostHeaders },
+  { taskId: number },
   TContext
 > => {
   return useMutation(
@@ -2103,47 +1507,21 @@ export const useGenerateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost = <
  * Set the tags for a task. Replaces all existing tags with the provided list.
  * @summary Set Task Tags
  */
-export type setTaskTagsApiV1TasksTaskIdTagsPutResponse200 = {
-  data: TaskRead;
-  status: 200;
-};
-
-export type setTaskTagsApiV1TasksTaskIdTagsPutResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type setTaskTagsApiV1TasksTaskIdTagsPutResponseSuccess =
-  setTaskTagsApiV1TasksTaskIdTagsPutResponse200 & {
-    headers: Headers;
-  };
-export type setTaskTagsApiV1TasksTaskIdTagsPutResponseError =
-  setTaskTagsApiV1TasksTaskIdTagsPutResponse422 & {
-    headers: Headers;
-  };
-
-export type setTaskTagsApiV1TasksTaskIdTagsPutResponse =
-  | setTaskTagsApiV1TasksTaskIdTagsPutResponseSuccess
-  | setTaskTagsApiV1TasksTaskIdTagsPutResponseError;
-
-export const getSetTaskTagsApiV1TasksTaskIdTagsPutUrl = (taskId: number) => {
-  return `/api/v1/tasks/${taskId}/tags`;
-};
-
-export const setTaskTagsApiV1TasksTaskIdTagsPut = async (
+export const setTaskTagsApiV1TasksTaskIdTagsPut = (
   taskId: number,
-  tagSetRequest: TagSetRequest,
-  headers?: SetTaskTagsApiV1TasksTaskIdTagsPutHeaders,
-  options?: RequestInit
-): Promise<setTaskTagsApiV1TasksTaskIdTagsPutResponse> => {
-  return apiMutator<setTaskTagsApiV1TasksTaskIdTagsPutResponse>(
-    getSetTaskTagsApiV1TasksTaskIdTagsPutUrl(taskId),
+  tagSetRequest: BodyType<TagSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
     {
-      ...options,
+      url: `/api/v1/tasks/${taskId}/tags`,
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(tagSetRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: tagSetRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -2154,22 +1532,14 @@ export const getSetTaskTagsApiV1TasksTaskIdTagsPutMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setTaskTagsApiV1TasksTaskIdTagsPut>>,
     TError,
-    {
-      taskId: number;
-      data: BodyType<TagSetRequest>;
-      headers?: SetTaskTagsApiV1TasksTaskIdTagsPutHeaders;
-    },
+    { taskId: number; data: BodyType<TagSetRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setTaskTagsApiV1TasksTaskIdTagsPut>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<TagSetRequest>;
-    headers?: SetTaskTagsApiV1TasksTaskIdTagsPutHeaders;
-  },
+  { taskId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   const mutationKey = ["setTaskTagsApiV1TasksTaskIdTagsPut"];
@@ -2181,15 +1551,11 @@ export const getSetTaskTagsApiV1TasksTaskIdTagsPutMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setTaskTagsApiV1TasksTaskIdTagsPut>>,
-    {
-      taskId: number;
-      data: BodyType<TagSetRequest>;
-      headers?: SetTaskTagsApiV1TasksTaskIdTagsPutHeaders;
-    }
+    { taskId: number; data: BodyType<TagSetRequest> }
   > = (props) => {
-    const { taskId, data, headers } = props ?? {};
+    const { taskId, data } = props ?? {};
 
-    return setTaskTagsApiV1TasksTaskIdTagsPut(taskId, data, headers, requestOptions);
+    return setTaskTagsApiV1TasksTaskIdTagsPut(taskId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2212,11 +1578,7 @@ export const useSetTaskTagsApiV1TasksTaskIdTagsPut = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof setTaskTagsApiV1TasksTaskIdTagsPut>>,
       TError,
-      {
-        taskId: number;
-        data: BodyType<TagSetRequest>;
-        headers?: SetTaskTagsApiV1TasksTaskIdTagsPutHeaders;
-      },
+      { taskId: number; data: BodyType<TagSetRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2225,11 +1587,7 @@ export const useSetTaskTagsApiV1TasksTaskIdTagsPut = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof setTaskTagsApiV1TasksTaskIdTagsPut>>,
   TError,
-  {
-    taskId: number;
-    data: BodyType<TagSetRequest>;
-    headers?: SetTaskTagsApiV1TasksTaskIdTagsPutHeaders;
-  },
+  { taskId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   return useMutation(getSetTaskTagsApiV1TasksTaskIdTagsPutMutationOptions(options), queryClient);

@@ -48,60 +48,22 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Register User
  */
-export type registerUserApiV1AuthRegisterPostResponse201 = {
-  data: UserRead;
-  status: 201;
-};
-
-export type registerUserApiV1AuthRegisterPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type registerUserApiV1AuthRegisterPostResponseSuccess =
-  registerUserApiV1AuthRegisterPostResponse201 & {
-    headers: Headers;
-  };
-export type registerUserApiV1AuthRegisterPostResponseError =
-  registerUserApiV1AuthRegisterPostResponse422 & {
-    headers: Headers;
-  };
-
-export type registerUserApiV1AuthRegisterPostResponse =
-  | registerUserApiV1AuthRegisterPostResponseSuccess
-  | registerUserApiV1AuthRegisterPostResponseError;
-
-export const getRegisterUserApiV1AuthRegisterPostUrl = (
-  params?: RegisterUserApiV1AuthRegisterPostParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/auth/register?${stringifiedParams}`
-    : `/api/v1/auth/register`;
-};
-
-export const registerUserApiV1AuthRegisterPost = async (
-  userCreate: UserCreate,
+export const registerUserApiV1AuthRegisterPost = (
+  userCreate: BodyType<UserCreate>,
   params?: RegisterUserApiV1AuthRegisterPostParams,
-  options?: RequestInit
-): Promise<registerUserApiV1AuthRegisterPostResponse> => {
-  return apiMutator<registerUserApiV1AuthRegisterPostResponse>(
-    getRegisterUserApiV1AuthRegisterPostUrl(params),
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
     {
-      ...options,
+      url: `/api/v1/auth/register`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(userCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: userCreate,
+      params,
+      signal,
+    },
+    options
   );
 };
 
@@ -175,31 +137,13 @@ export const useRegisterUserApiV1AuthRegisterPost = <
 /**
  * @summary Bootstrap Status
  */
-export type bootstrapStatusApiV1AuthBootstrapGetResponse200 = {
-  data: BootstrapStatusApiV1AuthBootstrapGet200;
-  status: 200;
-};
-
-export type bootstrapStatusApiV1AuthBootstrapGetResponseSuccess =
-  bootstrapStatusApiV1AuthBootstrapGetResponse200 & {
-    headers: Headers;
-  };
-export type bootstrapStatusApiV1AuthBootstrapGetResponse =
-  bootstrapStatusApiV1AuthBootstrapGetResponseSuccess;
-
-export const getBootstrapStatusApiV1AuthBootstrapGetUrl = () => {
-  return `/api/v1/auth/bootstrap`;
-};
-
-export const bootstrapStatusApiV1AuthBootstrapGet = async (
-  options?: RequestInit
-): Promise<bootstrapStatusApiV1AuthBootstrapGetResponse> => {
-  return apiMutator<bootstrapStatusApiV1AuthBootstrapGetResponse>(
-    getBootstrapStatusApiV1AuthBootstrapGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const bootstrapStatusApiV1AuthBootstrapGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BootstrapStatusApiV1AuthBootstrapGet200>(
+    { url: `/api/v1/auth/bootstrap`, method: "GET", signal },
+    options
   );
 };
 
@@ -222,7 +166,7 @@ export const getBootstrapStatusApiV1AuthBootstrapGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof bootstrapStatusApiV1AuthBootstrapGet>>
-  > = ({ signal }) => bootstrapStatusApiV1AuthBootstrapGet({ signal, ...requestOptions });
+  > = ({ signal }) => bootstrapStatusApiV1AuthBootstrapGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof bootstrapStatusApiV1AuthBootstrapGet>>,
@@ -332,37 +276,11 @@ export function useBootstrapStatusApiV1AuthBootstrapGet<
 /**
  * @summary Login Access Token
  */
-export type loginAccessTokenApiV1AuthTokenPostResponse200 = {
-  data: Token;
-  status: 200;
-};
-
-export type loginAccessTokenApiV1AuthTokenPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type loginAccessTokenApiV1AuthTokenPostResponseSuccess =
-  loginAccessTokenApiV1AuthTokenPostResponse200 & {
-    headers: Headers;
-  };
-export type loginAccessTokenApiV1AuthTokenPostResponseError =
-  loginAccessTokenApiV1AuthTokenPostResponse422 & {
-    headers: Headers;
-  };
-
-export type loginAccessTokenApiV1AuthTokenPostResponse =
-  | loginAccessTokenApiV1AuthTokenPostResponseSuccess
-  | loginAccessTokenApiV1AuthTokenPostResponseError;
-
-export const getLoginAccessTokenApiV1AuthTokenPostUrl = () => {
-  return `/api/v1/auth/token`;
-};
-
-export const loginAccessTokenApiV1AuthTokenPost = async (
-  bodyLoginAccessTokenApiV1AuthTokenPost: BodyLoginAccessTokenApiV1AuthTokenPost,
-  options?: RequestInit
-): Promise<loginAccessTokenApiV1AuthTokenPostResponse> => {
+export const loginAccessTokenApiV1AuthTokenPost = (
+  bodyLoginAccessTokenApiV1AuthTokenPost: BodyType<BodyLoginAccessTokenApiV1AuthTokenPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
   const formUrlEncoded = new URLSearchParams();
   if (
     bodyLoginAccessTokenApiV1AuthTokenPost.grant_type !== undefined &&
@@ -388,14 +306,15 @@ export const loginAccessTokenApiV1AuthTokenPost = async (
     formUrlEncoded.append(`client_secret`, bodyLoginAccessTokenApiV1AuthTokenPost.client_secret);
   }
 
-  return apiMutator<loginAccessTokenApiV1AuthTokenPostResponse>(
-    getLoginAccessTokenApiV1AuthTokenPostUrl(),
+  return apiMutator<Token>(
     {
-      ...options,
+      url: `/api/v1/auth/token`,
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", ...options?.headers },
-      body: formUrlEncoded,
-    }
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      data: formUrlEncoded,
+      signal,
+    },
+    options
   );
 };
 
@@ -472,45 +391,20 @@ export const useLoginAccessTokenApiV1AuthTokenPost = <
 Device tokens do not expire and can be used instead of JWT tokens.
  * @summary Create Device Token
  */
-export type createDeviceTokenApiV1AuthDeviceTokenPostResponse200 = {
-  data: DeviceTokenResponse;
-  status: 200;
-};
-
-export type createDeviceTokenApiV1AuthDeviceTokenPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createDeviceTokenApiV1AuthDeviceTokenPostResponseSuccess =
-  createDeviceTokenApiV1AuthDeviceTokenPostResponse200 & {
-    headers: Headers;
-  };
-export type createDeviceTokenApiV1AuthDeviceTokenPostResponseError =
-  createDeviceTokenApiV1AuthDeviceTokenPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createDeviceTokenApiV1AuthDeviceTokenPostResponse =
-  | createDeviceTokenApiV1AuthDeviceTokenPostResponseSuccess
-  | createDeviceTokenApiV1AuthDeviceTokenPostResponseError;
-
-export const getCreateDeviceTokenApiV1AuthDeviceTokenPostUrl = () => {
-  return `/api/v1/auth/device-token`;
-};
-
-export const createDeviceTokenApiV1AuthDeviceTokenPost = async (
-  deviceTokenRequest: DeviceTokenRequest,
-  options?: RequestInit
-): Promise<createDeviceTokenApiV1AuthDeviceTokenPostResponse> => {
-  return apiMutator<createDeviceTokenApiV1AuthDeviceTokenPostResponse>(
-    getCreateDeviceTokenApiV1AuthDeviceTokenPostUrl(),
+export const createDeviceTokenApiV1AuthDeviceTokenPost = (
+  deviceTokenRequest: BodyType<DeviceTokenRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DeviceTokenResponse>(
     {
-      ...options,
+      url: `/api/v1/auth/device-token`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(deviceTokenRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: deviceTokenRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -588,31 +482,13 @@ export const useCreateDeviceTokenApiV1AuthDeviceTokenPost = <
  * List all device tokens for the current user.
  * @summary List Device Tokens
  */
-export type listDeviceTokensApiV1AuthDeviceTokensGetResponse200 = {
-  data: DeviceTokenInfo[];
-  status: 200;
-};
-
-export type listDeviceTokensApiV1AuthDeviceTokensGetResponseSuccess =
-  listDeviceTokensApiV1AuthDeviceTokensGetResponse200 & {
-    headers: Headers;
-  };
-export type listDeviceTokensApiV1AuthDeviceTokensGetResponse =
-  listDeviceTokensApiV1AuthDeviceTokensGetResponseSuccess;
-
-export const getListDeviceTokensApiV1AuthDeviceTokensGetUrl = () => {
-  return `/api/v1/auth/device-tokens`;
-};
-
-export const listDeviceTokensApiV1AuthDeviceTokensGet = async (
-  options?: RequestInit
-): Promise<listDeviceTokensApiV1AuthDeviceTokensGetResponse> => {
-  return apiMutator<listDeviceTokensApiV1AuthDeviceTokensGetResponse>(
-    getListDeviceTokensApiV1AuthDeviceTokensGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const listDeviceTokensApiV1AuthDeviceTokensGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DeviceTokenInfo[]>(
+    { url: `/api/v1/auth/device-tokens`, method: "GET", signal },
+    options
   );
 };
 
@@ -639,7 +515,7 @@ export const getListDeviceTokensApiV1AuthDeviceTokensGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>
-  > = ({ signal }) => listDeviceTokensApiV1AuthDeviceTokensGet({ signal, ...requestOptions });
+  > = ({ signal }) => listDeviceTokensApiV1AuthDeviceTokensGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
@@ -750,43 +626,14 @@ export function useListDeviceTokensApiV1AuthDeviceTokensGet<
  * Revoke a device token.
  * @summary Revoke Device Token
  */
-export type revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponseSuccess =
-  revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponseError =
-  revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse =
-  | revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponseSuccess
-  | revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponseError;
-
-export const getRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteUrl = (tokenId: number) => {
-  return `/api/v1/auth/device-tokens/${tokenId}`;
-};
-
-export const revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = async (
+export const revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = (
   tokenId: number,
-  options?: RequestInit
-): Promise<revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse> => {
-  return apiMutator<revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteResponse>(
-    getRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDeleteUrl(tokenId),
-    {
-      ...options,
-      method: "DELETE",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/auth/device-tokens/${tokenId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -864,31 +711,13 @@ export const useRevokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete = <
 /**
  * @summary Oidc Status
  */
-export type oidcStatusApiV1AuthOidcStatusGetResponse200 = {
-  data: OidcStatusApiV1AuthOidcStatusGet200;
-  status: 200;
-};
-
-export type oidcStatusApiV1AuthOidcStatusGetResponseSuccess =
-  oidcStatusApiV1AuthOidcStatusGetResponse200 & {
-    headers: Headers;
-  };
-export type oidcStatusApiV1AuthOidcStatusGetResponse =
-  oidcStatusApiV1AuthOidcStatusGetResponseSuccess;
-
-export const getOidcStatusApiV1AuthOidcStatusGetUrl = () => {
-  return `/api/v1/auth/oidc/status`;
-};
-
-export const oidcStatusApiV1AuthOidcStatusGet = async (
-  options?: RequestInit
-): Promise<oidcStatusApiV1AuthOidcStatusGetResponse> => {
-  return apiMutator<oidcStatusApiV1AuthOidcStatusGetResponse>(
-    getOidcStatusApiV1AuthOidcStatusGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const oidcStatusApiV1AuthOidcStatusGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OidcStatusApiV1AuthOidcStatusGet200>(
+    { url: `/api/v1/auth/oidc/status`, method: "GET", signal },
+    options
   );
 };
 
@@ -911,7 +740,7 @@ export const getOidcStatusApiV1AuthOidcStatusGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof oidcStatusApiV1AuthOidcStatusGet>>> = ({
     signal,
-  }) => oidcStatusApiV1AuthOidcStatusGet({ signal, ...requestOptions });
+  }) => oidcStatusApiV1AuthOidcStatusGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof oidcStatusApiV1AuthOidcStatusGet>>,
@@ -1005,57 +834,14 @@ export function useOidcStatusApiV1AuthOidcStatusGet<
 /**
  * @summary Oidc Login
  */
-export type oidcLoginApiV1AuthOidcLoginGetResponse200 = {
-  data: unknown;
-  status: 200;
-};
-
-export type oidcLoginApiV1AuthOidcLoginGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type oidcLoginApiV1AuthOidcLoginGetResponseSuccess =
-  oidcLoginApiV1AuthOidcLoginGetResponse200 & {
-    headers: Headers;
-  };
-export type oidcLoginApiV1AuthOidcLoginGetResponseError =
-  oidcLoginApiV1AuthOidcLoginGetResponse422 & {
-    headers: Headers;
-  };
-
-export type oidcLoginApiV1AuthOidcLoginGetResponse =
-  | oidcLoginApiV1AuthOidcLoginGetResponseSuccess
-  | oidcLoginApiV1AuthOidcLoginGetResponseError;
-
-export const getOidcLoginApiV1AuthOidcLoginGetUrl = (
-  params?: OidcLoginApiV1AuthOidcLoginGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/auth/oidc/login?${stringifiedParams}`
-    : `/api/v1/auth/oidc/login`;
-};
-
-export const oidcLoginApiV1AuthOidcLoginGet = async (
+export const oidcLoginApiV1AuthOidcLoginGet = (
   params?: OidcLoginApiV1AuthOidcLoginGetParams,
-  options?: RequestInit
-): Promise<oidcLoginApiV1AuthOidcLoginGetResponse> => {
-  return apiMutator<oidcLoginApiV1AuthOidcLoginGetResponse>(
-    getOidcLoginApiV1AuthOidcLoginGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/auth/oidc/login`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -1083,7 +869,7 @@ export const getOidcLoginApiV1AuthOidcLoginGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>> = ({
     signal,
-  }) => oidcLoginApiV1AuthOidcLoginGet(params, { signal, ...requestOptions });
+  }) => oidcLoginApiV1AuthOidcLoginGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof oidcLoginApiV1AuthOidcLoginGet>>,
@@ -1181,57 +967,14 @@ export function useOidcLoginApiV1AuthOidcLoginGet<
 /**
  * @summary Oidc Callback
  */
-export type oidcCallbackApiV1AuthOidcCallbackGetResponse200 = {
-  data: unknown;
-  status: 200;
-};
-
-export type oidcCallbackApiV1AuthOidcCallbackGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type oidcCallbackApiV1AuthOidcCallbackGetResponseSuccess =
-  oidcCallbackApiV1AuthOidcCallbackGetResponse200 & {
-    headers: Headers;
-  };
-export type oidcCallbackApiV1AuthOidcCallbackGetResponseError =
-  oidcCallbackApiV1AuthOidcCallbackGetResponse422 & {
-    headers: Headers;
-  };
-
-export type oidcCallbackApiV1AuthOidcCallbackGetResponse =
-  | oidcCallbackApiV1AuthOidcCallbackGetResponseSuccess
-  | oidcCallbackApiV1AuthOidcCallbackGetResponseError;
-
-export const getOidcCallbackApiV1AuthOidcCallbackGetUrl = (
-  params?: OidcCallbackApiV1AuthOidcCallbackGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/auth/oidc/callback?${stringifiedParams}`
-    : `/api/v1/auth/oidc/callback`;
-};
-
-export const oidcCallbackApiV1AuthOidcCallbackGet = async (
+export const oidcCallbackApiV1AuthOidcCallbackGet = (
   params?: OidcCallbackApiV1AuthOidcCallbackGetParams,
-  options?: RequestInit
-): Promise<oidcCallbackApiV1AuthOidcCallbackGetResponse> => {
-  return apiMutator<oidcCallbackApiV1AuthOidcCallbackGetResponse>(
-    getOidcCallbackApiV1AuthOidcCallbackGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/auth/oidc/callback`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -1264,7 +1007,7 @@ export const getOidcCallbackApiV1AuthOidcCallbackGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>
-  > = ({ signal }) => oidcCallbackApiV1AuthOidcCallbackGet(params, { signal, ...requestOptions });
+  > = ({ signal }) => oidcCallbackApiV1AuthOidcCallbackGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof oidcCallbackApiV1AuthOidcCallbackGet>>,
@@ -1378,31 +1121,13 @@ export function useOidcCallbackApiV1AuthOidcCallbackGet<
 /**
  * @summary Resend Verification Email
  */
-export type resendVerificationEmailApiV1AuthVerificationSendPostResponse200 = {
-  data: VerificationSendResponse;
-  status: 200;
-};
-
-export type resendVerificationEmailApiV1AuthVerificationSendPostResponseSuccess =
-  resendVerificationEmailApiV1AuthVerificationSendPostResponse200 & {
-    headers: Headers;
-  };
-export type resendVerificationEmailApiV1AuthVerificationSendPostResponse =
-  resendVerificationEmailApiV1AuthVerificationSendPostResponseSuccess;
-
-export const getResendVerificationEmailApiV1AuthVerificationSendPostUrl = () => {
-  return `/api/v1/auth/verification/send`;
-};
-
-export const resendVerificationEmailApiV1AuthVerificationSendPost = async (
-  options?: RequestInit
-): Promise<resendVerificationEmailApiV1AuthVerificationSendPostResponse> => {
-  return apiMutator<resendVerificationEmailApiV1AuthVerificationSendPostResponse>(
-    getResendVerificationEmailApiV1AuthVerificationSendPostUrl(),
-    {
-      ...options,
-      method: "POST",
-    }
+export const resendVerificationEmailApiV1AuthVerificationSendPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    { url: `/api/v1/auth/verification/send`, method: "POST", signal },
+    options
   );
 };
 
@@ -1477,45 +1202,20 @@ export const useResendVerificationEmailApiV1AuthVerificationSendPost = <
 /**
  * @summary Confirm Verification
  */
-export type confirmVerificationApiV1AuthVerificationConfirmPostResponse200 = {
-  data: VerificationSendResponse;
-  status: 200;
-};
-
-export type confirmVerificationApiV1AuthVerificationConfirmPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type confirmVerificationApiV1AuthVerificationConfirmPostResponseSuccess =
-  confirmVerificationApiV1AuthVerificationConfirmPostResponse200 & {
-    headers: Headers;
-  };
-export type confirmVerificationApiV1AuthVerificationConfirmPostResponseError =
-  confirmVerificationApiV1AuthVerificationConfirmPostResponse422 & {
-    headers: Headers;
-  };
-
-export type confirmVerificationApiV1AuthVerificationConfirmPostResponse =
-  | confirmVerificationApiV1AuthVerificationConfirmPostResponseSuccess
-  | confirmVerificationApiV1AuthVerificationConfirmPostResponseError;
-
-export const getConfirmVerificationApiV1AuthVerificationConfirmPostUrl = () => {
-  return `/api/v1/auth/verification/confirm`;
-};
-
-export const confirmVerificationApiV1AuthVerificationConfirmPost = async (
-  verificationConfirmRequest: VerificationConfirmRequest,
-  options?: RequestInit
-): Promise<confirmVerificationApiV1AuthVerificationConfirmPostResponse> => {
-  return apiMutator<confirmVerificationApiV1AuthVerificationConfirmPostResponse>(
-    getConfirmVerificationApiV1AuthVerificationConfirmPostUrl(),
+export const confirmVerificationApiV1AuthVerificationConfirmPost = (
+  verificationConfirmRequest: BodyType<VerificationConfirmRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
     {
-      ...options,
+      url: `/api/v1/auth/verification/confirm`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(verificationConfirmRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: verificationConfirmRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1594,45 +1294,20 @@ export const useConfirmVerificationApiV1AuthVerificationConfirmPost = <
 /**
  * @summary Request Password Reset
  */
-export type requestPasswordResetApiV1AuthPasswordForgotPostResponse200 = {
-  data: VerificationSendResponse;
-  status: 200;
-};
-
-export type requestPasswordResetApiV1AuthPasswordForgotPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type requestPasswordResetApiV1AuthPasswordForgotPostResponseSuccess =
-  requestPasswordResetApiV1AuthPasswordForgotPostResponse200 & {
-    headers: Headers;
-  };
-export type requestPasswordResetApiV1AuthPasswordForgotPostResponseError =
-  requestPasswordResetApiV1AuthPasswordForgotPostResponse422 & {
-    headers: Headers;
-  };
-
-export type requestPasswordResetApiV1AuthPasswordForgotPostResponse =
-  | requestPasswordResetApiV1AuthPasswordForgotPostResponseSuccess
-  | requestPasswordResetApiV1AuthPasswordForgotPostResponseError;
-
-export const getRequestPasswordResetApiV1AuthPasswordForgotPostUrl = () => {
-  return `/api/v1/auth/password/forgot`;
-};
-
-export const requestPasswordResetApiV1AuthPasswordForgotPost = async (
-  passwordResetRequest: PasswordResetRequest,
-  options?: RequestInit
-): Promise<requestPasswordResetApiV1AuthPasswordForgotPostResponse> => {
-  return apiMutator<requestPasswordResetApiV1AuthPasswordForgotPostResponse>(
-    getRequestPasswordResetApiV1AuthPasswordForgotPostUrl(),
+export const requestPasswordResetApiV1AuthPasswordForgotPost = (
+  passwordResetRequest: BodyType<PasswordResetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
     {
-      ...options,
+      url: `/api/v1/auth/password/forgot`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(passwordResetRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: passwordResetRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1711,45 +1386,20 @@ export const useRequestPasswordResetApiV1AuthPasswordForgotPost = <
 /**
  * @summary Reset Password
  */
-export type resetPasswordApiV1AuthPasswordResetPostResponse200 = {
-  data: VerificationSendResponse;
-  status: 200;
-};
-
-export type resetPasswordApiV1AuthPasswordResetPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type resetPasswordApiV1AuthPasswordResetPostResponseSuccess =
-  resetPasswordApiV1AuthPasswordResetPostResponse200 & {
-    headers: Headers;
-  };
-export type resetPasswordApiV1AuthPasswordResetPostResponseError =
-  resetPasswordApiV1AuthPasswordResetPostResponse422 & {
-    headers: Headers;
-  };
-
-export type resetPasswordApiV1AuthPasswordResetPostResponse =
-  | resetPasswordApiV1AuthPasswordResetPostResponseSuccess
-  | resetPasswordApiV1AuthPasswordResetPostResponseError;
-
-export const getResetPasswordApiV1AuthPasswordResetPostUrl = () => {
-  return `/api/v1/auth/password/reset`;
-};
-
-export const resetPasswordApiV1AuthPasswordResetPost = async (
-  passwordResetSubmit: PasswordResetSubmit,
-  options?: RequestInit
-): Promise<resetPasswordApiV1AuthPasswordResetPostResponse> => {
-  return apiMutator<resetPasswordApiV1AuthPasswordResetPostResponse>(
-    getResetPasswordApiV1AuthPasswordResetPostUrl(),
+export const resetPasswordApiV1AuthPasswordResetPost = (
+  passwordResetSubmit: BodyType<PasswordResetSubmit>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
     {
-      ...options,
+      url: `/api/v1/auth/password/reset`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(passwordResetSubmit),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: passwordResetSubmit,
+      signal,
+    },
+    options
   );
 };
 

@@ -21,16 +21,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders,
-  AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders,
-  AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders,
-  AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
   AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
   BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost,
   BodyUploadDocumentFileApiV1DocumentsUploadPost,
-  CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders,
-  CreateDocumentApiV1DocumentsPostHeaders,
-  DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders,
   DocumentAutocomplete,
   DocumentBacklink,
   DocumentCopyRequest,
@@ -48,26 +41,11 @@ import type {
   DocumentRolePermissionRead,
   DocumentRolePermissionUpdate,
   DocumentUpdate,
-  DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders,
   GenerateDocumentSummaryResponse,
-  GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders,
-  GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
-  GetDocumentCountsApiV1DocumentsCountsGetHeaders,
   GetDocumentCountsApiV1DocumentsCountsGetParams,
   HTTPValidationError,
-  ListDocumentsApiV1DocumentsGetHeaders,
   ListDocumentsApiV1DocumentsGetParams,
-  NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders,
-  ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
-  RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders,
-  RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders,
-  RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders,
-  SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders,
   TagSetRequest,
-  UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders,
-  UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders,
-  UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders,
-  UploadDocumentFileApiV1DocumentsUploadPostHeaders,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -82,59 +60,14 @@ Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
 because counts should reflect all tags.
  * @summary Get Document Counts
  */
-export type getDocumentCountsApiV1DocumentsCountsGetResponse200 = {
-  data: DocumentCountsResponse;
-  status: 200;
-};
-
-export type getDocumentCountsApiV1DocumentsCountsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type getDocumentCountsApiV1DocumentsCountsGetResponseSuccess =
-  getDocumentCountsApiV1DocumentsCountsGetResponse200 & {
-    headers: Headers;
-  };
-export type getDocumentCountsApiV1DocumentsCountsGetResponseError =
-  getDocumentCountsApiV1DocumentsCountsGetResponse422 & {
-    headers: Headers;
-  };
-
-export type getDocumentCountsApiV1DocumentsCountsGetResponse =
-  | getDocumentCountsApiV1DocumentsCountsGetResponseSuccess
-  | getDocumentCountsApiV1DocumentsCountsGetResponseError;
-
-export const getGetDocumentCountsApiV1DocumentsCountsGetUrl = (
-  params?: GetDocumentCountsApiV1DocumentsCountsGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/documents/counts?${stringifiedParams}`
-    : `/api/v1/documents/counts`;
-};
-
-export const getDocumentCountsApiV1DocumentsCountsGet = async (
+export const getDocumentCountsApiV1DocumentsCountsGet = (
   params?: GetDocumentCountsApiV1DocumentsCountsGetParams,
-  headers?: GetDocumentCountsApiV1DocumentsCountsGetHeaders,
-  options?: RequestInit
-): Promise<getDocumentCountsApiV1DocumentsCountsGetResponse> => {
-  return apiMutator<getDocumentCountsApiV1DocumentsCountsGetResponse>(
-    getGetDocumentCountsApiV1DocumentsCountsGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentCountsResponse>(
+    { url: `/api/v1/documents/counts`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -149,7 +82,6 @@ export const getGetDocumentCountsApiV1DocumentsCountsGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: GetDocumentCountsApiV1DocumentsCountsGetParams,
-  headers?: GetDocumentCountsApiV1DocumentsCountsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -168,8 +100,7 @@ export const getGetDocumentCountsApiV1DocumentsCountsGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getDocumentCountsApiV1DocumentsCountsGet>>
-  > = ({ signal }) =>
-    getDocumentCountsApiV1DocumentsCountsGet(params, headers, { signal, ...requestOptions });
+  > = ({ signal }) => getDocumentCountsApiV1DocumentsCountsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getDocumentCountsApiV1DocumentsCountsGet>>,
@@ -188,7 +119,6 @@ export function useGetDocumentCountsApiV1DocumentsCountsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: undefined | GetDocumentCountsApiV1DocumentsCountsGetParams,
-  headers: undefined | GetDocumentCountsApiV1DocumentsCountsGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -214,7 +144,6 @@ export function useGetDocumentCountsApiV1DocumentsCountsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: GetDocumentCountsApiV1DocumentsCountsGetParams,
-  headers?: GetDocumentCountsApiV1DocumentsCountsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -240,7 +169,6 @@ export function useGetDocumentCountsApiV1DocumentsCountsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: GetDocumentCountsApiV1DocumentsCountsGetParams,
-  headers?: GetDocumentCountsApiV1DocumentsCountsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -262,7 +190,6 @@ export function useGetDocumentCountsApiV1DocumentsCountsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: GetDocumentCountsApiV1DocumentsCountsGetParams,
-  headers?: GetDocumentCountsApiV1DocumentsCountsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -275,11 +202,7 @@ export function useGetDocumentCountsApiV1DocumentsCountsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetDocumentCountsApiV1DocumentsCountsGetQueryOptions(
-    params,
-    headers,
-    options
-  );
+  const queryOptions = getGetDocumentCountsApiV1DocumentsCountsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -299,59 +222,14 @@ When scope=global, returns documents created by the current user across
 all guilds they belong to. Optionally filter by guild_ids.
  * @summary List Documents
  */
-export type listDocumentsApiV1DocumentsGetResponse200 = {
-  data: DocumentListResponse;
-  status: 200;
-};
-
-export type listDocumentsApiV1DocumentsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listDocumentsApiV1DocumentsGetResponseSuccess =
-  listDocumentsApiV1DocumentsGetResponse200 & {
-    headers: Headers;
-  };
-export type listDocumentsApiV1DocumentsGetResponseError =
-  listDocumentsApiV1DocumentsGetResponse422 & {
-    headers: Headers;
-  };
-
-export type listDocumentsApiV1DocumentsGetResponse =
-  | listDocumentsApiV1DocumentsGetResponseSuccess
-  | listDocumentsApiV1DocumentsGetResponseError;
-
-export const getListDocumentsApiV1DocumentsGetUrl = (
-  params?: ListDocumentsApiV1DocumentsGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/documents/?${stringifiedParams}`
-    : `/api/v1/documents/`;
-};
-
-export const listDocumentsApiV1DocumentsGet = async (
+export const listDocumentsApiV1DocumentsGet = (
   params?: ListDocumentsApiV1DocumentsGetParams,
-  headers?: ListDocumentsApiV1DocumentsGetHeaders,
-  options?: RequestInit
-): Promise<listDocumentsApiV1DocumentsGetResponse> => {
-  return apiMutator<listDocumentsApiV1DocumentsGetResponse>(
-    getListDocumentsApiV1DocumentsGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentListResponse>(
+    { url: `/api/v1/documents/`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -366,7 +244,6 @@ export const getListDocumentsApiV1DocumentsGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListDocumentsApiV1DocumentsGetParams,
-  headers?: ListDocumentsApiV1DocumentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>, TError, TData>
@@ -380,7 +257,7 @@ export const getListDocumentsApiV1DocumentsGetQueryOptions = <
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>> = ({
     signal,
-  }) => listDocumentsApiV1DocumentsGet(params, headers, { signal, ...requestOptions });
+  }) => listDocumentsApiV1DocumentsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>,
@@ -399,7 +276,6 @@ export function useListDocumentsApiV1DocumentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: undefined | ListDocumentsApiV1DocumentsGetParams,
-  headers: undefined | ListDocumentsApiV1DocumentsGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>, TError, TData>
@@ -421,7 +297,6 @@ export function useListDocumentsApiV1DocumentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListDocumentsApiV1DocumentsGetParams,
-  headers?: ListDocumentsApiV1DocumentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>, TError, TData>
@@ -443,7 +318,6 @@ export function useListDocumentsApiV1DocumentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListDocumentsApiV1DocumentsGetParams,
-  headers?: ListDocumentsApiV1DocumentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>, TError, TData>
@@ -461,7 +335,6 @@ export function useListDocumentsApiV1DocumentsGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params?: ListDocumentsApiV1DocumentsGetParams,
-  headers?: ListDocumentsApiV1DocumentsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listDocumentsApiV1DocumentsGet>>, TError, TData>
@@ -470,7 +343,7 @@ export function useListDocumentsApiV1DocumentsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListDocumentsApiV1DocumentsGetQueryOptions(params, headers, options);
+  const queryOptions = getListDocumentsApiV1DocumentsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -482,46 +355,20 @@ export function useListDocumentsApiV1DocumentsGet<
 /**
  * @summary Create Document
  */
-export type createDocumentApiV1DocumentsPostResponse201 = {
-  data: DocumentRead;
-  status: 201;
-};
-
-export type createDocumentApiV1DocumentsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createDocumentApiV1DocumentsPostResponseSuccess =
-  createDocumentApiV1DocumentsPostResponse201 & {
-    headers: Headers;
-  };
-export type createDocumentApiV1DocumentsPostResponseError =
-  createDocumentApiV1DocumentsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createDocumentApiV1DocumentsPostResponse =
-  | createDocumentApiV1DocumentsPostResponseSuccess
-  | createDocumentApiV1DocumentsPostResponseError;
-
-export const getCreateDocumentApiV1DocumentsPostUrl = () => {
-  return `/api/v1/documents/`;
-};
-
-export const createDocumentApiV1DocumentsPost = async (
-  documentCreate: DocumentCreate,
-  headers?: CreateDocumentApiV1DocumentsPostHeaders,
-  options?: RequestInit
-): Promise<createDocumentApiV1DocumentsPostResponse> => {
-  return apiMutator<createDocumentApiV1DocumentsPostResponse>(
-    getCreateDocumentApiV1DocumentsPostUrl(),
+export const createDocumentApiV1DocumentsPost = (
+  documentCreate: BodyType<DocumentCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
     {
-      ...options,
+      url: `/api/v1/documents/`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -532,14 +379,14 @@ export const getCreateDocumentApiV1DocumentsPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createDocumentApiV1DocumentsPost>>,
     TError,
-    { data: BodyType<DocumentCreate>; headers?: CreateDocumentApiV1DocumentsPostHeaders },
+    { data: BodyType<DocumentCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createDocumentApiV1DocumentsPost>>,
   TError,
-  { data: BodyType<DocumentCreate>; headers?: CreateDocumentApiV1DocumentsPostHeaders },
+  { data: BodyType<DocumentCreate> },
   TContext
 > => {
   const mutationKey = ["createDocumentApiV1DocumentsPost"];
@@ -551,11 +398,11 @@ export const getCreateDocumentApiV1DocumentsPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createDocumentApiV1DocumentsPost>>,
-    { data: BodyType<DocumentCreate>; headers?: CreateDocumentApiV1DocumentsPostHeaders }
+    { data: BodyType<DocumentCreate> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return createDocumentApiV1DocumentsPost(data, headers, requestOptions);
+    return createDocumentApiV1DocumentsPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -578,7 +425,7 @@ export const useCreateDocumentApiV1DocumentsPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createDocumentApiV1DocumentsPost>>,
       TError,
-      { data: BodyType<DocumentCreate>; headers?: CreateDocumentApiV1DocumentsPostHeaders },
+      { data: BodyType<DocumentCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -587,7 +434,7 @@ export const useCreateDocumentApiV1DocumentsPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createDocumentApiV1DocumentsPost>>,
   TError,
-  { data: BodyType<DocumentCreate>; headers?: CreateDocumentApiV1DocumentsPostHeaders },
+  { data: BodyType<DocumentCreate> },
   TContext
 > => {
   return useMutation(getCreateDocumentApiV1DocumentsPostMutationOptions(options), queryClient);
@@ -599,59 +446,14 @@ Returns lightweight document info (id, title, updated_at) for typeahead.
 Only returns documents the user has permission to access.
  * @summary Autocomplete Documents
  */
-export type autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse200 = {
-  data: DocumentAutocomplete[];
-  status: 200;
-};
-
-export type autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type autocompleteDocumentsApiV1DocumentsAutocompleteGetResponseSuccess =
-  autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse200 & {
-    headers: Headers;
-  };
-export type autocompleteDocumentsApiV1DocumentsAutocompleteGetResponseError =
-  autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse422 & {
-    headers: Headers;
-  };
-
-export type autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse =
-  | autocompleteDocumentsApiV1DocumentsAutocompleteGetResponseSuccess
-  | autocompleteDocumentsApiV1DocumentsAutocompleteGetResponseError;
-
-export const getAutocompleteDocumentsApiV1DocumentsAutocompleteGetUrl = (
-  params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/documents/autocomplete?${stringifiedParams}`
-    : `/api/v1/documents/autocomplete`;
-};
-
-export const autocompleteDocumentsApiV1DocumentsAutocompleteGet = async (
+export const autocompleteDocumentsApiV1DocumentsAutocompleteGet = (
   params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
-  headers?: AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
-  options?: RequestInit
-): Promise<autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse> => {
-  return apiMutator<autocompleteDocumentsApiV1DocumentsAutocompleteGetResponse>(
-    getAutocompleteDocumentsApiV1DocumentsAutocompleteGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentAutocomplete[]>(
+    { url: `/api/v1/documents/autocomplete`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -666,7 +468,6 @@ export const getAutocompleteDocumentsApiV1DocumentsAutocompleteGetQueryOptions =
   TError = ErrorType<HTTPValidationError>,
 >(
   params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
-  headers?: AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -686,10 +487,7 @@ export const getAutocompleteDocumentsApiV1DocumentsAutocompleteGetQueryOptions =
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof autocompleteDocumentsApiV1DocumentsAutocompleteGet>>
   > = ({ signal }) =>
-    autocompleteDocumentsApiV1DocumentsAutocompleteGet(params, headers, {
-      signal,
-      ...requestOptions,
-    });
+    autocompleteDocumentsApiV1DocumentsAutocompleteGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof autocompleteDocumentsApiV1DocumentsAutocompleteGet>>,
@@ -709,7 +507,6 @@ export function useAutocompleteDocumentsApiV1DocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
-  headers: undefined | AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -735,7 +532,6 @@ export function useAutocompleteDocumentsApiV1DocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
-  headers?: AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -761,7 +557,6 @@ export function useAutocompleteDocumentsApiV1DocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
-  headers?: AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -783,7 +578,6 @@ export function useAutocompleteDocumentsApiV1DocumentsAutocompleteGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   params: AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
-  headers?: AutocompleteDocumentsApiV1DocumentsAutocompleteGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -798,7 +592,6 @@ export function useAutocompleteDocumentsApiV1DocumentsAutocompleteGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getAutocompleteDocumentsApiV1DocumentsAutocompleteGetQueryOptions(
     params,
-    headers,
     options
   );
 
@@ -813,38 +606,11 @@ export function useAutocompleteDocumentsApiV1DocumentsAutocompleteGet<
  * Upload a file document (PDF, DOCX, etc.).
  * @summary Upload Document File
  */
-export type uploadDocumentFileApiV1DocumentsUploadPostResponse201 = {
-  data: DocumentRead;
-  status: 201;
-};
-
-export type uploadDocumentFileApiV1DocumentsUploadPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type uploadDocumentFileApiV1DocumentsUploadPostResponseSuccess =
-  uploadDocumentFileApiV1DocumentsUploadPostResponse201 & {
-    headers: Headers;
-  };
-export type uploadDocumentFileApiV1DocumentsUploadPostResponseError =
-  uploadDocumentFileApiV1DocumentsUploadPostResponse422 & {
-    headers: Headers;
-  };
-
-export type uploadDocumentFileApiV1DocumentsUploadPostResponse =
-  | uploadDocumentFileApiV1DocumentsUploadPostResponseSuccess
-  | uploadDocumentFileApiV1DocumentsUploadPostResponseError;
-
-export const getUploadDocumentFileApiV1DocumentsUploadPostUrl = () => {
-  return `/api/v1/documents/upload`;
-};
-
-export const uploadDocumentFileApiV1DocumentsUploadPost = async (
-  bodyUploadDocumentFileApiV1DocumentsUploadPost: BodyUploadDocumentFileApiV1DocumentsUploadPost,
-  headers?: UploadDocumentFileApiV1DocumentsUploadPostHeaders,
-  options?: RequestInit
-): Promise<uploadDocumentFileApiV1DocumentsUploadPostResponse> => {
+export const uploadDocumentFileApiV1DocumentsUploadPost = (
+  bodyUploadDocumentFileApiV1DocumentsUploadPost: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
   const formData = new FormData();
   formData.append(`title`, bodyUploadDocumentFileApiV1DocumentsUploadPost.title);
   formData.append(
@@ -853,14 +619,9 @@ export const uploadDocumentFileApiV1DocumentsUploadPost = async (
   );
   formData.append(`file`, bodyUploadDocumentFileApiV1DocumentsUploadPost.file);
 
-  return apiMutator<uploadDocumentFileApiV1DocumentsUploadPostResponse>(
-    getUploadDocumentFileApiV1DocumentsUploadPostUrl(),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-      body: formData,
-    }
+  return apiMutator<DocumentRead>(
+    { url: `/api/v1/documents/upload`, method: "POST", data: formData, signal },
+    options
   );
 };
 
@@ -871,20 +632,14 @@ export const getUploadDocumentFileApiV1DocumentsUploadPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uploadDocumentFileApiV1DocumentsUploadPost>>,
     TError,
-    {
-      data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost>;
-      headers?: UploadDocumentFileApiV1DocumentsUploadPostHeaders;
-    },
+    { data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof uploadDocumentFileApiV1DocumentsUploadPost>>,
   TError,
-  {
-    data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost>;
-    headers?: UploadDocumentFileApiV1DocumentsUploadPostHeaders;
-  },
+  { data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost> },
   TContext
 > => {
   const mutationKey = ["uploadDocumentFileApiV1DocumentsUploadPost"];
@@ -896,14 +651,11 @@ export const getUploadDocumentFileApiV1DocumentsUploadPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof uploadDocumentFileApiV1DocumentsUploadPost>>,
-    {
-      data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost>;
-      headers?: UploadDocumentFileApiV1DocumentsUploadPostHeaders;
-    }
+    { data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return uploadDocumentFileApiV1DocumentsUploadPost(data, headers, requestOptions);
+    return uploadDocumentFileApiV1DocumentsUploadPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -928,10 +680,7 @@ export const useUploadDocumentFileApiV1DocumentsUploadPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof uploadDocumentFileApiV1DocumentsUploadPost>>,
       TError,
-      {
-        data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost>;
-        headers?: UploadDocumentFileApiV1DocumentsUploadPostHeaders;
-      },
+      { data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -940,10 +689,7 @@ export const useUploadDocumentFileApiV1DocumentsUploadPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof uploadDocumentFileApiV1DocumentsUploadPost>>,
   TError,
-  {
-    data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost>;
-    headers?: UploadDocumentFileApiV1DocumentsUploadPostHeaders;
-  },
+  { data: BodyType<BodyUploadDocumentFileApiV1DocumentsUploadPost> },
   TContext
 > => {
   return useMutation(
@@ -954,45 +700,14 @@ export const useUploadDocumentFileApiV1DocumentsUploadPost = <
 /**
  * @summary Read Document
  */
-export type readDocumentApiV1DocumentsDocumentIdGetResponse200 = {
-  data: DocumentRead;
-  status: 200;
-};
-
-export type readDocumentApiV1DocumentsDocumentIdGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type readDocumentApiV1DocumentsDocumentIdGetResponseSuccess =
-  readDocumentApiV1DocumentsDocumentIdGetResponse200 & {
-    headers: Headers;
-  };
-export type readDocumentApiV1DocumentsDocumentIdGetResponseError =
-  readDocumentApiV1DocumentsDocumentIdGetResponse422 & {
-    headers: Headers;
-  };
-
-export type readDocumentApiV1DocumentsDocumentIdGetResponse =
-  | readDocumentApiV1DocumentsDocumentIdGetResponseSuccess
-  | readDocumentApiV1DocumentsDocumentIdGetResponseError;
-
-export const getReadDocumentApiV1DocumentsDocumentIdGetUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}`;
-};
-
-export const readDocumentApiV1DocumentsDocumentIdGet = async (
+export const readDocumentApiV1DocumentsDocumentIdGet = (
   documentId: number,
-  headers?: ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
-  options?: RequestInit
-): Promise<readDocumentApiV1DocumentsDocumentIdGetResponse> => {
-  return apiMutator<readDocumentApiV1DocumentsDocumentIdGetResponse>(
-    getReadDocumentApiV1DocumentsDocumentIdGetUrl(documentId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
+    { url: `/api/v1/documents/${documentId}`, method: "GET", signal },
+    options
   );
 };
 
@@ -1005,7 +720,6 @@ export const getReadDocumentApiV1DocumentsDocumentIdGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1024,8 +738,7 @@ export const getReadDocumentApiV1DocumentsDocumentIdGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof readDocumentApiV1DocumentsDocumentIdGet>>
-  > = ({ signal }) =>
-    readDocumentApiV1DocumentsDocumentIdGet(documentId, headers, { signal, ...requestOptions });
+  > = ({ signal }) => readDocumentApiV1DocumentsDocumentIdGet(documentId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!documentId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof readDocumentApiV1DocumentsDocumentIdGet>>,
@@ -1044,7 +757,6 @@ export function useReadDocumentApiV1DocumentsDocumentIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers: undefined | ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1070,7 +782,6 @@ export function useReadDocumentApiV1DocumentsDocumentIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1096,7 +807,6 @@ export function useReadDocumentApiV1DocumentsDocumentIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1118,7 +828,6 @@ export function useReadDocumentApiV1DocumentsDocumentIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: ReadDocumentApiV1DocumentsDocumentIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1131,11 +840,7 @@ export function useReadDocumentApiV1DocumentsDocumentIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadDocumentApiV1DocumentsDocumentIdGetQueryOptions(
-    documentId,
-    headers,
-    options
-  );
+  const queryOptions = getReadDocumentApiV1DocumentsDocumentIdGetQueryOptions(documentId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1147,47 +852,21 @@ export function useReadDocumentApiV1DocumentsDocumentIdGet<
 /**
  * @summary Update Document
  */
-export type updateDocumentApiV1DocumentsDocumentIdPatchResponse200 = {
-  data: DocumentRead;
-  status: 200;
-};
-
-export type updateDocumentApiV1DocumentsDocumentIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateDocumentApiV1DocumentsDocumentIdPatchResponseSuccess =
-  updateDocumentApiV1DocumentsDocumentIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateDocumentApiV1DocumentsDocumentIdPatchResponseError =
-  updateDocumentApiV1DocumentsDocumentIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateDocumentApiV1DocumentsDocumentIdPatchResponse =
-  | updateDocumentApiV1DocumentsDocumentIdPatchResponseSuccess
-  | updateDocumentApiV1DocumentsDocumentIdPatchResponseError;
-
-export const getUpdateDocumentApiV1DocumentsDocumentIdPatchUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}`;
-};
-
-export const updateDocumentApiV1DocumentsDocumentIdPatch = async (
+export const updateDocumentApiV1DocumentsDocumentIdPatch = (
   documentId: number,
-  documentUpdate: DocumentUpdate,
-  headers?: UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateDocumentApiV1DocumentsDocumentIdPatchResponse> => {
-  return apiMutator<updateDocumentApiV1DocumentsDocumentIdPatchResponse>(
-    getUpdateDocumentApiV1DocumentsDocumentIdPatchUrl(documentId),
+  documentUpdate: BodyType<DocumentUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1198,22 +877,14 @@ export const getUpdateDocumentApiV1DocumentsDocumentIdPatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateDocumentApiV1DocumentsDocumentIdPatch>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentUpdate>;
-      headers?: UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateDocumentApiV1DocumentsDocumentIdPatch>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentUpdate>;
-    headers?: UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentUpdate> },
   TContext
 > => {
   const mutationKey = ["updateDocumentApiV1DocumentsDocumentIdPatch"];
@@ -1225,15 +896,11 @@ export const getUpdateDocumentApiV1DocumentsDocumentIdPatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateDocumentApiV1DocumentsDocumentIdPatch>>,
-    {
-      documentId: number;
-      data: BodyType<DocumentUpdate>;
-      headers?: UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders;
-    }
+    { documentId: number; data: BodyType<DocumentUpdate> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
-    return updateDocumentApiV1DocumentsDocumentIdPatch(documentId, data, headers, requestOptions);
+    return updateDocumentApiV1DocumentsDocumentIdPatch(documentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1257,11 +924,7 @@ export const useUpdateDocumentApiV1DocumentsDocumentIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateDocumentApiV1DocumentsDocumentIdPatch>>,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentUpdate>;
-        headers?: UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1270,11 +933,7 @@ export const useUpdateDocumentApiV1DocumentsDocumentIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateDocumentApiV1DocumentsDocumentIdPatch>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentUpdate>;
-    headers?: UpdateDocumentApiV1DocumentsDocumentIdPatchHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentUpdate> },
   TContext
 > => {
   return useMutation(
@@ -1285,45 +944,14 @@ export const useUpdateDocumentApiV1DocumentsDocumentIdPatch = <
 /**
  * @summary Delete Document
  */
-export type deleteDocumentApiV1DocumentsDocumentIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteDocumentApiV1DocumentsDocumentIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteDocumentApiV1DocumentsDocumentIdDeleteResponseSuccess =
-  deleteDocumentApiV1DocumentsDocumentIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteDocumentApiV1DocumentsDocumentIdDeleteResponseError =
-  deleteDocumentApiV1DocumentsDocumentIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteDocumentApiV1DocumentsDocumentIdDeleteResponse =
-  | deleteDocumentApiV1DocumentsDocumentIdDeleteResponseSuccess
-  | deleteDocumentApiV1DocumentsDocumentIdDeleteResponseError;
-
-export const getDeleteDocumentApiV1DocumentsDocumentIdDeleteUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}`;
-};
-
-export const deleteDocumentApiV1DocumentsDocumentIdDelete = async (
+export const deleteDocumentApiV1DocumentsDocumentIdDelete = (
   documentId: number,
-  headers?: DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteDocumentApiV1DocumentsDocumentIdDeleteResponse> => {
-  return apiMutator<deleteDocumentApiV1DocumentsDocumentIdDeleteResponse>(
-    getDeleteDocumentApiV1DocumentsDocumentIdDeleteUrl(documentId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/documents/${documentId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -1334,14 +962,14 @@ export const getDeleteDocumentApiV1DocumentsDocumentIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteDocumentApiV1DocumentsDocumentIdDelete>>,
     TError,
-    { documentId: number; headers?: DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders },
+    { documentId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteDocumentApiV1DocumentsDocumentIdDelete>>,
   TError,
-  { documentId: number; headers?: DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders },
+  { documentId: number },
   TContext
 > => {
   const mutationKey = ["deleteDocumentApiV1DocumentsDocumentIdDelete"];
@@ -1353,11 +981,11 @@ export const getDeleteDocumentApiV1DocumentsDocumentIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteDocumentApiV1DocumentsDocumentIdDelete>>,
-    { documentId: number; headers?: DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders }
+    { documentId: number }
   > = (props) => {
-    const { documentId, headers } = props ?? {};
+    const { documentId } = props ?? {};
 
-    return deleteDocumentApiV1DocumentsDocumentIdDelete(documentId, headers, requestOptions);
+    return deleteDocumentApiV1DocumentsDocumentIdDelete(documentId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1381,7 +1009,7 @@ export const useDeleteDocumentApiV1DocumentsDocumentIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteDocumentApiV1DocumentsDocumentIdDelete>>,
       TError,
-      { documentId: number; headers?: DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders },
+      { documentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1390,7 +1018,7 @@ export const useDeleteDocumentApiV1DocumentsDocumentIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteDocumentApiV1DocumentsDocumentIdDelete>>,
   TError,
-  { documentId: number; headers?: DeleteDocumentApiV1DocumentsDocumentIdDeleteHeaders },
+  { documentId: number },
   TContext
 > => {
   return useMutation(
@@ -1404,45 +1032,14 @@ export const useDeleteDocumentApiV1DocumentsDocumentIdDelete = <
 Only returns documents the current user has permission to access.
  * @summary Get Backlinks
  */
-export type getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse200 = {
-  data: DocumentBacklink[];
-  status: 200;
-};
-
-export type getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponseSuccess =
-  getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse200 & {
-    headers: Headers;
-  };
-export type getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponseError =
-  getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse422 & {
-    headers: Headers;
-  };
-
-export type getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse =
-  | getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponseSuccess
-  | getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponseError;
-
-export const getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}/backlinks`;
-};
-
-export const getBacklinksApiV1DocumentsDocumentIdBacklinksGet = async (
+export const getBacklinksApiV1DocumentsDocumentIdBacklinksGet = (
   documentId: number,
-  headers?: GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
-  options?: RequestInit
-): Promise<getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse> => {
-  return apiMutator<getBacklinksApiV1DocumentsDocumentIdBacklinksGetResponse>(
-    getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetUrl(documentId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentBacklink[]>(
+    { url: `/api/v1/documents/${documentId}/backlinks`, method: "GET", signal },
+    options
   );
 };
 
@@ -1455,7 +1052,6 @@ export const getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1476,10 +1072,7 @@ export const getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryOptions = <
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getBacklinksApiV1DocumentsDocumentIdBacklinksGet>>
   > = ({ signal }) =>
-    getBacklinksApiV1DocumentsDocumentIdBacklinksGet(documentId, headers, {
-      signal,
-      ...requestOptions,
-    });
+    getBacklinksApiV1DocumentsDocumentIdBacklinksGet(documentId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!documentId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getBacklinksApiV1DocumentsDocumentIdBacklinksGet>>,
@@ -1499,7 +1092,6 @@ export function useGetBacklinksApiV1DocumentsDocumentIdBacklinksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers: undefined | GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1525,7 +1117,6 @@ export function useGetBacklinksApiV1DocumentsDocumentIdBacklinksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1551,7 +1142,6 @@ export function useGetBacklinksApiV1DocumentsDocumentIdBacklinksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1573,7 +1163,6 @@ export function useGetBacklinksApiV1DocumentsDocumentIdBacklinksGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   documentId: number,
-  headers?: GetBacklinksApiV1DocumentsDocumentIdBacklinksGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1588,7 +1177,6 @@ export function useGetBacklinksApiV1DocumentsDocumentIdBacklinksGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryOptions(
     documentId,
-    headers,
     options
   );
 
@@ -1602,49 +1190,21 @@ export function useGetBacklinksApiV1DocumentsDocumentIdBacklinksGet<
 /**
  * @summary Duplicate Document
  */
-export type duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse201 = {
-  data: DocumentRead;
-  status: 201;
-};
-
-export type duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponseSuccess =
-  duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse201 & {
-    headers: Headers;
-  };
-export type duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponseError =
-  duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse422 & {
-    headers: Headers;
-  };
-
-export type duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse =
-  | duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponseSuccess
-  | duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponseError;
-
-export const getDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostUrl = (
-  documentId: number
-) => {
-  return `/api/v1/documents/${documentId}/duplicate`;
-};
-
-export const duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost = async (
+export const duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost = (
   documentId: number,
-  documentDuplicateRequestNull: DocumentDuplicateRequest | null,
-  headers?: DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders,
-  options?: RequestInit
-): Promise<duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse> => {
-  return apiMutator<duplicateDocumentApiV1DocumentsDocumentIdDuplicatePostResponse>(
-    getDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostUrl(documentId),
+  documentDuplicateRequestNull: BodyType<DocumentDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/duplicate`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentDuplicateRequestNull),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentDuplicateRequestNull,
+      signal,
+    },
+    options
   );
 };
 
@@ -1655,22 +1215,14 @@ export const getDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostMutationOp
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentDuplicateRequest | null>;
-      headers?: DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentDuplicateRequest | null> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentDuplicateRequest | null>;
-    headers?: DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentDuplicateRequest | null> },
   TContext
 > => {
   const mutationKey = ["duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost"];
@@ -1682,20 +1234,11 @@ export const getDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostMutationOp
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost>>,
-    {
-      documentId: number;
-      data: BodyType<DocumentDuplicateRequest | null>;
-      headers?: DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders;
-    }
+    { documentId: number; data: BodyType<DocumentDuplicateRequest | null> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
-    return duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost(
-      documentId,
-      data,
-      headers,
-      requestOptions
-    );
+    return duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost(documentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1720,11 +1263,7 @@ export const useDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost>>,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentDuplicateRequest | null>;
-        headers?: DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentDuplicateRequest | null> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1733,11 +1272,7 @@ export const useDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentDuplicateRequest | null>;
-    headers?: DuplicateDocumentApiV1DocumentsDocumentIdDuplicatePostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentDuplicateRequest | null> },
   TContext
 > => {
   return useMutation(
@@ -1748,47 +1283,21 @@ export const useDuplicateDocumentApiV1DocumentsDocumentIdDuplicatePost = <
 /**
  * @summary Copy Document
  */
-export type copyDocumentApiV1DocumentsDocumentIdCopyPostResponse201 = {
-  data: DocumentRead;
-  status: 201;
-};
-
-export type copyDocumentApiV1DocumentsDocumentIdCopyPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type copyDocumentApiV1DocumentsDocumentIdCopyPostResponseSuccess =
-  copyDocumentApiV1DocumentsDocumentIdCopyPostResponse201 & {
-    headers: Headers;
-  };
-export type copyDocumentApiV1DocumentsDocumentIdCopyPostResponseError =
-  copyDocumentApiV1DocumentsDocumentIdCopyPostResponse422 & {
-    headers: Headers;
-  };
-
-export type copyDocumentApiV1DocumentsDocumentIdCopyPostResponse =
-  | copyDocumentApiV1DocumentsDocumentIdCopyPostResponseSuccess
-  | copyDocumentApiV1DocumentsDocumentIdCopyPostResponseError;
-
-export const getCopyDocumentApiV1DocumentsDocumentIdCopyPostUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}/copy`;
-};
-
-export const copyDocumentApiV1DocumentsDocumentIdCopyPost = async (
+export const copyDocumentApiV1DocumentsDocumentIdCopyPost = (
   documentId: number,
-  documentCopyRequest: DocumentCopyRequest,
-  headers?: CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders,
-  options?: RequestInit
-): Promise<copyDocumentApiV1DocumentsDocumentIdCopyPostResponse> => {
-  return apiMutator<copyDocumentApiV1DocumentsDocumentIdCopyPostResponse>(
-    getCopyDocumentApiV1DocumentsDocumentIdCopyPostUrl(documentId),
+  documentCopyRequest: BodyType<DocumentCopyRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/copy`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentCopyRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentCopyRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -1799,22 +1308,14 @@ export const getCopyDocumentApiV1DocumentsDocumentIdCopyPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof copyDocumentApiV1DocumentsDocumentIdCopyPost>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentCopyRequest>;
-      headers?: CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentCopyRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof copyDocumentApiV1DocumentsDocumentIdCopyPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentCopyRequest>;
-    headers?: CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentCopyRequest> },
   TContext
 > => {
   const mutationKey = ["copyDocumentApiV1DocumentsDocumentIdCopyPost"];
@@ -1826,15 +1327,11 @@ export const getCopyDocumentApiV1DocumentsDocumentIdCopyPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof copyDocumentApiV1DocumentsDocumentIdCopyPost>>,
-    {
-      documentId: number;
-      data: BodyType<DocumentCopyRequest>;
-      headers?: CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders;
-    }
+    { documentId: number; data: BodyType<DocumentCopyRequest> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
-    return copyDocumentApiV1DocumentsDocumentIdCopyPost(documentId, data, headers, requestOptions);
+    return copyDocumentApiV1DocumentsDocumentIdCopyPost(documentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1859,11 +1356,7 @@ export const useCopyDocumentApiV1DocumentsDocumentIdCopyPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof copyDocumentApiV1DocumentsDocumentIdCopyPost>>,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentCopyRequest>;
-        headers?: CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentCopyRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1872,11 +1365,7 @@ export const useCopyDocumentApiV1DocumentsDocumentIdCopyPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof copyDocumentApiV1DocumentsDocumentIdCopyPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentCopyRequest>;
-    headers?: CopyDocumentApiV1DocumentsDocumentIdCopyPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentCopyRequest> },
   TContext
 > => {
   return useMutation(
@@ -1888,47 +1377,21 @@ export const useCopyDocumentApiV1DocumentsDocumentIdCopyPost = <
  * Add a member to a document with specified permission level.
  * @summary Add Document Member
  */
-export type addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse201 = {
-  data: DocumentPermissionRead;
-  status: 201;
-};
-
-export type addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponseSuccess =
-  addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse201 & {
-    headers: Headers;
-  };
-export type addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponseError =
-  addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse =
-  | addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponseSuccess
-  | addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponseError;
-
-export const getAddDocumentMemberApiV1DocumentsDocumentIdMembersPostUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}/members`;
-};
-
-export const addDocumentMemberApiV1DocumentsDocumentIdMembersPost = async (
+export const addDocumentMemberApiV1DocumentsDocumentIdMembersPost = (
   documentId: number,
-  documentPermissionCreate: DocumentPermissionCreate,
-  headers?: AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders,
-  options?: RequestInit
-): Promise<addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse> => {
-  return apiMutator<addDocumentMemberApiV1DocumentsDocumentIdMembersPostResponse>(
-    getAddDocumentMemberApiV1DocumentsDocumentIdMembersPostUrl(documentId),
+  documentPermissionCreate: BodyType<DocumentPermissionCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentPermissionRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/members`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentPermissionCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentPermissionCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1939,22 +1402,14 @@ export const getAddDocumentMemberApiV1DocumentsDocumentIdMembersPostMutationOpti
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof addDocumentMemberApiV1DocumentsDocumentIdMembersPost>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentPermissionCreate>;
-      headers?: AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentPermissionCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof addDocumentMemberApiV1DocumentsDocumentIdMembersPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentPermissionCreate>;
-    headers?: AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentPermissionCreate> },
   TContext
 > => {
   const mutationKey = ["addDocumentMemberApiV1DocumentsDocumentIdMembersPost"];
@@ -1966,20 +1421,11 @@ export const getAddDocumentMemberApiV1DocumentsDocumentIdMembersPostMutationOpti
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof addDocumentMemberApiV1DocumentsDocumentIdMembersPost>>,
-    {
-      documentId: number;
-      data: BodyType<DocumentPermissionCreate>;
-      headers?: AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders;
-    }
+    { documentId: number; data: BodyType<DocumentPermissionCreate> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
-    return addDocumentMemberApiV1DocumentsDocumentIdMembersPost(
-      documentId,
-      data,
-      headers,
-      requestOptions
-    );
+    return addDocumentMemberApiV1DocumentsDocumentIdMembersPost(documentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2004,11 +1450,7 @@ export const useAddDocumentMemberApiV1DocumentsDocumentIdMembersPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof addDocumentMemberApiV1DocumentsDocumentIdMembersPost>>,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentPermissionCreate>;
-        headers?: AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentPermissionCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2017,11 +1459,7 @@ export const useAddDocumentMemberApiV1DocumentsDocumentIdMembersPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof addDocumentMemberApiV1DocumentsDocumentIdMembersPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentPermissionCreate>;
-    headers?: AddDocumentMemberApiV1DocumentsDocumentIdMembersPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentPermissionCreate> },
   TContext
 > => {
   return useMutation(
@@ -2033,49 +1471,21 @@ export const useAddDocumentMemberApiV1DocumentsDocumentIdMembersPost = <
  * Add multiple members to a document with the same permission level.
  * @summary Add Document Members Bulk
  */
-export type addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse201 = {
-  data: DocumentPermissionRead[];
-  status: 201;
-};
-
-export type addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponseSuccess =
-  addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse201 & {
-    headers: Headers;
-  };
-export type addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponseError =
-  addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse =
-  | addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponseSuccess
-  | addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponseError;
-
-export const getAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostUrl = (
-  documentId: number
-) => {
-  return `/api/v1/documents/${documentId}/members/bulk`;
-};
-
-export const addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost = async (
+export const addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost = (
   documentId: number,
-  documentPermissionBulkCreate: DocumentPermissionBulkCreate,
-  headers?: AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders,
-  options?: RequestInit
-): Promise<addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse> => {
-  return apiMutator<addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostResponse>(
-    getAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostUrl(documentId),
+  documentPermissionBulkCreate: BodyType<DocumentPermissionBulkCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentPermissionRead[]>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/members/bulk`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentPermissionBulkCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentPermissionBulkCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -2086,22 +1496,14 @@ export const getAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostMut
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentPermissionBulkCreate>;
-      headers?: AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentPermissionBulkCreate>;
-    headers?: AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
   TContext
 > => {
   const mutationKey = ["addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost"];
@@ -2113,18 +1515,13 @@ export const getAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostMut
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost>>,
-    {
-      documentId: number;
-      data: BodyType<DocumentPermissionBulkCreate>;
-      headers?: AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders;
-    }
+    { documentId: number; data: BodyType<DocumentPermissionBulkCreate> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
     return addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost(
       documentId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -2152,11 +1549,7 @@ export const useAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost = 
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost>>,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentPermissionBulkCreate>;
-        headers?: AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2165,11 +1558,7 @@ export const useAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost = 
 ): UseMutationResult<
   Awaited<ReturnType<typeof addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentPermissionBulkCreate>;
-    headers?: AddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
   TContext
 > => {
   return useMutation(
@@ -2181,49 +1570,21 @@ export const useAddDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost = 
  * Remove multiple members from a document.
  * @summary Remove Document Members Bulk
  */
-export type removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponseSuccess =
-  removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse204 & {
-    headers: Headers;
-  };
-export type removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponseError =
-  removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse422 & {
-    headers: Headers;
-  };
-
-export type removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse =
-  | removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponseSuccess
-  | removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponseError;
-
-export const getRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostUrl = (
-  documentId: number
-) => {
-  return `/api/v1/documents/${documentId}/members/bulk-delete`;
-};
-
-export const removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost = async (
+export const removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost = (
   documentId: number,
-  documentPermissionBulkDelete: DocumentPermissionBulkDelete,
-  headers?: RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders,
-  options?: RequestInit
-): Promise<removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse> => {
-  return apiMutator<removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostResponse>(
-    getRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostUrl(documentId),
+  documentPermissionBulkDelete: BodyType<DocumentPermissionBulkDelete>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/members/bulk-delete`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentPermissionBulkDelete),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentPermissionBulkDelete,
+      signal,
+    },
+    options
   );
 };
 
@@ -2234,11 +1595,7 @@ export const getRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDele
         ReturnType<typeof removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost>
       >,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentPermissionBulkDelete>;
-        headers?: RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2247,11 +1604,7 @@ export const getRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDele
       ReturnType<typeof removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost>
     >,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentPermissionBulkDelete>;
-      headers?: RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
     TContext
   > => {
     const mutationKey = ["removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost"];
@@ -2265,18 +1618,13 @@ export const getRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDele
       Awaited<
         ReturnType<typeof removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost>
       >,
-      {
-        documentId: number;
-        data: BodyType<DocumentPermissionBulkDelete>;
-        headers?: RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders;
-      }
+      { documentId: number; data: BodyType<DocumentPermissionBulkDelete> }
     > = (props) => {
-      const { documentId, data, headers } = props ?? {};
+      const { documentId, data } = props ?? {};
 
       return removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost(
         documentId,
         data,
-        headers,
         requestOptions
       );
     };
@@ -2308,11 +1656,7 @@ export const useRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDele
         ReturnType<typeof removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost>
       >,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentPermissionBulkDelete>;
-        headers?: RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2323,11 +1667,7 @@ export const useRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDele
     ReturnType<typeof removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost>
   >,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentPermissionBulkDelete>;
-    headers?: RemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
   TContext
 > => {
   return useMutation(
@@ -2341,51 +1681,22 @@ export const useRemoveDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDele
  * Update a document member's permission level.
  * @summary Update Document Member
  */
-export type updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse200 = {
-  data: DocumentPermissionRead;
-  status: 200;
-};
-
-export type updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponseSuccess =
-  updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponseError =
-  updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse =
-  | updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponseSuccess
-  | updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponseError;
-
-export const getUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchUrl = (
-  documentId: number,
-  userId: number
-) => {
-  return `/api/v1/documents/${documentId}/members/${userId}`;
-};
-
-export const updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch = async (
+export const updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch = (
   documentId: number,
   userId: number,
-  documentPermissionUpdate: DocumentPermissionUpdate,
-  headers?: UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse> => {
-  return apiMutator<updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchResponse>(
-    getUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchUrl(documentId, userId),
+  documentPermissionUpdate: BodyType<DocumentPermissionUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentPermissionRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/members/${userId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentPermissionUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentPermissionUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -2396,24 +1707,14 @@ export const getUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchMu
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch>>,
     TError,
-    {
-      documentId: number;
-      userId: number;
-      data: BodyType<DocumentPermissionUpdate>;
-      headers?: UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders;
-    },
+    { documentId: number; userId: number; data: BodyType<DocumentPermissionUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch>>,
   TError,
-  {
-    documentId: number;
-    userId: number;
-    data: BodyType<DocumentPermissionUpdate>;
-    headers?: UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders;
-  },
+  { documentId: number; userId: number; data: BodyType<DocumentPermissionUpdate> },
   TContext
 > => {
   const mutationKey = ["updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch"];
@@ -2425,20 +1726,14 @@ export const getUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchMu
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch>>,
-    {
-      documentId: number;
-      userId: number;
-      data: BodyType<DocumentPermissionUpdate>;
-      headers?: UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders;
-    }
+    { documentId: number; userId: number; data: BodyType<DocumentPermissionUpdate> }
   > = (props) => {
-    const { documentId, userId, data, headers } = props ?? {};
+    const { documentId, userId, data } = props ?? {};
 
     return updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch(
       documentId,
       userId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -2466,12 +1761,7 @@ export const useUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch =
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch>>,
       TError,
-      {
-        documentId: number;
-        userId: number;
-        data: BodyType<DocumentPermissionUpdate>;
-        headers?: UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders;
-      },
+      { documentId: number; userId: number; data: BodyType<DocumentPermissionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2480,12 +1770,7 @@ export const useUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch =
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch>>,
   TError,
-  {
-    documentId: number;
-    userId: number;
-    data: BodyType<DocumentPermissionUpdate>;
-    headers?: UpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatchHeaders;
-  },
+  { documentId: number; userId: number; data: BodyType<DocumentPermissionUpdate> },
   TContext
 > => {
   return useMutation(
@@ -2497,49 +1782,15 @@ export const useUpdateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch =
  * Remove a member's permission from a document.
  * @summary Remove Document Member
  */
-export type removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponseSuccess =
-  removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponseError =
-  removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse =
-  | removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponseSuccess
-  | removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponseError;
-
-export const getRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteUrl = (
-  documentId: number,
-  userId: number
-) => {
-  return `/api/v1/documents/${documentId}/members/${userId}`;
-};
-
-export const removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete = async (
+export const removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete = (
   documentId: number,
   userId: number,
-  headers?: RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders,
-  options?: RequestInit
-): Promise<removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse> => {
-  return apiMutator<removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteResponse>(
-    getRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteUrl(documentId, userId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/documents/${documentId}/members/${userId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -2550,22 +1801,14 @@ export const getRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteM
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete>>,
     TError,
-    {
-      documentId: number;
-      userId: number;
-      headers?: RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders;
-    },
+    { documentId: number; userId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete>>,
   TError,
-  {
-    documentId: number;
-    userId: number;
-    headers?: RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders;
-  },
+  { documentId: number; userId: number },
   TContext
 > => {
   const mutationKey = ["removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete"];
@@ -2577,18 +1820,13 @@ export const getRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteM
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete>>,
-    {
-      documentId: number;
-      userId: number;
-      headers?: RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders;
-    }
+    { documentId: number; userId: number }
   > = (props) => {
-    const { documentId, userId, headers } = props ?? {};
+    const { documentId, userId } = props ?? {};
 
     return removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete(
       documentId,
       userId,
-      headers,
       requestOptions
     );
   };
@@ -2615,11 +1853,7 @@ export const useRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete 
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete>>,
       TError,
-      {
-        documentId: number;
-        userId: number;
-        headers?: RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders;
-      },
+      { documentId: number; userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2628,11 +1862,7 @@ export const useRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete 
 ): UseMutationResult<
   Awaited<ReturnType<typeof removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete>>,
   TError,
-  {
-    documentId: number;
-    userId: number;
-    headers?: RemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDeleteHeaders;
-  },
+  { documentId: number; userId: number },
   TContext
 > => {
   return useMutation(
@@ -2644,47 +1874,21 @@ export const useRemoveDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete 
  * Notify users that they were mentioned in a document.
  * @summary Notify Mentions
  */
-export type notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponseSuccess =
-  notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse204 & {
-    headers: Headers;
-  };
-export type notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponseError =
-  notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse =
-  | notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponseSuccess
-  | notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponseError;
-
-export const getNotifyMentionsApiV1DocumentsDocumentIdMentionsPostUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}/mentions`;
-};
-
-export const notifyMentionsApiV1DocumentsDocumentIdMentionsPost = async (
+export const notifyMentionsApiV1DocumentsDocumentIdMentionsPost = (
   documentId: number,
-  bodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost: BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost,
-  headers?: NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders,
-  options?: RequestInit
-): Promise<notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse> => {
-  return apiMutator<notifyMentionsApiV1DocumentsDocumentIdMentionsPostResponse>(
-    getNotifyMentionsApiV1DocumentsDocumentIdMentionsPostUrl(documentId),
+  bodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/mentions`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(bodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: bodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost,
+      signal,
+    },
+    options
   );
 };
 
@@ -2695,22 +1899,14 @@ export const getNotifyMentionsApiV1DocumentsDocumentIdMentionsPostMutationOption
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof notifyMentionsApiV1DocumentsDocumentIdMentionsPost>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost>;
-      headers?: NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders;
-    },
+    { documentId: number; data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof notifyMentionsApiV1DocumentsDocumentIdMentionsPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost>;
-    headers?: NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders;
-  },
+  { documentId: number; data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost> },
   TContext
 > => {
   const mutationKey = ["notifyMentionsApiV1DocumentsDocumentIdMentionsPost"];
@@ -2722,20 +1918,11 @@ export const getNotifyMentionsApiV1DocumentsDocumentIdMentionsPostMutationOption
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof notifyMentionsApiV1DocumentsDocumentIdMentionsPost>>,
-    {
-      documentId: number;
-      data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost>;
-      headers?: NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders;
-    }
+    { documentId: number; data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
-    return notifyMentionsApiV1DocumentsDocumentIdMentionsPost(
-      documentId,
-      data,
-      headers,
-      requestOptions
-    );
+    return notifyMentionsApiV1DocumentsDocumentIdMentionsPost(documentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2763,7 +1950,6 @@ export const useNotifyMentionsApiV1DocumentsDocumentIdMentionsPost = <
       {
         documentId: number;
         data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost>;
-        headers?: NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders;
       },
       TContext
     >;
@@ -2773,11 +1959,7 @@ export const useNotifyMentionsApiV1DocumentsDocumentIdMentionsPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof notifyMentionsApiV1DocumentsDocumentIdMentionsPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost>;
-    headers?: NotifyMentionsApiV1DocumentsDocumentIdMentionsPostHeaders;
-  },
+  { documentId: number; data: BodyType<BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost> },
   TContext
 > => {
   return useMutation(
@@ -2792,45 +1974,14 @@ Requires read access to the document. Only works for native documents
 (not file uploads like PDFs).
  * @summary Generate Summary
  */
-export type generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse200 = {
-  data: GenerateDocumentSummaryResponse;
-  status: 200;
-};
-
-export type generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponseSuccess =
-  generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse200 & {
-    headers: Headers;
-  };
-export type generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponseError =
-  generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse422 & {
-    headers: Headers;
-  };
-
-export type generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse =
-  | generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponseSuccess
-  | generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponseError;
-
-export const getGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}/ai/summary`;
-};
-
-export const generateSummaryApiV1DocumentsDocumentIdAiSummaryPost = async (
+export const generateSummaryApiV1DocumentsDocumentIdAiSummaryPost = (
   documentId: number,
-  headers?: GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders,
-  options?: RequestInit
-): Promise<generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse> => {
-  return apiMutator<generateSummaryApiV1DocumentsDocumentIdAiSummaryPostResponse>(
-    getGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostUrl(documentId),
-    {
-      ...options,
-      method: "POST",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GenerateDocumentSummaryResponse>(
+    { url: `/api/v1/documents/${documentId}/ai/summary`, method: "POST", signal },
+    options
   );
 };
 
@@ -2841,14 +1992,14 @@ export const getGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostMutationOpti
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateSummaryApiV1DocumentsDocumentIdAiSummaryPost>>,
     TError,
-    { documentId: number; headers?: GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders },
+    { documentId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof generateSummaryApiV1DocumentsDocumentIdAiSummaryPost>>,
   TError,
-  { documentId: number; headers?: GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders },
+  { documentId: number },
   TContext
 > => {
   const mutationKey = ["generateSummaryApiV1DocumentsDocumentIdAiSummaryPost"];
@@ -2860,15 +2011,11 @@ export const getGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostMutationOpti
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof generateSummaryApiV1DocumentsDocumentIdAiSummaryPost>>,
-    { documentId: number; headers?: GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders }
+    { documentId: number }
   > = (props) => {
-    const { documentId, headers } = props ?? {};
+    const { documentId } = props ?? {};
 
-    return generateSummaryApiV1DocumentsDocumentIdAiSummaryPost(
-      documentId,
-      headers,
-      requestOptions
-    );
+    return generateSummaryApiV1DocumentsDocumentIdAiSummaryPost(documentId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2892,7 +2039,7 @@ export const useGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof generateSummaryApiV1DocumentsDocumentIdAiSummaryPost>>,
       TError,
-      { documentId: number; headers?: GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders },
+      { documentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2901,7 +2048,7 @@ export const useGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof generateSummaryApiV1DocumentsDocumentIdAiSummaryPost>>,
   TError,
-  { documentId: number; headers?: GenerateSummaryApiV1DocumentsDocumentIdAiSummaryPostHeaders },
+  { documentId: number },
   TContext
 > => {
   return useMutation(
@@ -2913,47 +2060,21 @@ export const useGenerateSummaryApiV1DocumentsDocumentIdAiSummaryPost = <
  * Set tags on a document. Replaces all existing tags with the provided list.
  * @summary Set Document Tags
  */
-export type setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse200 = {
-  data: DocumentRead;
-  status: 200;
-};
-
-export type setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponseSuccess =
-  setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse200 & {
-    headers: Headers;
-  };
-export type setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponseError =
-  setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse422 & {
-    headers: Headers;
-  };
-
-export type setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse =
-  | setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponseSuccess
-  | setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponseError;
-
-export const getSetDocumentTagsApiV1DocumentsDocumentIdTagsPutUrl = (documentId: number) => {
-  return `/api/v1/documents/${documentId}/tags`;
-};
-
-export const setDocumentTagsApiV1DocumentsDocumentIdTagsPut = async (
+export const setDocumentTagsApiV1DocumentsDocumentIdTagsPut = (
   documentId: number,
-  tagSetRequest: TagSetRequest,
-  headers?: SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders,
-  options?: RequestInit
-): Promise<setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse> => {
-  return apiMutator<setDocumentTagsApiV1DocumentsDocumentIdTagsPutResponse>(
-    getSetDocumentTagsApiV1DocumentsDocumentIdTagsPutUrl(documentId),
+  tagSetRequest: BodyType<TagSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/tags`,
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(tagSetRequest),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: tagSetRequest,
+      signal,
+    },
+    options
   );
 };
 
@@ -2964,22 +2085,14 @@ export const getSetDocumentTagsApiV1DocumentsDocumentIdTagsPutMutationOptions = 
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setDocumentTagsApiV1DocumentsDocumentIdTagsPut>>,
     TError,
-    {
-      documentId: number;
-      data: BodyType<TagSetRequest>;
-      headers?: SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders;
-    },
+    { documentId: number; data: BodyType<TagSetRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setDocumentTagsApiV1DocumentsDocumentIdTagsPut>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<TagSetRequest>;
-    headers?: SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders;
-  },
+  { documentId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   const mutationKey = ["setDocumentTagsApiV1DocumentsDocumentIdTagsPut"];
@@ -2991,20 +2104,11 @@ export const getSetDocumentTagsApiV1DocumentsDocumentIdTagsPutMutationOptions = 
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setDocumentTagsApiV1DocumentsDocumentIdTagsPut>>,
-    {
-      documentId: number;
-      data: BodyType<TagSetRequest>;
-      headers?: SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders;
-    }
+    { documentId: number; data: BodyType<TagSetRequest> }
   > = (props) => {
-    const { documentId, data, headers } = props ?? {};
+    const { documentId, data } = props ?? {};
 
-    return setDocumentTagsApiV1DocumentsDocumentIdTagsPut(
-      documentId,
-      data,
-      headers,
-      requestOptions
-    );
+    return setDocumentTagsApiV1DocumentsDocumentIdTagsPut(documentId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3028,11 +2132,7 @@ export const useSetDocumentTagsApiV1DocumentsDocumentIdTagsPut = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof setDocumentTagsApiV1DocumentsDocumentIdTagsPut>>,
       TError,
-      {
-        documentId: number;
-        data: BodyType<TagSetRequest>;
-        headers?: SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders;
-      },
+      { documentId: number; data: BodyType<TagSetRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3041,11 +2141,7 @@ export const useSetDocumentTagsApiV1DocumentsDocumentIdTagsPut = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof setDocumentTagsApiV1DocumentsDocumentIdTagsPut>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<TagSetRequest>;
-    headers?: SetDocumentTagsApiV1DocumentsDocumentIdTagsPutHeaders;
-  },
+  { documentId: number; data: BodyType<TagSetRequest> },
   TContext
 > => {
   return useMutation(
@@ -3057,49 +2153,21 @@ export const useSetDocumentTagsApiV1DocumentsDocumentIdTagsPut = <
  * Add a role-based permission to a document.
  * @summary Add Document Role Permission
  */
-export type addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse201 = {
-  data: DocumentRolePermissionRead;
-  status: 201;
-};
-
-export type addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponseSuccess =
-  addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse201 & {
-    headers: Headers;
-  };
-export type addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponseError =
-  addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse =
-  | addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponseSuccess
-  | addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponseError;
-
-export const getAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostUrl = (
-  documentId: number
-) => {
-  return `/api/v1/documents/${documentId}/role-permissions`;
-};
-
-export const addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost = async (
+export const addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost = (
   documentId: number,
-  documentRolePermissionCreate: DocumentRolePermissionCreate,
-  headers?: AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders,
-  options?: RequestInit
-): Promise<addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse> => {
-  return apiMutator<addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostResponse>(
-    getAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostUrl(documentId),
+  documentRolePermissionCreate: BodyType<DocumentRolePermissionCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRolePermissionRead>(
     {
-      ...options,
+      url: `/api/v1/documents/${documentId}/role-permissions`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(documentRolePermissionCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: documentRolePermissionCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -3110,11 +2178,7 @@ export const getAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissions
         ReturnType<typeof addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost>
       >,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentRolePermissionCreate>;
-        headers?: AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentRolePermissionCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3123,11 +2187,7 @@ export const getAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissions
       ReturnType<typeof addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost>
     >,
     TError,
-    {
-      documentId: number;
-      data: BodyType<DocumentRolePermissionCreate>;
-      headers?: AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders;
-    },
+    { documentId: number; data: BodyType<DocumentRolePermissionCreate> },
     TContext
   > => {
     const mutationKey = ["addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost"];
@@ -3141,18 +2201,13 @@ export const getAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissions
       Awaited<
         ReturnType<typeof addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost>
       >,
-      {
-        documentId: number;
-        data: BodyType<DocumentRolePermissionCreate>;
-        headers?: AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders;
-      }
+      { documentId: number; data: BodyType<DocumentRolePermissionCreate> }
     > = (props) => {
-      const { documentId, data, headers } = props ?? {};
+      const { documentId, data } = props ?? {};
 
       return addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost(
         documentId,
         data,
-        headers,
         requestOptions
       );
     };
@@ -3182,11 +2237,7 @@ export const useAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissions
         ReturnType<typeof addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost>
       >,
       TError,
-      {
-        documentId: number;
-        data: BodyType<DocumentRolePermissionCreate>;
-        headers?: AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders;
-      },
+      { documentId: number; data: BodyType<DocumentRolePermissionCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3195,11 +2246,7 @@ export const useAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissions
 ): UseMutationResult<
   Awaited<ReturnType<typeof addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost>>,
   TError,
-  {
-    documentId: number;
-    data: BodyType<DocumentRolePermissionCreate>;
-    headers?: AddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPostHeaders;
-  },
+  { documentId: number; data: BodyType<DocumentRolePermissionCreate> },
   TContext
 > => {
   return useMutation(
@@ -3211,58 +2258,24 @@ export const useAddDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissions
  * Update a role-based permission level on a document.
  * @summary Update Document Role Permission
  */
-export type updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse200 =
-  {
-    data: DocumentRolePermissionRead;
-    status: 200;
-  };
-
-export type updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse422 =
-  {
-    data: HTTPValidationError;
-    status: 422;
-  };
-
-export type updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponseSuccess =
-  updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponseError =
-  updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse =
-
-    | updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponseSuccess
-    | updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponseError;
-
-export const getUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchUrl =
-  (documentId: number, roleId: number) => {
-    return `/api/v1/documents/${documentId}/role-permissions/${roleId}`;
-  };
-
-export const updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch =
-  async (
-    documentId: number,
-    roleId: number,
-    documentRolePermissionUpdate: DocumentRolePermissionUpdate,
-    headers?: UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders,
-    options?: RequestInit
-  ): Promise<updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse> => {
-    return apiMutator<updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchResponse>(
-      getUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchUrl(
-        documentId,
-        roleId
-      ),
-      {
-        ...options,
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-        body: JSON.stringify(documentRolePermissionUpdate),
-      }
-    );
-  };
+export const updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch = (
+  documentId: number,
+  roleId: number,
+  documentRolePermissionUpdate: BodyType<DocumentRolePermissionUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRolePermissionRead>(
+    {
+      url: `/api/v1/documents/${documentId}/role-permissions/${roleId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: documentRolePermissionUpdate,
+      signal,
+    },
+    options
+  );
+};
 
 export const getUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
@@ -3273,12 +2286,7 @@ export const getUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
         >
       >,
       TError,
-      {
-        documentId: number;
-        roleId: number;
-        data: BodyType<DocumentRolePermissionUpdate>;
-        headers?: UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders;
-      },
+      { documentId: number; roleId: number; data: BodyType<DocumentRolePermissionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3289,12 +2297,7 @@ export const getUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
       >
     >,
     TError,
-    {
-      documentId: number;
-      roleId: number;
-      data: BodyType<DocumentRolePermissionUpdate>;
-      headers?: UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders;
-    },
+    { documentId: number; roleId: number; data: BodyType<DocumentRolePermissionUpdate> },
     TContext
   > => {
     const mutationKey = [
@@ -3312,20 +2315,14 @@ export const getUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
           typeof updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch
         >
       >,
-      {
-        documentId: number;
-        roleId: number;
-        data: BodyType<DocumentRolePermissionUpdate>;
-        headers?: UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders;
-      }
+      { documentId: number; roleId: number; data: BodyType<DocumentRolePermissionUpdate> }
     > = (props) => {
-      const { documentId, roleId, data, headers } = props ?? {};
+      const { documentId, roleId, data } = props ?? {};
 
       return updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch(
         documentId,
         roleId,
         data,
-        headers,
         requestOptions
       );
     };
@@ -3361,12 +2358,7 @@ export const useUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
         >
       >,
       TError,
-      {
-        documentId: number;
-        roleId: number;
-        data: BodyType<DocumentRolePermissionUpdate>;
-        headers?: UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders;
-      },
+      { documentId: number; roleId: number; data: BodyType<DocumentRolePermissionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3379,12 +2371,7 @@ export const useUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
     >
   >,
   TError,
-  {
-    documentId: number;
-    roleId: number;
-    data: BodyType<DocumentRolePermissionUpdate>;
-    headers?: UpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatchHeaders;
-  },
+  { documentId: number; roleId: number; data: BodyType<DocumentRolePermissionUpdate> },
   TContext
 > => {
   return useMutation(
@@ -3398,56 +2385,17 @@ export const useUpdateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
  * Remove a role-based permission from a document.
  * @summary Remove Document Role Permission
  */
-export type removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse204 =
-  {
-    data: void;
-    status: 204;
-  };
-
-export type removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse422 =
-  {
-    data: HTTPValidationError;
-    status: 422;
-  };
-
-export type removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponseSuccess =
-  removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponseError =
-  removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse =
-
-    | removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponseSuccess
-    | removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponseError;
-
-export const getRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteUrl =
-  (documentId: number, roleId: number) => {
-    return `/api/v1/documents/${documentId}/role-permissions/${roleId}`;
-  };
-
-export const removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete =
-  async (
-    documentId: number,
-    roleId: number,
-    headers?: RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders,
-    options?: RequestInit
-  ): Promise<removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse> => {
-    return apiMutator<removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteResponse>(
-      getRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteUrl(
-        documentId,
-        roleId
-      ),
-      {
-        ...options,
-        method: "DELETE",
-        headers: { ...headers, ...options?.headers },
-      }
-    );
-  };
+export const removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete = (
+  documentId: number,
+  roleId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/documents/${documentId}/role-permissions/${roleId}`, method: "DELETE", signal },
+    options
+  );
+};
 
 export const getRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
@@ -3458,11 +2406,7 @@ export const getRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
         >
       >,
       TError,
-      {
-        documentId: number;
-        roleId: number;
-        headers?: RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders;
-      },
+      { documentId: number; roleId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3473,11 +2417,7 @@ export const getRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
       >
     >,
     TError,
-    {
-      documentId: number;
-      roleId: number;
-      headers?: RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders;
-    },
+    { documentId: number; roleId: number },
     TContext
   > => {
     const mutationKey = [
@@ -3495,18 +2435,13 @@ export const getRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
           typeof removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete
         >
       >,
-      {
-        documentId: number;
-        roleId: number;
-        headers?: RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders;
-      }
+      { documentId: number; roleId: number }
     > = (props) => {
-      const { documentId, roleId, headers } = props ?? {};
+      const { documentId, roleId } = props ?? {};
 
       return removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete(
         documentId,
         roleId,
-        headers,
         requestOptions
       );
     };
@@ -3541,11 +2476,7 @@ export const useRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
         >
       >,
       TError,
-      {
-        documentId: number;
-        roleId: number;
-        headers?: RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders;
-      },
+      { documentId: number; roleId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -3558,11 +2489,7 @@ export const useRemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissi
     >
   >,
   TError,
-  {
-    documentId: number;
-    roleId: number;
-    headers?: RemoveDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDeleteHeaders;
-  },
+  { documentId: number; roleId: number },
   TContext
 > => {
   return useMutation(

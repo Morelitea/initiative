@@ -26,47 +26,17 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Upload Attachment
  */
-export type uploadAttachmentApiV1AttachmentsPostResponse201 = {
-  data: AttachmentUploadResponse;
-  status: 201;
-};
-
-export type uploadAttachmentApiV1AttachmentsPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type uploadAttachmentApiV1AttachmentsPostResponseSuccess =
-  uploadAttachmentApiV1AttachmentsPostResponse201 & {
-    headers: Headers;
-  };
-export type uploadAttachmentApiV1AttachmentsPostResponseError =
-  uploadAttachmentApiV1AttachmentsPostResponse422 & {
-    headers: Headers;
-  };
-
-export type uploadAttachmentApiV1AttachmentsPostResponse =
-  | uploadAttachmentApiV1AttachmentsPostResponseSuccess
-  | uploadAttachmentApiV1AttachmentsPostResponseError;
-
-export const getUploadAttachmentApiV1AttachmentsPostUrl = () => {
-  return `/api/v1/attachments/`;
-};
-
-export const uploadAttachmentApiV1AttachmentsPost = async (
-  bodyUploadAttachmentApiV1AttachmentsPost: BodyUploadAttachmentApiV1AttachmentsPost,
-  options?: RequestInit
-): Promise<uploadAttachmentApiV1AttachmentsPostResponse> => {
+export const uploadAttachmentApiV1AttachmentsPost = (
+  bodyUploadAttachmentApiV1AttachmentsPost: BodyType<BodyUploadAttachmentApiV1AttachmentsPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
   const formData = new FormData();
   formData.append(`file`, bodyUploadAttachmentApiV1AttachmentsPost.file);
 
-  return apiMutator<uploadAttachmentApiV1AttachmentsPostResponse>(
-    getUploadAttachmentApiV1AttachmentsPostUrl(),
-    {
-      ...options,
-      method: "POST",
-      body: formData,
-    }
+  return apiMutator<AttachmentUploadResponse>(
+    { url: `/api/v1/attachments/`, method: "POST", data: formData, signal },
+    options
   );
 };
 

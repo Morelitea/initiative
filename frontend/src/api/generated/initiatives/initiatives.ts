@@ -21,14 +21,6 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders,
-  CreateInitiativeApiV1InitiativesPostHeaders,
-  CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders,
-  DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders,
-  DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders,
-  GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
-  GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
-  GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
   HTTPValidationError,
   InitiativeCreate,
   InitiativeMemberAdd,
@@ -38,13 +30,7 @@ import type {
   InitiativeRoleRead,
   InitiativeRoleUpdate,
   InitiativeUpdate,
-  ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
-  ListInitiativesApiV1InitiativesGetHeaders,
   MyInitiativePermissions,
-  RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders,
-  UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders,
-  UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders,
-  UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders,
   UserPublic,
 } from "../initiativeAPI.schemas";
 
@@ -56,44 +42,13 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary List Initiatives
  */
-export type listInitiativesApiV1InitiativesGetResponse200 = {
-  data: InitiativeRead[];
-  status: 200;
-};
-
-export type listInitiativesApiV1InitiativesGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listInitiativesApiV1InitiativesGetResponseSuccess =
-  listInitiativesApiV1InitiativesGetResponse200 & {
-    headers: Headers;
-  };
-export type listInitiativesApiV1InitiativesGetResponseError =
-  listInitiativesApiV1InitiativesGetResponse422 & {
-    headers: Headers;
-  };
-
-export type listInitiativesApiV1InitiativesGetResponse =
-  | listInitiativesApiV1InitiativesGetResponseSuccess
-  | listInitiativesApiV1InitiativesGetResponseError;
-
-export const getListInitiativesApiV1InitiativesGetUrl = () => {
-  return `/api/v1/initiatives/`;
-};
-
-export const listInitiativesApiV1InitiativesGet = async (
-  headers?: ListInitiativesApiV1InitiativesGetHeaders,
-  options?: RequestInit
-): Promise<listInitiativesApiV1InitiativesGetResponse> => {
-  return apiMutator<listInitiativesApiV1InitiativesGetResponse>(
-    getListInitiativesApiV1InitiativesGetUrl(),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+export const listInitiativesApiV1InitiativesGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead[]>(
+    { url: `/api/v1/initiatives/`, method: "GET", signal },
+    options
   );
 };
 
@@ -104,22 +59,19 @@ export const getListInitiativesApiV1InitiativesGetQueryKey = () => {
 export const getListInitiativesApiV1InitiativesGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
->(
-  headers?: ListInitiativesApiV1InitiativesGetHeaders,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey = queryOptions?.queryKey ?? getListInitiativesApiV1InitiativesGetQueryKey();
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>> = ({
     signal,
-  }) => listInitiativesApiV1InitiativesGet(headers, { signal, ...requestOptions });
+  }) => listInitiativesApiV1InitiativesGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
@@ -137,7 +89,6 @@ export function useListInitiativesApiV1InitiativesGet<
   TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers: undefined | ListInitiativesApiV1InitiativesGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
@@ -158,7 +109,6 @@ export function useListInitiativesApiV1InitiativesGet<
   TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListInitiativesApiV1InitiativesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
@@ -179,7 +129,6 @@ export function useListInitiativesApiV1InitiativesGet<
   TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListInitiativesApiV1InitiativesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
@@ -196,7 +145,6 @@ export function useListInitiativesApiV1InitiativesGet<
   TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  headers?: ListInitiativesApiV1InitiativesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
@@ -205,7 +153,7 @@ export function useListInitiativesApiV1InitiativesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListInitiativesApiV1InitiativesGetQueryOptions(headers, options);
+  const queryOptions = getListInitiativesApiV1InitiativesGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -217,46 +165,20 @@ export function useListInitiativesApiV1InitiativesGet<
 /**
  * @summary Create Initiative
  */
-export type createInitiativeApiV1InitiativesPostResponse201 = {
-  data: InitiativeRead;
-  status: 201;
-};
-
-export type createInitiativeApiV1InitiativesPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createInitiativeApiV1InitiativesPostResponseSuccess =
-  createInitiativeApiV1InitiativesPostResponse201 & {
-    headers: Headers;
-  };
-export type createInitiativeApiV1InitiativesPostResponseError =
-  createInitiativeApiV1InitiativesPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createInitiativeApiV1InitiativesPostResponse =
-  | createInitiativeApiV1InitiativesPostResponseSuccess
-  | createInitiativeApiV1InitiativesPostResponseError;
-
-export const getCreateInitiativeApiV1InitiativesPostUrl = () => {
-  return `/api/v1/initiatives/`;
-};
-
-export const createInitiativeApiV1InitiativesPost = async (
-  initiativeCreate: InitiativeCreate,
-  headers?: CreateInitiativeApiV1InitiativesPostHeaders,
-  options?: RequestInit
-): Promise<createInitiativeApiV1InitiativesPostResponse> => {
-  return apiMutator<createInitiativeApiV1InitiativesPostResponse>(
-    getCreateInitiativeApiV1InitiativesPostUrl(),
+export const createInitiativeApiV1InitiativesPost = (
+  initiativeCreate: BodyType<InitiativeCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
     {
-      ...options,
+      url: `/api/v1/initiatives/`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(initiativeCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: initiativeCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -267,14 +189,14 @@ export const getCreateInitiativeApiV1InitiativesPostMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
     TError,
-    { data: BodyType<InitiativeCreate>; headers?: CreateInitiativeApiV1InitiativesPostHeaders },
+    { data: BodyType<InitiativeCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
   TError,
-  { data: BodyType<InitiativeCreate>; headers?: CreateInitiativeApiV1InitiativesPostHeaders },
+  { data: BodyType<InitiativeCreate> },
   TContext
 > => {
   const mutationKey = ["createInitiativeApiV1InitiativesPost"];
@@ -286,11 +208,11 @@ export const getCreateInitiativeApiV1InitiativesPostMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
-    { data: BodyType<InitiativeCreate>; headers?: CreateInitiativeApiV1InitiativesPostHeaders }
+    { data: BodyType<InitiativeCreate> }
   > = (props) => {
-    const { data, headers } = props ?? {};
+    const { data } = props ?? {};
 
-    return createInitiativeApiV1InitiativesPost(data, headers, requestOptions);
+    return createInitiativeApiV1InitiativesPost(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -313,7 +235,7 @@ export const useCreateInitiativeApiV1InitiativesPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
       TError,
-      { data: BodyType<InitiativeCreate>; headers?: CreateInitiativeApiV1InitiativesPostHeaders },
+      { data: BodyType<InitiativeCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -322,7 +244,7 @@ export const useCreateInitiativeApiV1InitiativesPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
   TError,
-  { data: BodyType<InitiativeCreate>; headers?: CreateInitiativeApiV1InitiativesPostHeaders },
+  { data: BodyType<InitiativeCreate> },
   TContext
 > => {
   return useMutation(getCreateInitiativeApiV1InitiativesPostMutationOptions(options), queryClient);
@@ -330,45 +252,14 @@ export const useCreateInitiativeApiV1InitiativesPost = <
 /**
  * @summary Get Initiative
  */
-export type getInitiativeApiV1InitiativesInitiativeIdGetResponse200 = {
-  data: InitiativeRead;
-  status: 200;
-};
-
-export type getInitiativeApiV1InitiativesInitiativeIdGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type getInitiativeApiV1InitiativesInitiativeIdGetResponseSuccess =
-  getInitiativeApiV1InitiativesInitiativeIdGetResponse200 & {
-    headers: Headers;
-  };
-export type getInitiativeApiV1InitiativesInitiativeIdGetResponseError =
-  getInitiativeApiV1InitiativesInitiativeIdGetResponse422 & {
-    headers: Headers;
-  };
-
-export type getInitiativeApiV1InitiativesInitiativeIdGetResponse =
-  | getInitiativeApiV1InitiativesInitiativeIdGetResponseSuccess
-  | getInitiativeApiV1InitiativesInitiativeIdGetResponseError;
-
-export const getGetInitiativeApiV1InitiativesInitiativeIdGetUrl = (initiativeId: number) => {
-  return `/api/v1/initiatives/${initiativeId}`;
-};
-
-export const getInitiativeApiV1InitiativesInitiativeIdGet = async (
+export const getInitiativeApiV1InitiativesInitiativeIdGet = (
   initiativeId: number,
-  headers?: GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
-  options?: RequestInit
-): Promise<getInitiativeApiV1InitiativesInitiativeIdGetResponse> => {
-  return apiMutator<getInitiativeApiV1InitiativesInitiativeIdGetResponse>(
-    getGetInitiativeApiV1InitiativesInitiativeIdGetUrl(initiativeId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
+    { url: `/api/v1/initiatives/${initiativeId}`, method: "GET", signal },
+    options
   );
 };
 
@@ -381,7 +272,6 @@ export const getGetInitiativeApiV1InitiativesInitiativeIdGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -401,10 +291,7 @@ export const getGetInitiativeApiV1InitiativesInitiativeIdGetQueryOptions = <
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>
   > = ({ signal }) =>
-    getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId, headers, {
-      signal,
-      ...requestOptions,
-    });
+    getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!initiativeId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
@@ -423,7 +310,6 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers: undefined | GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -449,7 +335,6 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -475,7 +360,6 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -497,7 +381,6 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeApiV1InitiativesInitiativeIdGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -512,7 +395,6 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetInitiativeApiV1InitiativesInitiativeIdGetQueryOptions(
     initiativeId,
-    headers,
     options
   );
 
@@ -526,47 +408,21 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
 /**
  * @summary Update Initiative
  */
-export type updateInitiativeApiV1InitiativesInitiativeIdPatchResponse200 = {
-  data: InitiativeRead;
-  status: 200;
-};
-
-export type updateInitiativeApiV1InitiativesInitiativeIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateInitiativeApiV1InitiativesInitiativeIdPatchResponseSuccess =
-  updateInitiativeApiV1InitiativesInitiativeIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateInitiativeApiV1InitiativesInitiativeIdPatchResponseError =
-  updateInitiativeApiV1InitiativesInitiativeIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateInitiativeApiV1InitiativesInitiativeIdPatchResponse =
-  | updateInitiativeApiV1InitiativesInitiativeIdPatchResponseSuccess
-  | updateInitiativeApiV1InitiativesInitiativeIdPatchResponseError;
-
-export const getUpdateInitiativeApiV1InitiativesInitiativeIdPatchUrl = (initiativeId: number) => {
-  return `/api/v1/initiatives/${initiativeId}`;
-};
-
-export const updateInitiativeApiV1InitiativesInitiativeIdPatch = async (
+export const updateInitiativeApiV1InitiativesInitiativeIdPatch = (
   initiativeId: number,
-  initiativeUpdate: InitiativeUpdate,
-  headers?: UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateInitiativeApiV1InitiativesInitiativeIdPatchResponse> => {
-  return apiMutator<updateInitiativeApiV1InitiativesInitiativeIdPatchResponse>(
-    getUpdateInitiativeApiV1InitiativesInitiativeIdPatchUrl(initiativeId),
+  initiativeUpdate: BodyType<InitiativeUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
     {
-      ...options,
+      url: `/api/v1/initiatives/${initiativeId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(initiativeUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: initiativeUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -577,22 +433,14 @@ export const getUpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationOptions
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
     TError,
-    {
-      initiativeId: number;
-      data: BodyType<InitiativeUpdate>;
-      headers?: UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders;
-    },
+    { initiativeId: number; data: BodyType<InitiativeUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
   TError,
-  {
-    initiativeId: number;
-    data: BodyType<InitiativeUpdate>;
-    headers?: UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders;
-  },
+  { initiativeId: number; data: BodyType<InitiativeUpdate> },
   TContext
 > => {
   const mutationKey = ["updateInitiativeApiV1InitiativesInitiativeIdPatch"];
@@ -604,20 +452,11 @@ export const getUpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationOptions
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
-    {
-      initiativeId: number;
-      data: BodyType<InitiativeUpdate>;
-      headers?: UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders;
-    }
+    { initiativeId: number; data: BodyType<InitiativeUpdate> }
   > = (props) => {
-    const { initiativeId, data, headers } = props ?? {};
+    const { initiativeId, data } = props ?? {};
 
-    return updateInitiativeApiV1InitiativesInitiativeIdPatch(
-      initiativeId,
-      data,
-      headers,
-      requestOptions
-    );
+    return updateInitiativeApiV1InitiativesInitiativeIdPatch(initiativeId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -642,11 +481,7 @@ export const useUpdateInitiativeApiV1InitiativesInitiativeIdPatch = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
       TError,
-      {
-        initiativeId: number;
-        data: BodyType<InitiativeUpdate>;
-        headers?: UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders;
-      },
+      { initiativeId: number; data: BodyType<InitiativeUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -655,11 +490,7 @@ export const useUpdateInitiativeApiV1InitiativesInitiativeIdPatch = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
   TError,
-  {
-    initiativeId: number;
-    data: BodyType<InitiativeUpdate>;
-    headers?: UpdateInitiativeApiV1InitiativesInitiativeIdPatchHeaders;
-  },
+  { initiativeId: number; data: BodyType<InitiativeUpdate> },
   TContext
 > => {
   return useMutation(
@@ -670,45 +501,14 @@ export const useUpdateInitiativeApiV1InitiativesInitiativeIdPatch = <
 /**
  * @summary Delete Initiative
  */
-export type deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponseSuccess =
-  deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponseError =
-  deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse =
-  | deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponseSuccess
-  | deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponseError;
-
-export const getDeleteInitiativeApiV1InitiativesInitiativeIdDeleteUrl = (initiativeId: number) => {
-  return `/api/v1/initiatives/${initiativeId}`;
-};
-
-export const deleteInitiativeApiV1InitiativesInitiativeIdDelete = async (
+export const deleteInitiativeApiV1InitiativesInitiativeIdDelete = (
   initiativeId: number,
-  headers?: DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse> => {
-  return apiMutator<deleteInitiativeApiV1InitiativesInitiativeIdDeleteResponse>(
-    getDeleteInitiativeApiV1InitiativesInitiativeIdDeleteUrl(initiativeId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/initiatives/${initiativeId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -719,14 +519,14 @@ export const getDeleteInitiativeApiV1InitiativesInitiativeIdDeleteMutationOption
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
     TError,
-    { initiativeId: number; headers?: DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders },
+    { initiativeId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
   TError,
-  { initiativeId: number; headers?: DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders },
+  { initiativeId: number },
   TContext
 > => {
   const mutationKey = ["deleteInitiativeApiV1InitiativesInitiativeIdDelete"];
@@ -738,15 +538,11 @@ export const getDeleteInitiativeApiV1InitiativesInitiativeIdDeleteMutationOption
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
-    { initiativeId: number; headers?: DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders }
+    { initiativeId: number }
   > = (props) => {
-    const { initiativeId, headers } = props ?? {};
+    const { initiativeId } = props ?? {};
 
-    return deleteInitiativeApiV1InitiativesInitiativeIdDelete(
-      initiativeId,
-      headers,
-      requestOptions
-    );
+    return deleteInitiativeApiV1InitiativesInitiativeIdDelete(initiativeId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -770,7 +566,7 @@ export const useDeleteInitiativeApiV1InitiativesInitiativeIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
       TError,
-      { initiativeId: number; headers?: DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders },
+      { initiativeId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -779,7 +575,7 @@ export const useDeleteInitiativeApiV1InitiativesInitiativeIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
   TError,
-  { initiativeId: number; headers?: DeleteInitiativeApiV1InitiativesInitiativeIdDeleteHeaders },
+  { initiativeId: number },
   TContext
 > => {
   return useMutation(
@@ -791,47 +587,14 @@ export const useDeleteInitiativeApiV1InitiativesInitiativeIdDelete = <
  * List all roles for an initiative with their permissions.
  * @summary List Initiative Roles
  */
-export type listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse200 = {
-  data: InitiativeRoleRead[];
-  status: 200;
-};
-
-export type listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponseSuccess =
-  listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse200 & {
-    headers: Headers;
-  };
-export type listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponseError =
-  listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse422 & {
-    headers: Headers;
-  };
-
-export type listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse =
-  | listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponseSuccess
-  | listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponseError;
-
-export const getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetUrl = (
-  initiativeId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/roles`;
-};
-
-export const listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet = async (
+export const listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet = (
   initiativeId: number,
-  headers?: ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
-  options?: RequestInit
-): Promise<listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse> => {
-  return apiMutator<listInitiativeRolesApiV1InitiativesInitiativeIdRolesGetResponse>(
-    getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetUrl(initiativeId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRoleRead[]>(
+    { url: `/api/v1/initiatives/${initiativeId}/roles`, method: "GET", signal },
+    options
   );
 };
 
@@ -846,7 +609,6 @@ export const getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryOpti
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -867,10 +629,7 @@ export const getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryOpti
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>
   > = ({ signal }) =>
-    listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet(initiativeId, headers, {
-      signal,
-      ...requestOptions,
-    });
+    listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet(initiativeId, requestOptions, signal);
 
   return { queryKey, queryFn, enabled: !!initiativeId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
@@ -890,7 +649,6 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers: undefined | ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -916,7 +674,6 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -942,7 +699,6 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -964,7 +720,6 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -979,7 +734,6 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryOptions(
     initiativeId,
-    headers,
     options
   );
 
@@ -994,49 +748,21 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
  * Create a new custom role for an initiative.
  * @summary Create Initiative Role
  */
-export type createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse201 = {
-  data: InitiativeRoleRead;
-  status: 201;
-};
-
-export type createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponseSuccess =
-  createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse201 & {
-    headers: Headers;
-  };
-export type createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponseError =
-  createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse422 & {
-    headers: Headers;
-  };
-
-export type createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse =
-  | createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponseSuccess
-  | createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponseError;
-
-export const getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostUrl = (
-  initiativeId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/roles`;
-};
-
-export const createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = async (
+export const createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = (
   initiativeId: number,
-  initiativeRoleCreate: InitiativeRoleCreate,
-  headers?: CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders,
-  options?: RequestInit
-): Promise<createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse> => {
-  return apiMutator<createInitiativeRoleApiV1InitiativesInitiativeIdRolesPostResponse>(
-    getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostUrl(initiativeId),
+  initiativeRoleCreate: BodyType<InitiativeRoleCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRoleRead>(
     {
-      ...options,
+      url: `/api/v1/initiatives/${initiativeId}/roles`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(initiativeRoleCreate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: initiativeRoleCreate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1047,22 +773,14 @@ export const getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutatio
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
     TError,
-    {
-      initiativeId: number;
-      data: BodyType<InitiativeRoleCreate>;
-      headers?: CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders;
-    },
+    { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
   TError,
-  {
-    initiativeId: number;
-    data: BodyType<InitiativeRoleCreate>;
-    headers?: CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders;
-  },
+  { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
   TContext
 > => {
   const mutationKey = ["createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost"];
@@ -1074,18 +792,13 @@ export const getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutatio
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
-    {
-      initiativeId: number;
-      data: BodyType<InitiativeRoleCreate>;
-      headers?: CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders;
-    }
+    { initiativeId: number; data: BodyType<InitiativeRoleCreate> }
   > = (props) => {
-    const { initiativeId, data, headers } = props ?? {};
+    const { initiativeId, data } = props ?? {};
 
     return createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost(
       initiativeId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -1112,11 +825,7 @@ export const useCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
       TError,
-      {
-        initiativeId: number;
-        data: BodyType<InitiativeRoleCreate>;
-        headers?: CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders;
-      },
+      { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1125,11 +834,7 @@ export const useCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
   TError,
-  {
-    initiativeId: number;
-    data: BodyType<InitiativeRoleCreate>;
-    headers?: CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostHeaders;
-  },
+  { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
   TContext
 > => {
   return useMutation(
@@ -1143,51 +848,22 @@ export const useCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = <
 Note: PM role permissions cannot be changed to prevent lockouts.
  * @summary Update Initiative Role
  */
-export type updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse200 = {
-  data: InitiativeRoleRead;
-  status: 200;
-};
-
-export type updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponseSuccess =
-  updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponseError =
-  updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse =
-  | updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponseSuccess
-  | updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponseError;
-
-export const getUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchUrl = (
-  initiativeId: number,
-  roleId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/roles/${roleId}`;
-};
-
-export const updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch = async (
+export const updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch = (
   initiativeId: number,
   roleId: number,
-  initiativeRoleUpdate: InitiativeRoleUpdate,
-  headers?: UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse> => {
-  return apiMutator<updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchResponse>(
-    getUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchUrl(initiativeId, roleId),
+  initiativeRoleUpdate: BodyType<InitiativeRoleUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRoleRead>(
     {
-      ...options,
+      url: `/api/v1/initiatives/${initiativeId}/roles/${roleId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(initiativeRoleUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: initiativeRoleUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -1198,24 +874,14 @@ export const getUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
     TError,
-    {
-      initiativeId: number;
-      roleId: number;
-      data: BodyType<InitiativeRoleUpdate>;
-      headers?: UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders;
-    },
+    { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
   TError,
-  {
-    initiativeId: number;
-    roleId: number;
-    data: BodyType<InitiativeRoleUpdate>;
-    headers?: UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders;
-  },
+  { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
   TContext
 > => {
   const mutationKey = ["updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch"];
@@ -1227,20 +893,14 @@ export const getUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
-    {
-      initiativeId: number;
-      roleId: number;
-      data: BodyType<InitiativeRoleUpdate>;
-      headers?: UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders;
-    }
+    { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> }
   > = (props) => {
-    const { initiativeId, roleId, data, headers } = props ?? {};
+    const { initiativeId, roleId, data } = props ?? {};
 
     return updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch(
       initiativeId,
       roleId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -1268,12 +928,7 @@ export const useUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
       TError,
-      {
-        initiativeId: number;
-        roleId: number;
-        data: BodyType<InitiativeRoleUpdate>;
-        headers?: UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders;
-      },
+      { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1282,12 +937,7 @@ export const useUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
   TError,
-  {
-    initiativeId: number;
-    roleId: number;
-    data: BodyType<InitiativeRoleUpdate>;
-    headers?: UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchHeaders;
-  },
+  { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
   TContext
 > => {
   return useMutation(
@@ -1299,49 +949,15 @@ export const useUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch
  * Delete a custom role. Built-in roles cannot be deleted.
  * @summary Delete Initiative Role
  */
-export type deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponseSuccess =
-  deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse204 & {
-    headers: Headers;
-  };
-export type deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponseError =
-  deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse =
-  | deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponseSuccess
-  | deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponseError;
-
-export const getDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteUrl = (
-  initiativeId: number,
-  roleId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/roles/${roleId}`;
-};
-
-export const deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete = async (
+export const deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete = (
   initiativeId: number,
   roleId: number,
-  headers?: DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders,
-  options?: RequestInit
-): Promise<deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse> => {
-  return apiMutator<deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteResponse>(
-    getDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteUrl(initiativeId, roleId),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/initiatives/${initiativeId}/roles/${roleId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -1352,22 +968,14 @@ export const getDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelet
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
     TError,
-    {
-      initiativeId: number;
-      roleId: number;
-      headers?: DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders;
-    },
+    { initiativeId: number; roleId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
   TError,
-  {
-    initiativeId: number;
-    roleId: number;
-    headers?: DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders;
-  },
+  { initiativeId: number; roleId: number },
   TContext
 > => {
   const mutationKey = ["deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete"];
@@ -1379,18 +987,13 @@ export const getDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelet
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
-    {
-      initiativeId: number;
-      roleId: number;
-      headers?: DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders;
-    }
+    { initiativeId: number; roleId: number }
   > = (props) => {
-    const { initiativeId, roleId, headers } = props ?? {};
+    const { initiativeId, roleId } = props ?? {};
 
     return deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete(
       initiativeId,
       roleId,
-      headers,
       requestOptions
     );
   };
@@ -1417,11 +1020,7 @@ export const useDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelet
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
       TError,
-      {
-        initiativeId: number;
-        roleId: number;
-        headers?: DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders;
-      },
+      { initiativeId: number; roleId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1430,11 +1029,7 @@ export const useDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelet
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
   TError,
-  {
-    initiativeId: number;
-    roleId: number;
-    headers?: DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteHeaders;
-  },
+  { initiativeId: number; roleId: number },
   TContext
 > => {
   return useMutation(
@@ -1446,47 +1041,14 @@ export const useDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelet
  * Get the current user's permissions for an initiative.
  * @summary Get My Initiative Permissions
  */
-export type getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse200 = {
-  data: MyInitiativePermissions;
-  status: 200;
-};
-
-export type getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponseSuccess =
-  getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse200 & {
-    headers: Headers;
-  };
-export type getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponseError =
-  getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse422 & {
-    headers: Headers;
-  };
-
-export type getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse =
-  | getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponseSuccess
-  | getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponseError;
-
-export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetUrl = (
-  initiativeId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/my-permissions`;
-};
-
-export const getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet = async (
+export const getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet = (
   initiativeId: number,
-  headers?: GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
-  options?: RequestInit
-): Promise<getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse> => {
-  return apiMutator<getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetResponse>(
-    getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetUrl(initiativeId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MyInitiativePermissions>(
+    { url: `/api/v1/initiatives/${initiativeId}/my-permissions`, method: "GET", signal },
+    options
   );
 };
 
@@ -1504,7 +1066,6 @@ export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissi
     TError = ErrorType<HTTPValidationError>,
   >(
     initiativeId: number,
-    headers?: GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
     options?: {
       query?: Partial<
         UseQueryOptions<
@@ -1535,8 +1096,8 @@ export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissi
     > = ({ signal }) =>
       getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet(
         initiativeId,
-        headers,
-        { signal, ...requestOptions }
+        requestOptions,
+        signal
       );
 
     return { queryKey, queryFn, enabled: !!initiativeId, ...queryOptions } as UseQueryOptions<
@@ -1564,9 +1125,6 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers:
-    | undefined
-    | GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1604,7 +1162,6 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1642,7 +1199,6 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1668,7 +1224,6 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1686,7 +1241,6 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   const queryOptions =
     getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryOptions(
       initiativeId,
-      headers,
       options
     );
 
@@ -1701,47 +1255,14 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
  * Get all members of an initiative.
  * @summary Get Initiative Members
  */
-export type getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse200 = {
-  data: UserPublic[];
-  status: 200;
-};
-
-export type getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponseSuccess =
-  getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse200 & {
-    headers: Headers;
-  };
-export type getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponseError =
-  getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse422 & {
-    headers: Headers;
-  };
-
-export type getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse =
-  | getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponseSuccess
-  | getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponseError;
-
-export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetUrl = (
-  initiativeId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/members`;
-};
-
-export const getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet = async (
+export const getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet = (
   initiativeId: number,
-  headers?: GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
-  options?: RequestInit
-): Promise<getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse> => {
-  return apiMutator<getInitiativeMembersApiV1InitiativesInitiativeIdMembersGetResponse>(
-    getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetUrl(initiativeId),
-    {
-      ...options,
-      method: "GET",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserPublic[]>(
+    { url: `/api/v1/initiatives/${initiativeId}/members`, method: "GET", signal },
+    options
   );
 };
 
@@ -1756,7 +1277,6 @@ export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryO
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1777,10 +1297,11 @@ export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryO
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>
   > = ({ signal }) =>
-    getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(initiativeId, headers, {
-      signal,
-      ...requestOptions,
-    });
+    getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
+      initiativeId,
+      requestOptions,
+      signal
+    );
 
   return { queryKey, queryFn, enabled: !!initiativeId, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
@@ -1800,7 +1321,6 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers: undefined | GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1826,7 +1346,6 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1852,7 +1371,6 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1874,7 +1392,6 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   initiativeId: number,
-  headers?: GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetHeaders,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1889,7 +1406,6 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryOptions(
     initiativeId,
-    headers,
     options
   );
 
@@ -1904,49 +1420,21 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
  * Add a member to an initiative or update their role.
  * @summary Add Initiative Member
  */
-export type addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse200 = {
-  data: InitiativeRead;
-  status: 200;
-};
-
-export type addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponseSuccess =
-  addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse200 & {
-    headers: Headers;
-  };
-export type addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponseError =
-  addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse422 & {
-    headers: Headers;
-  };
-
-export type addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse =
-  | addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponseSuccess
-  | addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponseError;
-
-export const getAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostUrl = (
-  initiativeId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/members`;
-};
-
-export const addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = async (
+export const addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = (
   initiativeId: number,
-  initiativeMemberAdd: InitiativeMemberAdd,
-  headers?: AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders,
-  options?: RequestInit
-): Promise<addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse> => {
-  return apiMutator<addInitiativeMemberApiV1InitiativesInitiativeIdMembersPostResponse>(
-    getAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostUrl(initiativeId),
+  initiativeMemberAdd: BodyType<InitiativeMemberAdd>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
     {
-      ...options,
+      url: `/api/v1/initiatives/${initiativeId}/members`,
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(initiativeMemberAdd),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: initiativeMemberAdd,
+      signal,
+    },
+    options
   );
 };
 
@@ -1957,22 +1445,14 @@ export const getAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutati
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
     TError,
-    {
-      initiativeId: number;
-      data: BodyType<InitiativeMemberAdd>;
-      headers?: AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders;
-    },
+    { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
   TError,
-  {
-    initiativeId: number;
-    data: BodyType<InitiativeMemberAdd>;
-    headers?: AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders;
-  },
+  { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
   TContext
 > => {
   const mutationKey = ["addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost"];
@@ -1984,18 +1464,13 @@ export const getAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutati
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
-    {
-      initiativeId: number;
-      data: BodyType<InitiativeMemberAdd>;
-      headers?: AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders;
-    }
+    { initiativeId: number; data: BodyType<InitiativeMemberAdd> }
   > = (props) => {
-    const { initiativeId, data, headers } = props ?? {};
+    const { initiativeId, data } = props ?? {};
 
     return addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost(
       initiativeId,
       data,
-      headers,
       requestOptions
     );
   };
@@ -2022,11 +1497,7 @@ export const useAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
       TError,
-      {
-        initiativeId: number;
-        data: BodyType<InitiativeMemberAdd>;
-        headers?: AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders;
-      },
+      { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2035,11 +1506,7 @@ export const useAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
   TError,
-  {
-    initiativeId: number;
-    data: BodyType<InitiativeMemberAdd>;
-    headers?: AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostHeaders;
-  },
+  { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
   TContext
 > => {
   return useMutation(
@@ -2051,52 +1518,15 @@ export const useAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = <
  * Remove a member from an initiative.
  * @summary Remove Initiative Member
  */
-export type removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse200 = {
-  data: InitiativeRead;
-  status: 200;
-};
-
-export type removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponseSuccess =
-  removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse200 & {
-    headers: Headers;
-  };
-export type removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponseError =
-  removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse422 & {
-    headers: Headers;
-  };
-
-export type removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse =
-  | removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponseSuccess
-  | removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponseError;
-
-export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteUrl = (
-  initiativeId: number,
-  userId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/members/${userId}`;
-};
-
-export const removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete = async (
+export const removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete = (
   initiativeId: number,
   userId: number,
-  headers?: RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders,
-  options?: RequestInit
-): Promise<removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse> => {
-  return apiMutator<removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteResponse>(
-    getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteUrl(
-      initiativeId,
-      userId
-    ),
-    {
-      ...options,
-      method: "DELETE",
-      headers: { ...headers, ...options?.headers },
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
+    { url: `/api/v1/initiatives/${initiativeId}/members/${userId}`, method: "DELETE", signal },
+    options
   );
 };
 
@@ -2107,11 +1537,7 @@ export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
         ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
       >,
       TError,
-      {
-        initiativeId: number;
-        userId: number;
-        headers?: RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders;
-      },
+      { initiativeId: number; userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2120,11 +1546,7 @@ export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
       ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
     >,
     TError,
-    {
-      initiativeId: number;
-      userId: number;
-      headers?: RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders;
-    },
+    { initiativeId: number; userId: number },
     TContext
   > => {
     const mutationKey = ["removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete"];
@@ -2138,18 +1560,13 @@ export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
       Awaited<
         ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
       >,
-      {
-        initiativeId: number;
-        userId: number;
-        headers?: RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders;
-      }
+      { initiativeId: number; userId: number }
     > = (props) => {
-      const { initiativeId, userId, headers } = props ?? {};
+      const { initiativeId, userId } = props ?? {};
 
       return removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete(
         initiativeId,
         userId,
-        headers,
         requestOptions
       );
     };
@@ -2180,11 +1597,7 @@ export const useRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
         ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
       >,
       TError,
-      {
-        initiativeId: number;
-        userId: number;
-        headers?: RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders;
-      },
+      { initiativeId: number; userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2193,11 +1606,7 @@ export const useRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
 ): UseMutationResult<
   Awaited<ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>>,
   TError,
-  {
-    initiativeId: number;
-    userId: number;
-    headers?: RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteHeaders;
-  },
+  { initiativeId: number; userId: number },
   TContext
 > => {
   return useMutation(
@@ -2211,54 +1620,22 @@ export const useRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
  * Update a member's role.
  * @summary Update Initiative Member
  */
-export type updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse200 = {
-  data: InitiativeRead;
-  status: 200;
-};
-
-export type updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponseSuccess =
-  updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse200 & {
-    headers: Headers;
-  };
-export type updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponseError =
-  updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse422 & {
-    headers: Headers;
-  };
-
-export type updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse =
-  | updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponseSuccess
-  | updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponseError;
-
-export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchUrl = (
-  initiativeId: number,
-  userId: number
-) => {
-  return `/api/v1/initiatives/${initiativeId}/members/${userId}`;
-};
-
-export const updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch = async (
+export const updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch = (
   initiativeId: number,
   userId: number,
-  initiativeMemberUpdate: InitiativeMemberUpdate,
-  headers?: UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders,
-  options?: RequestInit
-): Promise<updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse> => {
-  return apiMutator<updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchResponse>(
-    getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchUrl(
-      initiativeId,
-      userId
-    ),
+  initiativeMemberUpdate: BodyType<InitiativeMemberUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
     {
-      ...options,
+      url: `/api/v1/initiatives/${initiativeId}/members/${userId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...headers, ...options?.headers },
-      body: JSON.stringify(initiativeMemberUpdate),
-    }
+      headers: { "Content-Type": "application/json" },
+      data: initiativeMemberUpdate,
+      signal,
+    },
+    options
   );
 };
 
@@ -2269,12 +1646,7 @@ export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
         ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
       >,
       TError,
-      {
-        initiativeId: number;
-        userId: number;
-        data: BodyType<InitiativeMemberUpdate>;
-        headers?: UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders;
-      },
+      { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2283,12 +1655,7 @@ export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
       ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
     >,
     TError,
-    {
-      initiativeId: number;
-      userId: number;
-      data: BodyType<InitiativeMemberUpdate>;
-      headers?: UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders;
-    },
+    { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
     TContext
   > => {
     const mutationKey = ["updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch"];
@@ -2302,20 +1669,14 @@ export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
       Awaited<
         ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
       >,
-      {
-        initiativeId: number;
-        userId: number;
-        data: BodyType<InitiativeMemberUpdate>;
-        headers?: UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders;
-      }
+      { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> }
     > = (props) => {
-      const { initiativeId, userId, data, headers } = props ?? {};
+      const { initiativeId, userId, data } = props ?? {};
 
       return updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch(
         initiativeId,
         userId,
         data,
-        headers,
         requestOptions
       );
     };
@@ -2345,12 +1706,7 @@ export const useUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
         ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
       >,
       TError,
-      {
-        initiativeId: number;
-        userId: number;
-        data: BodyType<InitiativeMemberUpdate>;
-        headers?: UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders;
-      },
+      { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -2359,12 +1715,7 @@ export const useUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
 ): UseMutationResult<
   Awaited<ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>>,
   TError,
-  {
-    initiativeId: number;
-    userId: number;
-    data: BodyType<InitiativeMemberUpdate>;
-    headers?: UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchHeaders;
-  },
+  { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
   TContext
 > => {
   return useMutation(

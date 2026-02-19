@@ -36,57 +36,14 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary List Notifications
  */
-export type listNotificationsApiV1NotificationsGetResponse200 = {
-  data: NotificationListResponse;
-  status: 200;
-};
-
-export type listNotificationsApiV1NotificationsGetResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type listNotificationsApiV1NotificationsGetResponseSuccess =
-  listNotificationsApiV1NotificationsGetResponse200 & {
-    headers: Headers;
-  };
-export type listNotificationsApiV1NotificationsGetResponseError =
-  listNotificationsApiV1NotificationsGetResponse422 & {
-    headers: Headers;
-  };
-
-export type listNotificationsApiV1NotificationsGetResponse =
-  | listNotificationsApiV1NotificationsGetResponseSuccess
-  | listNotificationsApiV1NotificationsGetResponseError;
-
-export const getListNotificationsApiV1NotificationsGetUrl = (
-  params?: ListNotificationsApiV1NotificationsGetParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : value.toString());
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/notifications/?${stringifiedParams}`
-    : `/api/v1/notifications/`;
-};
-
-export const listNotificationsApiV1NotificationsGet = async (
+export const listNotificationsApiV1NotificationsGet = (
   params?: ListNotificationsApiV1NotificationsGetParams,
-  options?: RequestInit
-): Promise<listNotificationsApiV1NotificationsGetResponse> => {
-  return apiMutator<listNotificationsApiV1NotificationsGetResponse>(
-    getListNotificationsApiV1NotificationsGetUrl(params),
-    {
-      ...options,
-      method: "GET",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationListResponse>(
+    { url: `/api/v1/notifications/`, method: "GET", params, signal },
+    options
   );
 };
 
@@ -119,7 +76,7 @@ export const getListNotificationsApiV1NotificationsGetQueryOptions = <
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listNotificationsApiV1NotificationsGet>>
-  > = ({ signal }) => listNotificationsApiV1NotificationsGet(params, { signal, ...requestOptions });
+  > = ({ signal }) => listNotificationsApiV1NotificationsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listNotificationsApiV1NotificationsGet>>,
@@ -233,31 +190,13 @@ export function useListNotificationsApiV1NotificationsGet<
 /**
  * @summary Unread Notifications Count
  */
-export type unreadNotificationsCountApiV1NotificationsUnreadCountGetResponse200 = {
-  data: NotificationCountResponse;
-  status: 200;
-};
-
-export type unreadNotificationsCountApiV1NotificationsUnreadCountGetResponseSuccess =
-  unreadNotificationsCountApiV1NotificationsUnreadCountGetResponse200 & {
-    headers: Headers;
-  };
-export type unreadNotificationsCountApiV1NotificationsUnreadCountGetResponse =
-  unreadNotificationsCountApiV1NotificationsUnreadCountGetResponseSuccess;
-
-export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetUrl = () => {
-  return `/api/v1/notifications/unread-count`;
-};
-
-export const unreadNotificationsCountApiV1NotificationsUnreadCountGet = async (
-  options?: RequestInit
-): Promise<unreadNotificationsCountApiV1NotificationsUnreadCountGetResponse> => {
-  return apiMutator<unreadNotificationsCountApiV1NotificationsUnreadCountGetResponse>(
-    getUnreadNotificationsCountApiV1NotificationsUnreadCountGetUrl(),
-    {
-      ...options,
-      method: "GET",
-    }
+export const unreadNotificationsCountApiV1NotificationsUnreadCountGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationCountResponse>(
+    { url: `/api/v1/notifications/unread-count`, method: "GET", signal },
+    options
   );
 };
 
@@ -286,7 +225,7 @@ export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryOpt
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>
   > = ({ signal }) =>
-    unreadNotificationsCountApiV1NotificationsUnreadCountGet({ signal, ...requestOptions });
+    unreadNotificationsCountApiV1NotificationsUnreadCountGet(requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
@@ -397,45 +336,14 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
 /**
  * @summary Mark Notification Read
  */
-export type markNotificationReadApiV1NotificationsNotificationIdReadPostResponse200 = {
-  data: NotificationRead;
-  status: 200;
-};
-
-export type markNotificationReadApiV1NotificationsNotificationIdReadPostResponse422 = {
-  data: HTTPValidationError;
-  status: 422;
-};
-
-export type markNotificationReadApiV1NotificationsNotificationIdReadPostResponseSuccess =
-  markNotificationReadApiV1NotificationsNotificationIdReadPostResponse200 & {
-    headers: Headers;
-  };
-export type markNotificationReadApiV1NotificationsNotificationIdReadPostResponseError =
-  markNotificationReadApiV1NotificationsNotificationIdReadPostResponse422 & {
-    headers: Headers;
-  };
-
-export type markNotificationReadApiV1NotificationsNotificationIdReadPostResponse =
-  | markNotificationReadApiV1NotificationsNotificationIdReadPostResponseSuccess
-  | markNotificationReadApiV1NotificationsNotificationIdReadPostResponseError;
-
-export const getMarkNotificationReadApiV1NotificationsNotificationIdReadPostUrl = (
-  notificationId: number
-) => {
-  return `/api/v1/notifications/${notificationId}/read`;
-};
-
-export const markNotificationReadApiV1NotificationsNotificationIdReadPost = async (
+export const markNotificationReadApiV1NotificationsNotificationIdReadPost = (
   notificationId: number,
-  options?: RequestInit
-): Promise<markNotificationReadApiV1NotificationsNotificationIdReadPostResponse> => {
-  return apiMutator<markNotificationReadApiV1NotificationsNotificationIdReadPostResponse>(
-    getMarkNotificationReadApiV1NotificationsNotificationIdReadPostUrl(notificationId),
-    {
-      ...options,
-      method: "POST",
-    }
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationRead>(
+    { url: `/api/v1/notifications/${notificationId}/read`, method: "POST", signal },
+    options
   );
 };
 
@@ -517,31 +425,13 @@ export const useMarkNotificationReadApiV1NotificationsNotificationIdReadPost = <
 /**
  * @summary Mark All Notifications Read
  */
-export type markAllNotificationsReadApiV1NotificationsReadAllPostResponse200 = {
-  data: NotificationCountResponse;
-  status: 200;
-};
-
-export type markAllNotificationsReadApiV1NotificationsReadAllPostResponseSuccess =
-  markAllNotificationsReadApiV1NotificationsReadAllPostResponse200 & {
-    headers: Headers;
-  };
-export type markAllNotificationsReadApiV1NotificationsReadAllPostResponse =
-  markAllNotificationsReadApiV1NotificationsReadAllPostResponseSuccess;
-
-export const getMarkAllNotificationsReadApiV1NotificationsReadAllPostUrl = () => {
-  return `/api/v1/notifications/read-all`;
-};
-
-export const markAllNotificationsReadApiV1NotificationsReadAllPost = async (
-  options?: RequestInit
-): Promise<markAllNotificationsReadApiV1NotificationsReadAllPostResponse> => {
-  return apiMutator<markAllNotificationsReadApiV1NotificationsReadAllPostResponse>(
-    getMarkAllNotificationsReadApiV1NotificationsReadAllPostUrl(),
-    {
-      ...options,
-      method: "POST",
-    }
+export const markAllNotificationsReadApiV1NotificationsReadAllPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationCountResponse>(
+    { url: `/api/v1/notifications/read-all`, method: "POST", signal },
+    options
   );
 };
 

@@ -1,19 +1,18 @@
+import type { AxiosRequestConfig } from "axios";
 import { apiClient } from "./client";
 
-// Orval custom instance mutator
+// Orval custom instance mutator (httpClient: "axios" mode)
 // Wraps the existing apiClient so all interceptors (auth, guild header) are preserved.
-// Orval calls this with (url, { method, headers, data, params, signal, ... }).
-// We accept a generic record to avoid type conflicts between fetch's RequestInit
-// and Axios's AxiosRequestConfig that Orval may pass in.
-export const apiMutator = <T>(url: string, options?: Record<string, unknown>): Promise<T> => {
-  return apiClient<T>({
-    url,
-    method: options?.method as string,
-    data: options?.data ?? options?.body,
-    params: options?.params,
-    headers: options?.headers as Record<string, string>,
-    signal: options?.signal as AbortSignal,
-  }).then(({ data }) => data);
+// With httpClient: "axios", Orval calls this with (config, options) where config
+// is an AxiosRequestConfig-like object { url, method, data, params, headers, signal }.
+// Generated URLs already include the full /api/v1 prefix, so we set baseURL to ""
+// to avoid double-prefixing with the apiClient's own baseURL.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const apiMutator = <T>(
+  config: AxiosRequestConfig,
+  _options?: AxiosRequestConfig
+): Promise<T> => {
+  return apiClient<T>({ ...config, baseURL: "" }).then(({ data }) => data);
 };
 
 export default apiMutator;
