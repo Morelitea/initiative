@@ -1,10 +1,13 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  updateGuildApiV1GuildsGuildIdPatch,
+  deleteGuildApiV1GuildsGuildIdDelete,
+} from "@/api/generated/guilds/guilds";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { Guild } from "@/types/api";
-import { apiClient } from "@/api/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,12 +89,12 @@ export const SettingsGuildPage = () => {
     setSaveError(null);
     setSaveMessage(null);
     try {
-      const response = await apiClient.patch<Guild>(`/guilds/${activeGuild.id}`, {
+      const result = await (updateGuildApiV1GuildsGuildIdPatch(activeGuild.id, {
         name,
         description,
         icon_base64: iconBase64 ?? null,
-      });
-      updateGuildInState(response.data);
+      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1]) as unknown as Promise<Guild>);
+      updateGuildInState(result);
       await refreshGuilds();
       setSaveMessage(t("settings.updatedSuccessfully"));
     } catch (err) {
@@ -111,7 +114,7 @@ export const SettingsGuildPage = () => {
     setShowDeleteConfirm(false);
     setDeleteConfirmText("");
     try {
-      await apiClient.delete(`/guilds/${activeGuild.id}`);
+      await deleteGuildApiV1GuildsGuildIdDelete(activeGuild.id);
       await refreshGuilds();
       window.location.replace("/");
     } catch (error) {

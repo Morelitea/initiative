@@ -1,10 +1,16 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  copyDocumentApiV1DocumentsDocumentIdCopyPost,
+  createDocumentApiV1DocumentsPost,
+  getListDocumentsApiV1DocumentsGetQueryKey,
+  listDocumentsApiV1DocumentsGet,
+} from "@/api/generated/documents/documents";
+import { invalidateAllDocuments } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -24,7 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
 import type { DocumentRead, DocumentSummary } from "@/types/api";
 
 interface CreateWikilinkDocumentDialogProps {
@@ -49,20 +54,18 @@ export function CreateWikilinkDocumentDialog({
   onCreated,
 }: CreateWikilinkDocumentDialogProps) {
   const { t } = useTranslation(["documents", "common"]);
-  const queryClient = useQueryClient();
-  const { activeGuildId } = useGuilds();
   const { user } = useAuth();
 
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   // Query templates
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "templates"],
+    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
     queryFn: async () => {
-      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
-        params: { page_size: "0" },
-      });
-      return response.data.items;
+      const response = await (listDocumentsApiV1DocumentsGet({
+        page_size: 0,
+      }) as unknown as Promise<{ items: DocumentSummary[] }>);
+      return response.items;
     },
     enabled: open && canCreate,
   });
@@ -89,27 +92,21 @@ export function CreateWikilinkDocumentDialog({
     mutationFn: async () => {
       // Use template if selected and not "blank"
       if (selectedTemplateId && selectedTemplateId !== "blank") {
-        const response = await apiClient.post<DocumentRead>(
-          `/documents/${selectedTemplateId}/copy`,
-          { target_initiative_id: initiativeId, title: title.trim() }
-        );
-        return response.data;
+        return copyDocumentApiV1DocumentsDocumentIdCopyPost(Number(selectedTemplateId), {
+          target_initiative_id: initiativeId,
+          title: title.trim(),
+        }) as unknown as Promise<DocumentRead>;
       } else {
-        const response = await apiClient.post<DocumentRead>("/documents/", {
+        return createDocumentApiV1DocumentsPost({
           title: title.trim(),
           initiative_id: initiativeId,
-        });
-        return response.data;
+        }) as unknown as Promise<DocumentRead>;
       }
     },
     onSuccess: (document) => {
       toast.success(t("wikilink.created"));
       onOpenChange(false);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
-      void queryClient.invalidateQueries({
-        queryKey: ["documents", "initiative", initiativeId],
-      });
+      void invalidateAllDocuments();
       onCreated?.(document.id);
     },
     onError: (error) => {

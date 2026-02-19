@@ -4,7 +4,19 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  parseTicktickCsvApiV1ImportsTicktickParsePost,
+  importFromTicktickApiV1ImportsTicktickPost,
+} from "@/api/generated/imports/imports";
+import {
+  listProjectsApiV1ProjectsGet,
+  getListProjectsApiV1ProjectsGetQueryKey,
+} from "@/api/generated/projects/projects";
+import {
+  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+} from "@/api/generated/task-statuses/task-statuses";
+import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus } from "@/types/api";
 
 interface TickTickColumn {
@@ -108,23 +119,20 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
 
   // Fetch projects for selection
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
+    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
     enabled: open,
   });
 
   // Fetch task statuses for selected target project
   const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: ["projects", selectedTargetProjectId, "task-statuses"],
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectTaskStatus[]>(
-        `/projects/${selectedTargetProjectId}/task-statuses/`
-      );
-      return response.data;
-    },
+    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(
+      selectedTargetProjectId!
+    ),
+    queryFn: () =>
+      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+        selectedTargetProjectId!
+      ) as unknown as Promise<ProjectTaskStatus[]>,
     enabled: selectedTargetProjectId !== null,
   });
 
@@ -148,12 +156,9 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   // Parse CSV mutation
   const parseMutation = useMutation({
     mutationFn: async (content: string) => {
-      const response = await apiClient.post<TickTickParseResult>(
-        "/imports/ticktick/parse",
-        content,
-        { headers: { "Content-Type": "text/plain" } }
-      );
-      return response.data;
+      return parseTicktickCsvApiV1ImportsTicktickParsePost(
+        content
+      ) as unknown as Promise<TickTickParseResult>;
     },
     onSuccess: (data) => {
       setParseResult(data);
@@ -173,19 +178,17 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
     mutationFn: async () => {
       if (!selectedTargetProjectId) throw new Error("No target project selected");
       if (!selectedSourceListName) throw new Error("No source list selected");
-      const response = await apiClient.post<ImportResult>("/imports/ticktick", {
+      return importFromTicktickApiV1ImportsTicktickPost({
         project_id: selectedTargetProjectId,
         csv_content: csvContent,
         source_list_name: selectedSourceListName,
         column_mapping: columnMapping,
-      });
-      return response.data;
+      }) as unknown as Promise<ImportResult>;
     },
     onSuccess: (data) => {
       setImportResult(data);
       setStep("result");
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["project", selectedTargetProjectId] });
+      void invalidateAllTasks();
     },
     onError: () => {
       toast.error(t("common.importFailed"));

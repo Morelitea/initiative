@@ -7,10 +7,9 @@ import { apiClient } from "./client";
 // is an AxiosRequestConfig-like object { url, method, data, params, headers, signal }.
 // Generated URLs already include the full /api/v1 prefix, so we set baseURL to ""
 // to avoid double-prefixing with the apiClient's own baseURL.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const apiMutator = <T>(
   config: AxiosRequestConfig,
-  _options?: AxiosRequestConfig
+  _options?: AxiosRequestConfig // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<T> => {
   return apiClient<T>({ ...config, baseURL: "" }).then(({ data }) => data);
 };

@@ -3,7 +3,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  getUserAiSettingsApiV1SettingsAiUserGet,
+  getGetUserAiSettingsApiV1SettingsAiUserGetQueryKey,
+  updateUserAiSettingsApiV1SettingsAiUserPut,
+  testAiConnectionApiV1SettingsAiTestPost,
+  fetchAiModelsApiV1SettingsAiModelsPost,
+} from "@/api/generated/ai-settings/ai-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,11 +57,8 @@ export const UserSettingsAIPage = () => {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const settingsQuery = useQuery<UserAISettings>({
-    queryKey: ["settings", "ai", "user"],
-    queryFn: async () => {
-      const response = await apiClient.get<UserAISettings>("/settings/ai/user");
-      return response.data;
-    },
+    queryKey: getGetUserAiSettingsApiV1SettingsAiUserGetQueryKey(),
+    queryFn: () => getUserAiSettingsApiV1SettingsAiUserGet() as unknown as Promise<UserAISettings>,
   });
 
   useEffect(() => {
@@ -82,8 +85,9 @@ export const UserSettingsAIPage = () => {
 
   const updateMutation = useMutation({
     mutationFn: async (payload: UserAISettingsUpdate) => {
-      const response = await apiClient.put<UserAISettings>("/settings/ai/user", payload);
-      return response.data;
+      return updateUserAiSettingsApiV1SettingsAiUserPut(
+        payload as Parameters<typeof updateUserAiSettingsApiV1SettingsAiUserPut>[0]
+      ) as unknown as Promise<UserAISettings>;
     },
     onSuccess: (data) => {
       toast.success(t("ai.saveSuccess"));
@@ -105,7 +109,7 @@ export const UserSettingsAIPage = () => {
       if (!provider) {
         throw new Error("No provider selected");
       }
-      const response = await apiClient.post<AITestConnectionResponse>("/settings/ai/test", {
+      return testAiConnectionApiV1SettingsAiTestPost({
         provider: provider,
         api_key: formState.apiKey || null,
         base_url: formState.useInheritedSettings
@@ -114,8 +118,9 @@ export const UserSettingsAIPage = () => {
         model: formState.useInheritedSettings
           ? settingsQuery.data?.effective_model
           : formState.model || null,
-      });
-      return response.data;
+      } as Parameters<
+        typeof testAiConnectionApiV1SettingsAiTestPost
+      >[0]) as unknown as Promise<AITestConnectionResponse>;
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -138,14 +143,15 @@ export const UserSettingsAIPage = () => {
       if (!provider) {
         throw new Error("No provider selected");
       }
-      const response = await apiClient.post<AIModelsResponse>("/settings/ai/models", {
+      return fetchAiModelsApiV1SettingsAiModelsPost({
         provider: provider,
         api_key: formState.apiKey || null,
         base_url: formState.useInheritedSettings
           ? settingsQuery.data?.effective_base_url
           : formState.baseUrl || null,
-      });
-      return response.data;
+      } as Parameters<
+        typeof fetchAiModelsApiV1SettingsAiModelsPost
+      >[0]) as unknown as Promise<AIModelsResponse>;
     },
     onSuccess: (data) => {
       if (data.models.length > 0) {

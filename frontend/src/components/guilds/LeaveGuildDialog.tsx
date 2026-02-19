@@ -14,7 +14,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { apiClient } from "@/api/client";
+import {
+  checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
+  leaveGuildApiV1GuildsGuildIdLeaveDelete,
+} from "@/api/generated/guilds/guilds";
 import type { Guild, LeaveGuildEligibilityResponse } from "@/types/api";
 import { useGuilds } from "@/hooks/useGuilds";
 
@@ -44,10 +47,10 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get<LeaveGuildEligibilityResponse>(
-          `/guilds/${guild.id}/leave/eligibility`
-        );
-        setEligibility(response.data);
+        const data = (await checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet(
+          guild.id
+        )) as unknown as LeaveGuildEligibilityResponse;
+        setEligibility(data);
       } catch (err) {
         console.error("Failed to check leave eligibility", err);
         setError(t("leave.failedToCheckEligibility"));
@@ -62,7 +65,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const handleLeave = async () => {
     setLeaving(true);
     try {
-      await apiClient.delete(`/guilds/${guild.id}/leave`);
+      await leaveGuildApiV1GuildsGuildIdLeaveDelete(guild.id);
 
       // Switch to another guild if leaving the active one
       if (activeGuildId === guild.id) {

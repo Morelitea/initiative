@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useDateLocale } from "@/hooks/useDateLocale";
 
 import { apiClient } from "@/api/client";
+import { invalidateAllProjects } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -64,8 +65,8 @@ export const MyProjectsPage = () => {
   searchParamsRef.current = searchParams;
 
   const handleRefresh = useCallback(async () => {
-    await localQueryClient.invalidateQueries({ queryKey: ["projects", "global"] });
-  }, [localQueryClient]);
+    await invalidateAllProjects();
+  }, []);
 
   const [guildFilters, setGuildFilters] = useState<number[]>(
     () => readStoredFilters().guildFilters
@@ -123,23 +124,20 @@ export const MyProjectsPage = () => {
     return map;
   }, [guilds]);
 
+  const projectsGlobalParams = useMemo(() => {
+    const params: Record<string, string | string[] | number | number[]> = {};
+    if (guildFilters.length > 0) params.guild_ids = guildFilters;
+    if (debouncedSearch) params.search = debouncedSearch;
+    params.page = page;
+    params.page_size = pageSize;
+    return params;
+  }, [guildFilters, debouncedSearch, page, pageSize]);
+
   const projectsQuery = useQuery<ProjectListResponse>({
-    queryKey: ["projects", "global", guildFilters, debouncedSearch, page, pageSize],
+    queryKey: ["/api/v1/projects/global", projectsGlobalParams],
     queryFn: async () => {
-      const params: Record<string, string | string[] | number | number[]> = {};
-
-      if (guildFilters.length > 0) {
-        params.guild_ids = guildFilters;
-      }
-      if (debouncedSearch) {
-        params.search = debouncedSearch;
-      }
-
-      params.page = page;
-      params.page_size = pageSize;
-
       const response = await apiClient.get<ProjectListResponse>("/projects/global", {
-        params,
+        params: projectsGlobalParams,
       });
       return response.data;
     },
@@ -149,24 +147,20 @@ export const MyProjectsPage = () => {
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[] | number | number[]> = {};
-      if (guildFilters.length > 0) params.guild_ids = guildFilters;
-      if (debouncedSearch) params.search = debouncedSearch;
-      params.page = targetPage;
-      params.page_size = pageSize;
+      const prefetchParams = { ...projectsGlobalParams, page: targetPage };
 
       void localQueryClient.prefetchQuery({
-        queryKey: ["projects", "global", guildFilters, debouncedSearch, targetPage, pageSize],
+        queryKey: ["/api/v1/projects/global", prefetchParams],
         queryFn: async () => {
           const response = await apiClient.get<ProjectListResponse>("/projects/global", {
-            params,
+            params: prefetchParams,
           });
           return response.data;
         },
         staleTime: 30_000,
       });
     },
-    [guildFilters, debouncedSearch, pageSize, localQueryClient]
+    [projectsGlobalParams, localQueryClient]
   );
 
   const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);

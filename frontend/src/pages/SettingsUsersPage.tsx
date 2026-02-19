@@ -4,7 +4,19 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  listUsersApiV1UsersGet,
+  getListUsersApiV1UsersGetQueryKey,
+  approveUserApiV1UsersUserIdApprovePost,
+  deleteUserApiV1UsersUserIdDelete,
+} from "@/api/generated/users/users";
+import {
+  listGuildInvitesApiV1GuildsGuildIdInvitesGet,
+  createGuildInviteApiV1GuildsGuildIdInvitesPost,
+  deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete,
+  updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch,
+} from "@/api/generated/guilds/guilds";
+import { invalidateUsersList } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +32,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
-import { queryClient } from "@/lib/queryClient";
 import type { GuildInviteRead, GuildRole, UserGuildMember } from "@/types/api";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
@@ -28,7 +39,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { formatDistanceToNow } from "date-fns";
 import { Copy, RefreshCcw, Trash2 } from "lucide-react";
 
-const USERS_QUERY_KEY = ["users"];
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
   const base = import.meta.env.VITE_APP_URL?.trim() || window.location.origin;
@@ -68,8 +78,10 @@ export const SettingsUsersPage = () => {
     setInvitesLoading(true);
     setInvitesError(null);
     try {
-      const response = await apiClient.get<GuildInviteRead[]>(`/guilds/${activeGuildId}/invites`);
-      setInvites(response.data);
+      const data = await (listGuildInvitesApiV1GuildsGuildIdInvitesGet(
+        activeGuildId
+      ) as unknown as Promise<GuildInviteRead[]>);
+      setInvites(data);
     } catch (error) {
       console.error("Failed to load invites", error);
       setInvitesError(t("users.unableToLoadInvites"));
@@ -87,29 +99,28 @@ export const SettingsUsersPage = () => {
   const inviteRows = useMemo(() => invites, [invites]);
 
   const usersQuery = useQuery<UserGuildMember[]>({
-    queryKey: USERS_QUERY_KEY,
+    queryKey: getListUsersApiV1UsersGetQueryKey(),
     enabled: isGuildAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<UserGuildMember[]>("/users/");
-      return response.data;
-    },
+    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<UserGuildMember[]>,
   });
 
   const approveUser = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.post(`/users/${userId}/approve`, {});
+      await approveUserApiV1UsersUserIdApprovePost(userId);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
+      void invalidateUsersList();
     },
   });
 
   const updateGuildMembership = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: GuildRole }) => {
-      await apiClient.patch(`/guilds/${activeGuildId}/members/${userId}`, { role });
+      await updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch(activeGuildId!, userId, {
+        role,
+      } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
+      void invalidateUsersList();
     },
     onError: (error: unknown) => {
       const message = getErrorMessage(error, "guilds:users.failedToUpdateRole");
@@ -119,10 +130,10 @@ export const SettingsUsersPage = () => {
 
   const deleteUser = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.delete(`/users/${userId}`);
+      await deleteUserApiV1UsersUserIdDelete(userId);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
+      void invalidateUsersList();
     },
   });
 
@@ -265,11 +276,14 @@ export const SettingsUsersPage = () => {
         inviteExpiresDays > 0
           ? new Date(Date.now() + inviteExpiresDays * 24 * 60 * 60 * 1000).toISOString()
           : null;
-      const payload: Record<string, unknown> = {
+      const payload = {
         max_uses: inviteMaxUses > 0 ? inviteMaxUses : null,
         expires_at: expiresAt,
       };
-      await apiClient.post(`/guilds/${activeGuildId}/invites`, payload);
+      await createGuildInviteApiV1GuildsGuildIdInvitesPost(
+        activeGuildId,
+        payload as Parameters<typeof createGuildInviteApiV1GuildsGuildIdInvitesPost>[1]
+      );
       await loadInvites();
     } catch (error) {
       console.error(error);
@@ -284,7 +298,7 @@ export const SettingsUsersPage = () => {
       return;
     }
     try {
-      await apiClient.delete(`/guilds/${activeGuildId}/invites/${inviteId}`);
+      await deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete(activeGuildId, inviteId);
       await loadInvites();
     } catch (error) {
       console.error(error);

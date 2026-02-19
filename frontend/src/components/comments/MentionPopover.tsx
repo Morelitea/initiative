@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { CheckSquare, FileText, FolderKanban, User } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  searchMentionablesApiV1CommentsMentionsSearchGet,
+  getSearchMentionablesApiV1CommentsMentionsSearchGetQueryKey,
+} from "@/api/generated/comments/comments";
 import type { MentionEntityType, MentionSuggestion } from "@/types/api";
 
 interface MentionPopoverProps {
@@ -19,13 +22,11 @@ const fetchSuggestions = async (
   initiativeId: number,
   query: string
 ): Promise<MentionSuggestion[]> => {
-  const response = await apiClient.get<MentionSuggestion[]>("/comments/mentions/search", {
-    params: {
-      entity_type: type,
-      initiative_id: initiativeId,
-      q: query,
-    },
-  });
+  const response = await (searchMentionablesApiV1CommentsMentionsSearchGet({
+    entity_type: type,
+    initiative_id: initiativeId,
+    q: query,
+  }) as unknown as Promise<{ data: MentionSuggestion[] }>);
   return response.data;
 };
 
@@ -64,7 +65,11 @@ export const MentionPopover = ({
   );
 
   const { data: suggestions = [], isLoading } = useQuery({
-    queryKey: ["mentionSuggestions", type, initiativeId, query],
+    queryKey: getSearchMentionablesApiV1CommentsMentionsSearchGetQueryKey({
+      entity_type: type,
+      initiative_id: initiativeId,
+      q: query,
+    }),
     queryFn: () => fetchSuggestions(type, initiativeId, query),
     staleTime: 30000,
     enabled: initiativeId > 0,

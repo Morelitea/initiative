@@ -24,9 +24,19 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  listTasksApiV1TasksGet,
+  getListTasksApiV1TasksGetQueryKey,
+  createTaskApiV1TasksPost,
+  updateTaskApiV1TasksTaskIdPatch,
+  deleteTaskApiV1TasksTaskIdDelete,
+  reorderTasksApiV1TasksReorderPost,
+  archiveDoneTasksApiV1TasksArchiveDonePost,
+} from "@/api/generated/tasks/tasks";
+import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
-import { queryClient } from "@/lib/queryClient";
+
 import { useTags } from "@/hooks/useTags";
 import type {
   TaskRecurrenceStrategy,
@@ -152,37 +162,18 @@ export const ProjectTasksSection = ({
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
 
   // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
+  const taskListParams: ListTasksApiV1TasksGetParams = {
+    project_id: projectId,
+    page_size: 0,
+    ...(assigneeFilters.length > 0 && { assignee_ids: assigneeFilters }),
+    ...(statusFilters.length > 0 && { task_status_ids: statusFilters }),
+    ...(tagFilters.length > 0 && { tag_ids: tagFilters }),
+    ...(showArchived && { include_archived: true }),
+  };
+
   const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: ["tasks", projectId, assigneeFilters, statusFilters, tagFilters, showArchived],
-    queryFn: async () => {
-      const params: Record<string, number | string[] | number[] | boolean> = {
-        project_id: projectId,
-        page_size: 0,
-      };
-
-      // Add assignee filters (array)
-      if (assigneeFilters.length > 0) {
-        params.assignee_ids = assigneeFilters;
-      }
-
-      // Add status filters (array)
-      if (statusFilters.length > 0) {
-        params.task_status_ids = statusFilters;
-      }
-
-      // Add tag filters (array)
-      if (tagFilters.length > 0) {
-        params.tag_ids = tagFilters;
-      }
-
-      // Include archived tasks if requested
-      if (showArchived) {
-        params.include_archived = true;
-      }
-
-      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
-      return response.data;
-    },
+    queryKey: getListTasksApiV1TasksGetQueryKey(taskListParams),
+    queryFn: () => listTasksApiV1TasksGet(taskListParams) as unknown as Promise<TaskListResponse>,
     enabled: Number.isFinite(projectId) && filtersLoadedForProject === projectId,
   });
 
@@ -377,8 +368,7 @@ export const ProjectTasksSection = ({
         payload.recurrence = null;
         payload.recurrence_strategy = "fixed";
       }
-      const response = await apiClient.post<Task>("/tasks/", payload);
-      return response.data;
+      return await (createTaskApiV1TasksPost(payload as never) as unknown as Promise<Task>);
     },
     onSuccess: (newTask) => {
       setTitle("");
@@ -391,9 +381,7 @@ export const ProjectTasksSection = ({
       setRecurrenceStrategy("fixed");
       setIsComposerOpen(false);
       setLocalOverride((prev) => [...(prev ?? projectTasks), newTask]);
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
       toast.success(t("tasks.taskCreated"));
     },
     onError: () => {
@@ -403,10 +391,9 @@ export const ProjectTasksSection = ({
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, taskStatusId }: { taskId: number; taskStatusId: number }) => {
-      const response = await apiClient.patch<Task>(`/tasks/${taskId}`, {
+      return await (updateTaskApiV1TasksTaskIdPatch(taskId, {
         task_status_id: taskStatusId,
-      });
-      return response.data;
+      } as never) as unknown as Promise<Task>);
     },
     onSuccess: (updatedTask) => {
       setLocalOverride((prev) => {
@@ -419,9 +406,7 @@ export const ProjectTasksSection = ({
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
       toast.success(t("tasks.taskUpdated"));
     },
   });
@@ -435,9 +420,12 @@ export const ProjectTasksSection = ({
       changes: Partial<TaskBulkUpdate>;
     }) => {
       const results = await Promise.all(
-        taskIds.map((taskId) => apiClient.patch<Task>(`/tasks/${taskId}`, changes))
+        taskIds.map(
+          (taskId) =>
+            updateTaskApiV1TasksTaskIdPatch(taskId, changes as never) as unknown as Promise<Task>
+        )
       );
-      return results.map((r) => r.data);
+      return results;
     },
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
@@ -445,9 +433,7 @@ export const ProjectTasksSection = ({
       // setSelectedTasks([]);
       setIsBulkEditDialogOpen(false);
       setLocalOverride(null);
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("tasks.bulkUpdateError");
@@ -457,16 +443,14 @@ export const ProjectTasksSection = ({
 
   const bulkDeleteTasks = useMutation({
     mutationFn: async (taskIds: number[]) => {
-      await Promise.all(taskIds.map((taskId) => apiClient.delete(`/tasks/${taskId}`)));
+      await Promise.all(taskIds.map((taskId) => deleteTaskApiV1TasksTaskIdDelete(taskId)));
     },
     onSuccess: (_data, taskIds) => {
       const count = taskIds.length;
       toast.success(t("tasks.bulkDeleted", { count }));
       setSelectedTasks([]);
       setLocalOverride(null);
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("tasks.bulkDeleteError");
@@ -477,18 +461,21 @@ export const ProjectTasksSection = ({
   const bulkArchiveTasks = useMutation({
     mutationFn: async (taskIds: number[]) => {
       const results = await Promise.all(
-        taskIds.map((taskId) => apiClient.patch<Task>(`/tasks/${taskId}`, { is_archived: true }))
+        taskIds.map(
+          (taskId) =>
+            updateTaskApiV1TasksTaskIdPatch(taskId, {
+              is_archived: true,
+            } as never) as unknown as Promise<Task>
+        )
       );
-      return results.map((r) => r.data);
+      return results;
     },
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
       toast.success(t("tasks.archivedSuccess", { count }));
       setSelectedTasks([]);
       setLocalOverride(null);
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("tasks.archiveError");
@@ -498,18 +485,10 @@ export const ProjectTasksSection = ({
 
   const archiveDoneTasks = useMutation({
     mutationFn: async (taskStatusId?: number) => {
-      const params: { project_id: number; task_status_id?: number } = { project_id: projectId };
-      if (taskStatusId !== undefined) {
-        params.task_status_id = taskStatusId;
-      }
-      const response = await apiClient.post<{ archived_count: number }>(
-        "/tasks/archive-done",
-        null,
-        {
-          params,
-        }
-      );
-      return response.data;
+      return await (archiveDoneTasksApiV1TasksArchiveDonePost({
+        project_id: projectId,
+        ...(taskStatusId !== undefined && { task_status_id: taskStatusId }),
+      }) as unknown as Promise<{ archived_count: number }>);
     },
     onSuccess: (data) => {
       const count = data.archived_count;
@@ -518,9 +497,7 @@ export const ProjectTasksSection = ({
       } else {
         toast.success(t("tasks.archivedSuccess", { count }));
       }
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("tasks.archiveError");
@@ -530,16 +507,15 @@ export const ProjectTasksSection = ({
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
     mutationFn: async (payload: TaskReorderPayload) => {
-      const response = await apiClient.post<Task[]>("/tasks/reorder", payload);
-      return response.data;
+      return await (reorderTasksApiV1TasksReorderPost(payload as never) as unknown as Promise<
+        Task[]
+      >);
     },
     onSuccess: () => {
       // Don't set localOverride from response - it returns unfiltered tasks.
       // The optimistic update already shows the new order, and query
       // invalidation will confirm with filters (clearing localOverride).
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks", projectId],
-      });
+      void invalidateAllTasks();
     },
   });
 

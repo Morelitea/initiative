@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { setDocumentTagsApiV1DocumentsDocumentIdTagsPut } from "@/api/generated/documents/documents";
+import { invalidateAllDocuments } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,7 +32,6 @@ export function BulkEditTagsDialog({
   onSuccess,
 }: BulkEditTagsDialogProps) {
   const { t } = useTranslation(["documents", "common"]);
-  const queryClient = useQueryClient();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [tagsToAdd, setTagsToAdd] = useState<TagSummary[]>([]);
   const [tagsToRemove, setTagsToRemove] = useState<TagSummary[]>([]);
@@ -80,7 +79,7 @@ export function BulkEditTagsDialog({
             const currentIds = new Set((doc.tags ?? []).map((t) => t.id));
             const merged = [...currentIds, ...addIds];
             const uniqueIds = [...new Set(merged)];
-            return apiClient.put(`/documents/${doc.id}/tags`, { tag_ids: uniqueIds });
+            return setDocumentTagsApiV1DocumentsDocumentIdTagsPut(doc.id, { tag_ids: uniqueIds });
           })
         );
         toast.success(t("bulkTags.tagsAdded", { count: documents.length }));
@@ -91,13 +90,13 @@ export function BulkEditTagsDialog({
             const filtered = (doc.tags ?? [])
               .filter((tag) => !removeIds.has(tag.id))
               .map((tag) => tag.id);
-            return apiClient.put(`/documents/${doc.id}/tags`, { tag_ids: filtered });
+            return setDocumentTagsApiV1DocumentsDocumentIdTagsPut(doc.id, { tag_ids: filtered });
           })
         );
         toast.success(t("bulkTags.tagsRemoved", { count: documents.length }));
       }
 
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void invalidateAllDocuments();
       resetState();
       onOpenChange(false);
       onSuccess();
@@ -107,17 +106,7 @@ export function BulkEditTagsDialog({
     } finally {
       setIsPending(false);
     }
-  }, [
-    mode,
-    tagsToAdd,
-    tagsToRemove,
-    documents,
-    queryClient,
-    resetState,
-    onOpenChange,
-    onSuccess,
-    t,
-  ]);
+  }, [mode, tagsToAdd, tagsToRemove, documents, resetState, onOpenChange, onSuccess, t]);
 
   const canApply = mode === "add" ? tagsToAdd.length > 0 : tagsToRemove.length > 0;
 

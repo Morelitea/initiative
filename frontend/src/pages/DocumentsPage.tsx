@@ -23,7 +23,19 @@ import {
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  listDocumentsApiV1DocumentsGet,
+  getListDocumentsApiV1DocumentsGetQueryKey,
+  getDocumentCountsApiV1DocumentsCountsGet,
+  getGetDocumentCountsApiV1DocumentsCountsGetQueryKey,
+  deleteDocumentApiV1DocumentsDocumentIdDelete,
+  copyDocumentApiV1DocumentsDocumentIdCopyPost,
+} from "@/api/generated/documents/documents";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+} from "@/api/generated/initiatives/initiatives";
+import { invalidateAllDocuments } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -61,6 +73,10 @@ import type {
   Tag,
   TagSummary,
 } from "@/types/api";
+import type {
+  ListDocumentsApiV1DocumentsGetParams,
+  GetDocumentCountsApiV1DocumentsCountsGetParams,
+} from "@/api/generated/initiativeAPI.schemas";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -409,67 +425,41 @@ export const DocumentsView = ({
     setPage(1);
   }, [viewMode, initiativeFilter, searchQuery, queryTagIdsKey, treeWantsUntagged, setPage]);
 
+  const documentsQueryParams: ListDocumentsApiV1DocumentsGetParams = {
+    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
+      ? { initiative_id: Number(initiativeFilter) }
+      : {}),
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+    ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
+    page,
+    page_size: pageSize,
+    ...(sortBy ? { sort_by: sortBy } : {}),
+    ...(sortDir ? { sort_dir: sortDir } : {}),
+  };
+
   const documentsQuery = useQuery<DocumentListResponse>({
-    queryKey: [
-      "documents",
-      {
-        guildId: activeGuildId,
-        initiative: initiativeFilter,
-        search: searchQuery,
-        tagFilters: queryTagIds,
-        untagged: treeWantsUntagged,
-        page,
-        pageSize,
-        sortBy,
-        sortDir,
-      },
-    ],
-    queryFn: async () => {
-      const params: Record<string, string | string[]> = {};
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
-      }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
-      if (queryTagIds.length > 0) {
-        params.tag_ids = queryTagIds.map(String);
-      }
-      if (treeWantsUntagged && treeTagIds.length === 0) {
-        params.untagged = "true";
-      }
-      params.page = String(page);
-      params.page_size = String(pageSize);
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-      const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
-      return response.data;
-    },
+    queryKey: getListDocumentsApiV1DocumentsGetQueryKey(documentsQueryParams),
+    queryFn: () =>
+      listDocumentsApiV1DocumentsGet(
+        documentsQueryParams
+      ) as unknown as Promise<DocumentListResponse>,
     placeholderData: keepPreviousData,
   });
 
   // Counts query for tags view sidebar
+  const countsQueryParams: GetDocumentCountsApiV1DocumentsCountsGetParams = {
+    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
+      ? { initiative_id: Number(initiativeFilter) }
+      : {}),
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+  };
+
   const countsQuery = useQuery<DocumentCountsResponse>({
-    queryKey: [
-      "documents",
-      "counts",
-      {
-        guildId: activeGuildId,
-        initiative: initiativeFilter,
-        search: searchQuery,
-      },
-    ],
-    queryFn: async () => {
-      const params: Record<string, string> = {};
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
-      }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
-      const response = await apiClient.get<DocumentCountsResponse>("/documents/counts", { params });
-      return response.data;
-    },
+    queryKey: getGetDocumentCountsApiV1DocumentsCountsGetQueryKey(countsQueryParams),
+    queryFn: () =>
+      getDocumentCountsApiV1DocumentsCountsGet(
+        countsQueryParams
+      ) as unknown as Promise<DocumentCountsResponse>,
     enabled: viewMode === "tags",
   });
 
@@ -477,66 +467,33 @@ export const DocumentsView = ({
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[]> = {};
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
-      }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
-      if (queryTagIds.length > 0) {
-        params.tag_ids = queryTagIds.map(String);
-      }
-      if (treeWantsUntagged && treeTagIds.length === 0) {
-        params.untagged = "true";
-      }
-      params.page = String(targetPage);
-      params.page_size = String(pageSize);
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
+      const prefetchParams: ListDocumentsApiV1DocumentsGetParams = {
+        ...(initiativeFilter !== INITIATIVE_FILTER_ALL
+          ? { initiative_id: Number(initiativeFilter) }
+          : {}),
+        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
+        page: targetPage,
+        page_size: pageSize,
+        ...(sortBy ? { sort_by: sortBy } : {}),
+        ...(sortDir ? { sort_dir: sortDir } : {}),
+      };
 
       void queryClient.prefetchQuery({
-        queryKey: [
-          "documents",
-          {
-            guildId: activeGuildId,
-            initiative: initiativeFilter,
-            search: searchQuery,
-            tagFilters: queryTagIds,
-            untagged: treeWantsUntagged,
-            page: targetPage,
-            pageSize,
-            sortBy,
-            sortDir,
-          },
-        ],
-        queryFn: async () => {
-          const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
-          return response.data;
-        },
+        queryKey: getListDocumentsApiV1DocumentsGetQueryKey(prefetchParams),
+        queryFn: () =>
+          listDocumentsApiV1DocumentsGet(
+            prefetchParams
+          ) as unknown as Promise<DocumentListResponse>,
         staleTime: 30_000,
       });
     },
-    [
-      activeGuildId,
-      initiativeFilter,
-      searchQuery,
-      queryTagIds,
-      treeWantsUntagged,
-      treeTagIds,
-      pageSize,
-      sortBy,
-      sortDir,
-      queryClient,
-    ]
+    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, queryClient]
   );
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
   });
 
   // Filter initiatives where user can create documents
@@ -804,13 +761,13 @@ export const DocumentsView = ({
 
   const deleteDocuments = useMutation({
     mutationFn: async (documentIds: number[]) => {
-      await Promise.all(documentIds.map((id) => apiClient.delete(`/documents/${id}`)));
+      await Promise.all(documentIds.map((id) => deleteDocumentApiV1DocumentsDocumentIdDelete(id)));
     },
     onSuccess: (_data, documentIds) => {
       const count = documentIds.length;
       toast.success(t("bulk.deleted", { count }));
       setSelectedDocuments([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void invalidateAllDocuments();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("bulk.deleteError");
@@ -821,21 +778,21 @@ export const DocumentsView = ({
   const duplicateDocuments = useMutation({
     mutationFn: async (documentsToClone: DocumentSummary[]) => {
       const results = await Promise.all(
-        documentsToClone.map((doc) => {
-          const payload = {
-            target_initiative_id: doc.initiative?.id,
-            title: `${doc.title} (copy)`,
-          };
-          return apiClient.post<DocumentRead>(`/documents/${doc.id}/copy`, payload);
-        })
+        documentsToClone.map(
+          (doc) =>
+            copyDocumentApiV1DocumentsDocumentIdCopyPost(doc.id, {
+              target_initiative_id: doc.initiative_id,
+              title: `${doc.title} (copy)`,
+            }) as unknown as Promise<DocumentRead>
+        )
       );
-      return results.map((r) => r.data);
+      return results;
     },
     onSuccess: (data) => {
       const count = data.length;
       toast.success(t("bulk.duplicated", { count }));
       setSelectedDocuments([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void invalidateAllDocuments();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("bulk.duplicateError");

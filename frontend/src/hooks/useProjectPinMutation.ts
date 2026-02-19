@@ -1,6 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 
-import { apiClient } from "@/api/client";
+import { updateProjectApiV1ProjectsProjectIdPatch } from "@/api/generated/projects/projects";
+import {
+  getListProjectsApiV1ProjectsGetQueryKey,
+  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+} from "@/api/generated/projects/projects";
 import { queryClient } from "@/lib/queryClient";
 import type { Project } from "@/types/api";
 
@@ -19,21 +23,25 @@ const replaceProjectInList = (projects: Project[] | undefined, updated: Project)
 export const useProjectPinMutation = () =>
   useMutation<Project, unknown, ToggleArgs>({
     mutationFn: async ({ projectId, nextState }) => {
-      const response = await apiClient.patch<Project>(`/projects/${projectId}`, {
+      return updateProjectApiV1ProjectsProjectIdPatch(projectId, {
         pinned: nextState,
-      });
-      return response.data;
+      }) as unknown as Promise<Project>;
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Project[]>(["projects"], (projects) =>
+      queryClient.setQueryData<Project[]>(getListProjectsApiV1ProjectsGetQueryKey(), (projects) =>
         replaceProjectInList(projects, data)
       );
-      queryClient.setQueryData<Project[]>(["projects", "templates"], (projects) =>
-        replaceProjectInList(projects, data)
+      queryClient.setQueryData<Project[]>(
+        getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
+        (projects) => replaceProjectInList(projects, data)
       );
-      queryClient.setQueryData<Project[]>(["projects", "archived"], (projects) =>
-        replaceProjectInList(projects, data)
+      queryClient.setQueryData<Project[]>(
+        getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
+        (projects) => replaceProjectInList(projects, data)
       );
-      queryClient.setQueryData<Project>(["projects", data.id], () => data);
+      queryClient.setQueryData<Project>(
+        getReadProjectApiV1ProjectsProjectIdGetQueryKey(data.id) as unknown as string[],
+        () => data
+      );
     },
   });

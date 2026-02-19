@@ -1,10 +1,23 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2, Plus, Presentation, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import {
+  copyDocumentApiV1DocumentsDocumentIdCopyPost,
+  createDocumentApiV1DocumentsPost,
+  getListDocumentsApiV1DocumentsGetQueryKey,
+  listDocumentsApiV1DocumentsGet,
+  uploadDocumentFileApiV1DocumentsUploadPost,
+} from "@/api/generated/documents/documents";
+import {
+  getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey,
+  getInitiativeApiV1InitiativesInitiativeIdGet,
+} from "@/api/generated/initiatives/initiatives";
+import { attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
 import { apiClient } from "@/api/client";
+import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,7 +50,6 @@ import {
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
 
@@ -66,9 +78,7 @@ export const CreateDocumentDialog = ({
   initiatives = [],
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
 
   const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload">("new");
   const [newTitle, setNewTitle] = useState("");
@@ -95,11 +105,9 @@ export const CreateDocumentDialog = ({
 
   // Query the initiative if we have an ID but it's not in the passed list
   const initiativeQuery = useQuery<Initiative>({
-    queryKey: ["initiative", initiativeId],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative>(`/initiatives/${initiativeId}`);
-      return response.data;
-    },
+    queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
+    queryFn: () =>
+      getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId!) as unknown as Promise<Initiative>,
     enabled: open && !!initiativeId && !lockedInitiativeFromList,
   });
 
@@ -107,12 +115,12 @@ export const CreateDocumentDialog = ({
 
   // Query templates
   const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "templates"],
+    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
     queryFn: async () => {
-      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
-        params: { page_size: "0" },
-      });
-      return response.data.items;
+      const response = await (listDocumentsApiV1DocumentsGet({
+        page_size: 0,
+      }) as unknown as Promise<{ items: DocumentSummary[] }>);
+      return response.items;
     },
     enabled: open,
   });
@@ -211,46 +219,24 @@ export const CreateDocumentDialog = ({
       let permissionFailures = 0;
 
       if (selectedTemplateId) {
-        const response = await apiClient.post<DocumentRead>(
-          `/documents/${selectedTemplateId}/copy`,
+        newDocument = await (copyDocumentApiV1DocumentsDocumentIdCopyPost(
+          Number(selectedTemplateId),
           { target_initiative_id: effectiveInitiativeId, title: trimmedTitle }
-        );
-        newDocument = response.data;
+        ) as unknown as Promise<DocumentRead>);
       } else {
-        const payload: Record<string, unknown> = {
+        newDocument = await (createDocumentApiV1DocumentsPost({
           title: trimmedTitle,
           initiative_id: effectiveInitiativeId,
           is_template: isTemplateDocument,
-        };
-        if (roleGrants.length > 0) {
-          payload.role_permissions = roleGrants;
-        }
-        if (userGrants.length > 0) {
-          payload.user_permissions = userGrants;
-        }
-        const response = await apiClient.post<DocumentRead>("/documents/", payload);
-        newDocument = response.data;
-
-        // Verify the backend applied the expected grants (it silently drops
-        // invalid entries like cross-initiative roles). Count mismatches as
-        // failures so the user sees the same warning as copy/upload paths.
-        const appliedRoles = newDocument.role_permissions?.length ?? 0;
-        const appliedUsers = (newDocument.permissions?.length ?? 1) - 1; // exclude owner
-        if (roleGrants.length > appliedRoles || userGrants.length > appliedUsers) {
-          permissionFailures +=
-            roleGrants.length - appliedRoles + (userGrants.length - appliedUsers);
-        }
-      }
-
-      // Apply permissions before project-attach so they're always applied
-      // even if the attach call fails
-      if (selectedTemplateId) {
-        permissionFailures = await applyDocumentPermissions(newDocument.id);
+        }) as unknown as Promise<DocumentRead>);
       }
 
       // Auto-attach to project if specified
       if (projectId) {
-        await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
+        await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
+          projectId,
+          newDocument.id
+        );
       }
 
       return { document: newDocument, permissionFailures };
@@ -261,15 +247,9 @@ export const CreateDocumentDialog = ({
         toast.warning(t("create.somePermissionsFailed"));
       }
       onOpenChange(false);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
-      if (effectiveInitiativeId) {
-        void queryClient.invalidateQueries({
-          queryKey: ["documents", "initiative", effectiveInitiativeId],
-        });
-      }
+      void invalidateAllDocuments();
       if (projectId) {
-        void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+        void invalidateProject(projectId);
       }
       onSuccess?.(document);
     },
@@ -286,16 +266,11 @@ export const CreateDocumentDialog = ({
       if (!trimmedTitle) throw new Error(t("create.titleRequired"));
       if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
 
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("title", trimmedTitle);
-      formData.append("initiative_id", String(effectiveInitiativeId));
-
-      const response = await apiClient.post<DocumentRead>("/documents/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const newDocument = response.data;
+      const newDocument = await (uploadDocumentFileApiV1DocumentsUploadPost({
+        file: selectedFile,
+        title: trimmedTitle,
+        initiative_id: effectiveInitiativeId,
+      }) as unknown as Promise<DocumentRead>);
 
       // Apply permissions before project-attach so they're always applied
       // even if the attach call fails
@@ -303,7 +278,10 @@ export const CreateDocumentDialog = ({
 
       // Auto-attach to project if specified
       if (projectId) {
-        await apiClient.post(`/projects/${projectId}/documents/${newDocument.id}`, {});
+        await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
+          projectId,
+          newDocument.id
+        );
       }
 
       return { document: newDocument, permissionFailures };
@@ -314,15 +292,9 @@ export const CreateDocumentDialog = ({
         toast.warning(t("create.somePermissionsFailed"));
       }
       onOpenChange(false);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
-      if (effectiveInitiativeId) {
-        void queryClient.invalidateQueries({
-          queryKey: ["documents", "initiative", effectiveInitiativeId],
-        });
-      }
+      void invalidateAllDocuments();
       if (projectId) {
-        void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+        void invalidateProject(projectId);
       }
       onSuccess?.(document);
     },

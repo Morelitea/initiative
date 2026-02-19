@@ -4,7 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2, Settings } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+} from "@/api/generated/initiatives/initiatives";
 import { DocumentsView } from "./DocumentsPage";
 import { ProjectsView } from "./ProjectsPage";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -31,7 +34,7 @@ export const InitiativeDetailPage = () => {
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const { t } = useTranslation("initiatives");
   const { user } = useAuth();
-  const { activeGuild, activeGuildId } = useGuilds();
+  const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -43,11 +46,8 @@ export const InitiativeDetailPage = () => {
   );
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
     enabled: hasValidInitiativeId,
   });
 

@@ -19,8 +19,16 @@ import { CSS } from "@dnd-kit/utilities";
 import { Loader2, GripVertical, Trash2, Save } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+  createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost,
+  updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch,
+  deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete,
+  reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost,
+} from "@/api/generated/task-statuses/task-statuses";
 import { queryClient } from "@/lib/queryClient";
+import { invalidateProjectTaskStatuses, invalidateAllTasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { ProjectTaskStatus, TaskStatusCategory } from "@/types/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +64,8 @@ import type { TFunction } from "i18next";
 
 const CATEGORY_VALUES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
-const STATUS_QUERY_KEY = (projectId: number) => ["projects", projectId, "task-statuses"];
+const STATUS_QUERY_KEY = (projectId: number) =>
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId);
 
 const sortStatuses = (items: ProjectTaskStatus[]): ProjectTaskStatus[] => {
   return [...items].sort((a, b) => {
@@ -108,21 +117,20 @@ export const ProjectTaskStatusesManager = ({
     })
   );
 
-  const basePath = `/projects/${projectId}/task-statuses`;
-
   const statusesQuery = useQuery<ProjectTaskStatus[]>({
     queryKey: STATUS_QUERY_KEY(projectId),
     enabled: Number.isFinite(projectId),
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectTaskStatus[]>(`${basePath}/`);
-      return response.data;
-    },
+    queryFn: () =>
+      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId) as unknown as Promise<
+        ProjectTaskStatus[]
+      >,
   });
 
   const reorderStatuses = useMutation({
     mutationFn: async (items: { id: number; position: number }[]) => {
-      const response = await apiClient.post<ProjectTaskStatus[]>(`${basePath}/reorder`, { items });
-      return response.data;
+      return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(projectId, {
+        items,
+      }) as unknown as Promise<ProjectTaskStatus[]>;
     },
     onSuccess: (data) => {
       const sorted = sortStatuses(data);
@@ -152,8 +160,8 @@ export const ProjectTaskStatusesManager = ({
   }, [statusesQuery.data, reorderStatuses.isPending]);
 
   const invalidateStatuses = () => {
-    void queryClient.invalidateQueries({ queryKey: STATUS_QUERY_KEY(projectId) });
-    void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+    void invalidateProjectTaskStatuses(projectId);
+    void invalidateAllTasks();
   };
 
   const createStatus = useMutation({
@@ -166,8 +174,10 @@ export const ProjectTaskStatusesManager = ({
       if (!payload.name) {
         throw new Error("Name is required");
       }
-      const response = await apiClient.post<ProjectTaskStatus>(`${basePath}/`, payload);
-      return response.data;
+      return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(
+        projectId,
+        payload
+      ) as unknown as Promise<ProjectTaskStatus>;
     },
     onSuccess: () => {
       setNewName("");
@@ -181,8 +191,13 @@ export const ProjectTaskStatusesManager = ({
 
   const updateStatus = useMutation({
     mutationFn: async ({ statusId, data }: { statusId: number; data: Record<string, unknown> }) => {
-      const response = await apiClient.patch<ProjectTaskStatus>(`${basePath}/${statusId}`, data);
-      return response.data;
+      return updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
+        projectId,
+        statusId,
+        data as Parameters<
+          typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch
+        >[2]
+      ) as unknown as Promise<ProjectTaskStatus>;
     },
     onSuccess: () => {
       toast.success(t("statuses.updated"));
@@ -201,8 +216,8 @@ export const ProjectTaskStatusesManager = ({
       statusId: number;
       fallbackStatusId: number;
     }) => {
-      await apiClient.delete(`${basePath}/${statusId}`, {
-        data: { fallback_status_id: fallbackStatusId },
+      await deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete(projectId, statusId, {
+        fallback_status_id: fallbackStatusId,
       });
     },
     onSuccess: () => {
@@ -284,7 +299,13 @@ export const ProjectTaskStatusesManager = ({
     // Execute all updates with individual error handling
     const results = await Promise.allSettled(
       updates.map(({ statusId, data }) =>
-        apiClient.patch<ProjectTaskStatus>(`${basePath}/${statusId}`, data)
+        updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
+          projectId,
+          statusId,
+          data as Parameters<
+            typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch
+          >[2]
+        )
       )
     );
 

@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  getInterfaceSettingsApiV1SettingsInterfaceGet,
+  getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
+  updateInterfaceSettingsApiV1SettingsInterfacePut,
+  updateRoleLabelsApiV1SettingsRolesPut,
+} from "@/api/generated/settings/settings";
+import { invalidateInterfaceSettings } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,8 +41,6 @@ const ROLE_FIELDS: { key: keyof RoleLabels; labelKey: string; helperKey: string 
   { key: "member", labelKey: "branding.memberLabel", helperKey: "branding.memberHelper" },
 ];
 
-const INTERFACE_SETTINGS_QUERY_KEY = ["interface-settings"];
-
 export const SettingsBrandingPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
@@ -49,22 +53,21 @@ export const SettingsBrandingPage = () => {
   const [roleMessage, setRoleMessage] = useState<string | null>(null);
 
   const interfaceQuery = useQuery<InterfaceSettings>({
-    queryKey: INTERFACE_SETTINGS_QUERY_KEY,
+    queryKey: getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey(),
     enabled: isPlatformAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<InterfaceSettings>("/settings/interface");
-      return response.data;
-    },
+    queryFn: () =>
+      getInterfaceSettingsApiV1SettingsInterfaceGet() as unknown as Promise<InterfaceSettings>,
   });
 
   const updateInterface = useMutation({
     mutationFn: async (payload: InterfaceSettings) => {
-      const response = await apiClient.put<InterfaceSettings>("/settings/interface", payload);
-      return response.data;
+      return updateInterfaceSettingsApiV1SettingsInterfacePut(
+        payload as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
+      ) as unknown as Promise<InterfaceSettings>;
     },
     onSuccess: () => {
       toast.success(t("branding.interfaceSuccess"));
-      void queryClient.invalidateQueries({ queryKey: INTERFACE_SETTINGS_QUERY_KEY });
+      void invalidateInterfaceSettings();
     },
   });
 
@@ -72,8 +75,9 @@ export const SettingsBrandingPage = () => {
 
   const updateRoleLabels = useMutation({
     mutationFn: async (payload: RoleLabels) => {
-      const response = await apiClient.put<RoleLabels>("/settings/roles", payload);
-      return response.data;
+      return updateRoleLabelsApiV1SettingsRolesPut(
+        payload as Parameters<typeof updateRoleLabelsApiV1SettingsRolesPut>[0]
+      ) as unknown as Promise<RoleLabels>;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(ROLE_LABELS_QUERY_KEY, data);

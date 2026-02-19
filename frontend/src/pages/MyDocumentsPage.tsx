@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { invalidateAllDocuments } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -71,8 +72,8 @@ export const MyDocumentsPage = () => {
   searchParamsRef.current = searchParams;
 
   const handleRefresh = useCallback(async () => {
-    await localQueryClient.invalidateQueries({ queryKey: ["documents", "global"] });
-  }, [localQueryClient]);
+    await invalidateAllDocuments();
+  }, []);
 
   const [guildFilters, setGuildFilters] = useState<number[]>(
     () => readStoredFilters().guildFilters
@@ -136,35 +137,25 @@ export const MyDocumentsPage = () => {
     setItem(MY_DOCUMENTS_FILTERS_KEY, JSON.stringify(payload));
   }, [guildFilters]);
 
+  const documentsGlobalParams = useMemo(() => {
+    const params: Record<string, string | string[] | number | number[]> = {
+      scope: "global",
+    };
+    if (guildFilters.length > 0) params.guild_ids = guildFilters;
+    if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+    if (sortBy) params.sort_by = sortBy;
+    if (sortDir) params.sort_dir = sortDir;
+    params.page = page;
+    params.page_size = pageSize;
+    return params;
+  }, [guildFilters, debouncedSearch, sortBy, sortDir, page, pageSize]);
+
   const documentsQuery = useQuery<DocumentListResponse>({
-    queryKey: [
-      "documents",
-      "global",
-      guildFilters,
-      debouncedSearch,
-      page,
-      pageSize,
-      sortBy,
-      sortDir,
-    ],
+    queryKey: ["/api/v1/documents/", documentsGlobalParams],
     queryFn: async () => {
-      const params: Record<string, string | string[] | number | number[]> = {
-        scope: "global",
-      };
-
-      if (guildFilters.length > 0) {
-        params.guild_ids = guildFilters;
-      }
-      if (debouncedSearch.trim()) {
-        params.search = debouncedSearch.trim();
-      }
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-
-      params.page = page;
-      params.page_size = pageSize;
-
-      const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
+      const response = await apiClient.get<DocumentListResponse>("/documents/", {
+        params: documentsGlobalParams,
+      });
       return response.data;
     },
     placeholderData: keepPreviousData,
@@ -173,35 +164,20 @@ export const MyDocumentsPage = () => {
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[] | number | number[]> = {
-        scope: "global",
-      };
-      if (guildFilters.length > 0) params.guild_ids = guildFilters;
-      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-      params.page = targetPage;
-      params.page_size = pageSize;
+      const prefetchParams = { ...documentsGlobalParams, page: targetPage };
 
       void localQueryClient.prefetchQuery({
-        queryKey: [
-          "documents",
-          "global",
-          guildFilters,
-          debouncedSearch,
-          targetPage,
-          pageSize,
-          sortBy,
-          sortDir,
-        ],
+        queryKey: ["/api/v1/documents/", prefetchParams],
         queryFn: async () => {
-          const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
+          const response = await apiClient.get<DocumentListResponse>("/documents/", {
+            params: prefetchParams,
+          });
           return response.data;
         },
         staleTime: 30_000,
       });
     },
-    [guildFilters, debouncedSearch, pageSize, sortBy, sortDir, localQueryClient]
+    [documentsGlobalParams, localQueryClient]
   );
 
   // Helper to create guild-scoped paths for a document

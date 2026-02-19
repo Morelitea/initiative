@@ -16,7 +16,19 @@ import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { API_BASE_URL, apiClient } from "@/api/client";
+import { API_BASE_URL } from "@/api/client";
+import {
+  readDocumentApiV1DocumentsDocumentIdGet,
+  getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
+  updateDocumentApiV1DocumentsDocumentIdPatch,
+  notifyMentionsApiV1DocumentsDocumentIdMentionsPost,
+} from "@/api/generated/documents/documents";
+import {
+  listCommentsApiV1CommentsGet,
+  getListCommentsApiV1CommentsGetQueryKey,
+} from "@/api/generated/comments/comments";
+import { invalidateAllDocuments } from "@/api/query-keys";
+import type { ListCommentsApiV1CommentsGetParams } from "@/api/generated/initiativeAPI.schemas";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
@@ -111,24 +123,19 @@ export const DocumentDetailPage = () => {
   });
 
   const documentQuery = useQuery<DocumentRead>({
-    queryKey: ["documents", parsedId],
-    queryFn: async () => {
-      const response = await apiClient.get<DocumentRead>(`/documents/${parsedId}`);
-      return response.data;
-    },
+    queryKey: getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
+    queryFn: () =>
+      readDocumentApiV1DocumentsDocumentIdGet(parsedId) as unknown as Promise<DocumentRead>,
     enabled: Number.isFinite(parsedId),
   });
 
-  const commentsQueryKey = ["comments", "document", parsedId];
+  const commentsQueryParams: ListCommentsApiV1CommentsGetParams = { document_id: parsedId };
+  const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
   const commentsQuery = useQuery<Comment[]>({
     queryKey: commentsQueryKey,
     enabled: Number.isFinite(parsedId),
-    queryFn: async () => {
-      const response = await apiClient.get<Comment[]>("/comments/", {
-        params: { document_id: parsedId },
-      });
-      return response.data;
-    },
+    queryFn: () =>
+      listCommentsApiV1CommentsGet(commentsQueryParams) as unknown as Promise<Comment[]>,
   });
 
   const document = documentQuery.data;
@@ -262,13 +269,16 @@ export const DocumentDetailPage = () => {
   );
 
   const updateDocumentCommentCount = (delta: number) => {
-    queryClient.setQueryData<DocumentRead>(["documents", parsedId], (previous) => {
-      if (!previous) {
-        return previous;
+    queryClient.setQueryData<DocumentRead>(
+      getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
+        const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
+        return { ...previous, comment_count: nextCount };
       }
-      const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
-      return { ...previous, comment_count: nextCount };
-    });
+    );
   };
 
   const handleCommentCreated = (comment: Comment) => {
@@ -313,26 +323,31 @@ export const DocumentDetailPage = () => {
       }
       const payload = {
         title: trimmedTitle,
-        content: contentState,
+        content: contentState as unknown as Record<string, unknown>,
         featured_image_url: featuredImageUrl,
       };
-      const response = await apiClient.patch<DocumentRead>(`/documents/${parsedId}`, payload);
-      return response.data;
+      return updateDocumentApiV1DocumentsDocumentIdPatch(
+        parsedId,
+        payload
+      ) as unknown as Promise<DocumentRead>;
     },
     onSuccess: (updated) => {
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
       isAutosaveRef.current = false;
-      queryClient.setQueryData(["documents", parsedId], updated);
+      queryClient.setQueryData(
+        getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
+        updated
+      );
       // Only invalidate the documents list (for sidebar title updates), not all project queries
-      void queryClient.invalidateQueries({ queryKey: ["documents", activeGuildId] });
+      void invalidateAllDocuments();
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
-        apiClient
-          .post(`/documents/${parsedId}/mentions`, { mentioned_user_ids: newMentionIds })
-          .catch((err) => console.error("Failed to notify mentions:", err));
+        notifyMentionsApiV1DocumentsDocumentIdMentionsPost(parsedId, {
+          mentioned_user_ids: newMentionIds,
+        }).catch((err) => console.error("Failed to notify mentions:", err));
       }
     },
     onError: (error) => {
