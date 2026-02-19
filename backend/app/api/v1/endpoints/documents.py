@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import delete as sa_delete, exists, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -19,7 +19,7 @@ from app.models.document import Document, DocumentPermission, DocumentPermission
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.tag import Tag, DocumentTag
 from app.models.user import User
-from app.models.guild import GuildRole
+from app.models.guild import GuildMembership, GuildRole
 from app.schemas.document import (
     DocumentAutocomplete,
     DocumentBacklink,
@@ -163,13 +163,9 @@ async def _require_initiative_access(
 def _compute_my_doc_permission_level(
     document: Document,
     user_id: int,
-    *,
-    is_guild_admin: bool = False,
 ) -> str | None:
     """Compute the effective permission level for a user on a document."""
-    return permissions_service.compute_document_permission(
-        document, user_id, is_guild_admin=is_guild_admin,
-    )
+    return permissions_service.compute_document_permission(document, user_id)
 
 
 def _require_document_write_access(
@@ -205,6 +201,7 @@ def _build_visible_docs_filters(
     initiative_id: Optional[int] = None,
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
+    untagged: Optional[bool] = None,
 ):
     """Build common WHERE conditions for visible-document queries."""
     has_permission_subq = permissions_service.visible_document_ids_subquery(user_id)
@@ -234,7 +231,73 @@ def _build_visible_docs_filters(
         )
         conditions.append(Document.id.in_(tag_subquery))
 
+    if untagged:
+        tagged_subquery = (
+            select(DocumentTag.document_id)
+            .where(DocumentTag.document_id == Document.id)
+            .correlate(Document)
+        )
+        conditions.append(~exists(tagged_subquery))
+
     return conditions
+
+
+async def _list_global_documents(
+    session: SessionDep,
+    current_user: User,
+    *,
+    guild_ids: Optional[List[int]] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None,
+) -> tuple[list[Document], int]:
+    """List documents created by the current user across all guilds they belong to."""
+    conditions = [
+        GuildMembership.user_id == current_user.id,
+        Document.created_by_id == current_user.id,
+    ]
+    if guild_ids:
+        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+    if search:
+        normalized = search.strip().lower()
+        if normalized:
+            conditions.append(func.lower(Document.title).contains(normalized))
+
+    def _base_query(stmt):
+        return (
+            stmt
+            .join(Document.initiative)
+            .join(Initiative.guild)
+            .join(GuildMembership, GuildMembership.guild_id == Initiative.guild_id)
+            .where(*conditions)
+        )
+
+    # Count query
+    count_subq = _base_query(select(Document.id)).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+
+    # Data query with eager loading
+    statement = _base_query(select(Document)).options(
+        selectinload(Document.initiative).selectinload(Initiative.guild),
+        selectinload(Document.initiative).selectinload(Initiative.memberships).options(
+            selectinload(InitiativeMember.user),
+            selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+        ),
+        selectinload(Document.project_links).selectinload(ProjectDocument.project),
+        selectinload(Document.permissions),
+        selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+        selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+    )
+    statement = _apply_document_sort(statement, sort_by, sort_dir)
+
+    if page_size > 0:
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
+
+    result = await session.exec(statement)
+    return result.unique().all(), total_count
 
 
 @router.get("/counts", response_model=DocumentCountsResponse)
@@ -311,8 +374,11 @@ async def list_documents(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    scope: Annotated[Literal["global"] | None, Query()] = None,
+    guild_ids: Optional[List[int]] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
+    untagged: Optional[bool] = Query(default=None, description="Filter to documents with no tags"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
     sort_by: Optional[str] = Query(default=None),
@@ -323,7 +389,46 @@ async def list_documents(
     DAC: Documents with explicit DocumentPermission or role-based permission.
 
     Pagination: page_size=0 returns all documents (no pagination).
+
+    When scope=global, returns documents created by the current user across
+    all guilds they belong to. Optionally filter by guild_ids.
     """
+    if scope == "global":
+        documents, total_count = await _list_global_documents(
+            session,
+            current_user,
+            guild_ids=guild_ids,
+            search=search,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+        await documents_service.annotate_comment_counts(session, documents)
+        items = [
+            serialize_document_summary(
+                document,
+                my_permission_level=_compute_my_doc_permission_level(
+                    document, current_user.id,
+                ),
+            )
+            for document in documents
+        ]
+        if page_size > 0:
+            has_next = page * page_size < total_count
+        else:
+            has_next = False
+            page = 1
+        return DocumentListResponse(
+            items=items,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            has_next=has_next,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+
     if initiative_id is not None:
         await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
 
@@ -333,6 +438,7 @@ async def list_documents(
         initiative_id=initiative_id,
         search=search,
         tag_ids=tag_ids,
+        untagged=untagged,
     )
 
     # Count query
@@ -370,12 +476,11 @@ async def list_documents(
     documents = result.unique().all()
 
     await documents_service.annotate_comment_counts(session, documents)
-    is_admin = rls_service.is_guild_admin(guild_context.role)
     items = [
         serialize_document_summary(
             document,
             my_permission_level=_compute_my_doc_permission_level(
-                document, current_user.id, is_guild_admin=is_admin,
+                document, current_user.id,
             ),
         )
         for document in documents
@@ -520,6 +625,50 @@ async def create_document(
     )
     session.add(owner_permission)
 
+    # Process optional role permissions from request
+    if document_in.role_permissions:
+        # Validate each role belongs to this initiative
+        role_ids = {rp.initiative_role_id for rp in document_in.role_permissions if rp.level != DocumentPermissionLevel.owner}
+        valid_role_ids: set[int] = set()
+        if role_ids:
+            result = await session.exec(
+                select(InitiativeRoleModel.id).where(
+                    InitiativeRoleModel.id.in_(role_ids),
+                    InitiativeRoleModel.initiative_id == initiative.id,
+                )
+            )
+            valid_role_ids = set(result.all())
+        for rp in document_in.role_permissions:
+            if rp.initiative_role_id not in valid_role_ids or rp.level == DocumentPermissionLevel.owner:
+                continue
+            session.add(DocumentRolePermission(
+                document_id=document.id,
+                initiative_role_id=rp.initiative_role_id,
+                guild_id=guild_context.guild_id,
+                level=rp.level,
+            ))
+
+    # Process optional user permissions (batch-validate initiative membership)
+    if document_in.user_permissions:
+        requested = {up.user_id for up in document_in.user_permissions if up.user_id != current_user.id}
+        valid_ids: set[int] = set()
+        if requested:
+            result = await session.exec(
+                select(InitiativeMember.user_id).where(
+                    InitiativeMember.initiative_id == initiative.id,
+                    InitiativeMember.user_id.in_(requested),
+                )
+            )
+            valid_ids = set(result.all())
+        for up in document_in.user_permissions:
+            if up.user_id in valid_ids and up.level != DocumentPermissionLevel.owner:
+                session.add(DocumentPermission(
+                    document_id=document.id,
+                    user_id=up.user_id,
+                    level=up.level,
+                    guild_id=guild_context.guild_id,
+                ))
+
     # Sync wikilinks to document_links table
     await documents_service.sync_document_links(
         session,
@@ -536,7 +685,6 @@ async def create_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -617,7 +765,6 @@ async def upload_document_file(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -635,7 +782,6 @@ async def read_document(
         document,
         my_permission_level=_compute_my_doc_permission_level(
             document, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -738,7 +884,6 @@ async def update_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -771,7 +916,6 @@ async def duplicate_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -817,7 +961,6 @@ async def copy_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
             hydrated, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 
@@ -1166,7 +1309,6 @@ async def set_document_tags(
         doc,
         my_permission_level=_compute_my_doc_permission_level(
             doc, current_user.id,
-            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
         ),
     )
 

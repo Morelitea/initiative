@@ -117,6 +117,7 @@ class Task(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false", index=True),
     )
+    created_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

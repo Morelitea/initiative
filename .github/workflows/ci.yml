@@ -27,6 +27,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
+      DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5432/initiative_test
+      DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5432/initiative_test
       SECRET_KEY: ${{ secrets.CI_SECRET_KEY }}
       AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
@@ -47,27 +49,6 @@ jobs:
           cd backend
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov ruff
-
-      - name: Create database roles for RLS
-        run: |
-          PGPASSWORD=initiative psql -h localhost -U initiative -d initiative_test <<-'EOSQL'
-            DO $$ BEGIN
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-                CREATE ROLE app_user WITH LOGIN NOINHERIT;
-              END IF;
-              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_admin') THEN
-                CREATE ROLE app_admin WITH LOGIN BYPASSRLS;
-              END IF;
-            END $$;
-            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
-            GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_user;
-            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_admin;
-            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app_admin;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO app_admin;
-            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO app_admin;
-          EOSQL
 
       - name: Run Alembic migrations
         run: |
@@ -180,6 +161,7 @@ jobs:
 
       - name: Check for backend changes
         id: filter
+        run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts || true)
           else

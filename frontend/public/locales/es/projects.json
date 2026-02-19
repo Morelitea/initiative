@@ -10,6 +10,27 @@
   "onlyPinnedMatch": "Solo los proyectos fijados coinciden con tus filtros.",
   "accessRestricted": "Acceso restringido",
   "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Contacta a un administrador si crees que esto es un error.",
+  "myProjects": {
+    "title": "Mis proyectos",
+    "subtitle": "Proyectos a los que tienes acceso en todos tus gremios.",
+    "empty": "Aún no formas parte de ningún proyecto.",
+    "loadError": "No se pudieron cargar tus proyectos.",
+    "searchPlaceholder": "Buscar proyectos...",
+    "filterByGuild": "Filtrar por gremio",
+    "allGuilds": "Todos los gremios",
+    "noGuilds": "No hay gremios disponibles",
+    "columns": {
+      "guild": "Gremio",
+      "project": "Proyecto",
+      "initiative": "Iniciativa",
+      "tasks": "Tareas",
+      "tags": "Etiquetas",
+      "updated": "Actualizado"
+    },
+    "tasksDone": "{{completed}}/{{total}} terminadas",
+    "noTasks": "Sin tareas"
+  },
+
   "tabs": {
     "active": "Proyectos activos",
     "templates": "Plantillas",
