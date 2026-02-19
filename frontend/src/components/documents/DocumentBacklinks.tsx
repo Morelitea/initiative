@@ -5,7 +5,10 @@ import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 
-import { getDocumentBacklinks } from "@/api/documents";
+import {
+  getBacklinksApiV1DocumentsDocumentIdBacklinksGet,
+  getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryKey,
+} from "@/api/generated/documents/documents";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -26,8 +29,8 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["documents", documentId, "backlinks"],
-    queryFn: () => getDocumentBacklinks(documentId),
+    queryKey: getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryKey(documentId),
+    queryFn: () => getBacklinksApiV1DocumentsDocumentIdBacklinksGet(documentId),
   });
 
   if (isLoading) {

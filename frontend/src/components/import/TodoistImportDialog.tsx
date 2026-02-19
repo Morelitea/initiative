@@ -4,7 +4,19 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  parseTodoistCsvApiV1ImportsTodoistParsePost,
+  importFromTodoistApiV1ImportsTodoistPost,
+} from "@/api/generated/imports/imports";
+import {
+  listProjectsApiV1ProjectsGet,
+  getListProjectsApiV1ProjectsGetQueryKey,
+} from "@/api/generated/projects/projects";
+import {
+  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+} from "@/api/generated/task-statuses/task-statuses";
+import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus } from "@/types/api";
 
 interface TodoistParseResult {
@@ -98,23 +109,18 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
 
   // Fetch projects for selection
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
+    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
     enabled: open,
   });
 
   // Fetch task statuses for selected project
   const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: ["projects", selectedProjectId, "task-statuses"],
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectTaskStatus[]>(
-        `/projects/${selectedProjectId}/task-statuses/`
-      );
-      return response.data;
-    },
+    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(selectedProjectId!),
+    queryFn: () =>
+      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+        selectedProjectId!
+      ) as unknown as Promise<ProjectTaskStatus[]>,
     enabled: selectedProjectId !== null,
   });
 
@@ -135,10 +141,9 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
   // Parse CSV mutation
   const parseMutation = useMutation({
     mutationFn: async (content: string) => {
-      const response = await apiClient.post<TodoistParseResult>("/imports/todoist/parse", content, {
-        headers: { "Content-Type": "text/plain" },
-      });
-      return response.data;
+      return parseTodoistCsvApiV1ImportsTodoistParsePost(
+        content
+      ) as unknown as Promise<TodoistParseResult>;
     },
     onSuccess: (data) => {
       setParseResult(data);
@@ -155,19 +160,17 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
   const importMutation = useMutation({
     mutationFn: async () => {
       if (!selectedProjectId) throw new Error("No project selected");
-      const response = await apiClient.post<ImportResult>("/imports/todoist", {
+      return importFromTodoistApiV1ImportsTodoistPost({
         project_id: selectedProjectId,
         csv_content: csvContent,
         section_mapping: sectionMapping,
-      });
-      return response.data;
+      }) as unknown as Promise<ImportResult>;
     },
     onSuccess: (data) => {
       setImportResult(data);
       setStep("result");
       // Invalidate tasks query to refresh the project view
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["project", selectedProjectId] });
+      void invalidateAllTasks();
     },
     onError: () => {
       toast.error(t("common.importFailed"));

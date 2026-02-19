@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "@/api/client";
+import {
+  getInterfaceSettingsApiV1SettingsInterfaceGet,
+  getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
+} from "@/api/generated/settings/settings";
 import { setAccentFaviconColors, syncFaviconWithTheme } from "@/lib/favicon";
 import { useServer } from "@/hooks/useServer";
 
@@ -102,11 +105,9 @@ export const useInterfaceColors = () => {
   const { isServerConfigured, loading: serverLoading } = useServer();
 
   const query = useQuery({
-    queryKey: ["interface-settings"],
-    queryFn: async () => {
-      const response = await apiClient.get<InterfaceSettings>("/settings/interface");
-      return response.data;
-    },
+    queryKey: getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey(),
+    queryFn: () =>
+      getInterfaceSettingsApiV1SettingsInterfaceGet() as unknown as Promise<InterfaceSettings>,
     staleTime: 1000 * 60 * 10,
     // Don't fetch until server is configured (matters on native platforms)
     enabled: isServerConfigured && !serverLoading,

@@ -3,7 +3,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
+import {
+  getFcmConfigApiV1SettingsFcmConfigGet,
+  getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
+} from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -82,11 +86,8 @@ export const UserSettingsNotificationsPage = ({
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
 
   const { data: fcmConfig } = useQuery({
-    queryKey: ["fcm-config"],
-    queryFn: async () => {
-      const res = await apiClient.get<FCMConfigResponse>("/settings/fcm-config");
-      return res.data;
-    },
+    queryKey: getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey(),
+    queryFn: () => getFcmConfigApiV1SettingsFcmConfigGet() as unknown as Promise<FCMConfigResponse>,
     staleTime: 5 * 60 * 1000,
   });
   const showPushColumn = fcmConfig?.enabled ?? false;
@@ -127,13 +128,17 @@ export const UserSettingsNotificationsPage = ({
 
   const updateNotificationToggles = useMutation({
     mutationFn: async (payload: Record<string, boolean>) => {
-      await apiClient.patch<User>("/users/me", payload);
+      await updateUsersMeApiV1UsersMePatch(
+        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
+      );
     },
   });
 
   const updateNotificationSchedule = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
-      await apiClient.patch<User>("/users/me", payload);
+      await updateUsersMeApiV1UsersMePatch(
+        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
+      );
     },
   });
 

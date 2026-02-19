@@ -4,7 +4,7 @@ import { isAxiosError } from "axios";
 import { Check, Copy, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { generateSummaryApiV1DocumentsDocumentIdAiSummaryPost } from "@/api/generated/documents/documents";
 import { Button } from "@/components/ui/button";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import type { GenerateDocumentSummaryResponse } from "@/types/api";
@@ -22,10 +22,9 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
 
   const generateSummary = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<GenerateDocumentSummaryResponse>(
-        `/documents/${documentId}/ai/summary`
-      );
-      return response.data;
+      return generateSummaryApiV1DocumentsDocumentIdAiSummaryPost(
+        documentId
+      ) as unknown as Promise<GenerateDocumentSummaryResponse>;
     },
     onSuccess: (data) => {
       onSummaryChange(data.summary);

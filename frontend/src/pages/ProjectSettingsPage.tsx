@@ -4,7 +4,28 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  readProjectApiV1ProjectsProjectIdGet,
+  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+  updateProjectApiV1ProjectsProjectIdPatch,
+  deleteProjectApiV1ProjectsProjectIdDelete,
+  archiveProjectApiV1ProjectsProjectIdArchivePost,
+  unarchiveProjectApiV1ProjectsProjectIdUnarchivePost,
+  duplicateProjectApiV1ProjectsProjectIdDuplicatePost,
+  addProjectMemberApiV1ProjectsProjectIdMembersPost,
+  updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch,
+  removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete,
+  addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost,
+  removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost,
+  addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost,
+  updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch,
+  removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete,
+} from "@/api/generated/projects/projects";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+} from "@/api/generated/initiatives/initiatives";
+import { invalidateAllProjects, invalidateProject } from "@/api/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -40,7 +61,6 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useGuildPath } from "@/lib/guildUrl";
-import { queryClient } from "@/lib/queryClient";
 import {
   Project,
   Initiative,
@@ -51,8 +71,6 @@ import {
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
-
-const INITIATIVES_QUERY_KEY = ["initiatives"];
 
 interface PermissionRow {
   userId: number;
@@ -93,21 +111,16 @@ export const ProjectSettingsPage = () => {
   const setProjectTagsMutation = useSetProjectTags();
 
   const projectQuery = useQuery<Project>({
-    queryKey: ["project", parsedProjectId],
-    queryFn: async () => {
-      const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
-      return response.data;
-    },
+    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(parsedProjectId),
+    queryFn: () =>
+      readProjectApiV1ProjectsProjectIdGet(parsedProjectId) as unknown as Promise<Project>,
     enabled: Number.isFinite(parsedProjectId),
   });
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: INITIATIVES_QUERY_KEY,
+    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
     enabled: user?.role === "admin",
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
   });
 
   useEffect(() => {
@@ -134,18 +147,16 @@ export const ProjectSettingsPage = () => {
         throw new Error("Select an initiative");
       }
       const payload = { initiative_id: Number(selectedInitiativeId) };
-      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, payload);
-      return response.data;
+      return updateProjectApiV1ProjectsProjectIdPatch(
+        parsedProjectId,
+        payload
+      ) as unknown as Promise<Project>;
     },
     onSuccess: (data) => {
       setInitiativeMessage(t("settings.initiative.updated"));
       setSelectedInitiativeId(String(data.initiative_id));
-      void queryClient.invalidateQueries({
-        queryKey: ["project", parsedProjectId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
   });
 
@@ -156,129 +167,98 @@ export const ProjectSettingsPage = () => {
         name: nameText.trim() || projectQuery.data?.name || "",
         icon: trimmedIcon ? trimmedIcon : null,
       };
-      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, payload);
-      return response.data;
+      return updateProjectApiV1ProjectsProjectIdPatch(
+        parsedProjectId,
+        payload
+      ) as unknown as Promise<Project>;
     },
     onSuccess: (data) => {
       setIdentityMessage(t("settings.details.detailsUpdated"));
       setNameText(data.name);
       setIconText(data.icon ?? "");
-      void queryClient.invalidateQueries({
-        queryKey: ["project", parsedProjectId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
   });
 
   const archiveProject = useMutation({
     mutationFn: async () => {
-      await apiClient.post(`/projects/${parsedProjectId}/archive`, {});
+      await archiveProjectApiV1ProjectsProjectIdArchivePost(parsedProjectId);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["project", parsedProjectId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
   });
 
   const unarchiveProject = useMutation({
     mutationFn: async () => {
-      await apiClient.post(`/projects/${parsedProjectId}/unarchive`, {});
+      await unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(parsedProjectId);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["project", parsedProjectId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
   });
 
   const updateDescription = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
+      return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
         description: descriptionText,
-      });
-      return response.data;
+      }) as unknown as Promise<Project>;
     },
     onSuccess: (data) => {
       setDescriptionMessage(t("settings.details.descriptionUpdated"));
       setDescriptionText(data.description ?? "");
-      void queryClient.invalidateQueries({
-        queryKey: ["project", parsedProjectId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
   });
 
   const duplicateProject = useMutation({
     mutationFn: async (name?: string) => {
-      const response = await apiClient.post<Project>(`/projects/${parsedProjectId}/duplicate`, {
+      return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(parsedProjectId, {
         name: name?.trim() || undefined,
-      });
-      return response.data;
+      }) as unknown as Promise<Project>;
     },
     onSuccess: (data) => {
       setDuplicateMessage(t("settings.duplicate.duplicated"));
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({ queryKey: ["project", data.id] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateAllProjects();
+      void invalidateProject(data.id);
       router.navigate({ to: gp(`/projects/${data.id}`) });
     },
   });
 
   const toggleTemplateStatus = useMutation({
     mutationFn: async (nextStatus: boolean) => {
-      const response = await apiClient.patch<Project>(`/projects/${parsedProjectId}`, {
+      return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
         is_template: nextStatus,
-      });
-      return response.data;
+      }) as unknown as Promise<Project>;
     },
-    onSuccess: (data, nextStatus) => {
+    onSuccess: (_data, nextStatus) => {
       setTemplateMessage(
         nextStatus
           ? t("settings.templateStatus.markedAsTemplate")
           : t("settings.templateStatus.removedFromTemplates")
       );
-      void queryClient.invalidateQueries({
-        queryKey: ["project", parsedProjectId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
   });
 
   const deleteProject = useMutation({
     mutationFn: async () => {
-      await apiClient.delete(`/projects/${parsedProjectId}`);
+      await deleteProjectApiV1ProjectsProjectIdDelete(parsedProjectId);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
+      void invalidateAllProjects();
       router.navigate({ to: "/" });
     },
   });
 
   const addMember = useMutation({
     mutationFn: async ({ userId, level }: { userId: number; level: ProjectPermissionLevel }) => {
-      await apiClient.post(`/projects/${parsedProjectId}/members`, {
+      await addProjectMemberApiV1ProjectsProjectIdMembersPost(parsedProjectId, {
         user_id: userId,
         level,
       });
@@ -288,7 +268,7 @@ export const ProjectSettingsPage = () => {
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -298,14 +278,14 @@ export const ProjectSettingsPage = () => {
 
   const updateMemberLevel = useMutation({
     mutationFn: async ({ userId, level }: { userId: number; level: ProjectPermissionLevel }) => {
-      await apiClient.patch(`/projects/${parsedProjectId}/members/${userId}`, {
+      await updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch(parsedProjectId, userId, {
         level,
       });
     },
     onSuccess: () => {
       setAccessMessage(t("settings.access.updated"));
       setAccessError(null);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -315,12 +295,12 @@ export const ProjectSettingsPage = () => {
 
   const removeMember = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.delete(`/projects/${parsedProjectId}/members/${userId}`);
+      await removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete(parsedProjectId, userId);
     },
     onSuccess: () => {
       setAccessMessage(t("settings.access.removed"));
       setAccessError(null);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -331,7 +311,7 @@ export const ProjectSettingsPage = () => {
   const addAllMembers = useMutation({
     mutationFn: async (level: ProjectPermissionLevel) => {
       const userIds = availableMembers.map((member) => member.user.id);
-      await apiClient.post(`/projects/${parsedProjectId}/members/bulk`, {
+      await addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost(parsedProjectId, {
         user_ids: userIds,
         level,
       });
@@ -341,7 +321,7 @@ export const ProjectSettingsPage = () => {
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -357,7 +337,7 @@ export const ProjectSettingsPage = () => {
       userIds: number[];
       level: ProjectPermissionLevel;
     }) => {
-      await apiClient.post(`/projects/${parsedProjectId}/members/bulk`, {
+      await addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost(parsedProjectId, {
         user_ids: userIds,
         level,
       });
@@ -366,7 +346,7 @@ export const ProjectSettingsPage = () => {
       setAccessMessage(t("settings.access.bulkUpdated"));
       setAccessError(null);
       setSelectedMembers([]);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -376,7 +356,7 @@ export const ProjectSettingsPage = () => {
 
   const bulkRemoveMembers = useMutation({
     mutationFn: async (userIds: number[]) => {
-      await apiClient.post(`/projects/${parsedProjectId}/members/bulk-delete`, {
+      await removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost(parsedProjectId, {
         user_ids: userIds,
       });
     },
@@ -384,7 +364,7 @@ export const ProjectSettingsPage = () => {
       setAccessMessage(t("settings.access.bulkRemoved"));
       setAccessError(null);
       setSelectedMembers([]);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
+      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -398,7 +378,7 @@ export const ProjectSettingsPage = () => {
 
   const addRolePermission = useMutation({
     mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await apiClient.post(`/projects/${parsedProjectId}/role-permissions`, {
+      await addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost(parsedProjectId, {
         initiative_role_id: roleId,
         level,
       });
@@ -408,8 +388,8 @@ export const ProjectSettingsPage = () => {
       setRoleAccessError(null);
       setSelectedNewRoleId("");
       setSelectedNewRoleLevel("read");
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
     onError: () => {
       setRoleAccessMessage(null);
@@ -419,15 +399,19 @@ export const ProjectSettingsPage = () => {
 
   const updateRolePermission = useMutation({
     mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await apiClient.patch(`/projects/${parsedProjectId}/role-permissions/${roleId}`, {
-        level,
-      });
+      await updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch(
+        parsedProjectId,
+        roleId,
+        {
+          level,
+        }
+      );
     },
     onSuccess: () => {
       setRoleAccessMessage(t("settings.roleAccess.updated"));
       setRoleAccessError(null);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
     onError: () => {
       setRoleAccessMessage(null);
@@ -437,13 +421,16 @@ export const ProjectSettingsPage = () => {
 
   const removeRolePermission = useMutation({
     mutationFn: async (roleId: number) => {
-      await apiClient.delete(`/projects/${parsedProjectId}/role-permissions/${roleId}`);
+      await removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete(
+        parsedProjectId,
+        roleId
+      );
     },
     onSuccess: () => {
       setRoleAccessMessage(t("settings.roleAccess.removed"));
       setRoleAccessError(null);
-      void queryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void invalidateProject(parsedProjectId);
+      void invalidateAllProjects();
     },
     onError: () => {
       setRoleAccessMessage(null);

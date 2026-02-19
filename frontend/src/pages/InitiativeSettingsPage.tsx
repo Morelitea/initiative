@@ -1,13 +1,26 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+  updateInitiativeApiV1InitiativesInitiativeIdPatch,
+  deleteInitiativeApiV1InitiativesInitiativeIdDelete,
+  addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost,
+  removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete,
+  updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch,
+} from "@/api/generated/initiatives/initiatives";
+import {
+  listUsersApiV1UsersGet,
+  getListUsersApiV1UsersGetQueryKey,
+} from "@/api/generated/users/users";
+import { invalidateAllInitiatives } from "@/api/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -72,7 +85,7 @@ import type {
   User,
 } from "@/types/api";
 
-const INITIATIVES_QUERY_KEY = ["initiatives"];
+const INITIATIVES_QUERY_KEY = getListInitiativesApiV1InitiativesGetQueryKey();
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsPage = () => {
@@ -83,7 +96,6 @@ export const InitiativeSettingsPage = () => {
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   const { t } = useTranslation(["initiatives", "common"]);
   const { user } = useAuth();
@@ -97,10 +109,7 @@ export const InitiativeSettingsPage = () => {
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: INITIATIVES_QUERY_KEY,
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
     enabled: hasValidInitiativeId,
   });
 
@@ -165,11 +174,8 @@ export const InitiativeSettingsPage = () => {
   }, [rolesQuery.data, selectedRoleId]);
 
   const usersQuery = useQuery<User[]>({
-    queryKey: ["users", { guildId: activeGuild?.id }],
-    queryFn: async () => {
-      const response = await apiClient.get<User[]>("/users/");
-      return response.data;
-    },
+    queryKey: getListUsersApiV1UsersGetQueryKey(),
+    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
     enabled: canManageMembers && !!activeGuild?.id,
     staleTime: 5 * 60 * 1000,
   });
@@ -184,12 +190,14 @@ export const InitiativeSettingsPage = () => {
 
   const updateInitiative = useMutation({
     mutationFn: async (payload: Partial<Pick<Initiative, "name" | "description" | "color">>) => {
-      const response = await apiClient.patch<Initiative>(`/initiatives/${initiativeId}`, payload);
-      return response.data;
+      return updateInitiativeApiV1InitiativesInitiativeIdPatch(
+        initiativeId,
+        payload
+      ) as unknown as Promise<Initiative>;
     },
     onSuccess: () => {
       toast.success(t("settings.updated"));
-      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      void invalidateAllInitiatives();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("settings.updateError");
@@ -199,11 +207,11 @@ export const InitiativeSettingsPage = () => {
 
   const deleteInitiative = useMutation({
     mutationFn: async () => {
-      await apiClient.delete(`/initiatives/${initiativeId}`);
+      await deleteInitiativeApiV1InitiativesInitiativeIdDelete(initiativeId);
     },
     onSuccess: () => {
       toast.success(t("settings.deleted"));
-      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      void invalidateAllInitiatives();
       router.navigate({ to: gp("/initiatives") });
     },
     onError: (error) => {
@@ -214,16 +222,15 @@ export const InitiativeSettingsPage = () => {
 
   const addMember = useMutation({
     mutationFn: async ({ userId, roleId }: { userId: number; roleId: number }) => {
-      const response = await apiClient.post<Initiative>(`/initiatives/${initiativeId}/members`, {
+      return addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost(initiativeId, {
         user_id: userId,
         role_id: roleId,
-      });
-      return response.data;
+      }) as unknown as Promise<Initiative>;
     },
     onSuccess: () => {
       toast.success(t("settings.memberAdded"));
       setSelectedUserId("");
-      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      void invalidateAllInitiatives();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("settings.addMemberError");
@@ -233,11 +240,14 @@ export const InitiativeSettingsPage = () => {
 
   const removeMember = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.delete(`/initiatives/${initiativeId}/members/${userId}`);
+      await removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete(
+        initiativeId,
+        userId
+      );
     },
     onSuccess: () => {
       toast.success(t("settings.memberRemoved"));
-      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      void invalidateAllInitiatives();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("settings.removeMemberError");
@@ -248,15 +258,15 @@ export const InitiativeSettingsPage = () => {
   const updateMemberRole = useMutation({
     mutationFn: async ({ userId, roleId }: { userId: number; roleId: number }) => {
       const payload: InitiativeMemberUpdate = { role_id: roleId };
-      const response = await apiClient.patch<Initiative>(
-        `/initiatives/${initiativeId}/members/${userId}`,
+      return updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch(
+        initiativeId,
+        userId,
         payload
-      );
-      return response.data;
+      ) as unknown as Promise<Initiative>;
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
-      void queryClient.invalidateQueries({ queryKey: INITIATIVES_QUERY_KEY });
+      void invalidateAllInitiatives();
     },
     onError: () => {
       toast.error(t("settings.roleUpdateError"));

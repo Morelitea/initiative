@@ -5,7 +5,20 @@ import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+  createInitiativeApiV1InitiativesPost,
+} from "@/api/generated/initiatives/initiatives";
+import {
+  listProjectsApiV1ProjectsGet,
+  getListProjectsApiV1ProjectsGetQueryKey,
+} from "@/api/generated/projects/projects";
+import {
+  listDocumentsApiV1DocumentsGet,
+  getListDocumentsApiV1DocumentsGetQueryKey,
+} from "@/api/generated/documents/documents";
+import { invalidateAllInitiatives } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -38,19 +51,18 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import type { DocumentSummary, Initiative, Project } from "@/types/api";
 
-const getInitiativesQueryKey = (guildId: number | null) => ["initiatives", { guildId }] as const;
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativesPage = () => {
   const { user } = useAuth();
   const { t } = useTranslation("initiatives");
-  const { activeGuild, activeGuildId } = useGuilds();
+  const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
   const queryClient = useQueryClient();
   const searchParams = useSearch({ strict: false }) as { create?: string };
 
-  const initiativesQueryKey = getInitiativesQueryKey(activeGuildId);
+  const initiativesQueryKey = getListInitiativesApiV1InitiativesGetQueryKey();
 
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
@@ -65,30 +77,24 @@ export const InitiativesPage = () => {
 
   const initiativesQuery = useQuery<Initiative[]>({
     queryKey: initiativesQueryKey,
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
     enabled: Boolean(activeGuild),
   });
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "initiative-counts", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
+    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
     enabled: Boolean(activeGuild),
     staleTime: 30_000,
   });
 
   const documentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "initiative-counts", { guildId: activeGuildId }],
+    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
     queryFn: async () => {
-      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
-        params: { page_size: "0" },
-      });
-      return response.data.items;
+      const response = await (listDocumentsApiV1DocumentsGet({
+        page_size: 0,
+      }) as unknown as Promise<{ items: DocumentSummary[] }>);
+      return response.items;
     },
     enabled: Boolean(activeGuild),
     staleTime: 30_000,
@@ -145,8 +151,7 @@ export const InitiativesPage = () => {
 
   const createInitiative = useMutation({
     mutationFn: async (payload: { name: string; description?: string; color?: string }) => {
-      const response = await apiClient.post<Initiative>("/initiatives/", payload);
-      return response.data;
+      return createInitiativeApiV1InitiativesPost(payload) as unknown as Promise<Initiative>;
     },
     onSuccess: (initiative) => {
       toast.success(t("createDialog.created", { name: initiative.name }));
@@ -154,7 +159,7 @@ export const InitiativesPage = () => {
       setNewName("");
       setNewDescription("");
       setNewColor(DEFAULT_INITIATIVE_COLOR);
-      void queryClient.invalidateQueries({ queryKey: ["initiatives"] });
+      void invalidateAllInitiatives();
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:createDialog.createError"));

@@ -6,7 +6,12 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  listTasksApiV1TasksGet,
+  updateTaskApiV1TasksTaskIdPatch,
+} from "@/api/generated/tasks/tasks";
+import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { invalidateAllTasks } from "@/api/query-keys";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +20,6 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
-import { queryClient } from "@/lib/queryClient";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import type {
   ProjectTaskStatus,
@@ -164,7 +168,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       params.page_size = pageSize;
       if (sortBy) params.sort_by = sortBy;
       if (sortDir) params.sort_dir = sortDir;
-      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
+      const response = await (listTasksApiV1TasksGet(params as never) as unknown as Promise<{
+        data: TaskListResponse;
+      }>);
       return response.data;
     },
     placeholderData: keepPreviousData,
@@ -196,7 +202,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           sortDir,
         ],
         queryFn: async () => {
-          const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
+          const response = await (listTasksApiV1TasksGet(params as never) as unknown as Promise<{
+            data: TaskListResponse;
+          }>);
           return response.data;
         },
         staleTime: 30_000,
@@ -209,22 +217,18 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     mutationFn: async ({
       taskId,
       taskStatusId,
-      guildId,
     }: {
       taskId: number;
       taskStatusId: number;
       guildId: number | null;
     }) => {
-      const response = await apiClient.patch<Task>(
-        `/tasks/${taskId}`,
-        { task_status_id: taskStatusId },
-        guildId ? { headers: { "X-Guild-ID": String(guildId) } } : undefined
-      );
+      const response = await (updateTaskApiV1TasksTaskIdPatch(taskId, {
+        task_status_id: taskStatusId,
+      }) as unknown as Promise<{ data: Task }>);
       return response.data;
     },
     onSuccess: (updatedTask) => {
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "tag", tagId] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
+      void invalidateAllTasks();
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
@@ -258,10 +262,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const response = await apiClient.get<ProjectTaskStatus[]>(
-      `/projects/${projectId}/task-statuses/`,
-      { headers: { "X-Guild-ID": String(guildId) } }
-    );
+    const response = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+      projectId
+    ) as unknown as Promise<{ data: ProjectTaskStatus[] }>);
     const merged = cached
       ? [
           ...cached.statuses,

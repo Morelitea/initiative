@@ -1,7 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet,
+  getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey,
+  createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost,
+  updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch,
+  deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete,
+  getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet,
+  getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryKey,
+} from "@/api/generated/initiatives/initiatives";
+import { invalidateInitiativeRoles, invalidateMyPermissions } from "@/api/query-keys";
 import type {
   InitiativeRoleCreate,
   InitiativeRoleRead,
@@ -10,104 +20,89 @@ import type {
   PermissionKey,
 } from "@/types/api";
 
-const INITIATIVE_ROLES_KEY = "initiative-roles";
-const MY_PERMISSIONS_KEY = "my-permissions";
-
 export const useInitiativeRoles = (initiativeId: number | null) => {
   return useQuery<InitiativeRoleRead[]>({
-    queryKey: [INITIATIVE_ROLES_KEY, initiativeId],
-    queryFn: async () => {
-      const response = await apiClient.get<InitiativeRoleRead[]>(
-        `/initiatives/${initiativeId}/roles`
-      );
-      return response.data;
-    },
+    queryKey: getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey(initiativeId!),
+    queryFn: () =>
+      listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet(initiativeId!) as unknown as Promise<
+        InitiativeRoleRead[]
+      >,
     enabled: !!initiativeId,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
   });
 };
 
 export const useMyInitiativePermissions = (initiativeId: number | null) => {
   return useQuery<MyInitiativePermissions>({
-    queryKey: [MY_PERMISSIONS_KEY, initiativeId],
-    queryFn: async () => {
-      const response = await apiClient.get<MyInitiativePermissions>(
-        `/initiatives/${initiativeId}/my-permissions`
-      );
-      return response.data;
-    },
+    queryKey: getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryKey(
+      initiativeId!
+    ),
+    queryFn: () =>
+      getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet(
+        initiativeId!
+      ) as unknown as Promise<MyInitiativePermissions>,
     enabled: !!initiativeId,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   });
 };
 
 export const useCreateRole = (initiativeId: number) => {
-  const queryClient = useQueryClient();
+  const { t } = useTranslation("initiatives");
 
   return useMutation({
     mutationFn: async (data: InitiativeRoleCreate) => {
-      const response = await apiClient.post<InitiativeRoleRead>(
-        `/initiatives/${initiativeId}/roles`,
+      return createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost(
+        initiativeId,
         data
-      );
-      return response.data;
+      ) as unknown as Promise<InitiativeRoleRead>;
     },
     onSuccess: () => {
-      toast.success("Role created.");
-      void queryClient.invalidateQueries({
-        queryKey: [INITIATIVE_ROLES_KEY, initiativeId],
-      });
+      toast.success(t("settings.roleCreated"));
+      void invalidateInitiativeRoles(initiativeId);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to create role.";
+      const message = error instanceof Error ? error.message : t("settings.roleCreateError");
       toast.error(message);
     },
   });
 };
 
 export const useUpdateRole = (initiativeId: number) => {
-  const queryClient = useQueryClient();
+  const { t } = useTranslation("initiatives");
 
   return useMutation({
     mutationFn: async ({ roleId, data }: { roleId: number; data: InitiativeRoleUpdate }) => {
-      const response = await apiClient.patch<InitiativeRoleRead>(
-        `/initiatives/${initiativeId}/roles/${roleId}`,
+      return updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch(
+        initiativeId,
+        roleId,
         data
-      );
-      return response.data;
+      ) as unknown as Promise<InitiativeRoleRead>;
     },
     onSuccess: () => {
-      toast.success("Role updated.");
-      void queryClient.invalidateQueries({
-        queryKey: [INITIATIVE_ROLES_KEY, initiativeId],
-      });
-      // Also invalidate permissions in case they changed
-      void queryClient.invalidateQueries({
-        queryKey: [MY_PERMISSIONS_KEY, initiativeId],
-      });
+      toast.success(t("settings.roleUpdated"));
+      void invalidateInitiativeRoles(initiativeId);
+      void invalidateMyPermissions(initiativeId);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to update role.";
+      const message = error instanceof Error ? error.message : t("settings.roleUpdateError");
       toast.error(message);
     },
   });
 };
 
 export const useDeleteRole = (initiativeId: number) => {
-  const queryClient = useQueryClient();
+  const { t } = useTranslation("initiatives");
 
   return useMutation({
     mutationFn: async (roleId: number) => {
-      await apiClient.delete(`/initiatives/${initiativeId}/roles/${roleId}`);
+      await deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete(initiativeId, roleId);
     },
     onSuccess: () => {
-      toast.success("Role deleted.");
-      void queryClient.invalidateQueries({
-        queryKey: [INITIATIVE_ROLES_KEY, initiativeId],
-      });
+      toast.success(t("settings.roleDeleted"));
+      void invalidateInitiativeRoles(initiativeId);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Unable to delete role.";
+      const message = error instanceof Error ? error.message : t("settings.roleDeleteError");
       toast.error(message);
     },
   });

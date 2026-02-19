@@ -1,10 +1,28 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  readProjectApiV1ProjectsProjectIdGet,
+  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+  recordProjectViewApiV1ProjectsProjectIdViewPost,
+} from "@/api/generated/projects/projects";
+import {
+  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+} from "@/api/generated/task-statuses/task-statuses";
+import {
+  listUsersApiV1UsersGet,
+  getListUsersApiV1UsersGetQueryKey,
+} from "@/api/generated/users/users";
+import {
+  invalidateAllTasks,
+  invalidateProject,
+  invalidateProjectTaskStatuses,
+  invalidateRecentProjects,
+} from "@/api/query-keys";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
@@ -19,9 +37,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
-import { queryClient } from "@/lib/queryClient";
 import type { Project, ProjectTaskStatus, User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
@@ -29,49 +45,38 @@ export const ProjectDetailPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId: string };
   const router = useRouter();
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
-  const localQueryClient = useQueryClient();
   const parsedProjectId = Number(projectId);
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
-      localQueryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] }),
-      localQueryClient.invalidateQueries({ queryKey: ["tasks", parsedProjectId] }),
-      localQueryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId, "task-statuses"],
-      }),
+      invalidateProject(parsedProjectId),
+      invalidateAllTasks(),
+      invalidateProjectTaskStatuses(parsedProjectId),
     ]);
-  }, [localQueryClient, parsedProjectId]);
+  }, [parsedProjectId]);
 
   const projectQuery = useQuery<Project>({
-    queryKey: ["project", parsedProjectId],
-    queryFn: async () => {
-      const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
-      return response.data;
-    },
+    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(parsedProjectId),
+    queryFn: () =>
+      readProjectApiV1ProjectsProjectIdGet(parsedProjectId) as unknown as Promise<Project>,
     enabled: Number.isFinite(parsedProjectId),
   });
 
   // Tasks query is now inside ProjectTasksSection to support server-side filtering
 
   const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: ["projects", parsedProjectId, "task-statuses"],
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectTaskStatus[]>(
-        `/projects/${parsedProjectId}/task-statuses/`
-      );
-      return response.data;
-    },
+    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(parsedProjectId),
+    queryFn: () =>
+      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(parsedProjectId) as unknown as Promise<
+        ProjectTaskStatus[]
+      >,
     enabled: Number.isFinite(parsedProjectId),
   });
 
   const usersQuery = useQuery<User[]>({
-    queryKey: ["users", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<User[]>("/users/");
-      return response.data;
-    },
+    queryKey: getListUsersApiV1UsersGetQueryKey(),
+    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
   });
 
   const viewedProjectId = projectQuery.data?.id;
@@ -81,14 +86,14 @@ export const ProjectDetailPage = () => {
     }
     const recordView = async () => {
       try {
-        await apiClient.post(`/projects/${viewedProjectId}/view`);
-        await queryClient.invalidateQueries({ queryKey: ["projects", activeGuildId, "recent"] });
+        await recordProjectViewApiV1ProjectsProjectIdViewPost(viewedProjectId);
+        await invalidateRecentProjects();
       } catch (error) {
         console.error("Failed to record project view", error);
       }
     };
     void recordView();
-  }, [viewedProjectId, activeGuildId]);
+  }, [viewedProjectId]);
 
   // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   // Includes both explicit user permissions and role-based permissions

@@ -1,5 +1,13 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-import { apiClient } from "@/api/client";
+
+import {
+  readDocumentApiV1DocumentsDocumentIdGet,
+  getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
+} from "@/api/generated/documents/documents";
+import {
+  listCommentsApiV1CommentsGet,
+  getListCommentsApiV1CommentsGetQueryKey,
+} from "@/api/generated/comments/comments";
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/g/$guildId/documents_/$documentId"
@@ -12,16 +20,13 @@ export const Route = createFileRoute(
     try {
       await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: ["documents", documentId],
-          queryFn: () => apiClient.get(`/documents/${documentId}`).then((r) => r.data),
+          queryKey: getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(documentId),
+          queryFn: () => readDocumentApiV1DocumentsDocumentIdGet(documentId),
           staleTime: 30_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: ["comments", "document", documentId],
-          queryFn: () =>
-            apiClient
-              .get("/comments/", { params: { document_id: documentId } })
-              .then((r) => r.data),
+          queryKey: getListCommentsApiV1CommentsGetQueryKey({ document_id: documentId }),
+          queryFn: () => listCommentsApiV1CommentsGet({ document_id: documentId }),
           staleTime: 30_000,
         }),
       ]);

@@ -2,7 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "@/api/client";
+import {
+  getOidcSettingsApiV1SettingsAuthGet,
+  getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
+  updateOidcSettingsApiV1SettingsAuthPut,
+} from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,18 +47,14 @@ export const SettingsAuthPage = () => {
   });
 
   const oidcQuery = useQuery<OidcSettings>({
-    queryKey: ["settings", "oidc"],
+    queryKey: getGetOidcSettingsApiV1SettingsAuthGetQueryKey(),
     enabled: isPlatformAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<OidcSettings>("/settings/auth");
-      return response.data;
-    },
+    queryFn: () => getOidcSettingsApiV1SettingsAuthGet() as unknown as Promise<OidcSettings>,
   });
 
   const updateOidcSettings = useMutation({
     mutationFn: async (payload: OidcSettings & { client_secret?: string }) => {
-      const response = await apiClient.put<OidcSettings>("/settings/auth", payload);
-      return response.data;
+      return updateOidcSettingsApiV1SettingsAuthPut(payload) as unknown as Promise<OidcSettings>;
     },
     onSuccess: () => {
       void oidcQuery.refetch();

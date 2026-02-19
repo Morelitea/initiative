@@ -5,7 +5,16 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  listAllUsersApiV1AdminUsersGet,
+  getListAllUsersApiV1AdminUsersGetQueryKey,
+  triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
+  reactivateUserApiV1AdminUsersUserIdReactivatePost,
+  getPlatformAdminCountApiV1AdminPlatformAdminCountGet,
+  getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey,
+  updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
+} from "@/api/generated/admin/admin";
+import { invalidateAdminUsers } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,10 +25,6 @@ import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type { User, UserRole } from "@/types/api";
 import { DataTable } from "@/components/ui/data-table";
 import { SortIcon } from "@/components/SortIcon";
-import { queryClient } from "@/lib/queryClient";
-
-const PLATFORM_USERS_QUERY_KEY = ["admin", "users"];
-const ADMIN_COUNT_QUERY_KEY = ["admin", "platform-admin-count"];
 
 interface PlatformAdminCountResponse {
   count: number;
@@ -46,28 +51,21 @@ export const SettingsPlatformUsersPage = () => {
   const isAdmin = user?.role === "admin";
 
   const usersQuery = useQuery<User[]>({
-    queryKey: PLATFORM_USERS_QUERY_KEY,
+    queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
     enabled: isAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<User[]>("/admin/users");
-      return response.data;
-    },
+    queryFn: () => listAllUsersApiV1AdminUsersGet() as unknown as Promise<User[]>,
   });
 
   const adminCountQuery = useQuery<PlatformAdminCountResponse>({
-    queryKey: ADMIN_COUNT_QUERY_KEY,
+    queryKey: getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey(),
     enabled: isAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<PlatformAdminCountResponse>(
-        "/admin/platform-admin-count"
-      );
-      return response.data;
-    },
+    queryFn: () =>
+      getPlatformAdminCountApiV1AdminPlatformAdminCountGet() as unknown as Promise<PlatformAdminCountResponse>,
   });
 
   const resetPassword = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.post(`/admin/users/${userId}/reset-password`, {});
+      await triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost(userId);
     },
     onSuccess: (_data, userId) => {
       const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
@@ -85,7 +83,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const reactivateUser = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.post(`/admin/users/${userId}/reactivate`, {});
+      await reactivateUserApiV1AdminUsersUserIdReactivatePost(userId);
     },
     onSuccess: (_data, userId) => {
       const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
@@ -114,11 +112,12 @@ export const SettingsPlatformUsersPage = () => {
 
   const updatePlatformRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: UserRole }) => {
-      await apiClient.patch(`/admin/users/${userId}/platform-role`, { role });
+      await updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, { role } as Parameters<
+        typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch
+      >[1]);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: PLATFORM_USERS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: ADMIN_COUNT_QUERY_KEY });
+      void invalidateAdminUsers();
       toast.success(
         roleChangeConfirm?.newRole === "admin"
           ? t("platformUsers.promoteSuccess")
@@ -380,8 +379,7 @@ export const SettingsPlatformUsersPage = () => {
           open={deleteUserTarget !== null}
           onOpenChange={(open) => !open && setDeleteUserTarget(null)}
           onSuccess={() => {
-            void queryClient.invalidateQueries({ queryKey: PLATFORM_USERS_QUERY_KEY });
-            void queryClient.invalidateQueries({ queryKey: ADMIN_COUNT_QUERY_KEY });
+            void invalidateAdminUsers();
           }}
           targetUser={deleteUserTarget}
         />

@@ -6,7 +6,18 @@ import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  listTasksApiV1TasksGet,
+  getListTasksApiV1TasksGetQueryKey,
+  updateTaskApiV1TasksTaskIdPatch,
+} from "@/api/generated/tasks/tasks";
+import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import {
+  listProjectsApiV1ProjectsGet,
+  getListProjectsApiV1ProjectsGetQueryKey,
+} from "@/api/generated/projects/projects";
+import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import type { TranslateFn } from "@/types/i18n";
@@ -16,7 +27,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useGuilds } from "@/hooks/useGuilds";
-import { queryClient } from "@/lib/queryClient";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
@@ -129,8 +139,8 @@ export const MyTasksPage = () => {
   };
 
   const handleRefresh = useCallback(async () => {
-    await localQueryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
-  }, [localQueryClient]);
+    await invalidateAllTasks();
+  }, []);
 
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
     () => readStoredFilters().statusFilters
@@ -194,71 +204,41 @@ export const MyTasksPage = () => {
     setPage(1);
   }, [statusFilters, priorityFilters, guildFilters, setPage]);
 
+  const taskListParams: ListTasksApiV1TasksGetParams = {
+    scope: "global",
+    ...(statusFilters.length > 0 && { status_category: statusFilters }),
+    ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+    ...(guildFilters.length > 0 && { guild_ids: guildFilters as unknown as number[] }),
+    page,
+    page_size: pageSize,
+    ...(sortBy && { sort_by: sortBy }),
+    ...(sortDir && { sort_dir: sortDir }),
+  };
+
   const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: [
-      "tasks",
-      "global",
-      statusFilters,
-      priorityFilters,
-      guildFilters,
-      page,
-      pageSize,
-      sortBy,
-      sortDir,
-    ],
-    queryFn: async () => {
-      const params: Record<string, string | string[] | number | number[]> = { scope: "global" };
-
-      if (statusFilters.length > 0) {
-        params.status_category = statusFilters;
-      }
-      if (priorityFilters.length > 0) {
-        params.priorities = priorityFilters;
-      }
-      if (guildFilters.length > 0) {
-        params.guild_ids = guildFilters;
-      }
-
-      params.page = page;
-      params.page_size = pageSize;
-
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-
-      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
-      return response.data;
-    },
+    queryKey: getListTasksApiV1TasksGetQueryKey(taskListParams),
+    queryFn: () => listTasksApiV1TasksGet(taskListParams) as unknown as Promise<TaskListResponse>,
     placeholderData: keepPreviousData,
   });
 
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[] | number | number[]> = { scope: "global" };
-      if (statusFilters.length > 0) params.status_category = statusFilters;
-      if (priorityFilters.length > 0) params.priorities = priorityFilters;
-      if (guildFilters.length > 0) params.guild_ids = guildFilters;
-      params.page = targetPage;
-      params.page_size = pageSize;
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
+      const prefetchParams: ListTasksApiV1TasksGetParams = {
+        scope: "global",
+        ...(statusFilters.length > 0 && { status_category: statusFilters }),
+        ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+        ...(guildFilters.length > 0 && { guild_ids: guildFilters as unknown as number[] }),
+        page: targetPage,
+        page_size: pageSize,
+        ...(sortBy && { sort_by: sortBy }),
+        ...(sortDir && { sort_dir: sortDir }),
+      };
 
       void localQueryClient.prefetchQuery({
-        queryKey: [
-          "tasks",
-          "global",
-          statusFilters,
-          priorityFilters,
-          guildFilters,
-          targetPage,
-          pageSize,
-          sortBy,
-          sortDir,
-        ],
-        queryFn: async () => {
-          const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
-          return response.data;
-        },
+        queryKey: getListTasksApiV1TasksGetQueryKey(prefetchParams),
+        queryFn: () =>
+          listTasksApiV1TasksGet(prefetchParams) as unknown as Promise<TaskListResponse>,
         staleTime: 30_000,
       });
     },
@@ -266,27 +246,20 @@ export const MyTasksPage = () => {
   );
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
+    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
   });
 
   const templatesQuery = useQuery<Project[]>({
-    queryKey: ["projects", "templates", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/", { params: { template: true } });
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
+    queryFn: () =>
+      listProjectsApiV1ProjectsGet({ template: true }) as unknown as Promise<Project[]>,
   });
 
   const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "archived", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/", { params: { archived: true } });
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
+    queryFn: () =>
+      listProjectsApiV1ProjectsGet({ archived: true }) as unknown as Promise<Project[]>,
   });
 
   const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
@@ -299,24 +272,15 @@ export const MyTasksPage = () => {
       taskStatusId: number;
       guildId: number | null;
     }) => {
-      const response = await apiClient.patch<Task>(
-        `/tasks/${taskId}`,
-        {
-          task_status_id: taskStatusId,
-        },
-        guildId
-          ? {
-              headers: {
-                "X-Guild-ID": String(guildId),
-              },
-            }
-          : undefined
-      );
-      return response.data;
+      return await (updateTaskApiV1TasksTaskIdPatch(
+        taskId,
+        { task_status_id: taskStatusId } as never,
+        guildId ? { headers: { "X-Guild-ID": String(guildId) } } : undefined
+      ) as unknown as Promise<Task>);
     },
     onSuccess: (updatedTask) => {
       // Invalidate all tasks queries since the query key includes filter params
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
+      void invalidateAllTasks();
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
@@ -367,20 +331,15 @@ export const MyTasksPage = () => {
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const response = await apiClient.get<ProjectTaskStatus[]>(
-      `/projects/${projectId}/task-statuses/`,
-      {
-        headers: {
-          "X-Guild-ID": String(guildId),
-        },
-      }
-    );
+    const statuses = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId, {
+      headers: { "X-Guild-ID": String(guildId) },
+    }) as unknown as Promise<ProjectTaskStatus[]>);
     const merged = cached
       ? [
           ...cached.statuses,
-          ...response.data.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
+          ...statuses.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
         ]
-      : response.data;
+      : statuses;
     projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
     return merged;
   }, []);

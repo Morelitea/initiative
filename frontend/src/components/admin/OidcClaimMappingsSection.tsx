@@ -1,9 +1,19 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
+  getOidcMappingsApiV1SettingsOidcMappingsGet,
+  getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
+  getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
+  createOidcMappingApiV1SettingsOidcMappingsPost,
+  updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
+  updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
+  deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
+} from "@/api/generated/settings/settings";
+import { invalidateOidcMappings } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,11 +71,8 @@ interface MappingOptions {
   initiative_roles: RoleOption[];
 }
 
-const QUERY_KEY = ["settings", "oidc-mappings"];
-
 export const OidcClaimMappingsSection = () => {
   const { t } = useTranslation("settings");
-  const queryClient = useQueryClient();
 
   const [claimPath, setClaimPath] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -80,19 +87,15 @@ export const OidcClaimMappingsSection = () => {
   });
 
   const mappingsQuery = useQuery<OIDCMappingsData>({
-    queryKey: QUERY_KEY,
-    queryFn: async () => {
-      const resp = await apiClient.get<OIDCMappingsData>("/settings/oidc-mappings");
-      return resp.data;
-    },
+    queryKey: getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey(),
+    queryFn: () =>
+      getOidcMappingsApiV1SettingsOidcMappingsGet() as unknown as Promise<OIDCMappingsData>,
   });
 
   const optionsQuery = useQuery<MappingOptions>({
-    queryKey: [...QUERY_KEY, "options"],
-    queryFn: async () => {
-      const resp = await apiClient.get<MappingOptions>("/settings/oidc-mappings/options");
-      return resp.data;
-    },
+    queryKey: getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey(),
+    queryFn: () =>
+      getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet() as unknown as Promise<MappingOptions>,
   });
 
   useEffect(() => {
@@ -103,23 +106,24 @@ export const OidcClaimMappingsSection = () => {
 
   const updateClaimPath = useMutation({
     mutationFn: async (path: string | null) => {
-      await apiClient.put("/settings/oidc-mappings/claim-path", { claim_path: path || null });
+      await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut({ claim_path: path || null });
     },
     onSuccess: () => {
       toast.success(t("auth.claimPathSuccess"));
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void invalidateOidcMappings();
     },
     onError: () => toast.error(t("auth.claimPathError")),
   });
 
   const createMapping = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const resp = await apiClient.post<OIDCClaimMapping>("/settings/oidc-mappings", data);
-      return resp.data;
+      return createOidcMappingApiV1SettingsOidcMappingsPost(
+        data as unknown as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
+      ) as unknown as Promise<OIDCClaimMapping>;
     },
     onSuccess: () => {
       toast.success(t("auth.mappingCreateSuccess"));
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void invalidateOidcMappings();
       resetForm();
     },
     onError: () => toast.error(t("auth.mappingCreateError")),
@@ -127,12 +131,14 @@ export const OidcClaimMappingsSection = () => {
 
   const updateMapping = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
-      const resp = await apiClient.put<OIDCClaimMapping>(`/settings/oidc-mappings/${id}`, data);
-      return resp.data;
+      return updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
+        id,
+        data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
+      ) as unknown as Promise<OIDCClaimMapping>;
     },
     onSuccess: () => {
       toast.success(t("auth.mappingUpdateSuccess"));
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void invalidateOidcMappings();
       resetForm();
     },
     onError: () => toast.error(t("auth.mappingUpdateError")),
@@ -140,11 +146,11 @@ export const OidcClaimMappingsSection = () => {
 
   const deleteMapping = useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.delete(`/settings/oidc-mappings/${id}`);
+      await deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(id);
     },
     onSuccess: () => {
       toast.success(t("auth.mappingDeleteSuccess"));
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      void invalidateOidcMappings();
     },
     onError: () => toast.error(t("auth.mappingDeleteError")),
   });

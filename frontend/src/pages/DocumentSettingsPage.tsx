@@ -7,7 +7,27 @@ import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  readDocumentApiV1DocumentsDocumentIdGet,
+  getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
+  updateDocumentApiV1DocumentsDocumentIdPatch,
+  deleteDocumentApiV1DocumentsDocumentIdDelete,
+  duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost,
+  copyDocumentApiV1DocumentsDocumentIdCopyPost,
+  addDocumentMemberApiV1DocumentsDocumentIdMembersPost,
+  updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch,
+  removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete,
+  addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost,
+  removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost,
+  addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost,
+  updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch,
+  removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete,
+} from "@/api/generated/documents/documents";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+} from "@/api/generated/initiatives/initiatives";
+import { invalidateAllDocuments, invalidateDocument } from "@/api/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -91,11 +111,9 @@ export const DocumentSettingsPage = () => {
   const setDocumentTagsMutation = useSetDocumentTags();
 
   const documentQuery = useQuery<DocumentRead>({
-    queryKey: ["documents", parsedId],
-    queryFn: async () => {
-      const response = await apiClient.get<DocumentRead>(`/documents/${parsedId}`);
-      return response.data;
-    },
+    queryKey: getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
+    queryFn: () =>
+      readDocumentApiV1DocumentsDocumentIdGet(parsedId) as unknown as Promise<DocumentRead>,
     enabled: Number.isFinite(parsedId),
   });
 
@@ -104,11 +122,8 @@ export const DocumentSettingsPage = () => {
   const rolesQuery = useInitiativeRoles(document?.initiative_id ?? null);
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives"],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
     enabled: Boolean(document) && Boolean(user),
   });
 
@@ -216,7 +231,7 @@ export const DocumentSettingsPage = () => {
 
   const addMember = useMutation({
     mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
-      await apiClient.post(`/documents/${parsedId}/members`, {
+      await addDocumentMemberApiV1DocumentsDocumentIdMembersPost(parsedId, {
         user_id: userId,
         level,
       });
@@ -226,7 +241,7 @@ export const DocumentSettingsPage = () => {
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -236,14 +251,14 @@ export const DocumentSettingsPage = () => {
 
   const updateMemberLevel = useMutation({
     mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
-      await apiClient.patch(`/documents/${parsedId}/members/${userId}`, {
+      await updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch(parsedId, userId, {
         level,
       });
     },
     onSuccess: () => {
       setAccessMessage(t("settings.accessUpdated"));
       setAccessError(null);
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -253,12 +268,12 @@ export const DocumentSettingsPage = () => {
 
   const removeMember = useMutation({
     mutationFn: async (userId: number) => {
-      await apiClient.delete(`/documents/${parsedId}/members/${userId}`);
+      await removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete(parsedId, userId);
     },
     onSuccess: () => {
       setAccessMessage(t("settings.accessRemoved"));
       setAccessError(null);
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -269,7 +284,7 @@ export const DocumentSettingsPage = () => {
   const addAllMembers = useMutation({
     mutationFn: async (level: DocumentPermissionLevel) => {
       const userIds = availableMembers.map((member) => member.user.id);
-      await apiClient.post(`/documents/${parsedId}/members/bulk`, {
+      await addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost(parsedId, {
         user_ids: userIds,
         level,
       });
@@ -279,7 +294,7 @@ export const DocumentSettingsPage = () => {
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -295,7 +310,7 @@ export const DocumentSettingsPage = () => {
       userIds: number[];
       level: DocumentPermissionLevel;
     }) => {
-      await apiClient.post(`/documents/${parsedId}/members/bulk`, {
+      await addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost(parsedId, {
         user_ids: userIds,
         level,
       });
@@ -304,7 +319,7 @@ export const DocumentSettingsPage = () => {
       setAccessMessage(t("settings.accessUpdated"));
       setAccessError(null);
       setSelectedMembers([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -314,7 +329,7 @@ export const DocumentSettingsPage = () => {
 
   const bulkRemoveMembers = useMutation({
     mutationFn: async (userIds: number[]) => {
-      await apiClient.post(`/documents/${parsedId}/members/bulk-delete`, {
+      await removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost(parsedId, {
         user_ids: userIds,
       });
     },
@@ -322,7 +337,7 @@ export const DocumentSettingsPage = () => {
       setAccessMessage(t("settings.accessRemoved"));
       setAccessError(null);
       setSelectedMembers([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -339,15 +354,14 @@ export const DocumentSettingsPage = () => {
       if (!trimmedTitle) {
         throw new Error("Document title is required");
       }
-      const response = await apiClient.post<DocumentRead>(`/documents/${document.id}/duplicate`, {
+      return duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost(document.id, {
         title: trimmedTitle,
-      });
-      return response.data;
+      }) as unknown as Promise<DocumentRead>;
     },
     onSuccess: (duplicated) => {
       toast.success(t("settings.documentDuplicated"));
       setDuplicateDialogOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void invalidateAllDocuments();
       router.navigate({
         to: gp(`/documents/${duplicated.id}`),
       });
@@ -370,15 +384,10 @@ export const DocumentSettingsPage = () => {
       if (!trimmedTitle) {
         throw new Error("Document title is required");
       }
-      const payload = {
+      return copyDocumentApiV1DocumentsDocumentIdCopyPost(document.id, {
         target_initiative_id: Number(copyInitiativeId),
         title: trimmedTitle,
-      };
-      const response = await apiClient.post<DocumentRead>(
-        `/documents/${document.id}/copy`,
-        payload
-      );
-      return response.data;
+      }) as unknown as Promise<DocumentRead>;
     },
     onSuccess: (copied) => {
       toast.success(
@@ -388,7 +397,7 @@ export const DocumentSettingsPage = () => {
         })
       );
       setCopyDialogOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void invalidateAllDocuments();
       router.navigate({ to: gp(`/documents/${copied.id}`) });
     },
     onError: (error) => {
@@ -399,11 +408,11 @@ export const DocumentSettingsPage = () => {
 
   const deleteDocument = useMutation({
     mutationFn: async () => {
-      await apiClient.delete(`/documents/${parsedId}`);
+      await deleteDocumentApiV1DocumentsDocumentIdDelete(parsedId);
     },
     onSuccess: () => {
       toast.success(t("settings.documentDeleted"));
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      void invalidateAllDocuments();
       setDeleteDialogOpen(false);
       router.navigate({ to: gp("/documents") });
     },
@@ -417,15 +426,17 @@ export const DocumentSettingsPage = () => {
       if (!document) {
         throw new Error("Document is not loaded yet.");
       }
-      const response = await apiClient.patch<DocumentRead>(`/documents/${document.id}`, {
+      return updateDocumentApiV1DocumentsDocumentIdPatch(document.id, {
         is_template: nextValue,
-      });
-      return response.data;
+      }) as unknown as Promise<DocumentRead>;
     },
     onSuccess: (updated) => {
       setIsTemplate(updated.is_template);
-      queryClient.setQueryData(["documents", parsedId], updated);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.setQueryData(
+        getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
+        updated
+      );
+      void invalidateAllDocuments();
     },
     onError: () => {
       toast.error(t("settings.templateError"));
@@ -435,7 +446,7 @@ export const DocumentSettingsPage = () => {
   // Role permission mutations
   const addRolePermission = useMutation({
     mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await apiClient.post(`/documents/${parsedId}/role-permissions`, {
+      await addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost(parsedId, {
         initiative_role_id: roleId,
         level,
       });
@@ -444,7 +455,7 @@ export const DocumentSettingsPage = () => {
       toast.success(t("settings.roleAccessGranted"));
       setSelectedNewRoleId("");
       setSelectedNewRoleLevel("read");
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       toast.error(t("settings.grantRoleAccessError"));
@@ -453,13 +464,15 @@ export const DocumentSettingsPage = () => {
 
   const updateRolePermission = useMutation({
     mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await apiClient.patch(`/documents/${parsedId}/role-permissions/${roleId}`, {
-        level,
-      });
+      await updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch(
+        parsedId,
+        roleId,
+        { level }
+      );
     },
     onSuccess: () => {
       toast.success(t("settings.roleAccessUpdated"));
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       toast.error(t("settings.updateRoleAccessError"));
@@ -468,11 +481,14 @@ export const DocumentSettingsPage = () => {
 
   const removeRolePermission = useMutation({
     mutationFn: async (roleId: number) => {
-      await apiClient.delete(`/documents/${parsedId}/role-permissions/${roleId}`);
+      await removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete(
+        parsedId,
+        roleId
+      );
     },
     onSuccess: () => {
       toast.success(t("settings.roleAccessRemoved"));
-      void queryClient.invalidateQueries({ queryKey: ["documents", parsedId] });
+      void invalidateDocument(parsedId);
     },
     onError: () => {
       toast.error(t("settings.removeRoleAccessError"));

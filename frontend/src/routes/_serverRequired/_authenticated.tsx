@@ -8,7 +8,7 @@ import {
   useLocation,
   useSearch,
 } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2, LogOut, Menu, Plus, Ticket } from "lucide-react";
 
@@ -27,7 +27,12 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
-import { apiClient } from "@/api/client";
+import {
+  recentProjectsApiV1ProjectsRecentGet,
+  getRecentProjectsApiV1ProjectsRecentGetQueryKey,
+  clearProjectViewApiV1ProjectsProjectIdViewDelete,
+} from "@/api/generated/projects/projects";
+import { invalidateRecentProjects } from "@/api/query-keys";
 import type { Project } from "@/types/api";
 
 /**
@@ -77,8 +82,6 @@ function AppLayout() {
   } = useGuilds();
   const location = useLocation();
   const search = useSearch({ strict: false }) as { authenticated?: string };
-  const queryClient = useQueryClient();
-
   // Check if we just authenticated (search param passed via navigation)
   const justAuthenticated = search?.authenticated === "1";
   const { updateAvailable, closeDialog } = useVersionCheck();
@@ -87,30 +90,22 @@ function AppLayout() {
   usePushNotifications();
   useBackButton();
 
-  const recentQueryKey = ["projects", activeGuildId, "recent"] as const;
+  const recentQueryKey = getRecentProjectsApiV1ProjectsRecentGetQueryKey();
 
   const recentQuery = useQuery<Project[]>({
     queryKey: recentQueryKey,
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/recent");
-      return response.data;
-    },
+    queryFn: () => recentProjectsApiV1ProjectsRecentGet() as unknown as Promise<Project[]>,
     enabled: activeGuildId !== null && !loading && !!token,
     staleTime: 30_000,
   });
 
   const clearRecent = useMutation({
     mutationFn: async (projectId: number) => {
-      await apiClient.delete(`/projects/${projectId}/view`);
+      await clearProjectViewApiV1ProjectsProjectIdViewDelete(projectId);
       return projectId;
     },
-    onSuccess: (projectId) => {
-      void queryClient.invalidateQueries({ queryKey: recentQueryKey });
-      if (projectId) {
-        void queryClient.invalidateQueries({
-          queryKey: ["projects", projectId],
-        });
-      }
+    onSuccess: () => {
+      void invalidateRecentProjects();
     },
   });
 

@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+
+import {
+  getLatestDockerhubVersionApiV1VersionLatestGet,
+  getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey,
+} from "@/api/generated/version/version";
 
 interface VersionResponse {
   version: string | null;
@@ -11,20 +15,21 @@ interface VersionResponse {
  */
 export const useDockerHubVersion = () => {
   return useQuery<string | null>({
-    queryKey: ["dockerhub-version"],
+    queryKey: getGetLatestDockerhubVersionApiV1VersionLatestGetQueryKey(),
     queryFn: async () => {
       try {
-        const response = await apiClient.get<VersionResponse>("/version/latest");
-        return response.data.version;
+        const result =
+          (await getLatestDockerhubVersionApiV1VersionLatestGet()) as unknown as VersionResponse;
+        return result.version;
       } catch (error) {
         console.error("Failed to fetch DockerHub version:", error);
         return null;
       }
     },
-    staleTime: 1000 * 60 * 60, // 1 hour - don't check DockerHub too frequently
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours
-    retry: 1, // Only retry once on failure
-    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    staleTime: 1000 * 60 * 60,
+    gcTime: 1000 * 60 * 60 * 24,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 };
 

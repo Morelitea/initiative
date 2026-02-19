@@ -5,7 +5,10 @@ import { ChevronRight, MessageSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  projectActivityFeedApiV1ProjectsProjectIdActivityGet,
+  getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey,
+} from "@/api/generated/projects/projects";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import type { ProjectActivityEntry, ProjectActivityResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -28,17 +31,14 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
-    queryKey: ["projects", projectId, "activity"],
+    queryKey: getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey(projectId!),
     queryFn: async ({ pageParam = 1 }) => {
       if (!projectId) {
         throw new Error("Project id required");
       }
-      const response = await apiClient.get<ProjectActivityResponse>(
-        `/projects/${projectId}/activity`,
-        {
-          params: { page: pageParam },
-        }
-      );
+      const response = await (projectActivityFeedApiV1ProjectsProjectIdActivityGet(projectId, {
+        page: pageParam as number,
+      }) as unknown as Promise<{ data: ProjectActivityResponse }>);
       return response.data;
     },
     getNextPageParam: (lastPage) => lastPage.next_page ?? undefined,
