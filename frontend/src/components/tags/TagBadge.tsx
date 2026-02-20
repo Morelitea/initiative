@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { TagSummary } from "@/types/api";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * Calculate relative luminance from a hex color.

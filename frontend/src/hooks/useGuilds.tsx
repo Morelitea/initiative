@@ -13,20 +13,20 @@ import { toast } from "sonner";
 
 import { apiClient, setCurrentGuildId } from "@/api/client";
 import { getItem, setItem, removeItem } from "@/lib/storage";
-import type { Guild } from "@/types/api";
+import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 
 interface GuildContextValue {
-  guilds: Guild[];
+  guilds: GuildRead[];
   activeGuildId: number | null;
-  activeGuild: Guild | null;
+  activeGuild: GuildRead | null;
   loading: boolean;
   error: string | null;
   refreshGuilds: () => Promise<void>;
   switchGuild: (guildId: number) => Promise<void>;
   syncGuildFromUrl: (guildId: number) => Promise<void>;
-  createGuild: (input: { name: string; description?: string }) => Promise<Guild>;
-  updateGuildInState: (guild: Guild) => void;
+  createGuild: (input: { name: string; description?: string }) => Promise<GuildRead>;
+  updateGuildInState: (guild: GuildRead) => void;
   reorderGuilds: (guildIds: number[]) => void;
   canCreateGuilds: boolean;
 }
@@ -52,7 +52,7 @@ const persistGuildId = (guildId: number | null) => {
   }
 };
 
-const sortGuilds = (guildList: Guild[]): Guild[] => {
+const sortGuilds = (guildList: GuildRead[]): GuildRead[] => {
   return [...guildList].sort((a, b) => {
     const positionDelta = (a.position ?? 0) - (b.position ?? 0);
     if (positionDelta !== 0) {
@@ -64,7 +64,7 @@ const sortGuilds = (guildList: Guild[]): Guild[] => {
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const { user, token, refreshUser } = useAuth();
-  const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [guilds, setGuilds] = useState<GuildRead[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   // Start as true - we're loading until first fetch completes (or until we know we shouldn't fetch)
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     persistGuildId(activeGuildId);
   }, [activeGuildId]);
 
-  const applyGuildState = useCallback((guildList: Guild[]) => {
+  const applyGuildState = useCallback((guildList: GuildRead[]) => {
     const sortedGuilds = sortGuilds(guildList);
     setGuilds(sortedGuilds);
 
@@ -117,7 +117,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
     setError(null);
     try {
-      const response = await apiClient.get<Guild[]>("/guilds/");
+      const response = await apiClient.get<GuildRead[]>("/guilds/");
       hasFetchedRef.current = true;
       applyGuildState(response.data);
     } catch (err) {
@@ -245,7 +245,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
           return prev;
         }
         const lookup = new Map(prev.map((guild) => [guild.id, guild]));
-        const ordered: Guild[] = [];
+        const ordered: GuildRead[] = [];
         uniqueIds.forEach((id) => {
           const match = lookup.get(id);
           if (match) {
@@ -279,7 +279,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Guild name is required.");
       }
 
-      const response = await apiClient.post<Guild>("/guilds/", {
+      const response = await apiClient.post<GuildRead>("/guilds/", {
         name: trimmedName,
         description: description?.trim() || undefined,
       });
@@ -291,7 +291,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     [user, canCreateGuilds, refreshGuilds, refreshUser]
   );
 
-  const updateGuildInState = useCallback((guild: Guild) => {
+  const updateGuildInState = useCallback((guild: GuildRead) => {
     setGuilds((prev) => {
       let replaced = false;
       const next = prev.map((existing) => {

@@ -11,11 +11,11 @@ import {
   INITIATIVE_COLOR_FALLBACK,
   resolveInitiativeColor,
 } from "@/lib/initiativeColors";
-import type { Project } from "@/types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Link } from "@tanstack/react-router";
 
 type ProjectOverviewCardProps = {
-  project: Project;
+  project: ProjectRead;
   projectIsArchived: boolean;
 };
 

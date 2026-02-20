@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2, Plus, Presentation, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -7,14 +7,10 @@ import { toast } from "sonner";
 import {
   copyDocumentApiV1DocumentsDocumentIdCopyPost,
   createDocumentApiV1DocumentsPost,
-  getListDocumentsApiV1DocumentsGetQueryKey,
-  listDocumentsApiV1DocumentsGet,
   uploadDocumentFileApiV1DocumentsUploadPost,
 } from "@/api/generated/documents/documents";
-import {
-  getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey,
-  getInitiativeApiV1InitiativesInitiativeIdGet,
-} from "@/api/generated/initiatives/initiatives";
+import { useAllDocumentIds } from "@/hooks/useDocuments";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
 import { apiClient } from "@/api/client";
 import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
@@ -49,9 +45,8 @@ import {
   type RoleGrant,
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
-import { useAuth } from "@/hooks/useAuth";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
-import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
+import type { DocumentRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 type CreateDocumentDialogProps = {
   open: boolean;
@@ -65,7 +60,7 @@ type CreateDocumentDialogProps = {
   /** Called after successful creation/upload */
   onSuccess?: (document: DocumentRead) => void;
   /** List of initiatives user can create documents in (required if initiativeId not provided) */
-  initiatives?: Initiative[];
+  initiatives?: InitiativeRead[];
 };
 
 export const CreateDocumentDialog = ({
@@ -78,7 +73,6 @@ export const CreateDocumentDialog = ({
   initiatives = [],
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const { user } = useAuth();
 
   const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload">("new");
   const [newTitle, setNewTitle] = useState("");
@@ -104,36 +98,20 @@ export const CreateDocumentDialog = ({
   }, [initiativeId, initiatives]);
 
   // Query the initiative if we have an ID but it's not in the passed list
-  const initiativeQuery = useQuery<Initiative>({
-    queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
-    queryFn: () =>
-      getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId!) as unknown as Promise<Initiative>,
-    enabled: open && !!initiativeId && !lockedInitiativeFromList,
-  });
+  const initiativeQuery = useInitiative(
+    open && !!initiativeId && !lockedInitiativeFromList ? initiativeId! : null
+  );
 
   const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
   // Query templates
-  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
-    queryFn: async () => {
-      const response = await (listDocumentsApiV1DocumentsGet({
-        page_size: 0,
-      }) as unknown as Promise<{ items: DocumentSummary[] }>);
-      return response.items;
-    },
-    enabled: open,
-  });
+  const templateDocumentsQuery = useAllDocumentIds({ enabled: open });
 
-  // Filter templates user can access
+  // Filter templates — backend already enforces access control via RLS
   const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !user) return [];
-    return templateDocumentsQuery.data.filter((doc) => {
-      if (!doc.is_template) return false;
-      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
-      return Boolean(permission);
-    });
-  }, [templateDocumentsQuery.data, user]);
+    if (!templateDocumentsQuery.data) return [];
+    return templateDocumentsQuery.data.filter((doc) => doc.is_template);
+  }, [templateDocumentsQuery.data]);
 
   // Reset form when dialog closes, or set default initiative when dialog opens
   useEffect(() => {

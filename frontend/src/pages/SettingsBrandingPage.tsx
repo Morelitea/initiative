@@ -1,14 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  getInterfaceSettingsApiV1SettingsInterfaceGet,
-  getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
-  updateInterfaceSettingsApiV1SettingsInterfacePut,
-  updateRoleLabelsApiV1SettingsRolesPut,
-} from "@/api/generated/settings/settings";
+import { updateInterfaceSettingsApiV1SettingsInterfacePut } from "@/api/generated/settings/settings";
 import { invalidateInterfaceSettings } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,16 +17,17 @@ import {
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DEFAULT_ROLE_LABELS, ROLE_LABELS_QUERY_KEY, useRoleLabels } from "@/hooks/useRoleLabels";
+import { DEFAULT_ROLE_LABELS, useRoleLabels, useUpdateRoleLabels } from "@/hooks/useRoleLabels";
 import { useAuth } from "@/hooks/useAuth";
-import type { RoleLabels } from "@/types/api";
+import { useInterfaceSettings } from "@/hooks/useSettings";
+import type { RoleLabelsResponse } from "@/api/generated/initiativeAPI.schemas";
 
 interface InterfaceSettings {
   light_accent_color: string;
   dark_accent_color: string;
 }
 
-const ROLE_FIELDS: { key: keyof RoleLabels; labelKey: string; helperKey: string }[] = [
+const ROLE_FIELDS: { key: keyof RoleLabelsResponse; labelKey: string; helperKey: string }[] = [
   { key: "admin", labelKey: "branding.adminLabel", helperKey: "branding.adminHelper" },
   {
     key: "project_manager",
@@ -45,19 +41,12 @@ export const SettingsBrandingPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = user?.role === "admin";
-  const queryClient = useQueryClient();
-
   const [lightColor, setLightColor] = useState("#2563eb");
   const [darkColor, setDarkColor] = useState("#60a5fa");
-  const [roleFormState, setRoleFormState] = useState<RoleLabels>(DEFAULT_ROLE_LABELS);
+  const [roleFormState, setRoleFormState] = useState<RoleLabelsResponse>(DEFAULT_ROLE_LABELS);
   const [roleMessage, setRoleMessage] = useState<string | null>(null);
 
-  const interfaceQuery = useQuery<InterfaceSettings>({
-    queryKey: getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey(),
-    enabled: isPlatformAdmin,
-    queryFn: () =>
-      getInterfaceSettingsApiV1SettingsInterfaceGet() as unknown as Promise<InterfaceSettings>,
-  });
+  const interfaceQuery = useInterfaceSettings({ enabled: isPlatformAdmin });
 
   const updateInterface = useMutation({
     mutationFn: async (payload: InterfaceSettings) => {
@@ -73,17 +62,7 @@ export const SettingsBrandingPage = () => {
 
   const roleLabelsQuery = useRoleLabels();
 
-  const updateRoleLabels = useMutation({
-    mutationFn: async (payload: RoleLabels) => {
-      return updateRoleLabelsApiV1SettingsRolesPut(
-        payload as Parameters<typeof updateRoleLabelsApiV1SettingsRolesPut>[0]
-      ) as unknown as Promise<RoleLabels>;
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(ROLE_LABELS_QUERY_KEY, data);
-      setRoleMessage(t("branding.rolesSuccess"));
-    },
-  });
+  const updateRoleLabels = useUpdateRoleLabels();
 
   useEffect(() => {
     if (interfaceQuery.data) {
@@ -106,14 +85,16 @@ export const SettingsBrandingPage = () => {
     });
   };
 
-  const handleRoleChange = (role: keyof RoleLabels, value: string) => {
+  const handleRoleChange = (role: keyof RoleLabelsResponse, value: string) => {
     setRoleFormState((prev) => ({ ...prev, [role]: value }));
   };
 
   const handleRoleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setRoleMessage(null);
-    updateRoleLabels.mutate(roleFormState);
+    updateRoleLabels.mutate(roleFormState, {
+      onSuccess: () => setRoleMessage(t("branding.rolesSuccess")),
+    });
   };
 
   if (!isPlatformAdmin) {

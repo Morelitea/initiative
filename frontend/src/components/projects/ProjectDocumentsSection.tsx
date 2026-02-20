@@ -1,20 +1,17 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { getItem, setItem } from "@/lib/storage";
 import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
 import {
-  listDocumentsApiV1DocumentsGet,
-  getListDocumentsApiV1DocumentsGetQueryKey,
-} from "@/api/generated/documents/documents";
-import {
   attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost,
   detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete,
 } from "@/api/generated/projects/projects";
 import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
+import { useInitiativeDocuments } from "@/hooks/useDocuments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -37,12 +34,13 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import type { DocumentSummary, ProjectDocumentLink } from "@/types/api";
+import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectDocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 
 type ProjectDocumentsSectionProps = {
   projectId: number;
   initiativeId: number;
-  documents: ProjectDocumentLink[];
+  documents: ProjectDocumentSummary[];
   canCreate: boolean;
   canAttach: boolean;
 };
@@ -64,19 +62,7 @@ export const ProjectDocumentsSection = ({
     return getItem(storageKey) === "true";
   });
 
-  const initiativeDocsQuery = useQuery<DocumentSummary[]>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({
-      initiative_id: initiativeId,
-      page_size: 0,
-    }),
-    queryFn: async () => {
-      const response = await (listDocumentsApiV1DocumentsGet({
-        initiative_id: initiativeId,
-        page_size: 0,
-      }) as unknown as Promise<{ items: DocumentSummary[] }>);
-      return response.items;
-    },
-  });
+  const initiativeDocsQuery = useInitiativeDocuments(initiativeId);
 
   const attachedDocumentIds = useMemo(
     () => new Set(documents.map((doc) => doc.document_id)),
@@ -324,7 +310,7 @@ export const ProjectDocumentsSection = ({
 };
 
 const createFallbackSummary = (
-  doc: ProjectDocumentLink,
+  doc: ProjectDocumentSummary,
   initiativeId: number
 ): DocumentSummary => ({
   id: doc.document_id,

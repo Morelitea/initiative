@@ -14,17 +14,21 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { useAuth } from "@/hooks/useAuth";
 import { CommentInput } from "./CommentInput";
 import { CommentThread } from "./CommentThread";
-import type { Comment, CommentWithReplies } from "@/types/api";
+import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
+
+export interface CommentWithReplies extends CommentRead {
+  replies: CommentWithReplies[];
+}
 
 type CommentEntity = "task" | "document";
 
 interface CommentSectionProps {
   entityType: CommentEntity;
   entityId: number;
-  comments?: Comment[];
-  onCommentCreated?: (comment: Comment) => void;
+  comments?: CommentRead[];
+  onCommentCreated?: (comment: CommentRead) => void;
   onCommentDeleted?: (commentId: number) => void;
-  onCommentUpdated?: (comment: Comment) => void;
+  onCommentUpdated?: (comment: CommentRead) => void;
   title?: string;
   isLoading?: boolean;
   canModerate?: boolean;
@@ -43,7 +47,7 @@ interface CommentUpdatePayload {
 }
 
 // Build comment tree from flat list
-function buildCommentTree(comments: Comment[]): CommentWithReplies[] {
+function buildCommentTree(comments: CommentRead[]): CommentWithReplies[] {
   const map = new Map<number, CommentWithReplies>();
   const roots: CommentWithReplies[] = [];
 
@@ -87,7 +91,7 @@ export const CommentSection = ({
   const createComment = useMutation({
     mutationFn: async (payload: CommentPayload) => {
       const response = await (createCommentApiV1CommentsPost(payload) as unknown as Promise<{
-        data: Comment;
+        data: CommentRead;
       }>);
       return response.data;
     },
@@ -137,11 +141,10 @@ export const CommentSection = ({
       commentId: number;
       payload: CommentUpdatePayload;
     }) => {
-      const response = await (updateCommentApiV1CommentsCommentIdPatch(
+      return updateCommentApiV1CommentsCommentIdPatch(
         commentId,
         payload
-      ) as unknown as Promise<{ data: Comment }>);
-      return response.data;
+      ) as unknown as Promise<CommentRead>;
     },
     onSuccess: (comment) => {
       setEditError(null);

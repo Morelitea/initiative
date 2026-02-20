@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
 import { useDateLocale } from "@/hooks/useDateLocale";
 
-import { apiClient } from "@/api/client";
 import { invalidateAllProjects } from "@/api/query-keys";
+import { useGlobalProjects, usePrefetchGlobalProjects } from "@/hooks/useProjects";
 import { getItem, setItem } from "@/lib/storage";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,10 @@ import { DataTable } from "@/components/ui/data-table";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { TagBadge } from "@/components/tags/TagBadge";
-import type { ProjectListResponse, ProjectRead } from "@/types/api";
+import type {
+  ListGlobalProjectsApiV1ProjectsGlobalGetParams,
+  ProjectRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
 const FILTER_DEFAULTS = {
@@ -57,7 +60,7 @@ const PAGE_SIZE = 20;
 export const MyProjectsPage = () => {
   const { t } = useTranslation(["projects", "common"]);
   const { guilds } = useGuilds();
-  const localQueryClient = useQueryClient();
+  const prefetchGlobalProjects = usePrefetchGlobalProjects();
   const dateLocale = useDateLocale();
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as { page?: number };
@@ -125,7 +128,7 @@ export const MyProjectsPage = () => {
   }, [guilds]);
 
   const projectsGlobalParams = useMemo(() => {
-    const params: Record<string, string | string[] | number | number[]> = {};
+    const params: ListGlobalProjectsApiV1ProjectsGlobalGetParams = {};
     if (guildFilters.length > 0) params.guild_ids = guildFilters;
     if (debouncedSearch) params.search = debouncedSearch;
     params.page = page;
@@ -133,14 +136,7 @@ export const MyProjectsPage = () => {
     return params;
   }, [guildFilters, debouncedSearch, page, pageSize]);
 
-  const projectsQuery = useQuery<ProjectListResponse>({
-    queryKey: ["/api/v1/projects/global", projectsGlobalParams],
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectListResponse>("/projects/global", {
-        params: projectsGlobalParams,
-      });
-      return response.data;
-    },
+  const projectsQuery = useGlobalProjects(projectsGlobalParams, {
     placeholderData: keepPreviousData,
   });
 
@@ -148,19 +144,9 @@ export const MyProjectsPage = () => {
     (targetPage: number) => {
       if (targetPage < 1) return;
       const prefetchParams = { ...projectsGlobalParams, page: targetPage };
-
-      void localQueryClient.prefetchQuery({
-        queryKey: ["/api/v1/projects/global", prefetchParams],
-        queryFn: async () => {
-          const response = await apiClient.get<ProjectListResponse>("/projects/global", {
-            params: prefetchParams,
-          });
-          return response.data;
-        },
-        staleTime: 30_000,
-      });
+      void prefetchGlobalProjects(prefetchParams);
     },
-    [projectsGlobalParams, localQueryClient]
+    [projectsGlobalParams, prefetchGlobalProjects]
   );
 
   const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);

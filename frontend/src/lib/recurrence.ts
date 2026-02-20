@@ -1,10 +1,11 @@
 import type {
-  TaskRecurrence,
-  TaskRecurrenceFrequency,
-  TaskRecurrenceStrategy,
-  TaskWeekPosition,
-  TaskWeekday,
-} from "@/types/api";
+  TaskListReadRecurrenceStrategy,
+  TaskRecurrenceOutput,
+  TaskRecurrenceOutputFrequency,
+  TaskRecurrenceOutputWeekdaysItem,
+} from "@/api/generated/initiativeAPI.schemas";
+
+export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
 import type { TranslateFn } from "@/types/i18n";
 
 export type RecurrencePreset =
@@ -17,7 +18,7 @@ export type RecurrencePreset =
   | "custom";
 
 type WeekdayConfig = {
-  value: TaskWeekday;
+  value: TaskRecurrenceOutputWeekdaysItem;
   label: string;
   short: string;
   dateIndex: number;
@@ -33,9 +34,9 @@ export const WEEKDAYS: WeekdayConfig[] = [
   { value: "sunday", label: "Sunday", short: "Sun", dateIndex: 0 },
 ];
 
-const WEEKDAY_ORDER: Record<TaskWeekday, number> = WEEKDAYS.reduce(
+const WEEKDAY_ORDER: Record<TaskRecurrenceOutputWeekdaysItem, number> = WEEKDAYS.reduce(
   (acc, item, index) => ({ ...acc, [item.value]: index }),
-  {} as Record<TaskWeekday, number>
+  {} as Record<TaskRecurrenceOutputWeekdaysItem, number>
 );
 
 const POSITION_LABELS: Record<TaskWeekPosition, string> = {
@@ -61,7 +62,10 @@ const MONTH_NAMES = [
   "December",
 ];
 
-const FREQUENCY_LABELS: Record<TaskRecurrenceFrequency, { singular: string; plural: string }> = {
+const FREQUENCY_LABELS: Record<
+  TaskRecurrenceOutputFrequency,
+  { singular: string; plural: string }
+> = {
   daily: { singular: "day", plural: "days" },
   weekly: { singular: "week", plural: "weeks" },
   monthly: { singular: "month", plural: "months" },
@@ -81,7 +85,7 @@ const getReferenceDate = (value?: string | null): Date => {
   return parsed;
 };
 
-const getWeekdayFromDate = (date: Date): TaskWeekday => {
+const getWeekdayFromDate = (date: Date): TaskRecurrenceOutputWeekdaysItem => {
   // Normalize to midnight local time to get the date's weekday regardless of time
   const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const day = normalized.getDay(); // 0 (Sun) - 6 (Sat)
@@ -99,10 +103,10 @@ const getWeekPosition = (date: Date): TaskWeekPosition => {
   return (["first", "second", "third", "fourth"][index - 1] ?? "last") as TaskWeekPosition;
 };
 
-const sortWeekdays = (weekdays: TaskWeekday[]) =>
+const sortWeekdays = (weekdays: TaskRecurrenceOutputWeekdaysItem[]) =>
   [...new Set(weekdays)].sort((a, b) => WEEKDAY_ORDER[a] - WEEKDAY_ORDER[b]);
 
-const baseRule = (): TaskRecurrence => ({
+const baseRule = (): TaskRecurrenceOutput => ({
   frequency: "daily",
   interval: 1,
   weekdays: [],
@@ -119,7 +123,7 @@ const baseRule = (): TaskRecurrence => ({
 export const createRecurrenceFromPreset = (
   preset: RecurrencePreset,
   referenceDate?: string | null
-): TaskRecurrence | null => {
+): TaskRecurrenceOutput | null => {
   const anchor = getReferenceDate(referenceDate);
   switch (preset) {
     case "none":
@@ -160,7 +164,7 @@ export const createRecurrenceFromPreset = (
   }
 };
 
-export const detectRecurrencePreset = (rule: TaskRecurrence | null): RecurrencePreset => {
+export const detectRecurrencePreset = (rule: TaskRecurrenceOutput | null): RecurrencePreset => {
   if (!rule) {
     return "none";
   }
@@ -202,7 +206,7 @@ export const detectRecurrencePreset = (rule: TaskRecurrence | null): RecurrenceP
   return "custom";
 };
 
-const formatWeekdayList = (weekdays: TaskWeekday[], t?: TranslateFn) => {
+const formatWeekdayList = (weekdays: TaskRecurrenceOutputWeekdaysItem[], t?: TranslateFn) => {
   if (!weekdays.length) {
     return "";
   }
@@ -222,7 +226,7 @@ const formatWeekdayList = (weekdays: TaskWeekday[], t?: TranslateFn) => {
   }
 };
 
-const formatEnding = (rule: TaskRecurrence, t?: TranslateFn) => {
+const formatEnding = (rule: TaskRecurrenceOutput, t?: TranslateFn) => {
   if (rule.ends === "on_date" && rule.end_date) {
     // Parse date-only string as local date to avoid timezone issues
     const match = rule.end_date.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -242,7 +246,7 @@ const formatEnding = (rule: TaskRecurrence, t?: TranslateFn) => {
   return "";
 };
 
-const describeMonthlyDetail = (rule: TaskRecurrence, t?: TranslateFn) => {
+const describeMonthlyDetail = (rule: TaskRecurrenceOutput, t?: TranslateFn) => {
   if (rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number") {
     return t
       ? t("dates:recurrenceSummary.onDay", { day: rule.day_of_month })
@@ -266,8 +270,8 @@ const describeMonthlyDetail = (rule: TaskRecurrence, t?: TranslateFn) => {
 };
 
 export const summarizeRecurrence = (
-  rule: TaskRecurrence | null,
-  options?: { referenceDate?: string | null; strategy?: TaskRecurrenceStrategy },
+  rule: TaskRecurrenceOutput | null,
+  options?: { referenceDate?: string | null; strategy?: TaskListReadRecurrenceStrategy },
   t?: TranslateFn
 ): string => {
   if (!rule) {
@@ -345,19 +349,28 @@ export const summarizeRecurrence = (
   return parts.join(" ");
 };
 
-export const withInterval = (rule: TaskRecurrence, interval: number): TaskRecurrence => ({
+export const withInterval = (
+  rule: TaskRecurrenceOutput,
+  interval: number
+): TaskRecurrenceOutput => ({
   ...rule,
   interval: clampInterval(interval),
 });
 
-export const withEndDate = (rule: TaskRecurrence, endDate?: string | null): TaskRecurrence => ({
+export const withEndDate = (
+  rule: TaskRecurrenceOutput,
+  endDate?: string | null
+): TaskRecurrenceOutput => ({
   ...rule,
   ends: endDate ? "on_date" : "never",
   end_date: endDate ?? null,
   end_after_occurrences: null,
 });
 
-export const withOccurrenceCount = (rule: TaskRecurrence, count?: number): TaskRecurrence => ({
+export const withOccurrenceCount = (
+  rule: TaskRecurrenceOutput,
+  count?: number
+): TaskRecurrenceOutput => ({
   ...rule,
   ends: typeof count === "number" ? "after_occurrences" : "never",
   end_after_occurrences:
@@ -366,14 +379,17 @@ export const withOccurrenceCount = (rule: TaskRecurrence, count?: number): TaskR
 });
 
 export const updateWeeklyWeekdays = (
-  rule: TaskRecurrence,
-  weekdays: TaskWeekday[]
-): TaskRecurrence => ({
+  rule: TaskRecurrenceOutput,
+  weekdays: TaskRecurrenceOutputWeekdaysItem[]
+): TaskRecurrenceOutput => ({
   ...rule,
   weekdays: sortWeekdays(weekdays),
 });
 
-export const updateMonthlyDay = (rule: TaskRecurrence, dayOfMonth: number): TaskRecurrence => ({
+export const updateMonthlyDay = (
+  rule: TaskRecurrenceOutput,
+  dayOfMonth: number
+): TaskRecurrenceOutput => ({
   ...rule,
   monthly_mode: "day_of_month",
   day_of_month: Math.max(1, Math.min(31, Math.floor(dayOfMonth))),
@@ -382,10 +398,10 @@ export const updateMonthlyDay = (rule: TaskRecurrence, dayOfMonth: number): Task
 });
 
 export const updateMonthlyWeekday = (
-  rule: TaskRecurrence,
+  rule: TaskRecurrenceOutput,
   position: TaskWeekPosition,
-  weekday: TaskWeekday
-): TaskRecurrence => ({
+  weekday: TaskRecurrenceOutputWeekdaysItem
+): TaskRecurrenceOutput => ({
   ...rule,
   monthly_mode: "weekday",
   day_of_month: null,
@@ -393,15 +409,18 @@ export const updateMonthlyWeekday = (
   weekday,
 });
 
-export const updateYearlyMonth = (rule: TaskRecurrence, month: number): TaskRecurrence => ({
+export const updateYearlyMonth = (
+  rule: TaskRecurrenceOutput,
+  month: number
+): TaskRecurrenceOutput => ({
   ...rule,
   month: Math.max(1, Math.min(12, Math.floor(month))),
 });
 
 export const ensureYearlyDefaults = (
-  rule: TaskRecurrence,
+  rule: TaskRecurrenceOutput,
   referenceDate?: string | null
-): TaskRecurrence => {
+): TaskRecurrenceOutput => {
   const anchor = getReferenceDate(referenceDate);
   return {
     ...rule,
@@ -416,9 +435,9 @@ export const ensureYearlyDefaults = (
 };
 
 export const ensureMonthlyDefaults = (
-  rule: TaskRecurrence,
+  rule: TaskRecurrenceOutput,
   referenceDate?: string | null
-): TaskRecurrence => {
+): TaskRecurrenceOutput => {
   const anchor = getReferenceDate(referenceDate);
   if (rule.monthly_mode === "weekday") {
     return {

@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import type { ColumnDef, Row } from "@tanstack/react-table";
@@ -8,18 +8,12 @@ import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
   updateInitiativeApiV1InitiativesInitiativeIdPatch,
   deleteInitiativeApiV1InitiativesInitiativeIdDelete,
   addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost,
   removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete,
   updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch,
 } from "@/api/generated/initiatives/initiatives";
-import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
-} from "@/api/generated/users/users";
 import { invalidateAllInitiatives } from "@/api/query-keys";
 import {
   Breadcrumb,
@@ -66,6 +60,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiatives } from "@/hooks/useInitiatives";
+import { useUsers } from "@/hooks/useUsers";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import {
@@ -77,15 +73,13 @@ import {
   ALL_PERMISSION_KEYS,
 } from "@/hooks/useInitiativeRoles";
 import type {
-  Initiative,
-  InitiativeMember,
+  InitiativeMemberRead,
   InitiativeMemberUpdate,
+  InitiativeRead,
   InitiativeRoleRead,
   PermissionKey,
-  User,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
 
-const INITIATIVES_QUERY_KEY = getListInitiativesApiV1InitiativesGetQueryKey();
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsPage = () => {
@@ -107,11 +101,7 @@ export const InitiativeSettingsPage = () => {
   const memberLabel = getRoleLabel("member", roleLabels);
   const adminLabel = getRoleLabel("admin", roleLabels);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: INITIATIVES_QUERY_KEY,
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: hasValidInitiativeId,
-  });
+  const initiativesQuery = useInitiatives({ enabled: hasValidInitiativeId });
 
   const initiative =
     hasValidInitiativeId && initiativesQuery.data
@@ -153,7 +143,7 @@ export const InitiativeSettingsPage = () => {
   const [renameDisplayName, setRenameDisplayName] = useState("");
 
   // Remove member confirmation
-  const [memberToRemove, setMemberToRemove] = useState<InitiativeMember | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<InitiativeMemberRead | null>(null);
 
   useEffect(() => {
     if (initiative) {
@@ -173,9 +163,7 @@ export const InitiativeSettingsPage = () => {
     }
   }, [rolesQuery.data, selectedRoleId]);
 
-  const usersQuery = useQuery<User[]>({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
+  const usersQuery = useUsers({
     enabled: canManageMembers && !!activeGuild?.id,
     staleTime: 5 * 60 * 1000,
   });
@@ -189,11 +177,13 @@ export const InitiativeSettingsPage = () => {
   }, [usersQuery.data, initiative]);
 
   const updateInitiative = useMutation({
-    mutationFn: async (payload: Partial<Pick<Initiative, "name" | "description" | "color">>) => {
+    mutationFn: async (
+      payload: Partial<Pick<InitiativeRead, "name" | "description" | "color">>
+    ) => {
       return updateInitiativeApiV1InitiativesInitiativeIdPatch(
         initiativeId,
         payload
-      ) as unknown as Promise<Initiative>;
+      ) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: () => {
       toast.success(t("settings.updated"));
@@ -225,7 +215,7 @@ export const InitiativeSettingsPage = () => {
       return addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost(initiativeId, {
         user_id: userId,
         role_id: roleId,
-      }) as unknown as Promise<Initiative>;
+      }) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: () => {
       toast.success(t("settings.memberAdded"));
@@ -262,7 +252,7 @@ export const InitiativeSettingsPage = () => {
         initiativeId,
         userId,
         payload
-      ) as unknown as Promise<Initiative>;
+      ) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
@@ -477,9 +467,9 @@ export const InitiativeSettingsPage = () => {
     ]
   );
 
-  const memberColumns: ColumnDef<InitiativeMember>[] = useMemo(() => {
+  const memberColumns: ColumnDef<InitiativeMemberRead>[] = useMemo(() => {
     // Get role display name for a member
-    const getRoleDisplayName = (member: InitiativeMember): string => {
+    const getRoleDisplayName = (member: InitiativeMemberRead): string => {
       if (member.role_display_name) {
         return member.role_display_name;
       }

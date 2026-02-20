@@ -16,7 +16,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { nodes } from "./nodes";
 import { Plugins } from "./plugins";
 import { cn } from "@/lib/utils";
-import type { UserPublic } from "@/types/api";
+import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 import type { CollaborationProvider } from "@/lib/yjs/CollaborationProvider";
 import { useAuth } from "@/hooks/useAuth";
 

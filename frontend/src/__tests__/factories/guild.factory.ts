@@ -1,4 +1,4 @@
-import type { Guild, GuildInviteStatus } from "@/types/api";
+import type { GuildInviteStatus, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -6,7 +6,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildGuild(overrides: Partial<Guild> = {}): Guild {
+export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
   counter++;
   return {
     id: counter,
@@ -22,8 +22,8 @@ export function buildGuild(overrides: Partial<Guild> = {}): Guild {
 }
 
 export function buildGuildInviteStatus(
-  overrides: Partial<GuildInviteStatus> = {},
-): GuildInviteStatus {
+  overrides: Partial<GuildInviteStatus> = {}
+): GuildReadInviteStatus {
   counter++;
   return {
     code: `invite-code-${counter}`,

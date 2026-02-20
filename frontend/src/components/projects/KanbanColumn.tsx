@@ -8,7 +8,11 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/Markdown";
-import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
+import type {
+  TaskListRead,
+  TaskPriority,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import type { TranslateFn } from "@/types/i18n";
@@ -19,8 +23,8 @@ import { TagBadge } from "@/components/tags";
 import { useGuildPath } from "@/lib/guildUrl";
 
 interface KanbanColumnProps {
-  status: ProjectTaskStatus;
-  tasks: Task[];
+  status: TaskStatusRead;
+  tasks: TaskListRead[];
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onTaskClick: (taskId: number) => void;
@@ -125,7 +129,7 @@ const ExpandedHeader = ({
   taskCount,
   onToggleCollapse,
 }: {
-  status: ProjectTaskStatus;
+  status: TaskStatusRead;
   taskCount: number;
   onToggleCollapse: (statusId: number) => void;
 }) => {
@@ -161,7 +165,7 @@ const CollapsedHeader = ({
   taskCount,
   onToggleCollapse,
 }: {
-  status: ProjectTaskStatus;
+  status: TaskStatusRead;
   taskCount: number;
   onToggleCollapse: (statusId: number) => void;
 }) => {
@@ -191,7 +195,7 @@ const CollapsedHeader = ({
 };
 
 interface KanbanTaskCardProps {
-  task: Task;
+  task: TaskListRead;
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onTaskClick: (taskId: number) => void;

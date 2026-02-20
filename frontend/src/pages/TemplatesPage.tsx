@@ -1,14 +1,11 @@
 import { useMemo } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-  updateProjectApiV1ProjectsProjectIdPatch,
-} from "@/api/generated/projects/projects";
+import { updateProjectApiV1ProjectsProjectIdPatch } from "@/api/generated/projects/projects";
 import { invalidateAllProjects } from "@/api/query-keys";
+import { useTemplateProjects } from "@/hooks/useProjects";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +19,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
-import { Project } from "@/types/api";
 
 export const TemplatesPage = () => {
   const { t } = useTranslation("projects");
@@ -38,11 +34,7 @@ export const TemplatesPage = () => {
   );
   const canManageProjects = user?.role === "admin" || managedInitiatives.length > 0;
 
-  const templatesQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
-    queryFn: () =>
-      listProjectsApiV1ProjectsGet({ template: true }) as unknown as Promise<Project[]>,
-  });
+  const templatesQuery = useTemplateProjects();
 
   const deactivateTemplate = useMutation({
     mutationFn: async (projectId: number) => {
@@ -61,7 +53,7 @@ export const TemplatesPage = () => {
     return <p className="text-destructive text-sm">{t("templates.loadError")}</p>;
   }
 
-  const projects = templatesQuery.data ?? [];
+  const projects = templatesQuery.data?.items ?? [];
 
   return (
     <div className="space-y-6">

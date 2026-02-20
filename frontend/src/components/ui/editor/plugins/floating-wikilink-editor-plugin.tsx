@@ -25,7 +25,7 @@ import { setFloatingElemPositionForLinkEditor } from "@/components/ui/editor/uti
 import { Button } from "@/components/ui/button";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { autocompleteDocuments, type DocumentAutocomplete } from "@/api/documents";
+import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 
 interface FloatingWikilinkEditorProps {
   editor: LexicalEditor;

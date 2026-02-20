@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   DragEndEvent,
   DragOverEvent,
@@ -25,28 +25,26 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  listTasksApiV1TasksGet,
-  getListTasksApiV1TasksGetQueryKey,
   createTaskApiV1TasksPost,
   updateTaskApiV1TasksTaskIdPatch,
   deleteTaskApiV1TasksTaskIdDelete,
   reorderTasksApiV1TasksReorderPost,
   archiveDoneTasksApiV1TasksArchiveDonePost,
 } from "@/api/generated/tasks/tasks";
-import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ListTasksApiV1TasksGetParams,
+  TaskListRead,
+  TaskListReadRecurrenceStrategy,
+  TaskPriority,
+  TaskRecurrenceOutput,
+  TaskReorderRequest,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import { useTasks } from "@/hooks/useTasks";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 
 import { useTags } from "@/hooks/useTags";
-import type {
-  TaskRecurrenceStrategy,
-  ProjectTaskStatus,
-  Task,
-  TaskListResponse,
-  TaskPriority,
-  TaskRecurrence,
-  TaskReorderPayload,
-} from "@/types/api";
 import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
@@ -104,7 +102,7 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectTasksSectionProps = {
   projectId: number;
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   userOptions: UserOption[];
   canEditTaskDetails: boolean;
   canWriteProject: boolean;
@@ -138,8 +136,9 @@ export const ProjectTasksSection = ({
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
+  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
+  const [recurrenceStrategy, setRecurrenceStrategy] =
+    useState<TaskListReadRecurrenceStrategy>("fixed");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
@@ -150,11 +149,11 @@ export const ProjectTasksSection = ({
   // Fetch guild tags for filtering
   const { data: tags = [] } = useTags();
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [localOverride, setLocalOverride] = useState<Task[] | null>(null);
+  const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [filtersLoadedForProject, setFiltersLoadedForProject] = useState<number | null>(null);
-  const [selectedTasks, setSelectedTasks] = useState<Task[]>([]);
+  const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isBulkEditTagsDialogOpen, setIsBulkEditTagsDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -171,9 +170,7 @@ export const ProjectTasksSection = ({
     ...(showArchived && { include_archived: true }),
   };
 
-  const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: getListTasksApiV1TasksGetQueryKey(taskListParams),
-    queryFn: () => listTasksApiV1TasksGet(taskListParams) as unknown as Promise<TaskListResponse>,
+  const tasksQuery = useTasks(taskListParams, {
     enabled: Number.isFinite(projectId) && filtersLoadedForProject === projectId,
   });
 
@@ -185,7 +182,7 @@ export const ProjectTasksSection = ({
   const [collapsedStatuses, setCollapsedStatuses] = useState<Set<number>>(new Set());
 
   const statusLookup = useMemo(() => {
-    const map = new Map<number, ProjectTaskStatus>();
+    const map = new Map<number, TaskStatusRead>();
     sortedTaskStatuses.forEach((status) => {
       map.set(status.id, status);
     });
@@ -368,7 +365,7 @@ export const ProjectTasksSection = ({
         payload.recurrence = null;
         payload.recurrence_strategy = "fixed";
       }
-      return await (createTaskApiV1TasksPost(payload as never) as unknown as Promise<Task>);
+      return await (createTaskApiV1TasksPost(payload as never) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (newTask) => {
       setTitle("");
@@ -393,7 +390,7 @@ export const ProjectTasksSection = ({
     mutationFn: async ({ taskId, taskStatusId }: { taskId: number; taskStatusId: number }) => {
       return await (updateTaskApiV1TasksTaskIdPatch(taskId, {
         task_status_id: taskStatusId,
-      } as never) as unknown as Promise<Task>);
+      } as never) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask) => {
       setLocalOverride((prev) => {
@@ -422,7 +419,10 @@ export const ProjectTasksSection = ({
       const results = await Promise.all(
         taskIds.map(
           (taskId) =>
-            updateTaskApiV1TasksTaskIdPatch(taskId, changes as never) as unknown as Promise<Task>
+            updateTaskApiV1TasksTaskIdPatch(
+              taskId,
+              changes as never
+            ) as unknown as Promise<TaskListRead>
         )
       );
       return results;
@@ -465,7 +465,7 @@ export const ProjectTasksSection = ({
           (taskId) =>
             updateTaskApiV1TasksTaskIdPatch(taskId, {
               is_archived: true,
-            } as never) as unknown as Promise<Task>
+            } as never) as unknown as Promise<TaskListRead>
         )
       );
       return results;
@@ -506,9 +506,9 @@ export const ProjectTasksSection = ({
   });
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
-    mutationFn: async (payload: TaskReorderPayload) => {
+    mutationFn: async (payload: TaskReorderRequest) => {
       return await (reorderTasksApiV1TasksReorderPost(payload as never) as unknown as Promise<
-        Task[]
+        TaskListRead[]
       >);
     },
     onSuccess: () => {
@@ -567,7 +567,7 @@ export const ProjectTasksSection = ({
   }, [tasks, dueFilter]);
 
   const groupedTasks = useMemo(() => {
-    const groups: Record<number, Task[]> = {};
+    const groups: Record<number, TaskListRead[]> = {};
     sortedTaskStatuses.forEach((status) => {
       groups[status.id] = [];
     });
@@ -601,11 +601,11 @@ export const ProjectTasksSection = ({
   }, [sortedTaskStatuses, groupedTasks]);
 
   const persistOrder = useCallback(
-    (nextTasks: Task[]) => {
+    (nextTasks: TaskListRead[]) => {
       if (!Number.isFinite(projectId) || nextTasks.length === 0) {
         return;
       }
-      const payload: TaskReorderPayload = {
+      const payload: TaskReorderRequest = {
         project_id: projectId,
         items: nextTasks.map((task, index) => ({
           id: task.id,
@@ -655,14 +655,14 @@ export const ProjectTasksSection = ({
       if (!targetStatus) {
         return;
       }
-      let nextState: Task[] | null = null;
+      let nextState: TaskListRead[] | null = null;
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         const currentTask = base.find((task) => task.id === taskId);
         if (!currentTask) {
           return prev;
         }
-        const updatedTask: Task = {
+        const updatedTask: TaskListRead = {
           ...currentTask,
           task_status_id: targetStatus.id,
           task_status: targetStatus,
@@ -698,7 +698,7 @@ export const ProjectTasksSection = ({
 
   const reorderListTasks = useCallback(
     (activeId: number, overId: number) => {
-      let nextState: Task[] | null = null;
+      let nextState: TaskListRead[] | null = null;
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         const oldIndex = base.findIndex((task) => task.id === activeId);

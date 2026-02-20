@@ -1,7 +1,7 @@
 import { parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { HeatmapDayData } from "@/types/api";
+import type { HeatmapDayData } from "@/api/generated/initiativeAPI.schemas";
 import { cn } from "@/lib/utils";
 
 interface HeatmapChartProps {

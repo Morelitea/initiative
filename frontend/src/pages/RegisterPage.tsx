@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
-import type { GuildInviteStatus } from "@/types/api";
+import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { LogoIcon } from "@/components/LogoIcon";
 
 interface RegisterPageProps {

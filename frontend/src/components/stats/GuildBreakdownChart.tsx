@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import type { GuildTaskBreakdown } from "@/types/api";
+import type { GuildTaskBreakdown } from "@/api/generated/initiativeAPI.schemas";
 
 interface GuildBreakdownChartProps {
   data: GuildTaskBreakdown[];

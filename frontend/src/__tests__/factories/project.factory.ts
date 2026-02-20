@@ -1,9 +1,9 @@
 import type {
-  Project,
-  ProjectTaskStatus,
-  ProjectPermission,
+  ProjectPermissionRead,
+  ProjectRead,
   TaskStatusCategory,
-} from "@/types/api";
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -11,9 +11,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildProjectTaskStatus(
-  overrides: Partial<ProjectTaskStatus> = {},
-): ProjectTaskStatus {
+export function buildProjectTaskStatus(overrides: Partial<TaskStatusRead> = {}): TaskStatusRead {
   counter++;
   return {
     id: counter,
@@ -30,9 +28,7 @@ export function buildProjectTaskStatus(
  * Returns the four default task statuses that are created for every new project.
  * Accepts a projectId to set the project_id field on each status.
  */
-export function buildDefaultTaskStatuses(
-  projectId: number = 1,
-): ProjectTaskStatus[] {
+export function buildDefaultTaskStatuses(projectId: number = 1): TaskStatusRead[] {
   const categories: Array<{
     name: string;
     category: TaskStatusCategory;
@@ -51,13 +47,13 @@ export function buildDefaultTaskStatuses(
       category: entry.category,
       position: index,
       is_default: entry.isDefault,
-    }),
+    })
   );
 }
 
 export function buildProjectPermission(
-  overrides: Partial<ProjectPermission> = {},
-): ProjectPermission {
+  overrides: Partial<ProjectPermissionRead> = {}
+): ProjectPermissionRead {
   counter++;
   return {
     user_id: counter,
@@ -68,7 +64,7 @@ export function buildProjectPermission(
   };
 }
 
-export function buildProject(overrides: Partial<Project> = {}): Project {
+export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead {
   counter++;
   return {
     id: counter,
@@ -83,7 +79,7 @@ export function buildProject(overrides: Partial<Project> = {}): Project {
     is_template: false,
     archived_at: null,
     pinned_at: null,
-    owner: undefined,
+    owner: null,
     initiative: null,
     permissions: [],
     role_permissions: [],

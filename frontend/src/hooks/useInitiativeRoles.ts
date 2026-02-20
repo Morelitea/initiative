@@ -18,7 +18,7 @@ import type {
   InitiativeRoleUpdate,
   MyInitiativePermissions,
   PermissionKey,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
 
 export const useInitiativeRoles = (initiativeId: number | null) => {
   return useQuery<InitiativeRoleRead[]>({

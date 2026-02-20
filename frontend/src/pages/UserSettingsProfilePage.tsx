@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { User } from "@/types/api";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 const dataUrl = (value?: string | null) => {
   if (!value) {
@@ -23,7 +23,7 @@ const dataUrl = (value?: string | null) => {
 };
 
 interface UserSettingsProfilePageProps {
-  user: User;
+  user: UserRead;
   refreshUser: () => Promise<void>;
 }
 

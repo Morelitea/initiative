@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
@@ -8,8 +8,6 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import {
-  readDocumentApiV1DocumentsDocumentIdGet,
-  getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
   updateDocumentApiV1DocumentsDocumentIdPatch,
   deleteDocumentApiV1DocumentsDocumentIdDelete,
   duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost,
@@ -23,10 +21,6 @@ import {
   updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch,
   removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete,
 } from "@/api/generated/documents/documents";
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
 import { invalidateAllDocuments, invalidateDocument } from "@/api/query-keys";
 import {
   Breadcrumb,
@@ -61,16 +55,17 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
+import { useDocument, useSetDocumentCache } from "@/hooks/useDocuments";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type {
   DocumentRead,
   DocumentPermissionLevel,
-  DocumentRolePermission,
-  Initiative,
   TagSummary,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentRolePermissionRead } from "@/api/generated/initiativeAPI.schemas";
 import { TagPicker } from "@/components/tags";
 import { useSetDocumentTags } from "@/hooks/useTags";
 
@@ -88,7 +83,7 @@ export const DocumentSettingsPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const setDocumentCache = useSetDocumentCache();
   const { user } = useAuth();
   const gp = useGuildPath();
 
@@ -110,22 +105,13 @@ export const DocumentSettingsPage = () => {
 
   const setDocumentTagsMutation = useSetDocumentTags();
 
-  const documentQuery = useQuery<DocumentRead>({
-    queryKey: getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
-    queryFn: () =>
-      readDocumentApiV1DocumentsDocumentIdGet(parsedId) as unknown as Promise<DocumentRead>,
-    enabled: Number.isFinite(parsedId),
-  });
+  const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
   const document = documentQuery.data;
 
   const rolesQuery = useInitiativeRoles(document?.initiative_id ?? null);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: Boolean(document) && Boolean(user),
-  });
+  const initiativesQuery = useInitiatives({ enabled: Boolean(document) && Boolean(user) });
 
   // Pure DAC: users with write or owner permission can manage the document
   const canManageDocument = useMemo(() => {
@@ -432,10 +418,7 @@ export const DocumentSettingsPage = () => {
     },
     onSuccess: (updated) => {
       setIsTemplate(updated.is_template);
-      queryClient.setQueryData(
-        getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
-        updated
-      );
+      setDocumentCache(parsedId, updated);
       void invalidateAllDocuments();
     },
     onError: () => {
@@ -591,7 +574,7 @@ export const DocumentSettingsPage = () => {
   );
 
   // Column definitions for the role permissions table
-  const rolePermissionColumns: ColumnDef<DocumentRolePermission>[] = useMemo(
+  const rolePermissionColumns: ColumnDef<DocumentRolePermissionRead>[] = useMemo(
     () => [
       {
         accessorKey: "role_display_name",

@@ -1,4 +1,4 @@
-import type { User, UserPublic, UserGuildMember } from "@/types/api";
+import type { UserGuildMember, UserPublic, UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -18,7 +18,7 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
   };
 }
 
-export function buildUser(overrides: Partial<User> = {}): User {
+export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
   counter++;
   return {
     id: counter,
@@ -39,7 +39,7 @@ export function buildUser(overrides: Partial<User> = {}): User {
 }
 
 export function buildUserGuildMember(
-  overrides: Partial<UserGuildMember> = {},
+  overrides: Partial<UserGuildMember> = {}
 ): UserGuildMember {
   counter++;
   return {

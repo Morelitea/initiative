@@ -4,13 +4,13 @@ import {
   getResolvedAiSettingsApiV1SettingsAiResolvedGet,
   getGetResolvedAiSettingsApiV1SettingsAiResolvedGetQueryKey,
 } from "@/api/generated/ai-settings/ai-settings";
-import type { ResolvedAISettings } from "@/types/api";
+import type { ResolvedAISettingsResponse } from "@/api/generated/initiativeAPI.schemas";
 
 export const useAIEnabled = () => {
-  const query = useQuery<ResolvedAISettings>({
+  const query = useQuery<ResolvedAISettingsResponse>({
     queryKey: getGetResolvedAiSettingsApiV1SettingsAiResolvedGetQueryKey(),
     queryFn: () =>
-      getResolvedAiSettingsApiV1SettingsAiResolvedGet() as unknown as Promise<ResolvedAISettings>,
+      getResolvedAiSettingsApiV1SettingsAiResolvedGet() as unknown as Promise<ResolvedAISettingsResponse>,
     staleTime: 5 * 60 * 1000,
   });
 

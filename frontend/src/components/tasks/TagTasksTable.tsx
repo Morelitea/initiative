@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  listTasksApiV1TasksGet,
-  updateTaskApiV1TasksTaskIdPatch,
-} from "@/api/generated/tasks/tasks";
+import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
+import { useTasks, usePrefetchTasks } from "@/hooks/useTasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -22,12 +20,11 @@ import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import type {
-  ProjectTaskStatus,
-  Task,
-  TaskListResponse,
+  TaskListRead,
   TaskPriority,
   TaskStatusCategory,
-} from "@/types/api";
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -71,13 +68,13 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
   const router = useRouter();
-  const localQueryClient = useQueryClient();
+  const prefetchTasks = usePrefetchTasks();
   const searchParams = useSearch({ strict: false }) as { page?: number };
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const projectStatusCache = useRef<
-    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
-  >(new Map());
+  const projectStatusCache = useRef<Map<number, { statuses: TaskStatusRead[]; complete: boolean }>>(
+    new Map()
+  );
 
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(DEFAULT_STATUS_FILTERS);
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>([]);
@@ -142,75 +139,33 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     setPage(1);
   }, [statusFilters, priorityFilters, setPage]);
 
-  const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: [
-      "tasks",
-      "tag",
-      tagId,
-      statusFilters,
-      priorityFilters,
-      page,
-      pageSize,
-      sortBy,
-      sortDir,
-    ],
-    queryFn: async () => {
-      const params: Record<string, string | string[] | number | number[]> = {
-        tag_ids: [tagId],
-      };
-      if (statusFilters.length > 0) {
-        params.status_category = statusFilters;
-      }
-      if (priorityFilters.length > 0) {
-        params.priorities = priorityFilters;
-      }
-      params.page = page;
-      params.page_size = pageSize;
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-      const response = await (listTasksApiV1TasksGet(params as never) as unknown as Promise<{
-        data: TaskListResponse;
-      }>);
-      return response.data;
-    },
-    placeholderData: keepPreviousData,
-  });
+  const taskParams = {
+    tag_ids: [tagId],
+    ...(statusFilters.length > 0 && { status_category: statusFilters }),
+    ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+    page,
+    page_size: pageSize,
+    ...(sortBy && { sort_by: sortBy }),
+    ...(sortDir && { sort_dir: sortDir }),
+  } as Parameters<typeof useTasks>[0];
+
+  const tasksQuery = useTasks(taskParams, { placeholderData: keepPreviousData });
 
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[] | number | number[]> = {
+      const params = {
         tag_ids: [tagId],
-      };
-      if (statusFilters.length > 0) params.status_category = statusFilters;
-      if (priorityFilters.length > 0) params.priorities = priorityFilters;
-      params.page = targetPage;
-      params.page_size = pageSize;
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-
-      void localQueryClient.prefetchQuery({
-        queryKey: [
-          "tasks",
-          "tag",
-          tagId,
-          statusFilters,
-          priorityFilters,
-          targetPage,
-          pageSize,
-          sortBy,
-          sortDir,
-        ],
-        queryFn: async () => {
-          const response = await (listTasksApiV1TasksGet(params as never) as unknown as Promise<{
-            data: TaskListResponse;
-          }>);
-          return response.data;
-        },
-        staleTime: 30_000,
-      });
+        ...(statusFilters.length > 0 && { status_category: statusFilters }),
+        ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+        page: targetPage,
+        page_size: pageSize,
+        ...(sortBy && { sort_by: sortBy }),
+        ...(sortDir && { sort_dir: sortDir }),
+      } as Parameters<typeof useTasks>[0];
+      void prefetchTasks(params);
     },
-    [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, localQueryClient]
+    [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, prefetchTasks]
   );
 
   const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
@@ -222,10 +177,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       taskStatusId: number;
       guildId: number | null;
     }) => {
-      const response = await (updateTaskApiV1TasksTaskIdPatch(taskId, {
+      return updateTaskApiV1TasksTaskIdPatch(taskId, {
         task_status_id: taskStatusId,
-      }) as unknown as Promise<{ data: Task }>);
-      return response.data;
+      }) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (updatedTask) => {
       void invalidateAllTasks();
@@ -262,15 +216,15 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const response = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+    const statuses = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
       projectId
-    ) as unknown as Promise<{ data: ProjectTaskStatus[] }>);
+    ) as unknown as Promise<TaskStatusRead[]>);
     const merged = cached
       ? [
           ...cached.statuses,
-          ...response.data.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
+          ...statuses.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
         ]
-      : response.data;
+      : statuses;
     projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
     return merged;
   }, []);
@@ -291,7 +245,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   );
 
   const changeTaskStatusById = useCallback(
-    async (task: Task, targetStatusId: number) => {
+    async (task: TaskListRead, targetStatusId: number) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
@@ -313,7 +267,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   );
 
   const changeTaskStatus = useCallback(
-    async (task: Task, targetCategory: TaskStatusCategory) => {
+    async (task: TaskListRead, targetCategory: TaskStatusCategory) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
@@ -333,7 +287,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
-  const columns: ColumnDef<Task>[] = [
+  const columns: ColumnDef<TaskListRead>[] = [
     {
       id: "completed",
       header: () => <span className="font-medium">{t("columns.done")}</span>,

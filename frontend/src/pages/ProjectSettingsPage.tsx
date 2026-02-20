@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 
 import {
-  readProjectApiV1ProjectsProjectIdGet,
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
   updateProjectApiV1ProjectsProjectIdPatch,
   deleteProjectApiV1ProjectsProjectIdDelete,
   archiveProjectApiV1ProjectsProjectIdArchivePost,
@@ -21,10 +19,6 @@ import {
   updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch,
   removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete,
 } from "@/api/generated/projects/projects";
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
 import { invalidateAllProjects, invalidateProject } from "@/api/query-keys";
 import {
   Breadcrumb,
@@ -59,15 +53,16 @@ import { Input } from "@/components/ui/input";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
+import { useProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
 import {
-  Project,
-  Initiative,
   ProjectPermissionLevel,
-  ProjectRolePermission,
+  ProjectRead,
+  ProjectRolePermissionRead,
   TagSummary,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
@@ -110,18 +105,9 @@ export const ProjectSettingsPage = () => {
 
   const setProjectTagsMutation = useSetProjectTags();
 
-  const projectQuery = useQuery<Project>({
-    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(parsedProjectId),
-    queryFn: () =>
-      readProjectApiV1ProjectsProjectIdGet(parsedProjectId) as unknown as Promise<Project>,
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  const projectQuery = useProject(Number.isFinite(parsedProjectId) ? parsedProjectId : null);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    enabled: user?.role === "admin",
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-  });
+  const initiativesQuery = useInitiatives({ enabled: user?.role === "admin" });
 
   useEffect(() => {
     if (projectQuery.data) {
@@ -150,7 +136,7 @@ export const ProjectSettingsPage = () => {
       return updateProjectApiV1ProjectsProjectIdPatch(
         parsedProjectId,
         payload
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setInitiativeMessage(t("settings.initiative.updated"));
@@ -170,7 +156,7 @@ export const ProjectSettingsPage = () => {
       return updateProjectApiV1ProjectsProjectIdPatch(
         parsedProjectId,
         payload
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setIdentityMessage(t("settings.details.detailsUpdated"));
@@ -205,7 +191,7 @@ export const ProjectSettingsPage = () => {
     mutationFn: async () => {
       return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
         description: descriptionText,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setDescriptionMessage(t("settings.details.descriptionUpdated"));
@@ -219,7 +205,7 @@ export const ProjectSettingsPage = () => {
     mutationFn: async (name?: string) => {
       return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(parsedProjectId, {
         name: name?.trim() || undefined,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setDuplicateMessage(t("settings.duplicate.duplicated"));
@@ -233,7 +219,7 @@ export const ProjectSettingsPage = () => {
     mutationFn: async (nextStatus: boolean) => {
       return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
         is_template: nextStatus,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (_data, nextStatus) => {
       setTemplateMessage(
@@ -448,7 +434,7 @@ export const ProjectSettingsPage = () => {
   );
 
   // Column definitions for role permissions table
-  const rolePermissionColumns: ColumnDef<ProjectRolePermission>[] = useMemo(
+  const rolePermissionColumns: ColumnDef<ProjectRolePermissionRead>[] = useMemo(
     () => [
       {
         accessorKey: "role_display_name",

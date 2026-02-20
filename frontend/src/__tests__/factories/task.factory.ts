@@ -1,9 +1,9 @@
 import type {
-  Task,
+  TaskAssigneeSummary,
+  TaskListRead,
   TaskListResponse,
-  TaskAssignee,
-  ProjectTaskStatus,
-} from "@/types/api";
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -12,8 +12,8 @@ export function resetCounter(): void {
 }
 
 export function buildTaskAssignee(
-  overrides: Partial<TaskAssignee> = {},
-): TaskAssignee {
+  overrides: Partial<TaskAssigneeSummary> = {}
+): TaskAssigneeSummary {
   counter++;
   return {
     id: counter,
@@ -24,10 +24,10 @@ export function buildTaskAssignee(
   };
 }
 
-export function buildTask(overrides: Partial<Task> = {}): Task {
+export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
   counter++;
 
-  const defaultStatus: ProjectTaskStatus = {
+  const defaultStatus: TaskStatusRead = {
     id: 1,
     project_id: 1,
     name: "To Do",
@@ -68,7 +68,7 @@ export function buildTask(overrides: Partial<Task> = {}): Task {
 }
 
 export function buildTaskListResponse(
-  itemsOrOverrides: Task[] | Partial<TaskListResponse> = {},
+  itemsOrOverrides: TaskListRead[] | Partial<TaskListResponse> = {}
 ): TaskListResponse {
   if (Array.isArray(itemsOrOverrides)) {
     return {

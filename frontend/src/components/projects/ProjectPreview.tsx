@@ -12,10 +12,10 @@ import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
-import type { GuildRole, Initiative, Project } from "@/types/api";
+import type { GuildRole, InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface ProjectLinkProps {
-  project: Project;
+  project: ProjectRead;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
   userId?: number;
 }
@@ -24,7 +24,7 @@ interface ProjectLinkProps {
  * Check if the user can pin/unpin a project.
  * Only guild admins and initiative project managers can pin projects.
  */
-const canPinProject = (project: Project, userId?: number, guildRole?: GuildRole): boolean => {
+const canPinProject = (project: ProjectRead, userId?: number, guildRole?: GuildRole): boolean => {
   if (!userId) return false;
 
   // Guild admins can always pin
@@ -200,7 +200,7 @@ export const ProjectRowLink = ({ project, dragHandleProps, userId }: ProjectLink
   );
 };
 
-export const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null }) => {
+export const InitiativeLabel = ({ initiative }: { initiative?: InitiativeRead | null }) => {
   const gp = useGuildPath();
   if (!initiative) {
     return null;
@@ -216,7 +216,7 @@ export const InitiativeLabel = ({ initiative }: { initiative?: Initiative | null
   );
 };
 
-const ProjectProgress = ({ summary }: { summary?: Project["task_summary"] }) => {
+const ProjectProgress = ({ summary }: { summary?: ProjectRead["task_summary"] }) => {
   const { t } = useTranslation("projects");
   const total = summary?.total ?? 0;
   const completed = summary?.completed ?? 0;

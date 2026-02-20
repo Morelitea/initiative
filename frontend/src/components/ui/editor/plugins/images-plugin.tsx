@@ -27,7 +27,7 @@ import {
   ImagePayload,
 } from "@/components/ui/editor/nodes/image-node";
 import { CAN_USE_DOM } from "@/components/ui/editor/shared/can-use-dom";
-import { uploadAttachment } from "@/api/attachments";
+import { uploadAttachment } from "@/lib/attachmentUtils";
 import { Button } from "@/components/ui/button";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

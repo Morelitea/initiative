@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   DndContext,
   type DragEndEvent,
@@ -20,7 +20,6 @@ import { Loader2, GripVertical, Trash2, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
   getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
   createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost,
   updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch,
@@ -30,7 +29,8 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { invalidateProjectTaskStatuses, invalidateAllTasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { ProjectTaskStatus, TaskStatusCategory } from "@/types/api";
+import { useProjectTaskStatuses } from "@/hooks/useProjects";
+import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +67,7 @@ const CATEGORY_VALUES: TaskStatusCategory[] = ["backlog", "todo", "in_progress",
 const STATUS_QUERY_KEY = (projectId: number) =>
   getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId);
 
-const sortStatuses = (items: ProjectTaskStatus[]): ProjectTaskStatus[] => {
+const sortStatuses = (items: TaskStatusRead[]): TaskStatusRead[] => {
   return [...items].sort((a, b) => {
     if (a.position === b.position) {
       return a.id - b.id;
@@ -98,13 +98,13 @@ export const ProjectTaskStatusesManager = ({
     [t]
   );
 
-  const [orderedStatuses, setOrderedStatuses] = useState<ProjectTaskStatus[]>([]);
+  const [orderedStatuses, setOrderedStatuses] = useState<TaskStatusRead[]>([]);
   const [drafts, setDrafts] = useState<
     Record<number, { name: string; category: TaskStatusCategory }>
   >({});
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState<TaskStatusCategory>("todo");
-  const [deleteTarget, setDeleteTarget] = useState<ProjectTaskStatus | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TaskStatusRead | null>(null);
   const [fallbackId, setFallbackId] = useState<string>("");
 
   const sensors = useSensors(
@@ -117,20 +117,13 @@ export const ProjectTaskStatusesManager = ({
     })
   );
 
-  const statusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: STATUS_QUERY_KEY(projectId),
-    enabled: Number.isFinite(projectId),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId) as unknown as Promise<
-        ProjectTaskStatus[]
-      >,
-  });
+  const statusesQuery = useProjectTaskStatuses(projectId);
 
   const reorderStatuses = useMutation({
     mutationFn: async (items: { id: number; position: number }[]) => {
       return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(projectId, {
         items,
-      }) as unknown as Promise<ProjectTaskStatus[]>;
+      }) as unknown as Promise<TaskStatusRead[]>;
     },
     onSuccess: (data) => {
       const sorted = sortStatuses(data);
@@ -177,7 +170,7 @@ export const ProjectTaskStatusesManager = ({
       return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(
         projectId,
         payload
-      ) as unknown as Promise<ProjectTaskStatus>;
+      ) as unknown as Promise<TaskStatusRead>;
     },
     onSuccess: () => {
       setNewName("");
@@ -197,7 +190,7 @@ export const ProjectTaskStatusesManager = ({
         data as Parameters<
           typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch
         >[2]
-      ) as unknown as Promise<ProjectTaskStatus>;
+      ) as unknown as Promise<TaskStatusRead>;
     },
     onSuccess: () => {
       toast.success(t("statuses.updated"));
@@ -551,7 +544,7 @@ export const ProjectTaskStatusesManager = ({
 };
 
 interface SortableStatusRowProps {
-  status: ProjectTaskStatus;
+  status: TaskStatusRead;
   draft?: { name: string; category: TaskStatusCategory };
   disabled: boolean;
   isDefault: boolean;

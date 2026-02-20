@@ -1,4 +1,4 @@
-import type { TaskPriority } from "@/types/api";
+import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 
 export type DueFilterOption = "all" | "today" | "7_days" | "30_days" | "overdue";
 

@@ -19,7 +19,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import type { TaskPriority, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
+import type {
+  TaskListReadRecurrenceStrategy,
+  TaskPriority,
+  TaskRecurrenceOutput,
+} from "@/api/generated/initiativeAPI.schemas";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
@@ -37,8 +41,8 @@ interface ProjectTaskComposerProps {
   assigneeIds: number[];
   startDate: string;
   dueDate: string;
-  recurrence: TaskRecurrence | null;
-  recurrenceStrategy: TaskRecurrenceStrategy;
+  recurrence: TaskRecurrenceOutput | null;
+  recurrenceStrategy: TaskListReadRecurrenceStrategy;
   canWrite: boolean;
   isArchived: boolean;
   isSubmitting: boolean;
@@ -50,8 +54,8 @@ interface ProjectTaskComposerProps {
   onAssigneesChange: (value: number[]) => void;
   onStartDateChange: (value: string) => void;
   onDueDateChange: (value: string) => void;
-  onRecurrenceChange: (value: TaskRecurrence | null) => void;
-  onRecurrenceStrategyChange: (value: TaskRecurrenceStrategy) => void;
+  onRecurrenceChange: (value: TaskRecurrenceOutput | null) => void;
+  onRecurrenceStrategyChange: (value: TaskListReadRecurrenceStrategy) => void;
   onSubmit: () => void;
   onCancel?: () => void;
   autoFocusTitle?: boolean;

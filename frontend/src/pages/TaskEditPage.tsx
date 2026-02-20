@@ -2,12 +2,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { queryClient } from "@/lib/queryClient";
 import {
-  readTaskApiV1TasksTaskIdGet,
   getReadTaskApiV1TasksTaskIdGetQueryKey,
   updateTaskApiV1TasksTaskIdPatch,
   duplicateTaskApiV1TasksTaskIdDuplicatePost,
@@ -16,21 +15,10 @@ import {
   generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost,
 } from "@/api/generated/tasks/tasks";
 import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
-import {
-  readProjectApiV1ProjectsProjectIdGet,
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
-  listWritableProjectsApiV1ProjectsWritableGet,
-  getListWritableProjectsApiV1ProjectsWritableGetQueryKey,
-} from "@/api/generated/projects/projects";
-import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-} from "@/api/generated/task-statuses/task-statuses";
-import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
-} from "@/api/generated/users/users";
 import { useComments } from "@/hooks/useComments";
+import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
+import { useTask } from "@/hooks/useTasks";
+import { useUsers } from "@/hooks/useUsers";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -63,17 +51,14 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
-  Comment,
+  CommentRead,
   GenerateDescriptionResponse,
-  Project,
-  ProjectTaskStatus,
-  Task,
-  TaskPriority,
-  TaskRecurrence,
-  TaskRecurrenceStrategy,
   TagSummary,
-  User,
-} from "@/types/api";
+  TaskListRead,
+  TaskListReadRecurrenceStrategy,
+  TaskPriority,
+  TaskRecurrenceOutput,
+} from "@/api/generated/initiativeAPI.schemas";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -136,38 +121,21 @@ export const TaskEditPage = () => {
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
-  const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
+  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
+  const [recurrenceStrategy, setRecurrenceStrategy] =
+    useState<TaskListReadRecurrenceStrategy>("fixed");
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const taskQuery = useQuery({
-    queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
-    enabled: Number.isFinite(parsedTaskId),
-    queryFn: () => readTaskApiV1TasksTaskIdGet(parsedTaskId) as unknown as Promise<Task>,
-  });
+  const taskQuery = useTask(parsedTaskId);
 
-  const usersQuery = useQuery({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
-  });
+  const usersQuery = useUsers();
 
   const projectId = taskQuery.data?.project_id;
-  const projectQuery = useQuery({
-    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId!),
-    enabled: Number.isFinite(projectId),
-    queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<Project>,
-  });
+  const projectQuery = useProject(projectId ?? null);
 
-  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId!),
-    enabled: Number.isFinite(projectId),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId!) as unknown as Promise<
-        ProjectTaskStatus[]
-      >,
-  });
+  const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
   const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
@@ -215,7 +183,7 @@ export const TaskEditPage = () => {
       return await (updateTaskApiV1TasksTaskIdPatch(
         parsedTaskId,
         payload as never
-      ) as unknown as Promise<Task>);
+      ) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask) => {
       setTitle(updatedTask.title);
@@ -236,7 +204,7 @@ export const TaskEditPage = () => {
     mutationFn: async () => {
       return await (duplicateTaskApiV1TasksTaskIdDuplicatePost(
         parsedTaskId
-      ) as unknown as Promise<Task>);
+      ) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (newTask) => {
       toast.success(t("edit.taskDuplicated"));
@@ -256,14 +224,14 @@ export const TaskEditPage = () => {
     },
   });
 
-  const moveTask = useMutation<Task, unknown, MoveTaskVariables>({
+  const moveTask = useMutation<TaskListRead, unknown, MoveTaskVariables>({
     mutationFn: async ({ targetProjectId }) => {
       return await (moveTaskApiV1TasksTaskIdMovePost(parsedTaskId, {
         target_project_id: targetProjectId,
-      }) as unknown as Promise<Task>);
+      }) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask, variables) => {
-      queryClient.setQueryData<Task>(
+      queryClient.setQueryData<TaskListRead>(
         getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
         updatedTask
       );
@@ -296,10 +264,10 @@ export const TaskEditPage = () => {
     mutationFn: async (archive: boolean) => {
       return await (updateTaskApiV1TasksTaskIdPatch(parsedTaskId, {
         is_archived: archive,
-      } as never) as unknown as Promise<Task>);
+      } as never) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task>(
+      queryClient.setQueryData<TaskListRead>(
         getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
         updatedTask
       );
@@ -410,16 +378,13 @@ export const TaskEditPage = () => {
   // Pure DAC: comment moderation requires write permission on project
   const canModerateComments = hasWritePermission;
 
-  const writableProjectsQuery = useQuery<Project[]>({
-    queryKey: getListWritableProjectsApiV1ProjectsWritableGetQueryKey(),
-    queryFn: () => listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<Project[]>,
+  const writableProjectsQuery = useWritableProjects({
     enabled: Boolean(canWriteProject && !projectIsArchived),
-    staleTime: 60 * 1000,
   });
   const writableProjects = writableProjectsQuery.data ?? [];
 
-  const handleCommentCreated = (comment: Comment) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+  const handleCommentCreated = (comment: CommentRead) => {
+    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
       if (!previous) {
         return [comment];
       }
@@ -428,7 +393,7 @@ export const TaskEditPage = () => {
   };
 
   const handleCommentDeleted = (commentId: number) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
       if (!previous) {
         return previous;
       }
@@ -436,8 +401,8 @@ export const TaskEditPage = () => {
     });
   };
 
-  const handleCommentUpdated = (updatedComment: Comment) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+  const handleCommentUpdated = (updatedComment: CommentRead) => {
+    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
       if (!previous) {
         return previous;
       }

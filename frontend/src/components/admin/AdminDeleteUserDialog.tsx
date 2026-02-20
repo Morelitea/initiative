@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 
 import {
-  checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
-  getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
   deleteUserApiV1AdminUsersUserIdDelete,
   adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
   adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
   adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
 } from "@/api/generated/admin/admin";
+import { useUserDeletionEligibility } from "@/hooks/useAdmin";
 import { getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet } from "@/api/generated/initiatives/initiatives";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -30,13 +29,13 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import type {
-  User,
-  DeletionEligibilityResponse,
   AdminUserDeleteRequest,
   AccountDeletionResponse,
+  AdminDeletionEligibilityResponse,
   GuildBlockerInfo,
   InitiativeBlockerInfo,
-} from "@/types/api";
+  UserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 type DeletionType = "soft" | "hard";
 type DeletionStep =
@@ -50,7 +49,7 @@ interface AdminDeleteUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  targetUser: User;
+  targetUser: UserRead;
 }
 
 export function AdminDeleteUserDialog({
@@ -62,7 +61,7 @@ export function AdminDeleteUserDialog({
   const { t } = useTranslation("settings");
   const [step, setStep] = useState<DeletionStep>("choose-type");
   const [deletionType, setDeletionType] = useState<DeletionType>("soft");
-  const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
+  const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
@@ -86,19 +85,11 @@ export function AdminDeleteUserDialog({
   }, [open]);
 
   // Fetch deletion eligibility
-  const { refetch: checkEligibility, isFetching: isCheckingEligibility } = useQuery({
-    queryKey: getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey(
-      targetUser.id
-    ),
-    queryFn: () =>
-      checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(
-        targetUser.id
-      ) as unknown as Promise<DeletionEligibilityResponse>,
-    enabled: false,
-  });
+  const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
+    useUserDeletionEligibility(targetUser.id);
 
   // Fetch initiative members for project transfer
-  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, User[]>>({});
+  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
   const fetchInitiativeMembers = useCallback(
     async (initiativeId: number) => {
       if (initiativeMembers[initiativeId]) return;
@@ -106,7 +97,7 @@ export function AdminDeleteUserDialog({
       try {
         const members = await (getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
           initiativeId
-        ) as unknown as Promise<User[]>);
+        ) as unknown as Promise<UserRead[]>);
         setInitiativeMembers((prev) => ({
           ...prev,
           [initiativeId]: members.filter((u) => u.id !== targetUser.id),

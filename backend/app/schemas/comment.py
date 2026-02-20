@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class MentionEntityType(str, Enum):
+    user = "user"
+    task = "task"
+    doc = "doc"
+    project = "project"
 
 
 class CommentAuthor(BaseModel):
@@ -78,7 +86,7 @@ class RecentActivityEntry(BaseModel):
 class MentionSuggestion(BaseModel):
     """A suggestion for mention autocomplete."""
 
-    type: str  # "user", "task", "doc", "project"
+    type: MentionEntityType
     id: int
     display_text: str
     subtitle: Optional[str] = None  # email for users, project name for tasks

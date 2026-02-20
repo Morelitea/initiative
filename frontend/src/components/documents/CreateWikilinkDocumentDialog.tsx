@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -7,10 +7,9 @@ import { toast } from "sonner";
 import {
   copyDocumentApiV1DocumentsDocumentIdCopyPost,
   createDocumentApiV1DocumentsPost,
-  getListDocumentsApiV1DocumentsGetQueryKey,
-  listDocumentsApiV1DocumentsGet,
 } from "@/api/generated/documents/documents";
 import { invalidateAllDocuments } from "@/api/query-keys";
+import { useAllDocumentIds } from "@/hooks/useDocuments";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -30,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import type { DocumentRead, DocumentSummary } from "@/types/api";
+import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface CreateWikilinkDocumentDialogProps {
   open: boolean;
@@ -59,16 +58,7 @@ export function CreateWikilinkDocumentDialog({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   // Query templates
-  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
-    queryFn: async () => {
-      const response = await (listDocumentsApiV1DocumentsGet({
-        page_size: 0,
-      }) as unknown as Promise<{ items: DocumentSummary[] }>);
-      return response.items;
-    },
-    enabled: open && canCreate,
-  });
+  const templateDocumentsQuery = useAllDocumentIds({ enabled: open && canCreate });
 
   // Filter templates user can access
   const manageableTemplates = useMemo(() => {

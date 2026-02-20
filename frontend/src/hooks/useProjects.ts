@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -23,6 +23,8 @@ import {
   duplicateProjectApiV1ProjectsProjectIdDuplicatePost,
   reorderProjectsApiV1ProjectsReorderPost,
   recordProjectViewApiV1ProjectsProjectIdViewPost,
+  listGlobalProjectsApiV1ProjectsGlobalGet,
+  getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey,
 } from "@/api/generated/projects/projects";
 import {
   listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
@@ -30,26 +32,29 @@ import {
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllProjects, invalidateRecentProjects } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { Project, ProjectTaskStatus } from "@/types/api";
 import type {
   ListProjectsApiV1ProjectsGetParams,
+  ListGlobalProjectsApiV1ProjectsGlobalGetParams,
   ProjectActivityResponse,
+  ProjectListResponse,
+  ProjectRead,
   ProjectRecentViewRead,
-  ProjectFavoriteStatus,
   ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
+  TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+
+type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useProjects = (
   params?: ListProjectsApiV1ProjectsGetParams,
-  options?: { enabled?: boolean; staleTime?: number }
+  options?: QueryOpts<ProjectListResponse>
 ) => {
-  return useQuery<Project[]>({
+  return useQuery<ProjectListResponse>({
     queryKey: getListProjectsApiV1ProjectsGetQueryKey(params),
-    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<Project[]>,
-    enabled: options?.enabled,
-    staleTime: options?.staleTime,
+    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<ProjectListResponse>,
+    ...options,
   });
 };
 
@@ -61,56 +66,68 @@ export const useArchivedProjects = () => {
   return useProjects({ archived: true });
 };
 
-export const useProject = (projectId: number | null) => {
-  return useQuery<Project>({
+export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<ProjectRead>({
     queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId!),
-    queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<Project>,
-    enabled: projectId !== null && Number.isFinite(projectId),
+    queryFn: () =>
+      readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<ProjectRead>,
+    enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
+    ...rest,
   });
 };
 
-export const useWritableProjects = (options?: { enabled?: boolean }) => {
-  return useQuery<Project[]>({
+export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
+  return useQuery<ProjectRead[]>({
     queryKey: getListWritableProjectsApiV1ProjectsWritableGetQueryKey(),
-    queryFn: () => listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<Project[]>,
-    enabled: options?.enabled,
+    queryFn: () =>
+      listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<ProjectRead[]>,
     staleTime: 60 * 1000,
+    ...options,
   });
 };
 
-export const useRecentProjects = () => {
+export const useRecentProjects = (options?: QueryOpts<ProjectRecentViewRead[]>) => {
   return useQuery<ProjectRecentViewRead[]>({
     queryKey: getRecentProjectsApiV1ProjectsRecentGetQueryKey(),
     queryFn: () =>
       recentProjectsApiV1ProjectsRecentGet() as unknown as Promise<ProjectRecentViewRead[]>,
     staleTime: 30 * 1000,
+    ...options,
   });
 };
 
-export const useFavoriteProjects = () => {
-  return useQuery<ProjectFavoriteStatus[]>({
+export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
+  return useQuery<ProjectRead[]>({
     queryKey: getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey(),
-    queryFn: () =>
-      favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<ProjectFavoriteStatus[]>,
+    queryFn: () => favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<ProjectRead[]>,
     staleTime: 30 * 1000,
+    ...options,
   });
 };
 
-export const useProjectTaskStatuses = (projectId: number | null) => {
-  return useQuery<ProjectTaskStatus[]>({
+export const useProjectTaskStatuses = (
+  projectId: number | null,
+  options?: QueryOpts<TaskStatusRead[]>
+) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<TaskStatusRead[]>({
     queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId!),
     queryFn: () =>
       listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId!) as unknown as Promise<
-        ProjectTaskStatus[]
+        TaskStatusRead[]
       >,
-    enabled: projectId !== null && Number.isFinite(projectId),
+    enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
+    ...rest,
   });
 };
 
 export const useProjectActivity = (
   projectId: number,
-  params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams
+  params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
+  options?: QueryOpts<ProjectActivityResponse>
 ) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<ProjectActivityResponse>({
     queryKey: getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey(projectId, params),
     queryFn: () =>
@@ -118,8 +135,35 @@ export const useProjectActivity = (
         projectId,
         params
       ) as unknown as Promise<ProjectActivityResponse>,
-    enabled: Number.isFinite(projectId),
+    enabled: Number.isFinite(projectId) && userEnabled,
+    ...rest,
   });
+};
+
+// ── Global (cross-guild) queries ────────────────────────────────────────────
+
+export const useGlobalProjects = (
+  params?: ListGlobalProjectsApiV1ProjectsGlobalGetParams,
+  options?: QueryOpts<ProjectListResponse>
+) => {
+  return useQuery<ProjectListResponse>({
+    queryKey: getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey(params),
+    queryFn: () =>
+      listGlobalProjectsApiV1ProjectsGlobalGet(params) as unknown as Promise<ProjectListResponse>,
+    ...options,
+  });
+};
+
+export const usePrefetchGlobalProjects = () => {
+  const qc = useQueryClient();
+  return (params?: ListGlobalProjectsApiV1ProjectsGlobalGetParams) => {
+    return qc.prefetchQuery({
+      queryKey: getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey(params),
+      queryFn: () =>
+        listGlobalProjectsApiV1ProjectsGlobalGet(params) as unknown as Promise<ProjectListResponse>,
+      staleTime: 30_000,
+    });
+  };
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
@@ -129,7 +173,7 @@ export const useCreateProject = () => {
 
   return useMutation({
     mutationFn: async (data: Parameters<typeof createProjectApiV1ProjectsPost>[0]) => {
-      return createProjectApiV1ProjectsPost(data) as unknown as Promise<Project>;
+      return createProjectApiV1ProjectsPost(data) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();
@@ -153,7 +197,7 @@ export const useUpdateProject = () => {
       return updateProjectApiV1ProjectsProjectIdPatch(
         projectId,
         data
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();
@@ -212,7 +256,7 @@ export const useDuplicateProject = () => {
       return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(
         projectId,
         data
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();

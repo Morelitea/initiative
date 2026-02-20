@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import type { VelocityWeekData } from "@/types/api";
+import type { VelocityWeekData } from "@/api/generated/initiativeAPI.schemas";
 
 interface VelocityChartProps {
   data: VelocityWeekData[];

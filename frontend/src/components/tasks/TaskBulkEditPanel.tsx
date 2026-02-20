@@ -2,10 +2,10 @@ import { useTranslation } from "react-i18next";
 import { Archive, Pencil, Tags, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { Task } from "@/types/api";
+import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 
 type TaskBulkEditPanelProps = {
-  selectedTasks: Task[];
+  selectedTasks: TaskListRead[];
   onEdit: () => void;
   onEditTags: () => void;
   onArchive: () => void;

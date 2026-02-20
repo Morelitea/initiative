@@ -1,4 +1,4 @@
-import type { TagSummary } from "@/types/api";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 export interface TagTreeNode {
   segment: string; // The segment name (e.g., "a" for "parent/a")

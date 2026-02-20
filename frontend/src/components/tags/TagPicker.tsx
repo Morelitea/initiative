@@ -17,7 +17,7 @@ import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { TagBadge } from "./TagBadge";
 import { useTags, useCreateTag } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
-import type { TagSummary, Tag } from "@/types/api";
+import type { TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 const DEFAULT_TAG_COLORS = [
   "#6366F1", // Indigo
@@ -77,7 +77,7 @@ export function TagPicker({
   const canCreateNew = search.trim() && !exactMatch;
 
   const toggleTag = useCallback(
-    (tag: Tag | TagSummary) => {
+    (tag: TagRead | TagSummary) => {
       if (selectedIds.has(tag.id)) {
         onChange(selectedTags.filter((t) => t.id !== tag.id));
       } else {

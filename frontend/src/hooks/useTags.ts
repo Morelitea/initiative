@@ -24,26 +24,26 @@ import {
 } from "@/api/query-keys";
 import type {
   DocumentRead,
-  Project,
-  Tag,
+  ProjectRead,
   TagCreate,
+  TagRead,
   TagUpdate,
   TaggedEntitiesResponse,
-  Task,
-} from "@/types/api";
+  TaskListRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 export const useTags = () => {
-  return useQuery<Tag[]>({
+  return useQuery<TagRead[]>({
     queryKey: getListTagsApiV1TagsGetQueryKey(),
-    queryFn: () => listTagsApiV1TagsGet() as unknown as Promise<Tag[]>,
+    queryFn: () => listTagsApiV1TagsGet() as unknown as Promise<TagRead[]>,
     staleTime: 60 * 1000,
   });
 };
 
 export const useTag = (tagId: number | null) => {
-  return useQuery<Tag>({
+  return useQuery<TagRead>({
     queryKey: getGetTagApiV1TagsTagIdGetQueryKey(tagId!),
-    queryFn: () => getTagApiV1TagsTagIdGet(tagId!) as unknown as Promise<Tag>,
+    queryFn: () => getTagApiV1TagsTagIdGet(tagId!) as unknown as Promise<TagRead>,
     enabled: !!tagId,
     staleTime: 60 * 1000,
   });
@@ -55,7 +55,7 @@ export const useCreateTag = () => {
 
   return useMutation({
     mutationFn: async (data: TagCreate) => {
-      return createTagApiV1TagsPost(data) as unknown as Promise<Tag>;
+      return createTagApiV1TagsPost(data) as unknown as Promise<TagRead>;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: getListTagsApiV1TagsGetQueryKey() });
@@ -72,7 +72,7 @@ export const useUpdateTag = () => {
 
   return useMutation({
     mutationFn: async ({ tagId, data }: { tagId: number; data: TagUpdate }) => {
-      return updateTagApiV1TagsTagIdPatch(tagId, data) as unknown as Promise<Tag>;
+      return updateTagApiV1TagsTagIdPatch(tagId, data) as unknown as Promise<TagRead>;
     },
     onSuccess: () => {
       toast.success(t("updated"));
@@ -111,7 +111,7 @@ export const useSetTaskTags = () => {
     mutationFn: async ({ taskId, tagIds }: { taskId: number; tagIds: number[] }) => {
       return setTaskTagsApiV1TasksTaskIdTagsPut(taskId, {
         tag_ids: tagIds,
-      }) as unknown as Promise<Task>;
+      }) as unknown as Promise<TaskListRead>;
     },
     onSuccess: () => {
       void invalidateAllTasks();
@@ -140,7 +140,7 @@ export const useSetProjectTags = () => {
     mutationFn: async ({ projectId, tagIds }: { projectId: number; tagIds: number[] }) => {
       return setProjectTagsApiV1ProjectsProjectIdTagsPut(projectId, {
         tag_ids: tagIds,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();

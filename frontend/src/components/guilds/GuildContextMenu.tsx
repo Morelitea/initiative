@@ -5,7 +5,7 @@ import { Settings, Plus, Copy, LogOut, UserPlus, Users, FolderOpen } from "lucid
 import { toast } from "sonner";
 
 import { createGuildInviteApiV1GuildsGuildIdInvitesPost } from "@/api/generated/guilds/guilds";
-import type { GuildInviteRead } from "@/types/api";
+import type { GuildInviteRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 
 import {
   ContextMenu,
@@ -16,11 +16,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
-import type { Guild } from "@/types/api";
 import { useGuilds } from "@/hooks/useGuilds";
 
 interface GuildContextMenuProps {
-  guild: Guild;
+  guild: GuildRead;
   children: ReactNode;
 }
 

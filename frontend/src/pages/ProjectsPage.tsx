@@ -81,7 +81,7 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import { Project } from "@/types/api";
+import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import {
   Dialog,
   DialogContent,
@@ -102,7 +102,6 @@ import {
   type RoleGrant,
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
-import type { Tag, TagSummary } from "@/types/api";
 
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
@@ -274,7 +273,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTagsForFilter = useMemo(() => {
     const tagMap = new Map(allTags.map((t) => [t.id, t]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is Tag => t !== undefined);
+    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is TagRead => t !== undefined);
   }, [allTags, tagFilters]);
 
   const handleTagFiltersChange = (newTags: TagSummary[]) => {
@@ -330,7 +329,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
 
   // Helper function for per-project DAC checks
-  const hasProjectWritePermission = (project: Project): boolean => {
+  const hasProjectWritePermission = (project: ProjectRead): boolean => {
     if (!user) return false;
     const permission = project.permissions?.find((p) => p.user_id === user.id);
     return permission?.level === "owner" || permission?.level === "write";
@@ -446,7 +445,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (!Number.isFinite(templateId)) {
       return;
     }
-    const template = templatesQuery.data?.find((item) => item.id === templateId);
+    const template = templatesQuery.data?.items?.find((item) => item.id === templateId);
     if (!template) {
       return;
     }
@@ -454,7 +453,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
   useEffect(() => {
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
     const reorderableProjects = projects.filter((project) => !project.pinned_at);
     if (reorderableProjects.length === 0) {
       setCustomOrder((prev) => (prev.length ? [] : prev));
@@ -494,7 +493,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     }
   };
 
-  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+  const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);
 
   const availableInitiatives = useMemo(() => {
     const initiatives = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
@@ -949,9 +948,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               <p className="text-muted-foreground text-sm">{t("templates.loading")}</p>
             ) : templatesQuery.isError ? (
               <p className="text-destructive text-sm">{t("templates.loadError")}</p>
-            ) : templatesQuery.data?.length ? (
+            ) : templatesQuery.data?.items?.length ? (
               <div className="grid gap-4 md:grid-cols-2">
-                {templatesQuery.data.map((template) => (
+                {templatesQuery.data.items.map((template) => (
                   <Card key={template.id} className="shadow-sm">
                     <CardHeader>
                       <CardTitle className="text-xl">{template.name}</CardTitle>
@@ -1011,9 +1010,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               <p className="text-muted-foreground text-sm">{t("archived.loading")}</p>
             ) : archivedQuery.isError ? (
               <p className="text-destructive text-sm">{t("archived.loadError")}</p>
-            ) : archivedQuery.data?.length ? (
+            ) : archivedQuery.data?.items?.length ? (
               <div className="grid gap-4 md:grid-cols-2">
-                {archivedQuery.data.map((archived) => (
+                {archivedQuery.data.items.map((archived) => (
                   <Card key={archived.id} className="shadow-sm">
                     <CardHeader>
                       <CardTitle className="text-xl">{archived.name}</CardTitle>
@@ -1167,7 +1166,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                           <SelectItem value={NO_TEMPLATE_VALUE}>
                             {t("createDialog.noTemplate")}
                           </SelectItem>
-                          {templatesQuery.data?.map((template) => (
+                          {templatesQuery.data?.items?.map((template) => (
                             <SelectItem key={template.id} value={String(template.id)}>
                               {template.name}
                             </SelectItem>
@@ -1252,7 +1251,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
 export const ProjectsPage = () => <ProjectsView />;
 
-const SortableProjectCardLink = ({ project, userId }: { project: Project; userId?: number }) => {
+const SortableProjectCardLink = ({
+  project,
+  userId,
+}: {
+  project: ProjectRead;
+  userId?: number;
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -1275,7 +1280,7 @@ const SortableProjectCardLink = ({ project, userId }: { project: Project; userId
   );
 };
 
-const SortableProjectRowLink = ({ project, userId }: { project: Project; userId?: number }) => {
+const SortableProjectRowLink = ({ project, userId }: { project: ProjectRead; userId?: number }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });

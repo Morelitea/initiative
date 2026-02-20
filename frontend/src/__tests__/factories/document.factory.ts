@@ -1,4 +1,4 @@
-import type { DocumentSummary } from "@/types/api";
+import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -6,9 +6,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildDocumentSummary(
-  overrides: Partial<DocumentSummary> = {},
-): DocumentSummary {
+export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): DocumentSummary {
   counter++;
   return {
     id: counter,

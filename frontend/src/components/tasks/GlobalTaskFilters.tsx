@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { Guild, TaskPriority, TaskStatusCategory } from "@/types/api";
+import type {
+  GuildRead,
+  TaskPriority,
+  TaskStatusCategory,
+} from "@/api/generated/initiativeAPI.schemas";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -19,7 +23,7 @@ interface GlobalTaskFiltersProps {
   setGuildFilters: (filters: number[]) => void;
   filtersOpen: boolean;
   setFiltersOpen: (open: boolean) => void;
-  guilds: Guild[];
+  guilds: GuildRead[];
 }
 
 export const GlobalTaskFilters = ({

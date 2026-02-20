@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { generateSummaryApiV1DocumentsDocumentIdAiSummaryPost } from "@/api/generated/documents/documents";
 import { Button } from "@/components/ui/button";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
-import type { GenerateDocumentSummaryResponse } from "@/types/api";
+import type { GenerateDocumentSummaryResponse } from "@/api/generated/initiativeAPI.schemas";
 
 interface DocumentSummaryProps {
   documentId: number;

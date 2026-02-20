@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
@@ -18,14 +18,12 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import {
-  getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
   updateDocumentApiV1DocumentsDocumentIdPatch,
   notifyMentionsApiV1DocumentsDocumentIdMentionsPost,
 } from "@/api/generated/documents/documents";
-import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
 import { invalidateAllDocuments } from "@/api/query-keys";
-import { useDocument } from "@/hooks/useDocuments";
-import { useComments } from "@/hooks/useComments";
+import { useDocument, useSetDocumentCache } from "@/hooks/useDocuments";
+import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
@@ -64,8 +62,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import type { Comment, DocumentProjectLink, DocumentRead, TagSummary } from "@/types/api";
-import { uploadAttachment } from "@/api/attachments";
+import type {
+  CommentRead,
+  DocumentProjectLink,
+  DocumentRead,
+  TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
+import { uploadAttachment } from "@/lib/attachmentUtils";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
@@ -77,7 +80,7 @@ export const DocumentDetailPage = () => {
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
@@ -122,7 +125,7 @@ export const DocumentDetailPage = () => {
   const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
   const commentsQueryParams = { document_id: parsedId };
-  const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
+  const commentsCache = useCommentsCache(commentsQueryParams);
   const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedId),
   });
@@ -258,47 +261,25 @@ export const DocumentDetailPage = () => {
   );
 
   const updateDocumentCommentCount = (delta: number) => {
-    queryClient.setQueryData<DocumentRead>(
-      getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
-      (previous) => {
-        if (!previous) {
-          return previous;
-        }
-        const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
-        return { ...previous, comment_count: nextCount };
-      }
-    );
+    setDocumentCache(parsedId, (previous) => {
+      if (!previous) return previous;
+      const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
+      return { ...previous, comment_count: nextCount };
+    });
   };
 
-  const handleCommentCreated = (comment: Comment) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return [comment];
-      }
-      return [...previous, comment];
-    });
+  const handleCommentCreated = (comment: CommentRead) => {
+    commentsCache.addComment(comment);
     updateDocumentCommentCount(1);
   };
 
   const handleCommentDeleted = (commentId: number) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return previous;
-      }
-      return previous.filter((comment) => comment.id !== commentId);
-    });
+    commentsCache.removeComment(commentId);
     updateDocumentCommentCount(-1);
   };
 
-  const handleCommentUpdated = (updatedComment: Comment) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return previous;
-      }
-      return previous.map((comment) =>
-        comment.id === updatedComment.id ? updatedComment : comment
-      );
-    });
+  const handleCommentUpdated = (updatedComment: CommentRead) => {
+    commentsCache.updateComment(updatedComment);
   };
 
   const saveDocument = useMutation({
@@ -325,10 +306,7 @@ export const DocumentDetailPage = () => {
         toast.success(t("detail.saved"));
       }
       isAutosaveRef.current = false;
-      queryClient.setQueryData(
-        getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
-        updated
-      );
+      setDocumentCache(parsedId, updated);
       // Only invalidate the documents list (for sidebar title updates), not all project queries
       void invalidateAllDocuments();
       // Fire-and-forget: notify users who were newly mentioned

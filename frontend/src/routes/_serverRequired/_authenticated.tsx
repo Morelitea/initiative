@@ -8,7 +8,7 @@ import {
   useLocation,
   useSearch,
 } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2, LogOut, Menu, Plus, Ticket } from "lucide-react";
 
@@ -27,13 +27,10 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
-import {
-  recentProjectsApiV1ProjectsRecentGet,
-  getRecentProjectsApiV1ProjectsRecentGetQueryKey,
-  clearProjectViewApiV1ProjectsProjectIdViewDelete,
-} from "@/api/generated/projects/projects";
+import { clearProjectViewApiV1ProjectsProjectIdViewDelete } from "@/api/generated/projects/projects";
 import { invalidateRecentProjects } from "@/api/query-keys";
-import type { Project } from "@/types/api";
+import { useRecentProjects } from "@/hooks/useProjects";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
@@ -90,11 +87,7 @@ function AppLayout() {
   usePushNotifications();
   useBackButton();
 
-  const recentQueryKey = getRecentProjectsApiV1ProjectsRecentGetQueryKey();
-
-  const recentQuery = useQuery<Project[]>({
-    queryKey: recentQueryKey,
-    queryFn: () => recentProjectsApiV1ProjectsRecentGet() as unknown as Promise<Project[]>,
+  const recentQuery = useRecentProjects({
     enabled: activeGuildId !== null && !loading && !!token,
     staleTime: 30_000,
   });
@@ -160,7 +153,7 @@ function AppLayout() {
               />
               <div className="min-w-0 flex-1">
                 <ProjectTabsBar
-                  projects={recentQuery.data}
+                  projects={recentQuery.data as ProjectRead[] | undefined}
                   loading={recentQuery.isLoading}
                   activeProjectId={activeProjectId}
                   onClose={handleClearRecent}

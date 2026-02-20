@@ -17,6 +17,7 @@ from app.models.initiative import (
     InitiativeRoleModel,
     InitiativeRolePermission,
     BUILTIN_ROLE_PERMISSIONS,
+    PermissionKey,
 )
 from app.models.user import User
 from app.schemas.user import UserInitiativeRole
@@ -103,7 +104,7 @@ async def create_builtin_roles(
     for perm_key, enabled in BUILTIN_ROLE_PERMISSIONS["project_manager"].items():
         session.add(InitiativeRolePermission(
             initiative_role_id=pm_role.id,
-            permission_key=perm_key.value,
+            permission_key=perm_key,
             enabled=enabled,
         ))
 
@@ -111,7 +112,7 @@ async def create_builtin_roles(
     for perm_key, enabled in BUILTIN_ROLE_PERMISSIONS["member"].items():
         session.add(InitiativeRolePermission(
             initiative_role_id=member_role.id,
-            permission_key=perm_key.value,
+            permission_key=perm_key,
             enabled=enabled,
         ))
 
@@ -447,7 +448,7 @@ async def create_custom_role(
     name: str,
     display_name: str,
     is_manager: bool = False,
-    permissions: dict[str, bool] | None = None,
+    permissions: dict[PermissionKey, bool] | None = None,
 ) -> InitiativeRoleModel:
     """Create a custom role for an initiative."""
     # Get next position
@@ -469,7 +470,7 @@ async def create_custom_role(
     await session.flush()
 
     # Add permissions (default to member permissions if not specified)
-    perms = permissions or {k.value: v for k, v in BUILTIN_ROLE_PERMISSIONS["member"].items()}
+    perms = permissions or dict(BUILTIN_ROLE_PERMISSIONS["member"])
     for perm_key, enabled in perms.items():
         session.add(InitiativeRolePermission(
             initiative_role_id=role.id,
@@ -486,7 +487,7 @@ async def update_role_permissions(
     session: AsyncSession,
     *,
     role: InitiativeRoleModel,
-    permissions: dict[str, bool],
+    permissions: dict[PermissionKey, bool],
 ) -> InitiativeRoleModel:
     """Update permissions for a role."""
     for perm_key, enabled in permissions.items():

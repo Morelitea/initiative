@@ -1,4 +1,4 @@
-import type { Tag, TagSummary } from "@/types/api";
+import type { TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -17,9 +17,7 @@ const TAG_COLORS = [
   "#6b7280",
 ];
 
-export function buildTagSummary(
-  overrides: Partial<TagSummary> = {},
-): TagSummary {
+export function buildTagSummary(overrides: Partial<TagSummary> = {}): TagSummary {
   counter++;
   return {
     id: counter,
@@ -29,7 +27,7 @@ export function buildTagSummary(
   };
 }
 
-export function buildTag(overrides: Partial<Tag> = {}): Tag {
+export function buildTag(overrides: Partial<TagRead> = {}): TagRead {
   counter++;
   return {
     id: counter,

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -27,7 +26,7 @@ import {
   useDocumentCounts,
   useDeleteDocument,
   useCopyDocument,
-  prefetchDocumentsList,
+  usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { getItem, setItem } from "@/lib/storage";
@@ -58,8 +57,12 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type { DocumentSummary, Tag, TagSummary } from "@/types/api";
-import type { ListDocumentsApiV1DocumentsGetParams } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DocumentSummary,
+  ListDocumentsApiV1DocumentsGetParams,
+  TagRead,
+  TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -199,7 +202,7 @@ export const DocumentsView = ({
   const { t } = useTranslation(["documents", "common"]);
   const dateLocale = useDateLocale();
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
@@ -318,7 +321,7 @@ export const DocumentsView = ({
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTagsForFilter = useMemo(() => {
     const tagMap = new Map(allTags.map((tg) => [tg.id, tg]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is Tag => tg !== undefined);
+    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is TagRead => tg !== undefined);
   }, [allTags, tagFilters]);
 
   const handleTagFiltersChange = (newTags: TagSummary[]) => {
@@ -447,9 +450,9 @@ export const DocumentsView = ({
         ...(sortBy ? { sort_by: sortBy } : {}),
         ...(sortDir ? { sort_dir: sortDir } : {}),
       };
-      void prefetchDocumentsList(queryClient, prefetchParams);
+      void prefetchDocuments(prefetchParams);
     },
-    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, queryClient]
+    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, prefetchDocuments]
   );
 
   const initiativesQuery = useInitiatives();

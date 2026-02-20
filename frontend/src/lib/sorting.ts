@@ -1,4 +1,4 @@
-import { TaskPriority } from "@/types/api";
+import { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 import type { Row } from "@tanstack/react-table";
 
 const toTimestamp = (value: unknown): number | null => {

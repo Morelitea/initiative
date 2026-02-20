@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -8,16 +8,9 @@ import {
   parseTicktickCsvApiV1ImportsTicktickParsePost,
   importFromTicktickApiV1ImportsTicktickPost,
 } from "@/api/generated/imports/imports";
-import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-} from "@/api/generated/projects/projects";
-import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-} from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Project, ProjectTaskStatus } from "@/types/api";
+import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface TickTickColumn {
   name: string;
@@ -70,7 +63,7 @@ type Step = "upload" | "select-list" | "configure" | "result";
 // Suggest a status based on column name
 const suggestStatusForColumn = (
   columnName: string,
-  statuses: ProjectTaskStatus[]
+  statuses: TaskStatusRead[]
 ): number | undefined => {
   const lowerName = columnName.toLowerCase();
 
@@ -118,23 +111,10 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   }, [open]);
 
   // Fetch projects for selection
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
-    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
-    enabled: open,
-  });
+  const projectsQuery = useProjects(undefined, { enabled: open });
 
   // Fetch task statuses for selected target project
-  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(
-      selectedTargetProjectId!
-    ),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
-        selectedTargetProjectId!
-      ) as unknown as Promise<ProjectTaskStatus[]>,
-    enabled: selectedTargetProjectId !== null,
-  });
+  const taskStatusesQuery = useProjectTaskStatuses(selectedTargetProjectId);
 
   // Get selected source list
   const selectedSourceList = parseResult?.lists.find((l) => l.name === selectedSourceListName);
@@ -229,7 +209,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
 
   // Filter to only show projects where user has write or owner permission
   const activeProjects =
-    projectsQuery.data?.filter((p) => {
+    projectsQuery.data?.items?.filter((p) => {
       if (p.is_archived || p.is_template) return false;
       const userPermission = p.permissions?.find((perm) => perm.user_id === user?.id);
       return userPermission?.level === "owner" || userPermission?.level === "write";

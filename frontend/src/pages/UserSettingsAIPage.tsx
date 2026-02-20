@@ -1,11 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
-  getUserAiSettingsApiV1SettingsAiUserGet,
-  getGetUserAiSettingsApiV1SettingsAiUserGetQueryKey,
   updateUserAiSettingsApiV1SettingsAiUserPut,
   testAiConnectionApiV1SettingsAiTestPost,
   fetchAiModelsApiV1SettingsAiModelsPost,
@@ -23,14 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useUserAISettings } from "@/hooks/useAISettings";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
 import type {
   AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
-  UserAISettings,
+  UserAISettingsResponse,
   UserAISettingsUpdate,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
 
 interface FormState {
   enabled: boolean | null;
@@ -56,10 +55,7 @@ export const UserSettingsAIPage = () => {
   const [hasExistingKey, setHasExistingKey] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
-  const settingsQuery = useQuery<UserAISettings>({
-    queryKey: getGetUserAiSettingsApiV1SettingsAiUserGetQueryKey(),
-    queryFn: () => getUserAiSettingsApiV1SettingsAiUserGet() as unknown as Promise<UserAISettings>,
-  });
+  const settingsQuery = useUserAISettings();
 
   useEffect(() => {
     if (settingsQuery.data) {
@@ -87,7 +83,7 @@ export const UserSettingsAIPage = () => {
     mutationFn: async (payload: UserAISettingsUpdate) => {
       return updateUserAiSettingsApiV1SettingsAiUserPut(
         payload as Parameters<typeof updateUserAiSettingsApiV1SettingsAiUserPut>[0]
-      ) as unknown as Promise<UserAISettings>;
+      ) as unknown as Promise<UserAISettingsResponse>;
     },
     onSuccess: (data) => {
       toast.success(t("ai.saveSuccess"));

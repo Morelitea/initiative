@@ -1,11 +1,10 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { getListInitiativesApiV1InitiativesGetQueryKey } from "@/api/generated/initiatives/initiatives";
+import { invalidateAllInitiatives } from "@/api/query-keys";
 import { useInitiatives, useCreateInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useDocumentsList } from "@/hooks/useDocuments";
@@ -38,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
-import type { Initiative } from "@/types/api";
+import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -48,14 +47,11 @@ export const InitiativesPage = () => {
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
-  const queryClient = useQueryClient();
   const searchParams = useSearch({ strict: false }) as { create?: string };
 
-  const initiativesQueryKey = getListInitiativesApiV1InitiativesGetQueryKey();
-
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
-  }, [queryClient, initiativesQueryKey]);
+    await invalidateAllInitiatives();
+  }, []);
 
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
@@ -89,7 +85,7 @@ export const InitiativesPage = () => {
 
   const projectCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
     projects.forEach((project) => {
       counts.set(project.initiative_id, (counts.get(project.initiative_id) ?? 0) + 1);
     });
@@ -148,7 +144,7 @@ export const InitiativesPage = () => {
     );
   };
 
-  const renderMembershipBadge = (initiative: Initiative) => {
+  const renderMembershipBadge = (initiative: InitiativeRead) => {
     const membership = initiative.members.find((member) => member.user.id === user?.id);
     if (membership) {
       const roleLabel = membership.role === "project_manager" ? projectManagerLabel : memberLabel;

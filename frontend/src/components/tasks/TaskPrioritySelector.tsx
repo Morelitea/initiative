@@ -14,10 +14,10 @@ import {
 import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
 import { invalidateAllTasks, invalidateTask } from "@/api/query-keys";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
-import type { Task, TaskPriority } from "@/types/api";
+import type { TaskListRead, TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 
 type TaskPrioritySelectorProps = {
-  task: Task;
+  task: TaskListRead;
   /** Guild ID override. If not provided, uses the default from apiClient interceptor. */
   guildId?: number | null;
   disabled?: boolean;
@@ -38,10 +38,9 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
 
   const updatePriority = useMutation({
     mutationFn: async (priority: TaskPriority) => {
-      const response = await (updateTaskApiV1TasksTaskIdPatch(task.id, {
+      return updateTaskApiV1TasksTaskIdPatch(task.id, {
         priority,
-      }) as unknown as Promise<{ data: Task }>);
-      return response.data;
+      }) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (updatedTask) => {
       // Invalidate relevant queries

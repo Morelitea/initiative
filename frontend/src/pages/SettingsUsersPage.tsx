@@ -1,15 +1,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
   approveUserApiV1UsersUserIdApprovePost,
   deleteUserApiV1UsersUserIdDelete,
 } from "@/api/generated/users/users";
+import { useUsers } from "@/hooks/useUsers";
 import {
   listGuildInvitesApiV1GuildsGuildIdInvitesGet,
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
@@ -32,7 +31,11 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
-import type { GuildInviteRead, GuildRole, UserGuildMember } from "@/types/api";
+import type {
+  GuildInviteRead,
+  GuildRole,
+  UserGuildMember,
+} from "@/api/generated/initiativeAPI.schemas";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -98,11 +101,7 @@ export const SettingsUsersPage = () => {
 
   const inviteRows = useMemo(() => invites, [invites]);
 
-  const usersQuery = useQuery<UserGuildMember[]>({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    enabled: isGuildAdmin,
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<UserGuildMember[]>,
-  });
+  const usersQuery = useUsers({ enabled: isGuildAdmin });
 
   const approveUser = useMutation({
     mutationFn: async (userId: number) => {

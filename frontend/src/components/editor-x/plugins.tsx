@@ -108,7 +108,7 @@ import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transf
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
 import { WIKILINK } from "@/components/ui/editor/transformers/markdown-wikilink-transformer";
 import { Separator } from "@/components/ui/separator";
-import type { UserPublic } from "@/types/api";
+import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 
 const placeholder = "Press / for commands...";
 // const maxLength = 500;

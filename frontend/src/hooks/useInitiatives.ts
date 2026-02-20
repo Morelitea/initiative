@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -22,36 +22,46 @@ import {
   invalidateInitiativeMembers,
 } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { Initiative } from "@/types/api";
-import type { InitiativeMemberRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+
+type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useInitiatives = (options?: { enabled?: boolean }) => {
-  return useQuery<Initiative[]>({
+export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
+  return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: options?.enabled,
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<InitiativeRead[]>,
+    ...options,
   });
 };
 
-export const useInitiative = (initiativeId: number | null) => {
-  return useQuery<Initiative>({
+export const useInitiative = (initiativeId: number | null, options?: QueryOpts<InitiativeRead>) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<InitiativeRead>({
     queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
     queryFn: () =>
-      getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId!) as unknown as Promise<Initiative>,
-    enabled: initiativeId !== null && Number.isFinite(initiativeId),
+      getInitiativeApiV1InitiativesInitiativeIdGet(
+        initiativeId!
+      ) as unknown as Promise<InitiativeRead>,
+    enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
+    ...rest,
   });
 };
 
-export const useInitiativeMembers = (initiativeId: number | null) => {
+export const useInitiativeMembers = (
+  initiativeId: number | null,
+  options?: QueryOpts<InitiativeMemberRead[]>
+) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeMemberRead[]>({
     queryKey: getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryKey(initiativeId!),
     queryFn: () =>
       getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
         initiativeId!
       ) as unknown as Promise<InitiativeMemberRead[]>,
-    enabled: initiativeId !== null && Number.isFinite(initiativeId),
+    enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
+    ...rest,
   });
 };
 
@@ -62,7 +72,7 @@ export const useCreateInitiative = () => {
 
   return useMutation({
     mutationFn: async (data: { name: string; description?: string; color?: string }) => {
-      return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<Initiative>;
+      return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: (initiative) => {
       toast.success(t("createDialog.created", { name: initiative.name }));
@@ -86,7 +96,7 @@ export const useUpdateInitiative = () => {
       return updateInitiativeApiV1InitiativesInitiativeIdPatch(
         initiativeId,
         data
-      ) as unknown as Promise<Initiative>;
+      ) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: (_data, { initiativeId }) => {
       void invalidateAllInitiatives();

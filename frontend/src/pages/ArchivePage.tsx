@@ -1,14 +1,11 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
-import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-  unarchiveProjectApiV1ProjectsProjectIdUnarchivePost,
-} from "@/api/generated/projects/projects";
+import { unarchiveProjectApiV1ProjectsProjectIdUnarchivePost } from "@/api/generated/projects/projects";
 import { invalidateAllProjects } from "@/api/query-keys";
+import { useArchivedProjects } from "@/hooks/useProjects";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +19,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
-import { Project } from "@/types/api";
 
 export const ArchivePage = () => {
   const { t } = useTranslation("projects");
@@ -38,15 +34,7 @@ export const ArchivePage = () => {
   );
   const canManageProjects = user?.role === "admin" || managedInitiatives.length > 0;
 
-  const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
-    queryFn: async () => {
-      const response = await (listProjectsApiV1ProjectsGet({
-        archived: true,
-      }) as unknown as Promise<{ data: Project[] }>);
-      return response.data;
-    },
-  });
+  const archivedProjectsQuery = useArchivedProjects();
 
   const unarchiveProject = useMutation({
     mutationFn: async (projectId: number) => {
@@ -65,7 +53,7 @@ export const ArchivePage = () => {
     return <p className="text-destructive text-sm">{t("archived.loadError")}</p>;
   }
 
-  const projects = archivedProjectsQuery.data ?? [];
+  const projects = archivedProjectsQuery.data?.items ?? [];
 
   return (
     <div className="space-y-6">

@@ -1,10 +1,10 @@
-import type { TaskAssignee, UserPublic } from "@/types/api";
+import type { TaskAssigneeSummary, UserPublic } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 interface TaskAssigneeListProps {
-  assignees: (UserPublic | TaskAssignee)[];
+  assignees: (UserPublic | TaskAssigneeSummary)[];
   size?: "sm" | "md";
   className?: string;
 }
@@ -20,7 +20,7 @@ const sizeStyles = {
   },
 };
 
-const getDisplayName = (user: UserPublic | TaskAssignee) => {
+const getDisplayName = (user: UserPublic | TaskAssigneeSummary) => {
   if (user.full_name?.trim()) {
     return user.full_name.trim();
   }
