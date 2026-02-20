@@ -5,7 +5,7 @@ import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "@/api/client";
 import { getItem, setItem, removeItem } from "@/lib/storage";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
-import { User } from "../types/api";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface LoginPayload {
   email: string;
@@ -21,12 +21,12 @@ interface RegisterPayload {
 }
 
 interface AuthContextValue {
-  user: User | null;
+  user: UserRead | null;
   token: string | null;
   loading: boolean;
   isDeviceToken: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<User>;
+  register: (payload: RegisterPayload) => Promise<UserRead>;
   completeOidcLogin: (token: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -42,7 +42,7 @@ const isNative = Capacitor.isNativePlatform();
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setTokenState] = useState<string | null>(null);
   const [isDeviceToken, setIsDeviceToken] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserRead | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Load token on mount (storage is pre-hydrated by initStorage)
@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       return;
     }
-    const response = await apiClient.get<User>("/users/me");
+    const response = await apiClient.get<UserRead>("/users/me");
     setUser(response.data);
   }, [token]);
 
@@ -139,7 +139,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const register = async ({ email, password, full_name, inviteCode }: RegisterPayload) => {
-    const response = await apiClient.post<User>(
+    const response = await apiClient.post<UserRead>(
       "/auth/register",
       { email, password, full_name },
       inviteCode
@@ -161,7 +161,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     setTokenState(accessToken);
     setIsDeviceToken(isDevice);
-    const me = await apiClient.get<User>("/users/me");
+    const me = await apiClient.get<UserRead>("/users/me");
     setUser(me.data);
   };
 

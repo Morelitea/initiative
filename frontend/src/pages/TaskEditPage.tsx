@@ -51,11 +51,13 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
+  CommentRead,
   GenerateDescriptionResponse,
-  TaskPriority,
   TagSummary,
+  TaskPriority,
+  TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Comment, Task, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
+import type { Task, TaskRecurrenceStrategy } from "@/types/api";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -118,7 +120,7 @@ export const TaskEditPage = () => {
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
@@ -379,8 +381,8 @@ export const TaskEditPage = () => {
   });
   const writableProjects = writableProjectsQuery.data ?? [];
 
-  const handleCommentCreated = (comment: Comment) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+  const handleCommentCreated = (comment: CommentRead) => {
+    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
       if (!previous) {
         return [comment];
       }
@@ -389,7 +391,7 @@ export const TaskEditPage = () => {
   };
 
   const handleCommentDeleted = (commentId: number) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
       if (!previous) {
         return previous;
       }
@@ -397,8 +399,8 @@ export const TaskEditPage = () => {
     });
   };
 
-  const handleCommentUpdated = (updatedComment: Comment) => {
-    queryClient.setQueryData<Comment[]>(commentsQueryKey, (previous) => {
+  const handleCommentUpdated = (updatedComment: CommentRead) => {
+    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
       if (!previous) {
         return previous;
       }

@@ -7,10 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { DeleteAccountDialog } from "@/components/user/DeleteAccountDialog";
 import { useServer } from "@/hooks/useServer";
-import type { User } from "@/types/api";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface UserSettingsDangerZonePageProps {
-  user: User;
+  user: UserRead;
   logout: () => void;
 }
 

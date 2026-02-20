@@ -31,20 +31,19 @@ import {
   reorderTasksApiV1TasksReorderPost,
   archiveDoneTasksApiV1TasksArchiveDonePost,
 } from "@/api/generated/tasks/tasks";
-import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ListTasksApiV1TasksGetParams,
+  TaskRecurrenceOutput,
+  TaskReorderRequest,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { useTasks } from "@/hooks/useTasks";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 
 import { useTags } from "@/hooks/useTags";
 import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
-import type {
-  TaskRecurrenceStrategy,
-  ProjectTaskStatus,
-  Task,
-  TaskRecurrence,
-  TaskReorderPayload,
-} from "@/types/api";
+import type { TaskRecurrenceStrategy, Task } from "@/types/api";
 import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
@@ -102,7 +101,7 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectTasksSectionProps = {
   projectId: number;
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   userOptions: UserOption[];
   canEditTaskDetails: boolean;
   canWriteProject: boolean;
@@ -136,7 +135,7 @@ export const ProjectTasksSection = ({
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
@@ -181,7 +180,7 @@ export const ProjectTasksSection = ({
   const [collapsedStatuses, setCollapsedStatuses] = useState<Set<number>>(new Set());
 
   const statusLookup = useMemo(() => {
-    const map = new Map<number, ProjectTaskStatus>();
+    const map = new Map<number, TaskStatusRead>();
     sortedTaskStatuses.forEach((status) => {
       map.set(status.id, status);
     });
@@ -502,7 +501,7 @@ export const ProjectTasksSection = ({
   });
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
-    mutationFn: async (payload: TaskReorderPayload) => {
+    mutationFn: async (payload: TaskReorderRequest) => {
       return await (reorderTasksApiV1TasksReorderPost(payload as never) as unknown as Promise<
         Task[]
       >);
@@ -601,7 +600,7 @@ export const ProjectTasksSection = ({
       if (!Number.isFinite(projectId) || nextTasks.length === 0) {
         return;
       }
-      const payload: TaskReorderPayload = {
+      const payload: TaskReorderRequest = {
         project_id: projectId,
         items: nextTasks.map((task, index) => ({
           id: task.id,

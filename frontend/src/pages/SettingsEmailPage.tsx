@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmailSettings } from "@/hooks/useSettings";
-import type { EmailSettings } from "@/types/api";
+import type { EmailSettingsResponse } from "@/api/generated/initiativeAPI.schemas";
 
 interface EmailPayload {
   host?: string | null;
@@ -64,7 +64,7 @@ export const SettingsEmailPage = () => {
     mutationFn: async (payload: EmailPayload) => {
       return updateEmailSettingsApiV1SettingsEmailPut(
         payload as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
-      ) as unknown as Promise<EmailSettings>;
+      ) as unknown as Promise<EmailSettingsResponse>;
     },
     onSuccess: (data) => {
       toast.success(t("email.saveSuccess"));

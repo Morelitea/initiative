@@ -2,7 +2,7 @@ import { createRouter } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { routeTree } from "./routeTree.gen";
-import type { Guild } from "./types/api";
+import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 
 // Define the router context types
 export interface AuthContextValue {
@@ -23,15 +23,15 @@ export interface AuthContextValue {
 }
 
 export interface GuildContextValue {
-  guilds: Guild[];
+  guilds: GuildRead[];
   activeGuildId: number | null;
-  activeGuild: Guild | null;
+  activeGuild: GuildRead | null;
   loading: boolean;
   error: string | null;
   refreshGuilds: () => Promise<void>;
   switchGuild: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
-  updateGuildInState: (guild: Guild) => void;
+  updateGuildInState: (guild: GuildRead) => void;
   reorderGuilds: (guildIds: number[]) => void;
   canCreateGuilds: boolean;
 }

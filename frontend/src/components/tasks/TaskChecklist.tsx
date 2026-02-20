@@ -48,7 +48,7 @@ import type {
   TaskSubtaskProgress,
   GenerateSubtasksResponse,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { TaskSubtask } from "@/types/api";
+import type { SubtaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 
@@ -60,7 +60,7 @@ type TaskChecklistProps = {
 
 type UpdatePayload = {
   subtaskId: number;
-  data: Partial<Pick<TaskSubtask, "content" | "is_completed">>;
+  data: Partial<Pick<SubtaskRead, "content" | "is_completed">>;
 };
 
 export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
@@ -82,7 +82,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
 
   const subtasksQuery = useSubtasks(taskId);
 
-  const [localSubtasks, setLocalSubtasks] = useState<TaskSubtask[]>([]);
+  const [localSubtasks, setLocalSubtasks] = useState<SubtaskRead[]>([]);
 
   useEffect(() => {
     const subtasks = Array.isArray(subtasksQuery.data) ? subtasksQuery.data : [];
@@ -118,7 +118,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     mutationFn: async (content: string) => {
       return createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, {
         content,
-      }) as unknown as Promise<TaskSubtask>;
+      }) as unknown as Promise<SubtaskRead>;
     },
     onSuccess: () => {
       setNewContent("");
@@ -135,7 +135,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
       return updateSubtaskApiV1SubtasksSubtaskIdPatch(
         subtaskId,
         data
-      ) as unknown as Promise<TaskSubtask>;
+      ) as unknown as Promise<SubtaskRead>;
     },
     onSuccess: (_response, variables) => {
       if (variables.data.content !== undefined) {
@@ -174,7 +174,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     mutationFn: async (items: { id: number; position: number }[]) => {
       return reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, {
         items,
-      }) as unknown as Promise<TaskSubtask[]>;
+      }) as unknown as Promise<SubtaskRead[]>;
     },
     onSuccess: () => {
       invalidateRelatedData();
@@ -245,7 +245,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     createSubtask.mutate(trimmed);
   };
 
-  const handleToggle = (item: TaskSubtask, checked: boolean) => {
+  const handleToggle = (item: SubtaskRead, checked: boolean) => {
     if (!canEdit) {
       return;
     }
@@ -260,7 +260,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     });
   };
 
-  const handleContentBlur = (item: TaskSubtask) => {
+  const handleContentBlur = (item: SubtaskRead) => {
     const draftValue = contentDrafts[item.id];
     if (draftValue === undefined) {
       return;
@@ -472,7 +472,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
 };
 
 type ChecklistItemRowProps = {
-  item: TaskSubtask;
+  item: SubtaskRead;
   canEdit: boolean;
   reorderDisabled: boolean;
   isUpdating: boolean;

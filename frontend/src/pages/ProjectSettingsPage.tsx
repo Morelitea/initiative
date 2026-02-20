@@ -57,8 +57,12 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
-import { ProjectPermissionLevel, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { Project, ProjectRolePermission } from "@/types/api";
+import {
+  ProjectPermissionLevel,
+  ProjectRolePermissionRead,
+  TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
+import { Project } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
@@ -430,7 +434,7 @@ export const ProjectSettingsPage = () => {
   );
 
   // Column definitions for role permissions table
-  const rolePermissionColumns: ColumnDef<ProjectRolePermission>[] = useMemo(
+  const rolePermissionColumns: ColumnDef<ProjectRolePermissionRead>[] = useMemo(
     () => [
       {
         accessorKey: "role_display_name",

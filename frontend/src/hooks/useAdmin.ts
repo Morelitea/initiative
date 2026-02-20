@@ -16,18 +16,18 @@ import type {
   PlatformAdminCountResponse,
   AdminDeletionEligibilityResponse,
   DeletionEligibilityResponse,
+  UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { User } from "@/types/api";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /** Fetch all platform users (admin only). */
-export const usePlatformUsers = (options?: QueryOpts<User[]>) => {
-  return useQuery<User[]>({
+export const usePlatformUsers = (options?: QueryOpts<UserRead[]>) => {
+  return useQuery<UserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
-    queryFn: () => listAllUsersApiV1AdminUsersGet() as unknown as Promise<User[]>,
+    queryFn: () => listAllUsersApiV1AdminUsersGet() as unknown as Promise<UserRead[]>,
     ...options,
   });
 };

@@ -13,7 +13,7 @@ import type {
   NotificationCountResponse,
   NotificationListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Notification } from "@/types/api";
+import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ export const useMarkNotificationRead = () => {
     mutationFn: async (notificationId: number) => {
       return markNotificationReadApiV1NotificationsNotificationIdReadPost(
         notificationId
-      ) as unknown as Promise<Notification>;
+      ) as unknown as Promise<NotificationRead>;
     },
     onSuccess: () => {
       void invalidateNotifications();

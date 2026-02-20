@@ -7,7 +7,7 @@ import {
 } from "@/api/generated/guilds/guilds";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { Guild } from "@/types/api";
+import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,7 +93,9 @@ export const SettingsGuildPage = () => {
         name,
         description,
         icon_base64: iconBase64 ?? null,
-      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1]) as unknown as Promise<Guild>);
+      } as Parameters<
+        typeof updateGuildApiV1GuildsGuildIdPatch
+      >[1]) as unknown as Promise<GuildRead>);
       updateGuildInState(result);
       await refreshGuilds();
       setSaveMessage(t("settings.updatedSuccessfully"));

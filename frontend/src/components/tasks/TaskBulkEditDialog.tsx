@@ -27,8 +27,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
-import type { Task, ProjectTaskStatus, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
+import type {
+  TaskPriority,
+  TaskRecurrenceOutput,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Task, TaskRecurrenceStrategy } from "@/types/api";
 import type { UserOption } from "@/components/projects/projectTasksConfig";
 
 export type TaskBulkUpdate = {
@@ -37,13 +41,13 @@ export type TaskBulkUpdate = {
   assignee_ids: number[];
   task_status_id: number;
   priority: TaskPriority;
-  recurrence: TaskRecurrence | null;
+  recurrence: TaskRecurrenceOutput | null;
   recurrence_strategy: TaskRecurrenceStrategy;
 };
 
 interface TaskBulkEditDialogProps {
   selectedTasks: Task[];
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   userOptions: UserOption[];
   isSubmitting: boolean;
   onApply: (changes: Partial<TaskBulkUpdate>) => void;
@@ -64,7 +68,7 @@ export const TaskBulkEditDialog = ({
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [statusId, setStatusId] = useState<string>("");
   const [priority, setPriority] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrence | null>(null);
+  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {

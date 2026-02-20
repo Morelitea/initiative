@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { ProjectTaskStatus } from "@/types/api";
+import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface TodoistParseResult {
   sections: Array<{ name: string; task_count: number }>;
@@ -53,7 +53,7 @@ type Step = "upload" | "configure" | "result";
 // Suggest a status based on section name
 const suggestStatusForSection = (
   sectionName: string,
-  statuses: ProjectTaskStatus[]
+  statuses: TaskStatusRead[]
 ): number | undefined => {
   const lowerName = sectionName.toLowerCase();
 

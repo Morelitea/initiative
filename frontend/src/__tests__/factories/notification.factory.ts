@@ -1,5 +1,4 @@
-import type { NotificationType } from "@/api/generated/initiativeAPI.schemas";
-import type { Notification } from "@/types/api";
+import type { NotificationRead, NotificationType } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -7,7 +6,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildNotification(overrides: Partial<Notification> = {}): Notification {
+export function buildNotification(overrides: Partial<NotificationRead> = {}): NotificationRead {
   counter++;
   return {
     id: counter,

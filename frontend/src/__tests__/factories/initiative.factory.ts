@@ -1,4 +1,5 @@
-import type { Initiative, InitiativeMember } from "@/types/api";
+import type { InitiativeMemberRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Initiative } from "@/types/api";
 import { buildUserPublic } from "./user.factory";
 
 let counter = 0;
@@ -8,8 +9,8 @@ export function resetCounter(): void {
 }
 
 export function buildInitiativeMember(
-  overrides: Partial<InitiativeMember> = {},
-): InitiativeMember {
+  overrides: Partial<InitiativeMemberRead> = {}
+): InitiativeMemberRead {
   counter++;
   return {
     user: buildUserPublic(),
@@ -28,9 +29,7 @@ export function buildInitiativeMember(
   };
 }
 
-export function buildInitiative(
-  overrides: Partial<Initiative> = {},
-): Initiative {
+export function buildInitiative(overrides: Partial<Initiative> = {}): Initiative {
   counter++;
   return {
     id: counter,

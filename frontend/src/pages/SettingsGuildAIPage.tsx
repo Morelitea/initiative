@@ -28,9 +28,9 @@ import type {
   AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
+  GuildAISettingsResponse,
   GuildAISettingsUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { GuildAISettings } from "@/types/api";
 
 interface FormState {
   enabled: boolean | null;
@@ -90,7 +90,7 @@ export const SettingsGuildAIPage = () => {
     mutationFn: async (payload: GuildAISettingsUpdate) => {
       return updateGuildAiSettingsApiV1SettingsAiGuildPut(
         payload as Parameters<typeof updateGuildAiSettingsApiV1SettingsAiGuildPut>[0]
-      ) as unknown as Promise<GuildAISettings>;
+      ) as unknown as Promise<GuildAISettingsResponse>;
     },
     onSuccess: (data) => {
       toast.success(t("guildAI.saveSuccess"));

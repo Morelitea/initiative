@@ -20,14 +20,14 @@ import { Label } from "@/components/ui/label";
 import { DEFAULT_ROLE_LABELS, useRoleLabels, useUpdateRoleLabels } from "@/hooks/useRoleLabels";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterfaceSettings } from "@/hooks/useSettings";
-import type { RoleLabels } from "@/types/api";
+import type { RoleLabelsResponse } from "@/api/generated/initiativeAPI.schemas";
 
 interface InterfaceSettings {
   light_accent_color: string;
   dark_accent_color: string;
 }
 
-const ROLE_FIELDS: { key: keyof RoleLabels; labelKey: string; helperKey: string }[] = [
+const ROLE_FIELDS: { key: keyof RoleLabelsResponse; labelKey: string; helperKey: string }[] = [
   { key: "admin", labelKey: "branding.adminLabel", helperKey: "branding.adminHelper" },
   {
     key: "project_manager",
@@ -43,7 +43,7 @@ export const SettingsBrandingPage = () => {
   const isPlatformAdmin = user?.role === "admin";
   const [lightColor, setLightColor] = useState("#2563eb");
   const [darkColor, setDarkColor] = useState("#60a5fa");
-  const [roleFormState, setRoleFormState] = useState<RoleLabels>(DEFAULT_ROLE_LABELS);
+  const [roleFormState, setRoleFormState] = useState<RoleLabelsResponse>(DEFAULT_ROLE_LABELS);
   const [roleMessage, setRoleMessage] = useState<string | null>(null);
 
   const interfaceQuery = useInterfaceSettings({ enabled: isPlatformAdmin });
@@ -85,7 +85,7 @@ export const SettingsBrandingPage = () => {
     });
   };
 
-  const handleRoleChange = (role: keyof RoleLabels, value: string) => {
+  const handleRoleChange = (role: keyof RoleLabelsResponse, value: string) => {
     setRoleFormState((prev) => ({ ...prev, [role]: value }));
   };
 

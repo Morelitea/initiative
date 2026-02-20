@@ -14,7 +14,8 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
 
-import type { ProjectTaskStatus, Task } from "@/types/api";
+import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Task } from "@/types/api";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,7 +44,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 
 type ProjectTasksListViewProps = {
   tasks: Task[];
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   sensors: DndContextProps["sensors"];
   canReorderTasks: boolean;
   canEditTaskDetails: boolean;

@@ -18,12 +18,14 @@ import {
   checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
   leaveGuildApiV1GuildsGuildIdLeaveDelete,
 } from "@/api/generated/guilds/guilds";
-import type { LeaveGuildEligibilityResponse } from "@/api/generated/initiativeAPI.schemas";
-import type { Guild } from "@/types/api";
+import type {
+  GuildRead,
+  LeaveGuildEligibilityResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import { useGuilds } from "@/hooks/useGuilds";
 
 interface LeaveGuildDialogProps {
-  guild: Guild;
+  guild: GuildRead;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

@@ -30,12 +30,13 @@ import {
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllProjects, invalidateRecentProjects } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { Project, ProjectTaskStatus } from "@/types/api";
+import type { Project } from "@/types/api";
 import type {
   ListProjectsApiV1ProjectsGetParams,
   ProjectActivityResponse,
   ProjectRecentViewRead,
   ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
+  TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
@@ -101,14 +102,14 @@ export const useFavoriteProjects = (options?: QueryOpts<Project[]>) => {
 
 export const useProjectTaskStatuses = (
   projectId: number | null,
-  options?: QueryOpts<ProjectTaskStatus[]>
+  options?: QueryOpts<TaskStatusRead[]>
 ) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<ProjectTaskStatus[]>({
+  return useQuery<TaskStatusRead[]>({
     queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId!),
     queryFn: () =>
       listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId!) as unknown as Promise<
-        ProjectTaskStatus[]
+        TaskStatusRead[]
       >,
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,

@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { User } from "@/types/api";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 type DeletionType = "soft" | "hard";
 type DeletionStep = "choose-type" | "check-blockers" | "transfer-projects" | "confirm";
@@ -58,7 +58,7 @@ interface DeleteAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  user: User;
+  user: UserRead;
 }
 
 export function DeleteAccountDialog({
@@ -94,7 +94,7 @@ export function DeleteAccountDialog({
     useMyDeletionEligibility();
 
   // Fetch initiative members for project transfer
-  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, User[]>>({});
+  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
   const fetchInitiativeMembers = useCallback(
     async (initiativeId: number) => {
       if (initiativeMembers[initiativeId]) return;
@@ -102,7 +102,7 @@ export function DeleteAccountDialog({
       try {
         const data = (await getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
           initiativeId
-        )) as unknown as User[];
+        )) as unknown as UserRead[];
         setInitiativeMembers((prev) => ({
           ...prev,
           [initiativeId]: data.filter((u) => u.id !== user.id),

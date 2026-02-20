@@ -73,10 +73,11 @@ import {
   ALL_PERMISSION_KEYS,
 } from "@/hooks/useInitiativeRoles";
 import type {
+  InitiativeMemberRead,
   InitiativeMemberUpdate,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Initiative, InitiativeMember, PermissionKey } from "@/types/api";
+import type { Initiative, PermissionKey } from "@/types/api";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -141,7 +142,7 @@ export const InitiativeSettingsPage = () => {
   const [renameDisplayName, setRenameDisplayName] = useState("");
 
   // Remove member confirmation
-  const [memberToRemove, setMemberToRemove] = useState<InitiativeMember | null>(null);
+  const [memberToRemove, setMemberToRemove] = useState<InitiativeMemberRead | null>(null);
 
   useEffect(() => {
     if (initiative) {
@@ -463,9 +464,9 @@ export const InitiativeSettingsPage = () => {
     ]
   );
 
-  const memberColumns: ColumnDef<InitiativeMember>[] = useMemo(() => {
+  const memberColumns: ColumnDef<InitiativeMemberRead>[] = useMemo(() => {
     // Get role display name for a member
-    const getRoleDisplayName = (member: InitiativeMember): string => {
+    const getRoleDisplayName = (member: InitiativeMemberRead): string => {
       if (member.role_display_name) {
         return member.role_display_name;
       }

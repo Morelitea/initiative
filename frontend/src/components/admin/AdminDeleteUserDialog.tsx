@@ -31,10 +31,11 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import type {
   AdminUserDeleteRequest,
   AccountDeletionResponse,
+  AdminDeletionEligibilityResponse,
   GuildBlockerInfo,
   InitiativeBlockerInfo,
+  UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { User, DeletionEligibilityResponse } from "@/types/api";
 
 type DeletionType = "soft" | "hard";
 type DeletionStep =
@@ -48,7 +49,7 @@ interface AdminDeleteUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  targetUser: User;
+  targetUser: UserRead;
 }
 
 export function AdminDeleteUserDialog({
@@ -60,7 +61,7 @@ export function AdminDeleteUserDialog({
   const { t } = useTranslation("settings");
   const [step, setStep] = useState<DeletionStep>("choose-type");
   const [deletionType, setDeletionType] = useState<DeletionType>("soft");
-  const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
+  const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
@@ -88,7 +89,7 @@ export function AdminDeleteUserDialog({
     useUserDeletionEligibility(targetUser.id);
 
   // Fetch initiative members for project transfer
-  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, User[]>>({});
+  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
   const fetchInitiativeMembers = useCallback(
     async (initiativeId: number) => {
       if (initiativeMembers[initiativeId]) return;
@@ -96,7 +97,7 @@ export function AdminDeleteUserDialog({
       try {
         const members = await (getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
           initiativeId
-        ) as unknown as Promise<User[]>);
+        ) as unknown as Promise<UserRead[]>);
         setInitiativeMembers((prev) => ({
           ...prev,
           [initiativeId]: members.filter((u) => u.id !== targetUser.id),

@@ -19,8 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
-import type { UserRole } from "@/api/generated/initiativeAPI.schemas";
-import type { User } from "@/types/api";
+import type { UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { DataTable } from "@/components/ui/data-table";
 import { SortIcon } from "@/components/SortIcon";
 
@@ -40,7 +39,7 @@ export const SettingsPlatformUsersPage = () => {
     currentRole: UserRole;
     newRole: UserRole;
   } | null>(null);
-  const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<UserRead | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -151,7 +150,7 @@ export const SettingsPlatformUsersPage = () => {
     return <p className="text-destructive text-sm">{t("platformUsers.loadError")}</p>;
   }
 
-  const userColumns: ColumnDef<User>[] = [
+  const userColumns: ColumnDef<UserRead>[] = [
     {
       id: "name",
       header: t("platformUsers.columnName"),

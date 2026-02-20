@@ -10,63 +10,15 @@ export * from "@/api/generated/initiativeAPI.schemas";
 // existing import names and field requirements.
 
 import type {
-  UserRead,
-  GuildRead,
   InitiativeRead,
   InitiativeMemberRead,
   ProjectRead,
   TaskListRead,
-  CommentRead,
   TagRead,
-  NotificationRead,
-  TaskStatusRead,
-  SubtaskRead,
   TaskAssigneeSummary,
-  GuildSummary,
-  RoleLabelsResponse,
-  EmailSettingsResponse,
-  PlatformAISettingsResponse,
-  GuildAISettingsResponse,
-  UserAISettingsResponse,
-  ResolvedAISettingsResponse,
   ProjectPermissionRead,
-  DocumentPermissionRead,
-  ProjectRolePermissionRead,
-  DocumentRolePermissionRead,
-  TaskReorderRequest,
-  TaskMoveRequest,
-  ProjectReorderRequest,
-  DocumentSummaryDocumentType,
-  TaskRecurrenceOutput,
-  TaskRecurrenceOutputFrequency,
-  TaskRecurrenceOutputWeekdaysItem,
-  AdminDeletionEligibilityResponse,
-  ProjectDocumentSummary,
   ProjectTaskSummary as GenProjectTaskSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-
-// --- Simple renames (no shape changes) ---
-export type User = UserRead;
-export type Guild = GuildRead;
-export type TaskMovePayload = TaskMoveRequest;
-export type TaskReorderPayload = TaskReorderRequest;
-export type ProjectReorderPayload = ProjectReorderRequest;
-export type DocumentType = DocumentSummaryDocumentType;
-export type TaskRecurrence = TaskRecurrenceOutput;
-export type TaskRecurrenceFrequency = TaskRecurrenceOutputFrequency;
-export type TaskWeekday = TaskRecurrenceOutputWeekdaysItem;
-export type Notification = NotificationRead;
-export type RoleLabels = RoleLabelsResponse;
-export type EmailSettings = EmailSettingsResponse;
-export type PlatformAISettings = PlatformAISettingsResponse;
-export type GuildAISettings = GuildAISettingsResponse;
-export type UserAISettings = UserAISettingsResponse;
-export type ResolvedAISettings = ResolvedAISettingsResponse;
-export type ProjectPermission = ProjectPermissionRead;
-export type DocumentPermission = DocumentPermissionRead;
-export type ProjectRolePermission = ProjectRolePermissionRead;
-export type DocumentRolePermission = DocumentRolePermissionRead;
-export type TaskGuildSummary = GuildSummary;
 
 // --- Aliases where the generated type has optional fields the codebase treats as required ---
 
@@ -74,8 +26,6 @@ export type TaskGuildSummary = GuildSummary;
 export type Initiative = Omit<InitiativeRead, "members"> & {
   members: InitiativeMemberRead[];
 };
-
-export type InitiativeMember = InitiativeMemberRead;
 
 /**
  * Unified Task type that covers both list and detail shapes.
@@ -88,14 +38,8 @@ export type Task = Omit<TaskListRead, "assignees"> & {
   is_archived: boolean;
 };
 
-export type Comment = CommentRead;
-
 /** Tag with required color field */
 export type Tag = Omit<TagRead, "color"> & { color: string };
-
-export type ProjectTaskStatus = TaskStatusRead;
-export type TaskSubtask = SubtaskRead;
-export type TaskAssignee = TaskAssigneeSummary;
 
 /** Project with required permissions array */
 export type Project = Omit<ProjectRead, "permissions"> & {
@@ -104,15 +48,6 @@ export type Project = Omit<ProjectRead, "permissions"> & {
 
 /** ProjectTaskSummary with required fields */
 export type ProjectTaskSummary = Required<GenProjectTaskSummary>;
-
-/**
- * DeletionEligibilityResponse — the codebase's admin dialog uses the admin variant
- * which includes guild_blockers and initiative_blockers.
- */
-export type DeletionEligibilityResponse = AdminDeletionEligibilityResponse;
-
-/** Backward compat alias */
-export type ProjectDocumentLink = ProjectDocumentSummary;
 
 // --- Paginated response wrappers (frontend-only; not in the OpenAPI spec) ---
 // TaskListResponse and DocumentListResponse are now generated — see initiativeAPI.schemas.
@@ -134,6 +69,8 @@ export type TaskRecurrenceStrategy = "fixed" | "rolling";
 export type PermissionKey = "docs_enabled" | "projects_enabled" | "create_docs" | "create_projects";
 
 export type MentionEntityType = "user" | "task" | "doc" | "project";
+
+import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
 
 export interface CommentWithReplies extends CommentRead {
   replies: CommentWithReplies[];
