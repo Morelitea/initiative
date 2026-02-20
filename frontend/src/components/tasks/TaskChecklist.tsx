@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isAxiosError } from "axios";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -21,17 +19,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Loader2, Trash2, SquareCheck, Sparkles } from "lucide-react";
 
 import {
-  createSubtaskApiV1TasksTaskIdSubtasksPost,
-  createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost,
-  reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut,
-  generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost,
-} from "@/api/generated/tasks/tasks";
-import { useSubtasks } from "@/hooks/useTasks";
-import {
-  updateSubtaskApiV1SubtasksSubtaskIdPatch,
-  deleteSubtaskApiV1SubtasksSubtaskIdDelete,
-} from "@/api/generated/subtasks/subtasks";
-import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
+  useSubtasks,
+  useCreateSubtask,
+  useCreateSubtasksBatch,
+  useUpdateSubtask,
+  useDeleteSubtask,
+  useReorderSubtasks,
+  useGenerateSubtasks,
+} from "@/hooks/useTasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -44,10 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type {
-  TaskSubtaskProgress,
-  GenerateSubtasksResponse,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { TaskSubtaskProgress } from "@/api/generated/initiativeAPI.schemas";
 import type { SubtaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
@@ -56,11 +48,6 @@ type TaskChecklistProps = {
   taskId: number;
   projectId?: number | null;
   canEdit: boolean;
-};
-
-type UpdatePayload = {
-  subtaskId: number;
-  data: Partial<Pick<SubtaskRead, "content" | "is_completed">>;
 };
 
 export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
@@ -73,12 +60,6 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [generatedSubtasks, setGeneratedSubtasks] = useState<string[]>([]);
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
-
-  const invalidateRelatedData = useCallback(() => {
-    void invalidateTaskSubtasks(taskId);
-    void invalidateTask(taskId);
-    void invalidateAllTasks();
-  }, [taskId]);
 
   const subtasksQuery = useSubtasks(taskId);
 
@@ -104,39 +85,14 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     return { completed, total };
   }, [localSubtasks]);
 
-  const parseErrorMessage = (error: unknown, fallback: string) => {
-    if (isAxiosError(error)) {
-      return (error.response?.data?.detail as string) ?? fallback;
-    }
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return fallback;
-  };
-
-  const createSubtask = useMutation({
-    mutationFn: async (content: string) => {
-      return createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, {
-        content,
-      }) as unknown as Promise<SubtaskRead>;
-    },
+  const createSubtask = useCreateSubtask({
     onSuccess: () => {
       setNewContent("");
-      invalidateRelatedData();
       toast.success(t("checklist.itemAdded"));
-    },
-    onError: (error) => {
-      toast.error(parseErrorMessage(error, t("checklist.addError")));
     },
   });
 
-  const updateSubtask = useMutation({
-    mutationFn: async ({ subtaskId, data }: UpdatePayload) => {
-      return updateSubtaskApiV1SubtasksSubtaskIdPatch(
-        subtaskId,
-        data
-      ) as unknown as Promise<SubtaskRead>;
-    },
+  const updateSubtask = useUpdateSubtask({
     onSuccess: (_response, variables) => {
       if (variables.data.content !== undefined) {
         setContentDrafts((previous) => {
@@ -145,58 +101,36 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
           return next;
         });
       }
-      invalidateRelatedData();
-    },
-    onError: (error) => {
-      toast.error(parseErrorMessage(error, t("checklist.updateError")));
     },
   });
 
-  const deleteSubtask = useMutation({
-    mutationFn: async (subtaskId: number) => {
-      await deleteSubtaskApiV1SubtasksSubtaskIdDelete(subtaskId);
-    },
-    onSuccess: (_response, subtaskId) => {
+  const deleteSubtask = useDeleteSubtask({
+    onSuccess: (_response, variables) => {
       setContentDrafts((previous) => {
         const next = { ...previous };
-        delete next[subtaskId];
+        delete next[variables.subtaskId];
         return next;
       });
-      invalidateRelatedData();
       toast.success(t("checklist.itemDeleted"));
     },
-    onError: (error) => {
-      toast.error(parseErrorMessage(error, t("checklist.deleteError")));
-    },
   });
 
-  const reorderSubtasks = useMutation({
-    mutationFn: async (items: { id: number; position: number }[]) => {
-      return reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, {
-        items,
-      }) as unknown as Promise<SubtaskRead[]>;
-    },
-    onSuccess: () => {
-      invalidateRelatedData();
-    },
-    onError: (error) => {
-      toast.error(parseErrorMessage(error, t("checklist.reorderError")));
-    },
-  });
+  const reorderSubtasks = useReorderSubtasks();
 
-  const generateSubtasksMutation = useMutation({
-    mutationFn: async () => {
-      return generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(
-        taskId
-      ) as unknown as Promise<GenerateSubtasksResponse>;
-    },
+  const generateSubtasksMutation = useGenerateSubtasks({
     onSuccess: (data) => {
       setGeneratedSubtasks(data.subtasks);
       setSelectedSubtasks(new Set(data.subtasks.map((_, index) => index)));
       setAiDialogOpen(true);
     },
-    onError: (error) => {
-      toast.error(parseErrorMessage(error, t("checklist.generateError")));
+  });
+
+  const createSubtasksBatch = useCreateSubtasksBatch({
+    onSuccess: (_data, variables) => {
+      toast.success(t("checklist.batchAdded", { count: variables.contents.length }));
+      setAiDialogOpen(false);
+      setGeneratedSubtasks([]);
+      setSelectedSubtasks(new Set());
     },
   });
 
@@ -207,18 +141,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
       return;
     }
 
-    try {
-      await createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost(taskId, {
-        contents: subtasksToAdd,
-      });
-      invalidateRelatedData();
-      toast.success(t("checklist.batchAdded", { count: subtasksToAdd.length }));
-      setAiDialogOpen(false);
-      setGeneratedSubtasks([]);
-      setSelectedSubtasks(new Set());
-    } catch (error) {
-      toast.error(parseErrorMessage(error, t("checklist.batchAddError")));
-    }
+    await createSubtasksBatch.mutateAsync({ taskId, contents: subtasksToAdd });
   };
 
   const toggleSubtaskSelection = (index: number) => {
@@ -242,7 +165,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
       return;
     }
     setShouldRefocusAddInput(true);
-    createSubtask.mutate(trimmed);
+    createSubtask.mutate({ taskId, content: trimmed });
   };
 
   const handleToggle = (item: SubtaskRead, checked: boolean) => {
@@ -256,6 +179,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     );
     updateSubtask.mutate({
       subtaskId: item.id,
+      taskId,
       data: { is_completed: checked },
     });
   };
@@ -290,6 +214,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
     );
     updateSubtask.mutate({
       subtaskId: item.id,
+      taskId,
       data: { content: trimmed },
     });
   };
@@ -318,9 +243,12 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
       }
       const next = arrayMove(localSubtasks, oldIndex, newIndex);
       setLocalSubtasks(next);
-      reorderSubtasks.mutate(next.map((item, position) => ({ id: item.id, position })));
+      reorderSubtasks.mutate({
+        taskId,
+        items: next.map((item, position) => ({ id: item.id, position })),
+      });
     },
-    [canEdit, localSubtasks, reorderSubtasks]
+    [canEdit, localSubtasks, reorderSubtasks, taskId]
   );
 
   const reorderDisabled = !canEdit || reorderSubtasks.isPending;
@@ -345,7 +273,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => generateSubtasksMutation.mutate()}
+              onClick={() => generateSubtasksMutation.mutate(taskId)}
               disabled={generateSubtasksMutation.isPending}
             >
               {generateSubtasksMutation.isPending ? (
@@ -400,7 +328,7 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
                       }
                       onContentBlur={() => handleContentBlur(item)}
                       onToggle={(value) => handleToggle(item, value)}
-                      onDelete={() => deleteSubtask.mutate(item.id)}
+                      onDelete={() => deleteSubtask.mutate({ subtaskId: item.id, taskId })}
                     />
                   ))}
                 </ul>

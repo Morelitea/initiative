@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useMutation } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
-import { useTasks, usePrefetchTasks } from "@/hooks/useTasks";
+import { useTasks, usePrefetchTasks, useUpdateTask } from "@/hooks/useTasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
-import { invalidateAllTasks } from "@/api/query-keys";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -168,21 +166,8 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, prefetchTasks]
   );
 
-  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
-    mutationFn: async ({
-      taskId,
-      taskStatusId,
-    }: {
-      taskId: number;
-      taskStatusId: number;
-      guildId: number | null;
-    }) => {
-      return updateTaskApiV1TasksTaskIdPatch(taskId, {
-        task_status_id: taskStatusId,
-      }) as unknown as Promise<TaskListRead>;
-    },
+  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useUpdateTask({
     onSuccess: (updatedTask) => {
-      void invalidateAllTasks();
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
@@ -254,8 +239,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       try {
         await updateTaskStatusMutate({
           taskId: task.id,
-          taskStatusId: targetStatusId,
-          guildId: targetGuildId,
+          data: { task_status_id: targetStatusId },
         });
       } catch (error) {
         console.error(error);

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Centralized inline `useMutation` hooks for tasks, subtasks, and task statuses into domain hook files (`useTasks.ts`, `useProjects.ts`) — replaces ~30 inline mutations across 10 component/page files
+- All mutation hooks now accept an optional `MutationOpts` parameter, allowing callers to provide `onSuccess`, `onError`, `onSettled`, and other mutation options
+- Added shared `MutationOpts` type (`frontend/src/types/mutation.ts`)
+
 ## [0.31.4] - 2026-02-20
 
 ### Fixed
