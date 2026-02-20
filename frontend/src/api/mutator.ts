@@ -1,17 +1,21 @@
 import type { AxiosRequestConfig } from "axios";
-import { apiClient } from "./client";
+import { Capacitor } from "@capacitor/core";
+import { API_BASE_URL, apiClient } from "./client";
 
 // Orval custom instance mutator (httpClient: "axios" mode)
 // Wraps the existing apiClient so all interceptors (auth, guild header) are preserved.
 // With httpClient: "axios", Orval calls this with (config, options) where config
 // is an AxiosRequestConfig-like object { url, method, data, params, headers, signal }.
-// Generated URLs already include the full /api/v1 prefix, so we set baseURL to ""
-// to avoid double-prefixing with the apiClient's own baseURL.
+// Generated URLs already include the full /api/v1 prefix, so on web we set baseURL
+// to "" to avoid double-prefixing with the apiClient's own baseURL.
+// On native (Capacitor), we must use the configured server origin so requests
+// reach the actual backend instead of the WebView's own origin.
 export const apiMutator = <T>(
   config: AxiosRequestConfig,
   _options?: AxiosRequestConfig // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<T> => {
-  return apiClient<T>({ ...config, baseURL: "" }).then(({ data }) => data);
+  const baseURL = Capacitor.isNativePlatform() ? API_BASE_URL.replace(/\/api\/v1\/?$/, "") : "";
+  return apiClient<T>({ ...config, baseURL }).then(({ data }) => data);
 };
 
 export default apiMutator;
