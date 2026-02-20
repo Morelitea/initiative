@@ -1,25 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
-
-import {
-  updateProjectApiV1ProjectsProjectIdPatch,
-  deleteProjectApiV1ProjectsProjectIdDelete,
-  archiveProjectApiV1ProjectsProjectIdArchivePost,
-  unarchiveProjectApiV1ProjectsProjectIdUnarchivePost,
-  duplicateProjectApiV1ProjectsProjectIdDuplicatePost,
-  addProjectMemberApiV1ProjectsProjectIdMembersPost,
-  updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch,
-  removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete,
-  addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost,
-  removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost,
-  addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost,
-  updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch,
-  removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete,
-} from "@/api/generated/projects/projects";
-import { invalidateAllProjects, invalidateProject } from "@/api/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -55,11 +37,25 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
-import { useProject } from "@/hooks/useProjects";
+import {
+  useProject,
+  useUpdateProject,
+  useDeleteProject,
+  useArchiveProject,
+  useUnarchiveProject,
+  useDuplicateProject,
+  useAddProjectMember,
+  useUpdateProjectMember,
+  useRemoveProjectMember,
+  useAddProjectMembersBulk,
+  useRemoveProjectMembersBulk,
+  useAddProjectRolePermission,
+  useUpdateProjectRolePermission,
+  useRemoveProjectRolePermission,
+} from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
 import {
   ProjectPermissionLevel,
-  ProjectRead,
   ProjectRolePermissionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -127,134 +123,61 @@ export const ProjectSettingsPage = () => {
     }
   }, [projectQuery.data]);
 
-  const updateInitiativeOwnership = useMutation({
-    mutationFn: async () => {
-      if (!selectedInitiativeId) {
-        throw new Error("Select an initiative");
-      }
-      const payload = { initiative_id: Number(selectedInitiativeId) };
-      return updateProjectApiV1ProjectsProjectIdPatch(
-        parsedProjectId,
-        payload
-      ) as unknown as Promise<ProjectRead>;
-    },
+  const updateInitiativeOwnership = useUpdateProject({
     onSuccess: (data) => {
       setInitiativeMessage(t("settings.initiative.updated"));
       setSelectedInitiativeId(String(data.initiative_id));
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
   });
 
-  const updateIdentity = useMutation({
-    mutationFn: async () => {
-      const trimmedIcon = iconText.trim();
-      const payload = {
-        name: nameText.trim() || projectQuery.data?.name || "",
-        icon: trimmedIcon ? trimmedIcon : null,
-      };
-      return updateProjectApiV1ProjectsProjectIdPatch(
-        parsedProjectId,
-        payload
-      ) as unknown as Promise<ProjectRead>;
-    },
+  const updateIdentity = useUpdateProject({
     onSuccess: (data) => {
       setIdentityMessage(t("settings.details.detailsUpdated"));
       setNameText(data.name);
       setIconText(data.icon ?? "");
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
   });
 
-  const archiveProject = useMutation({
-    mutationFn: async () => {
-      await archiveProjectApiV1ProjectsProjectIdArchivePost(parsedProjectId);
-    },
-    onSuccess: () => {
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
-    },
-  });
+  const archiveProject = useArchiveProject();
 
-  const unarchiveProject = useMutation({
-    mutationFn: async () => {
-      await unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(parsedProjectId);
-    },
-    onSuccess: () => {
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
-    },
-  });
+  const unarchiveProject = useUnarchiveProject();
 
-  const updateDescription = useMutation({
-    mutationFn: async () => {
-      return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
-        description: descriptionText,
-      }) as unknown as Promise<ProjectRead>;
-    },
+  const updateDescription = useUpdateProject({
     onSuccess: (data) => {
       setDescriptionMessage(t("settings.details.descriptionUpdated"));
       setDescriptionText(data.description ?? "");
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
   });
 
-  const duplicateProject = useMutation({
-    mutationFn: async (name?: string) => {
-      return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(parsedProjectId, {
-        name: name?.trim() || undefined,
-      }) as unknown as Promise<ProjectRead>;
-    },
+  const duplicateProject = useDuplicateProject({
     onSuccess: (data) => {
       setDuplicateMessage(t("settings.duplicate.duplicated"));
-      void invalidateAllProjects();
-      void invalidateProject(data.id);
       router.navigate({ to: gp(`/projects/${data.id}`) });
     },
   });
 
-  const toggleTemplateStatus = useMutation({
-    mutationFn: async (nextStatus: boolean) => {
-      return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
-        is_template: nextStatus,
-      }) as unknown as Promise<ProjectRead>;
-    },
-    onSuccess: (_data, nextStatus) => {
+  const toggleTemplateStatus = useUpdateProject({
+    onSuccess: (_data, vars) => {
       setTemplateMessage(
-        nextStatus
+        vars.data.is_template
           ? t("settings.templateStatus.markedAsTemplate")
           : t("settings.templateStatus.removedFromTemplates")
       );
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
   });
 
-  const deleteProject = useMutation({
-    mutationFn: async () => {
-      await deleteProjectApiV1ProjectsProjectIdDelete(parsedProjectId);
-    },
+  const deleteProject = useDeleteProject({
     onSuccess: () => {
-      void invalidateAllProjects();
       router.navigate({ to: "/" });
     },
   });
 
-  const addMember = useMutation({
-    mutationFn: async ({ userId, level }: { userId: number; level: ProjectPermissionLevel }) => {
-      await addProjectMemberApiV1ProjectsProjectIdMembersPost(parsedProjectId, {
-        user_id: userId,
-        level,
-      });
-    },
+  const addMember = useAddProjectMember(parsedProjectId, {
     onSuccess: () => {
       setAccessMessage(t("settings.access.granted"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -262,16 +185,10 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const updateMemberLevel = useMutation({
-    mutationFn: async ({ userId, level }: { userId: number; level: ProjectPermissionLevel }) => {
-      await updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch(parsedProjectId, userId, {
-        level,
-      });
-    },
+  const updateMemberLevel = useUpdateProjectMember(parsedProjectId, {
     onSuccess: () => {
       setAccessMessage(t("settings.access.updated"));
       setAccessError(null);
-      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -279,14 +196,10 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const removeMember = useMutation({
-    mutationFn: async (userId: number) => {
-      await removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete(parsedProjectId, userId);
-    },
+  const removeMember = useRemoveProjectMember(parsedProjectId, {
     onSuccess: () => {
       setAccessMessage(t("settings.access.removed"));
       setAccessError(null);
-      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -294,20 +207,12 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const addAllMembers = useMutation({
-    mutationFn: async (level: ProjectPermissionLevel) => {
-      const userIds = availableMembers.map((member) => member.user.id);
-      await addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost(parsedProjectId, {
-        user_ids: userIds,
-        level,
-      });
-    },
+  const addAllMembers = useAddProjectMembersBulk(parsedProjectId, {
     onSuccess: () => {
       setAccessMessage(t("settings.access.grantedAll"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -315,24 +220,11 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const bulkUpdateLevel = useMutation({
-    mutationFn: async ({
-      userIds,
-      level,
-    }: {
-      userIds: number[];
-      level: ProjectPermissionLevel;
-    }) => {
-      await addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost(parsedProjectId, {
-        user_ids: userIds,
-        level,
-      });
-    },
+  const bulkUpdateLevel = useAddProjectMembersBulk(parsedProjectId, {
     onSuccess: () => {
       setAccessMessage(t("settings.access.bulkUpdated"));
       setAccessError(null);
       setSelectedMembers([]);
-      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -340,17 +232,11 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const bulkRemoveMembers = useMutation({
-    mutationFn: async (userIds: number[]) => {
-      await removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost(parsedProjectId, {
-        user_ids: userIds,
-      });
-    },
+  const bulkRemoveMembers = useRemoveProjectMembersBulk(parsedProjectId, {
     onSuccess: () => {
       setAccessMessage(t("settings.access.bulkRemoved"));
       setAccessError(null);
       setSelectedMembers([]);
-      void invalidateProject(parsedProjectId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -362,20 +248,12 @@ export const ProjectSettingsPage = () => {
 
   const initiativeRolesQuery = useInitiativeRoles(project?.initiative_id ?? null);
 
-  const addRolePermission = useMutation({
-    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost(parsedProjectId, {
-        initiative_role_id: roleId,
-        level,
-      });
-    },
+  const addRolePermission = useAddProjectRolePermission(parsedProjectId, {
     onSuccess: () => {
       setRoleAccessMessage(t("settings.roleAccess.granted"));
       setRoleAccessError(null);
       setSelectedNewRoleId("");
       setSelectedNewRoleLevel("read");
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
     onError: () => {
       setRoleAccessMessage(null);
@@ -383,21 +261,10 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const updateRolePermission = useMutation({
-    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch(
-        parsedProjectId,
-        roleId,
-        {
-          level,
-        }
-      );
-    },
+  const updateRolePermission = useUpdateProjectRolePermission(parsedProjectId, {
     onSuccess: () => {
       setRoleAccessMessage(t("settings.roleAccess.updated"));
       setRoleAccessError(null);
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
     onError: () => {
       setRoleAccessMessage(null);
@@ -405,18 +272,10 @@ export const ProjectSettingsPage = () => {
     },
   });
 
-  const removeRolePermission = useMutation({
-    mutationFn: async (roleId: number) => {
-      await removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete(
-        parsedProjectId,
-        roleId
-      );
-    },
+  const removeRolePermission = useRemoveProjectRolePermission(parsedProjectId, {
     onSuccess: () => {
       setRoleAccessMessage(t("settings.roleAccess.removed"));
       setRoleAccessError(null);
-      void invalidateProject(parsedProjectId);
-      void invalidateAllProjects();
     },
     onError: () => {
       setRoleAccessMessage(null);
@@ -452,7 +311,7 @@ export const ProjectSettingsPage = () => {
               setRoleAccessError(null);
               updateRolePermission.mutate({
                 roleId: row.original.initiative_role_id,
-                level: value as "read" | "write",
+                data: { level: value as ProjectPermissionLevel },
               });
             }}
             disabled={updateRolePermission.isPending}
@@ -554,7 +413,7 @@ export const ProjectSettingsPage = () => {
                 setAccessError(null);
                 updateMemberLevel.mutate({
                   userId: row.original.userId,
-                  level: value as ProjectPermissionLevel,
+                  data: { level: value as ProjectPermissionLevel },
                 });
               }}
               disabled={updateMemberLevel.isPending}
@@ -725,7 +584,14 @@ export const ProjectSettingsPage = () => {
                     onSubmit={(event) => {
                       event.preventDefault();
                       setIdentityMessage(null);
-                      updateIdentity.mutate();
+                      const trimmedIcon = iconText.trim();
+                      updateIdentity.mutate({
+                        projectId: parsedProjectId,
+                        data: {
+                          name: nameText.trim() || projectQuery.data?.name || "",
+                          icon: trimmedIcon || null,
+                        },
+                      });
                     }}
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-start">
@@ -790,7 +656,10 @@ export const ProjectSettingsPage = () => {
                     className="space-y-4"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      updateDescription.mutate();
+                      updateDescription.mutate({
+                        projectId: parsedProjectId,
+                        data: { description: descriptionText },
+                      });
                     }}
                   >
                     <Textarea
@@ -860,7 +729,11 @@ export const ProjectSettingsPage = () => {
                     className="flex flex-wrap items-end gap-3"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      updateInitiativeOwnership.mutate();
+                      if (!selectedInitiativeId) return;
+                      updateInitiativeOwnership.mutate({
+                        projectId: parsedProjectId,
+                        data: { initiative_id: Number(selectedInitiativeId) },
+                      });
                     }}
                   >
                     <div className="min-w-[220px] flex-1">
@@ -939,7 +812,7 @@ export const ProjectSettingsPage = () => {
                         }
                         setRoleAccessError(null);
                         addRolePermission.mutate({
-                          roleId: Number(selectedNewRoleId),
+                          initiative_role_id: Number(selectedNewRoleId),
                           level: selectedNewRoleLevel,
                         });
                       }}
@@ -1006,7 +879,7 @@ export const ProjectSettingsPage = () => {
                           .map((m) => m.userId);
                         if (userIds.length > 0) {
                           bulkUpdateLevel.mutate({
-                            userIds,
+                            user_ids: userIds,
                             level: level as ProjectPermissionLevel,
                           });
                         }
@@ -1032,7 +905,7 @@ export const ProjectSettingsPage = () => {
                           .filter((m) => !m.isOwner)
                           .map((m) => m.userId);
                         if (userIds.length > 0) {
-                          bulkRemoveMembers.mutate(userIds);
+                          bulkRemoveMembers.mutate({ user_ids: userIds });
                         }
                       }}
                       disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
@@ -1076,7 +949,7 @@ export const ProjectSettingsPage = () => {
                         }
                         setAccessError(null);
                         addMember.mutate({
-                          userId: Number(selectedNewUserId),
+                          user_id: Number(selectedNewUserId),
                           level: selectedNewLevel,
                         });
                       }}
@@ -1121,7 +994,12 @@ export const ProjectSettingsPage = () => {
                       <Button
                         type="button"
                         variant="secondary"
-                        onClick={() => addAllMembers.mutate(selectedNewLevel)}
+                        onClick={() =>
+                          addAllMembers.mutate({
+                            user_ids: availableMembers.map((m) => m.user.id),
+                            level: selectedNewLevel,
+                          })
+                        }
                         disabled={addMember.isPending || addAllMembers.isPending}
                       >
                         {addAllMembers.isPending
@@ -1168,7 +1046,10 @@ export const ProjectSettingsPage = () => {
                   variant={project.is_template ? "outline" : "default"}
                   onClick={() => {
                     setTemplateMessage(null);
-                    toggleTemplateStatus.mutate(!project.is_template);
+                    toggleTemplateStatus.mutate({
+                      projectId: parsedProjectId,
+                      data: { is_template: !project.is_template },
+                    });
                   }}
                   disabled={toggleTemplateStatus.isPending}
                 >
@@ -1208,7 +1089,10 @@ export const ProjectSettingsPage = () => {
                       return;
                     }
                     setDuplicateMessage(null);
-                    duplicateProject.mutate(newName);
+                    duplicateProject.mutate({
+                      projectId: parsedProjectId,
+                      data: { name: newName.trim() || undefined },
+                    });
                   }}
                   disabled={duplicateProject.isPending}
                 >
@@ -1239,7 +1123,9 @@ export const ProjectSettingsPage = () => {
                   type="button"
                   variant="outline"
                   onClick={() =>
-                    project.is_archived ? unarchiveProject.mutate() : archiveProject.mutate()
+                    project.is_archived
+                      ? unarchiveProject.mutate(parsedProjectId)
+                      : archiveProject.mutate(parsedProjectId)
                   }
                   disabled={archiveProject.isPending || unarchiveProject.isPending}
                 >
@@ -1285,7 +1171,7 @@ export const ProjectSettingsPage = () => {
         description={t("settings.danger.deleteDescription")}
         confirmLabel={t("settings.danger.deleteConfirm")}
         onConfirm={() => {
-          deleteProject.mutate();
+          deleteProject.mutate(parsedProjectId);
           setShowDeleteConfirm(false);
         }}
         isLoading={deleteProject.isPending}

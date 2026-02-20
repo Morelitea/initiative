@@ -1,17 +1,11 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { getItem, setItem } from "@/lib/storage";
 import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-
-import {
-  attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost,
-  detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete,
-} from "@/api/generated/projects/projects";
-import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
 import { useInitiativeDocuments } from "@/hooks/useDocuments";
+import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -69,44 +63,17 @@ export const ProjectDocumentsSection = ({
     [documents]
   );
 
-  const attachMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedDocumentId) {
-        throw new Error("Select a document to attach.");
-      }
-      const response = await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
-        projectId,
-        Number(selectedDocumentId)
-      );
-      return response;
-    },
+  const attachMutation = useAttachProjectDocument(projectId, {
     onSuccess: () => {
       toast.success(t("documents.attached"));
       setDialogOpen(false);
       setSelectedDocumentId("");
-      void invalidateProject(projectId);
-      void invalidateAllDocuments();
-    },
-    onError: () => {
-      toast.error(t("documents.attachError"));
     },
   });
 
-  const detachMutation = useMutation({
-    mutationFn: async (documentId: number) => {
-      await detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete(
-        projectId,
-        documentId
-      );
-      return documentId;
-    },
+  const detachMutation = useDetachProjectDocument(projectId, {
     onSuccess: () => {
       toast.success(t("documents.detached"));
-      void invalidateProject(projectId);
-      void invalidateAllDocuments();
-    },
-    onError: () => {
-      toast.error(t("documents.detachError"));
     },
   });
 
@@ -217,7 +184,7 @@ export const ProjectDocumentsSection = ({
                   <DialogFooter>
                     <Button
                       type="button"
-                      onClick={() => attachMutation.mutate()}
+                      onClick={() => attachMutation.mutate(Number(selectedDocumentId))}
                       disabled={
                         attachMutation.isPending ||
                         !selectedDocumentId ||
