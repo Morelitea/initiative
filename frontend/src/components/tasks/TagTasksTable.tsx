@@ -19,8 +19,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
-import type { TaskPriority, TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
-import type { ProjectTaskStatus, Task } from "@/types/api";
+import type {
+  TaskPriority,
+  TaskStatusCategory,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Task } from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -68,9 +72,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const searchParams = useSearch({ strict: false }) as { page?: number };
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const projectStatusCache = useRef<
-    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
-  >(new Map());
+  const projectStatusCache = useRef<Map<number, { statuses: TaskStatusRead[]; complete: boolean }>>(
+    new Map()
+  );
 
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(DEFAULT_STATUS_FILTERS);
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>([]);
@@ -214,7 +218,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     }
     const statuses = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
       projectId
-    ) as unknown as Promise<ProjectTaskStatus[]>);
+    ) as unknown as Promise<TaskStatusRead[]>);
     const merged = cached
       ? [
           ...cached.statuses,

@@ -42,7 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Guild } from "@/types/api";
+import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { LogoIcon } from "../LogoIcon";
 import { GuildContextMenu } from "./GuildContextMenu";
 
@@ -176,7 +176,7 @@ const SortableGuildButton = ({
   isActive,
   onSelect,
 }: {
-  guild: Guild;
+  guild: GuildRead;
   isActive: boolean;
   onSelect: (guildId: number) => void;
 }) => {

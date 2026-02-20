@@ -1,4 +1,4 @@
-import type { Comment } from "@/types/api";
+import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -6,7 +6,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildComment(overrides: Partial<Comment> = {}): Comment {
+export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead {
   counter++;
   return {
     id: counter,

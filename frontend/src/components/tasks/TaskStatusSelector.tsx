@@ -9,16 +9,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ProjectTaskStatus, Task } from "@/types/api";
+import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Task } from "@/types/api";
 
 type TaskStatusSelectorProps = {
   task: Task;
   activeGuildId: number | null;
   isUpdatingTaskStatus: boolean;
   changeTaskStatusById: (task: Task, statusId: number) => Promise<void>;
-  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<ProjectTaskStatus[]>;
+  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
   projectStatusCache: React.MutableRefObject<
-    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
+    Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
 };
 
@@ -31,7 +32,7 @@ export const TaskStatusSelector = ({
   projectStatusCache,
 }: TaskStatusSelectorProps) => {
   const { t } = useTranslation("tasks");
-  const [statuses, setStatuses] = useState<ProjectTaskStatus[]>(() => {
+  const [statuses, setStatuses] = useState<TaskStatusRead[]>(() => {
     const cached = projectStatusCache.current.get(task.project_id);
     return cached?.statuses ?? [task.task_status];
   });

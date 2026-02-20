@@ -35,12 +35,12 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
-import type { ProjectDocumentLink } from "@/types/api";
+import type { ProjectDocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 
 type ProjectDocumentsSectionProps = {
   projectId: number;
   initiativeId: number;
-  documents: ProjectDocumentLink[];
+  documents: ProjectDocumentSummary[];
   canCreate: boolean;
   canAttach: boolean;
 };
@@ -310,7 +310,7 @@ export const ProjectDocumentsSection = ({
 };
 
 const createFallbackSummary = (
-  doc: ProjectDocumentLink,
+  doc: ProjectDocumentSummary,
   initiativeId: number
 ): DocumentSummary => ({
   id: doc.document_id,

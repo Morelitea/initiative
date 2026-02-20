@@ -17,17 +17,17 @@ import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
-import type { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
-import type { Project, ProjectTaskStatus, Task } from "@/types/api";
+import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Project, Task } from "@/types/api";
 
 interface GlobalTaskColumnsOptions {
   activeGuildId: number | null;
   isUpdatingTaskStatus: boolean;
   changeTaskStatus: (task: Task, category: TaskStatusCategory) => Promise<void>;
   changeTaskStatusById: (task: Task, statusId: number) => Promise<void>;
-  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<ProjectTaskStatus[]>;
+  fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
   projectStatusCache: React.MutableRefObject<
-    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
+    Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
   projectsById: Record<number, Project>;
   t: TranslateFn;

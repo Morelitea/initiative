@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Badge } from "@/components/ui/badge";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import type { User } from "@/types/api";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 const FALLBACK_TIMEZONES = [
   "UTC",
@@ -56,7 +56,7 @@ type NotificationField =
   | "push_mentions";
 
 interface UserSettingsNotificationsPageProps {
-  user: User;
+  user: UserRead;
   refreshUser: () => Promise<void>;
 }
 

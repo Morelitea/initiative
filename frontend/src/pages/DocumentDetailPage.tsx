@@ -63,11 +63,11 @@ import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type {
+  CommentRead,
   DocumentProjectLink,
   DocumentRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Comment } from "@/types/api";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
@@ -268,7 +268,7 @@ export const DocumentDetailPage = () => {
     });
   };
 
-  const handleCommentCreated = (comment: Comment) => {
+  const handleCommentCreated = (comment: CommentRead) => {
     commentsCache.addComment(comment);
     updateDocumentCommentCount(1);
   };
@@ -278,7 +278,7 @@ export const DocumentDetailPage = () => {
     updateDocumentCommentCount(-1);
   };
 
-  const handleCommentUpdated = (updatedComment: Comment) => {
+  const handleCommentUpdated = (updatedComment: CommentRead) => {
     commentsCache.updateComment(updatedComment);
   };
 

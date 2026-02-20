@@ -13,15 +13,15 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TagPicker } from "@/components/tags/TagPicker";
 import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import type { ProjectTaskStatus, Tag } from "@/types/api";
+import type { TagSummary, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Tag } from "@/types/api";
 
 export type ListStatusFilter = "all" | "incomplete" | number;
 
 type ProjectTasksFiltersProps = {
   viewMode: "kanban" | "table" | "calendar" | "gantt";
   userOptions: UserOption[];
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   tags: Tag[];
   assigneeFilters: string[];
   dueFilter: DueFilterOption;

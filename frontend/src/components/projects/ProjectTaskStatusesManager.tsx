@@ -30,8 +30,7 @@ import { queryClient } from "@/lib/queryClient";
 import { invalidateProjectTaskStatuses, invalidateAllTasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useProjectTaskStatuses } from "@/hooks/useProjects";
-import type { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
-import type { ProjectTaskStatus } from "@/types/api";
+import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +67,7 @@ const CATEGORY_VALUES: TaskStatusCategory[] = ["backlog", "todo", "in_progress",
 const STATUS_QUERY_KEY = (projectId: number) =>
   getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId);
 
-const sortStatuses = (items: ProjectTaskStatus[]): ProjectTaskStatus[] => {
+const sortStatuses = (items: TaskStatusRead[]): TaskStatusRead[] => {
   return [...items].sort((a, b) => {
     if (a.position === b.position) {
       return a.id - b.id;
@@ -99,13 +98,13 @@ export const ProjectTaskStatusesManager = ({
     [t]
   );
 
-  const [orderedStatuses, setOrderedStatuses] = useState<ProjectTaskStatus[]>([]);
+  const [orderedStatuses, setOrderedStatuses] = useState<TaskStatusRead[]>([]);
   const [drafts, setDrafts] = useState<
     Record<number, { name: string; category: TaskStatusCategory }>
   >({});
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState<TaskStatusCategory>("todo");
-  const [deleteTarget, setDeleteTarget] = useState<ProjectTaskStatus | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TaskStatusRead | null>(null);
   const [fallbackId, setFallbackId] = useState<string>("");
 
   const sensors = useSensors(
@@ -124,7 +123,7 @@ export const ProjectTaskStatusesManager = ({
     mutationFn: async (items: { id: number; position: number }[]) => {
       return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(projectId, {
         items,
-      }) as unknown as Promise<ProjectTaskStatus[]>;
+      }) as unknown as Promise<TaskStatusRead[]>;
     },
     onSuccess: (data) => {
       const sorted = sortStatuses(data);
@@ -171,7 +170,7 @@ export const ProjectTaskStatusesManager = ({
       return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(
         projectId,
         payload
-      ) as unknown as Promise<ProjectTaskStatus>;
+      ) as unknown as Promise<TaskStatusRead>;
     },
     onSuccess: () => {
       setNewName("");
@@ -191,7 +190,7 @@ export const ProjectTaskStatusesManager = ({
         data as Parameters<
           typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch
         >[2]
-      ) as unknown as Promise<ProjectTaskStatus>;
+      ) as unknown as Promise<TaskStatusRead>;
     },
     onSuccess: () => {
       toast.success(t("statuses.updated"));
@@ -545,7 +544,7 @@ export const ProjectTaskStatusesManager = ({
 };
 
 interface SortableStatusRowProps {
-  status: ProjectTaskStatus;
+  status: TaskStatusRead;
   draft?: { name: string; category: TaskStatusCategory };
   disabled: boolean;
   isDefault: boolean;

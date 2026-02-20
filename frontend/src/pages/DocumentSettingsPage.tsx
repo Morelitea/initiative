@@ -65,7 +65,7 @@ import type {
   DocumentPermissionLevel,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { DocumentRolePermission } from "@/types/api";
+import type { DocumentRolePermissionRead } from "@/api/generated/initiativeAPI.schemas";
 import { TagPicker } from "@/components/tags";
 import { useSetDocumentTags } from "@/hooks/useTags";
 
@@ -574,7 +574,7 @@ export const DocumentSettingsPage = () => {
   );
 
   // Column definitions for the role permissions table
-  const rolePermissionColumns: ColumnDef<DocumentRolePermission>[] = useMemo(
+  const rolePermissionColumns: ColumnDef<DocumentRolePermissionRead>[] = useMemo(
     () => [
       {
         accessorKey: "role_display_name",

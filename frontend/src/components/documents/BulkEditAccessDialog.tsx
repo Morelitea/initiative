@@ -46,9 +46,9 @@ import { useAuth } from "@/hooks/useAuth";
 import type {
   DocumentPermissionLevel,
   DocumentSummary,
+  InitiativeMemberRead,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { InitiativeMember } from "@/types/api";
 
 interface BulkEditAccessDialogProps {
   open: boolean;
@@ -203,7 +203,7 @@ export function BulkEditAccessDialog({
           // Try to find user info from initiative members
           const initiative = doc.initiative;
           const member = initiative?.members?.find(
-            (m: InitiativeMember) => m.user.id === perm.user_id
+            (m: InitiativeMemberRead) => m.user.id === perm.user_id
           );
           userMap.set(perm.user_id, {
             id: perm.user_id,

@@ -20,8 +20,9 @@ import type {
   TaskListResponse,
   TaskPriority,
   TaskStatusCategory,
+  TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Project, ProjectTaskStatus, Task } from "@/types/api";
+import type { Project, Task } from "@/types/api";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -95,9 +96,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
 
   const storageKey = `initiative-${storageKeyPrefix}-filters`;
 
-  const projectStatusCache = useRef<
-    Map<number, { statuses: ProjectTaskStatus[]; complete: boolean }>
-  >(new Map());
+  const projectStatusCache = useRef<Map<number, { statuses: TaskStatusRead[]; complete: boolean }>>(
+    new Map()
+  );
 
   // --- Filter state ---
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
@@ -298,7 +299,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     }
     const statuses = (await listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId, {
       headers: { "X-Guild-ID": String(guildId) },
-    })) as unknown as ProjectTaskStatus[];
+    })) as unknown as TaskStatusRead[];
     const merged = cached
       ? [
           ...cached.statuses,

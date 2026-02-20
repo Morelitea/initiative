@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { ProjectTaskStatus } from "@/types/api";
+import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface VikunjaBucket {
   id: number;
@@ -65,7 +65,7 @@ type Step = "upload" | "select-project" | "configure" | "result";
 // Suggest a status based on bucket name
 const suggestStatusForBucket = (
   bucketName: string,
-  statuses: ProjectTaskStatus[]
+  statuses: TaskStatusRead[]
 ): number | undefined => {
   const lowerName = bucketName.toLowerCase();
 

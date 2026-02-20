@@ -12,8 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TaskPriority, TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
-import type { ProjectTaskStatus, Task } from "@/types/api";
+import type {
+  TaskPriority,
+  TaskStatusCategory,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Task } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import type { TranslateFn } from "@/types/i18n";
@@ -27,7 +31,7 @@ interface SortableTaskRowProps {
   task: Task;
   dragDisabled: boolean;
   statusDisabled: boolean;
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onStatusChange: (taskId: number, taskStatusId: number) => void;
   onTaskClick: (taskId: number) => void;

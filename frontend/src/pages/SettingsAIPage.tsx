@@ -29,9 +29,9 @@ import type {
   AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
+  PlatformAISettingsResponse,
   PlatformAISettingsUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { PlatformAISettings } from "@/types/api";
 
 interface FormState {
   enabled: boolean;
@@ -83,7 +83,7 @@ export const SettingsAIPage = () => {
     mutationFn: async (payload: PlatformAISettingsUpdate) => {
       return updatePlatformAiSettingsApiV1SettingsAiPlatformPut(
         payload
-      ) as unknown as Promise<PlatformAISettings>;
+      ) as unknown as Promise<PlatformAISettingsResponse>;
     },
     onSuccess: (data) => {
       toast.success(t("ai.saveSuccess"));

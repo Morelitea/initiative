@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getThemeList } from "@/lib/themes";
-import type { User } from "@/types/api";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.sunday", value: 0 },
@@ -31,7 +31,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 interface UserSettingsInterfacePageProps {
-  user: User;
+  user: UserRead;
   refreshUser: () => Promise<void>;
 }
 

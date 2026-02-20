@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Notification } from "@/types/api";
+import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { guildPath } from "@/lib/guildUrl";
 
@@ -22,7 +22,7 @@ const buildGuildPath = (guildId: number, targetPath: string): string => {
   return guildPath(guildId, normalized);
 };
 
-const resolveSmartLink = (notification: Notification): string | null => {
+const resolveSmartLink = (notification: NotificationRead): string | null => {
   const data = notification.data || {};
   const guildValue = data.guild_id;
   const targetValue = data.target_path;
@@ -55,7 +55,7 @@ const resolveSmartLink = (notification: Notification): string | null => {
   return null;
 };
 
-const notificationLink = (notification: Notification): string | null => {
+const notificationLink = (notification: NotificationRead): string | null => {
   const smartLink = resolveSmartLink(notification);
   if (smartLink) {
     return smartLink;
@@ -96,7 +96,7 @@ const notificationLink = (notification: Notification): string | null => {
 };
 
 const notificationText = (
-  notification: Notification,
+  notification: NotificationRead,
   t: (key: string, options?: Record<string, unknown>) => string
 ): string => {
   const data = notification.data || {};
@@ -176,7 +176,7 @@ export const NotificationBell = () => {
   const notifications = notificationsQuery.data?.notifications ?? [];
   const hasNotifications = notifications.length > 0;
 
-  const handleNotificationClick = async (notification: Notification) => {
+  const handleNotificationClick = async (notification: NotificationRead) => {
     if (!notification.read_at) {
       try {
         await markReadMutation.mutateAsync(notification.id);

@@ -13,8 +13,8 @@ import {
 } from "@dnd-kit/core";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
-import type { ProjectTaskStatus, Task } from "@/types/api";
+import type { TaskPriority, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Task } from "@/types/api";
 
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,7 @@ import { TaskAssigneeList } from "./TaskAssigneeList";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 
 type ProjectTasksKanbanViewProps = {
-  taskStatuses: ProjectTaskStatus[];
+  taskStatuses: TaskStatusRead[];
   groupedTasks: Record<number, Task[]>;
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;

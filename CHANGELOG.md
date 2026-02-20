@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Centralized remaining inline queries — `GuildDashboardPage`, `MyProjectsPage`, `MyDocumentsPage` now use domain hooks (`useProjects`, `useInitiatives`, `useTasks`, `useRecentComments`, `useGlobalProjects`, `useGlobalDocuments`)
+- Eliminated direct `useQueryClient` usage from pages/components — added `usePrefetchTasks`, `usePrefetchGlobalProjects`, `usePrefetchGlobalDocuments`, `usePrefetchDocumentsList`, `useSetDocumentCache`, `useCommentsCache`, and `useUpdateRoleLabels` hooks
+- Added ESLint rule (`no-restricted-imports`) to prevent direct `useQuery`/`useQueryClient` imports outside `src/api/` and `src/hooks/`
+- Migrated direct type imports from `@/types/api` to `@/api/generated/initiativeAPI.schemas` — types that exist directly in the generated Orval schemas are now imported from source, reducing reliance on the backward-compat alias layer
+
 ### Fixed
 
 - Template document dropdown in CreateDocumentDialog not showing templates accessible via role-based permissions (only showed templates with explicit user permissions)
 - Document/attachment uploads returning 422 error due to hardcoded `Content-Type: application/json` header overriding FormData auto-detection
+- Subtask checklist items failed to load ("Unable to load checklist items right now") due to double-unwrapping of API responses in `useSubtasks` hook and `TaskChecklist` mutations
 
 ## [0.31.2] - 2026-02-19
 
@@ -41,7 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Tasks endpoint returned no results when requesting tasks for a template project
-- Subtask checklist items failed to load ("Unable to load checklist items right now") due to double-unwrapping of API responses in `useSubtasks` hook and `TaskChecklist` mutations
 
 ## [0.31.1] - 2026-02-18
 
