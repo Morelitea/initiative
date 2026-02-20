@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import type { DocumentRead } from "@/types/api";
+import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface CreateWikilinkDocumentDialogProps {
   open: boolean;

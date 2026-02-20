@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { InitiativeRoleRead } from "@/types/api";
+import type { InitiativeRoleRead } from "@/api/generated/initiativeAPI.schemas";
 
 // ─── Exported types ──────────────────────────────────────────────────────────
 

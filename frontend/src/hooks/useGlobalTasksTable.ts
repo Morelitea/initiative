@@ -17,13 +17,11 @@ import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuilds } from "@/hooks/useGuilds";
 import type {
-  Project,
-  ProjectTaskStatus,
-  Task,
   TaskListResponse,
   TaskPriority,
   TaskStatusCategory,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Project, ProjectTaskStatus, Task } from "@/types/api";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],

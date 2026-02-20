@@ -10,7 +10,10 @@ import {
   getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey,
 } from "@/api/generated/projects/projects";
 import { useDateLocale } from "@/hooks/useDateLocale";
-import type { ProjectActivityEntry, ProjectActivityResponse } from "@/types/api";
+import type {
+  ProjectActivityEntry,
+  ProjectActivityResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { guildPath } from "@/lib/guildUrl";
@@ -36,10 +39,9 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
       if (!projectId) {
         throw new Error("Project id required");
       }
-      const response = await (projectActivityFeedApiV1ProjectsProjectIdActivityGet(projectId, {
+      return projectActivityFeedApiV1ProjectsProjectIdActivityGet(projectId, {
         page: pageParam as number,
-      }) as unknown as Promise<{ data: ProjectActivityResponse }>);
-      return response.data;
+      }) as unknown as Promise<ProjectActivityResponse>;
     },
     getNextPageParam: (lastPage) => lastPage.next_page ?? undefined,
     initialPageParam: 1,

@@ -57,7 +57,8 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type { DocumentSummary, Tag, TagSummary } from "@/types/api";
+import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { Tag } from "@/types/api";
 import type { ListDocumentsApiV1DocumentsGetParams } from "@/api/generated/initiativeAPI.schemas";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";

@@ -47,7 +47,8 @@ import {
 } from "@/components/access/CreateAccessControl";
 import { useAuth } from "@/hooks/useAuth";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
-import type { DocumentRead, Initiative } from "@/types/api";
+import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Initiative } from "@/types/api";
 
 type CreateDocumentDialogProps = {
   open: boolean;

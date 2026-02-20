@@ -23,7 +23,7 @@ import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
-import type { DocumentSummary } from "@/types/api";
+import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
 const FILTER_DEFAULTS = {

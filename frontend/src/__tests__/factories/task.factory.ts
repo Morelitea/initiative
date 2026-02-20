@@ -1,9 +1,5 @@
-import type {
-  Task,
-  TaskListResponse,
-  TaskAssignee,
-  ProjectTaskStatus,
-} from "@/types/api";
+import type { TaskListResponse } from "@/api/generated/initiativeAPI.schemas";
+import type { Task, TaskAssignee, ProjectTaskStatus } from "@/types/api";
 
 let counter = 0;
 
@@ -11,9 +7,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildTaskAssignee(
-  overrides: Partial<TaskAssignee> = {},
-): TaskAssignee {
+export function buildTaskAssignee(overrides: Partial<TaskAssignee> = {}): TaskAssignee {
   counter++;
   return {
     id: counter,
@@ -68,7 +62,7 @@ export function buildTask(overrides: Partial<Task> = {}): Task {
 }
 
 export function buildTaskListResponse(
-  itemsOrOverrides: Task[] | Partial<TaskListResponse> = {},
+  itemsOrOverrides: Task[] | Partial<TaskListResponse> = {}
 ): TaskListResponse {
   if (Array.isArray(itemsOrOverrides)) {
     return {

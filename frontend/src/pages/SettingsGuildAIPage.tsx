@@ -28,9 +28,9 @@ import type {
   AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
-  GuildAISettings,
   GuildAISettingsUpdate,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { GuildAISettings } from "@/types/api";
 
 interface FormState {
   enabled: boolean | null;

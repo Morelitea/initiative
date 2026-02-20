@@ -80,7 +80,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { uploadAttachment } from "@/api/attachments";
+import { uploadAttachment } from "@/lib/attachmentUtils";
 import { insertImageNode } from "@/components/editor/nodes/ImageNode";
 import { insertEmbedNode } from "@/components/editor/nodes/EmbedNode";
 

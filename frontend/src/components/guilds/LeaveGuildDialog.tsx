@@ -18,7 +18,8 @@ import {
   checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
   leaveGuildApiV1GuildsGuildIdLeaveDelete,
 } from "@/api/generated/guilds/guilds";
-import type { Guild, LeaveGuildEligibilityResponse } from "@/types/api";
+import type { LeaveGuildEligibilityResponse } from "@/api/generated/initiativeAPI.schemas";
+import type { Guild } from "@/types/api";
 import { useGuilds } from "@/hooks/useGuilds";
 
 interface LeaveGuildDialogProps {

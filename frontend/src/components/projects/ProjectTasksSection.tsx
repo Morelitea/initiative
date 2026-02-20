@@ -37,11 +37,11 @@ import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 
 import { useTags } from "@/hooks/useTags";
+import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 import type {
   TaskRecurrenceStrategy,
   ProjectTaskStatus,
   Task,
-  TaskPriority,
   TaskRecurrence,
   TaskReorderPayload,
 } from "@/types/api";

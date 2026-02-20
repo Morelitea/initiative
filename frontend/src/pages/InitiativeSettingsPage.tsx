@@ -73,12 +73,10 @@ import {
   ALL_PERMISSION_KEYS,
 } from "@/hooks/useInitiativeRoles";
 import type {
-  Initiative,
-  InitiativeMember,
   InitiativeMemberUpdate,
   InitiativeRoleRead,
-  PermissionKey,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Initiative, InitiativeMember, PermissionKey } from "@/types/api";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 

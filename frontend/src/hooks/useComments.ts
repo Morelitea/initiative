@@ -62,14 +62,12 @@ export const useMentionSuggestions = (
       initiative_id: initiativeId,
       q: query,
     }),
-    queryFn: async () => {
-      const response = await (searchMentionablesApiV1CommentsMentionsSearchGet({
+    queryFn: () =>
+      searchMentionablesApiV1CommentsMentionsSearchGet({
         entity_type: type,
         initiative_id: initiativeId,
         q: query,
-      }) as unknown as Promise<{ data: MentionSuggestion[] }>);
-      return response.data;
-    },
+      }) as unknown as Promise<MentionSuggestion[]>,
     staleTime: 30_000,
     enabled: initiativeId > 0,
     ...options,

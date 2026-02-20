@@ -24,13 +24,11 @@ import {
 } from "@/api/query-keys";
 import type {
   DocumentRead,
-  Project,
-  Tag,
   TagCreate,
   TagUpdate,
   TaggedEntitiesResponse,
-  Task,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Project, Tag, Task } from "@/types/api";
 
 export const useTags = () => {
   return useQuery<Tag[]>({

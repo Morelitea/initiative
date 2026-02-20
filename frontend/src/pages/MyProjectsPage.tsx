@@ -21,7 +21,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { TagBadge } from "@/components/tags/TagBadge";
-import type { ProjectRead } from "@/types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
 const FILTER_DEFAULTS = {

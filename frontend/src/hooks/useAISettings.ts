@@ -21,13 +21,8 @@ type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 export const usePlatformAISettings = (options?: QueryOpts<PlatformAISettingsResponse>) => {
   return useQuery<PlatformAISettingsResponse>({
     queryKey: getGetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryKey(),
-    queryFn: async () => {
-      const response =
-        await (getPlatformAiSettingsApiV1SettingsAiPlatformGet() as unknown as Promise<{
-          data: PlatformAISettingsResponse;
-        }>);
-      return response.data;
-    },
+    queryFn: () =>
+      getPlatformAiSettingsApiV1SettingsAiPlatformGet() as unknown as Promise<PlatformAISettingsResponse>,
     ...options,
   });
 };

@@ -34,7 +34,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import type { DocumentSummary, ProjectDocumentLink } from "@/types/api";
+import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectDocumentLink } from "@/types/api";
 
 type ProjectDocumentsSectionProps = {
   projectId: number;

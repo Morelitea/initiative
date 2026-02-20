@@ -17,7 +17,8 @@ import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
-import type { Project, ProjectTaskStatus, Task, TaskStatusCategory } from "@/types/api";
+import type { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { Project, ProjectTaskStatus, Task } from "@/types/api";
 
 interface GlobalTaskColumnsOptions {
   activeGuildId: number | null;

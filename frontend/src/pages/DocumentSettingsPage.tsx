@@ -63,9 +63,9 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type {
   DocumentRead,
   DocumentPermissionLevel,
-  DocumentRolePermission,
   TagSummary,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentRolePermission } from "@/types/api";
 import { TagPicker } from "@/components/tags";
 import { useSetDocumentTags } from "@/hooks/useTags";
 

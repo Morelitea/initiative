@@ -51,14 +51,11 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
-  Comment,
   GenerateDescriptionResponse,
-  Task,
   TaskPriority,
-  TaskRecurrence,
-  TaskRecurrenceStrategy,
   TagSummary,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Comment, Task, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";

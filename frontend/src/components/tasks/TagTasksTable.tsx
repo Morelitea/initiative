@@ -19,7 +19,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
-import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
+import type { TaskPriority, TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectTaskStatus, Task } from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -172,10 +173,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       taskStatusId: number;
       guildId: number | null;
     }) => {
-      const response = await (updateTaskApiV1TasksTaskIdPatch(taskId, {
+      return updateTaskApiV1TasksTaskIdPatch(taskId, {
         task_status_id: taskStatusId,
-      }) as unknown as Promise<{ data: Task }>);
-      return response.data;
+      }) as unknown as Promise<Task>;
     },
     onSuccess: (updatedTask) => {
       void invalidateAllTasks();
@@ -212,15 +212,15 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const response = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+    const statuses = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
       projectId
-    ) as unknown as Promise<{ data: ProjectTaskStatus[] }>);
+    ) as unknown as Promise<ProjectTaskStatus[]>);
     const merged = cached
       ? [
           ...cached.statuses,
-          ...response.data.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
+          ...statuses.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
         ]
-      : response.data;
+      : statuses;
     projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
     return merged;
   }, []);

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { Progress } from "@/components/ui/progress";
-import type { TaskSubtaskProgress } from "@/types/api";
+import type { TaskSubtaskProgress } from "@/api/generated/initiativeAPI.schemas";
 import { cn } from "@/lib/utils";
 
 type TaskChecklistProgressProps = {
