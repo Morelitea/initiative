@@ -49,7 +49,6 @@ import {
   type RoleGrant,
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
-import { useAuth } from "@/hooks/useAuth";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
 
@@ -78,7 +77,6 @@ export const CreateDocumentDialog = ({
   initiatives = [],
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const { user } = useAuth();
 
   const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload">("new");
   const [newTitle, setNewTitle] = useState("");
@@ -125,15 +123,11 @@ export const CreateDocumentDialog = ({
     enabled: open,
   });
 
-  // Filter templates user can access
+  // Filter templates — backend already enforces access control via RLS
   const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !user) return [];
-    return templateDocumentsQuery.data.filter((doc) => {
-      if (!doc.is_template) return false;
-      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
-      return Boolean(permission);
-    });
-  }, [templateDocumentsQuery.data, user]);
+    if (!templateDocumentsQuery.data) return [];
+    return templateDocumentsQuery.data.filter((doc) => doc.is_template);
+  }, [templateDocumentsQuery.data]);
 
   // Reset form when dialog closes, or set default initiative when dialog opens
   useEffect(() => {
