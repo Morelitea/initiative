@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "@/api/client";
-import { getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey } from "@/api/generated/initiatives/initiatives";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { InitiativeRead, InitiativeRoleRead } from "@/types/api";
+import type { InitiativeRoleRead } from "@/types/api";
 
 // ─── Exported types ──────────────────────────────────────────────────────────
 
@@ -72,15 +70,7 @@ export const CreateAccessControl = ({
 
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
 
-  const { data: initiative, isLoading: initiativeLoading } = useQuery<InitiativeRead>({
-    // Use the generated query key so cache invalidations align with other consumers
-    queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
-    queryFn: async () => {
-      const response = await apiClient.get<InitiativeRead>(`/initiatives/${initiativeId}`);
-      return response.data;
-    },
-    enabled: !!initiativeId,
-  });
+  const { data: initiative, isLoading: initiativeLoading } = useInitiative(initiativeId);
 
   useEffect(() => {
     onLoadingChange?.(initiativeLoading);

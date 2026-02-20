@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
 import { invalidateAllDocuments } from "@/api/query-keys";
+import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocuments";
 import { getItem, setItem } from "@/lib/storage";
 import { guildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
-import type { DocumentListResponse, DocumentSummary } from "@/types/api";
+import type { DocumentSummary } from "@/types/api";
 
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
 const FILTER_DEFAULTS = {
@@ -64,7 +64,7 @@ const getDefaultFiltersVisibility = () => {
 export const MyDocumentsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
   const { guilds, activeGuildId } = useGuilds();
-  const localQueryClient = useQueryClient();
+  const prefetchGlobalDocuments = usePrefetchGlobalDocuments();
   const router = useRouter();
   const dateLocale = useDateLocale();
   const searchParams = useSearch({ strict: false }) as { page?: number };
@@ -150,14 +150,7 @@ export const MyDocumentsPage = () => {
     return params;
   }, [guildFilters, debouncedSearch, sortBy, sortDir, page, pageSize]);
 
-  const documentsQuery = useQuery<DocumentListResponse>({
-    queryKey: ["/api/v1/documents/", documentsGlobalParams],
-    queryFn: async () => {
-      const response = await apiClient.get<DocumentListResponse>("/documents/", {
-        params: documentsGlobalParams,
-      });
-      return response.data;
-    },
+  const documentsQuery = useGlobalDocuments(documentsGlobalParams, {
     placeholderData: keepPreviousData,
   });
 
@@ -165,19 +158,9 @@ export const MyDocumentsPage = () => {
     (targetPage: number) => {
       if (targetPage < 1) return;
       const prefetchParams = { ...documentsGlobalParams, page: targetPage };
-
-      void localQueryClient.prefetchQuery({
-        queryKey: ["/api/v1/documents/", prefetchParams],
-        queryFn: async () => {
-          const response = await apiClient.get<DocumentListResponse>("/documents/", {
-            params: prefetchParams,
-          });
-          return response.data;
-        },
-        staleTime: 30_000,
-      });
+      void prefetchGlobalDocuments(prefetchParams);
     },
-    [documentsGlobalParams, localQueryClient]
+    [documentsGlobalParams, prefetchGlobalDocuments]
   );
 
   // Helper to create guild-scoped paths for a document

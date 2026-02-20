@@ -1,31 +1,26 @@
 import { FormEvent, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Smartphone, Trash2 } from "lucide-react";
 
 import {
-  listMyApiKeysApiV1UsersMeApiKeysGet,
-  getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey,
   createMyApiKeyApiV1UsersMeApiKeysPost,
   deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete,
 } from "@/api/generated/users/users";
+import { revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete } from "@/api/generated/auth/auth";
 import {
-  listDeviceTokensApiV1AuthDeviceTokensGet,
-  getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey,
-  revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete,
-} from "@/api/generated/auth/auth";
+  useMyApiKeys,
+  useDeviceTokens,
+  API_KEYS_QUERY_KEY,
+  DEVICE_TOKENS_QUERY_KEY,
+} from "@/hooks/useSecurity";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { queryClient } from "@/lib/queryClient";
-import type {
-  ApiKeyCreateResponse,
-  ApiKeyListResponse,
-  ApiKeyMetadata,
-  DeviceTokenInfo,
-} from "@/types/api";
+import type { ApiKeyCreateResponse, ApiKeyMetadata, DeviceTokenInfo } from "@/types/api";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
@@ -38,9 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const API_KEYS_QUERY_KEY = getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey();
-const DEVICE_TOKENS_QUERY_KEY = getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey();
 
 const formatDateTime = (value?: string | null) => {
   if (!value) {
@@ -75,10 +67,7 @@ export const UserSettingsSecurityPage = () => {
   const [revokeTarget, setRevokeTarget] = useState<DeviceTokenInfo | null>(null);
 
   // API Keys queries and mutations
-  const apiKeysQuery = useQuery<ApiKeyListResponse>({
-    queryKey: API_KEYS_QUERY_KEY,
-    queryFn: () => listMyApiKeysApiV1UsersMeApiKeysGet() as unknown as Promise<ApiKeyListResponse>,
-  });
+  const apiKeysQuery = useMyApiKeys();
 
   const createKey = useMutation({
     mutationFn: async (payload: { name: string; expires_at?: string | null }) => {
@@ -118,11 +107,7 @@ export const UserSettingsSecurityPage = () => {
   });
 
   // Device tokens queries and mutations
-  const devicesQuery = useQuery<DeviceTokenInfo[]>({
-    queryKey: DEVICE_TOKENS_QUERY_KEY,
-    queryFn: () =>
-      listDeviceTokensApiV1AuthDeviceTokensGet() as unknown as Promise<DeviceTokenInfo[]>,
-  });
+  const devicesQuery = useDeviceTokens();
 
   const revokeToken = useMutation({
     mutationFn: async (tokenId: number) => {

@@ -1,11 +1,10 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { getListInitiativesApiV1InitiativesGetQueryKey } from "@/api/generated/initiatives/initiatives";
+import { invalidateAllInitiatives } from "@/api/query-keys";
 import { useInitiatives, useCreateInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useDocumentsList } from "@/hooks/useDocuments";
@@ -48,14 +47,11 @@ export const InitiativesPage = () => {
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
-  const queryClient = useQueryClient();
   const searchParams = useSearch({ strict: false }) as { create?: string };
 
-  const initiativesQueryKey = getListInitiativesApiV1InitiativesGetQueryKey();
-
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
-  }, [queryClient, initiativesQueryKey]);
+    await invalidateAllInitiatives();
+  }, []);
 
   const guildAdminLabel = getRoleLabel("admin", roleLabels);
   const projectManagerLabel = getRoleLabel("project_manager", roleLabels);

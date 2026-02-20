@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -8,16 +8,9 @@ import {
   parseVikunjaJsonApiV1ImportsVikunjaParsePost,
   importFromVikunjaApiV1ImportsVikunjaPost,
 } from "@/api/generated/imports/imports";
-import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-} from "@/api/generated/projects/projects";
-import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-} from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Project, ProjectTaskStatus } from "@/types/api";
+import type { ProjectTaskStatus } from "@/types/api";
 
 interface VikunjaBucket {
   id: number;
@@ -120,23 +113,10 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   }, [open]);
 
   // Fetch projects for selection
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
-    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
-    enabled: open,
-  });
+  const projectsQuery = useProjects(undefined, { enabled: open });
 
   // Fetch task statuses for selected target project
-  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(
-      selectedTargetProjectId!
-    ),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
-        selectedTargetProjectId!
-      ) as unknown as Promise<ProjectTaskStatus[]>,
-    enabled: selectedTargetProjectId !== null,
-  });
+  const taskStatusesQuery = useProjectTaskStatuses(selectedTargetProjectId);
 
   // Get selected source project
   const selectedSourceProject = parseResult?.projects.find((p) => p.id === selectedSourceProjectId);

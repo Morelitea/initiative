@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -25,33 +25,42 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import type { Initiative } from "@/types/api";
 import type { InitiativeMemberRead } from "@/api/generated/initiativeAPI.schemas";
 
+type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
+
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useInitiatives = (options?: { enabled?: boolean }) => {
+export const useInitiatives = (options?: QueryOpts<Initiative[]>) => {
   return useQuery<Initiative[]>({
     queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
     queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: options?.enabled,
+    ...options,
   });
 };
 
-export const useInitiative = (initiativeId: number | null) => {
+export const useInitiative = (initiativeId: number | null, options?: QueryOpts<Initiative>) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<Initiative>({
     queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
     queryFn: () =>
       getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId!) as unknown as Promise<Initiative>,
-    enabled: initiativeId !== null && Number.isFinite(initiativeId),
+    enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
+    ...rest,
   });
 };
 
-export const useInitiativeMembers = (initiativeId: number | null) => {
+export const useInitiativeMembers = (
+  initiativeId: number | null,
+  options?: QueryOpts<InitiativeMemberRead[]>
+) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeMemberRead[]>({
     queryKey: getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryKey(initiativeId!),
     queryFn: () =>
       getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
         initiativeId!
       ) as unknown as Promise<InitiativeMemberRead[]>,
-    enabled: initiativeId !== null && Number.isFinite(initiativeId),
+    enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
+    ...rest,
   });
 };
 

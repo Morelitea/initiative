@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -27,7 +26,7 @@ import {
   useDocumentCounts,
   useDeleteDocument,
   useCopyDocument,
-  prefetchDocumentsList,
+  usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { getItem, setItem } from "@/lib/storage";
@@ -199,7 +198,7 @@ export const DocumentsView = ({
   const { t } = useTranslation(["documents", "common"]);
   const dateLocale = useDateLocale();
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
@@ -447,9 +446,9 @@ export const DocumentsView = ({
         ...(sortBy ? { sort_by: sortBy } : {}),
         ...(sortDir ? { sort_dir: sortDir } : {}),
       };
-      void prefetchDocumentsList(queryClient, prefetchParams);
+      void prefetchDocuments(prefetchParams);
     },
-    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, queryClient]
+    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, prefetchDocuments]
   );
 
   const initiativesQuery = useInitiatives();

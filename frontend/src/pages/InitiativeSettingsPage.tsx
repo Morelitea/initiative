@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import type { ColumnDef, Row } from "@tanstack/react-table";
@@ -8,18 +8,12 @@ import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
   updateInitiativeApiV1InitiativesInitiativeIdPatch,
   deleteInitiativeApiV1InitiativesInitiativeIdDelete,
   addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost,
   removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete,
   updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch,
 } from "@/api/generated/initiatives/initiatives";
-import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
-} from "@/api/generated/users/users";
 import { invalidateAllInitiatives } from "@/api/query-keys";
 import {
   Breadcrumb,
@@ -66,6 +60,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiatives } from "@/hooks/useInitiatives";
+import { useUsers } from "@/hooks/useUsers";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import {
@@ -82,10 +78,8 @@ import type {
   InitiativeMemberUpdate,
   InitiativeRoleRead,
   PermissionKey,
-  User,
 } from "@/types/api";
 
-const INITIATIVES_QUERY_KEY = getListInitiativesApiV1InitiativesGetQueryKey();
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsPage = () => {
@@ -107,11 +101,7 @@ export const InitiativeSettingsPage = () => {
   const memberLabel = getRoleLabel("member", roleLabels);
   const adminLabel = getRoleLabel("admin", roleLabels);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: INITIATIVES_QUERY_KEY,
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: hasValidInitiativeId,
-  });
+  const initiativesQuery = useInitiatives({ enabled: hasValidInitiativeId });
 
   const initiative =
     hasValidInitiativeId && initiativesQuery.data
@@ -173,9 +163,7 @@ export const InitiativeSettingsPage = () => {
     }
   }, [rolesQuery.data, selectedRoleId]);
 
-  const usersQuery = useQuery<User[]>({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
+  const usersQuery = useUsers({
     enabled: canManageMembers && !!activeGuild?.id,
     staleTime: 5 * 60 * 1000,
   });

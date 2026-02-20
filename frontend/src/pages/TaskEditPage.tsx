@@ -2,12 +2,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { queryClient } from "@/lib/queryClient";
 import {
-  readTaskApiV1TasksTaskIdGet,
   getReadTaskApiV1TasksTaskIdGetQueryKey,
   updateTaskApiV1TasksTaskIdPatch,
   duplicateTaskApiV1TasksTaskIdDuplicatePost,
@@ -16,21 +15,10 @@ import {
   generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost,
 } from "@/api/generated/tasks/tasks";
 import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
-import {
-  readProjectApiV1ProjectsProjectIdGet,
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
-  listWritableProjectsApiV1ProjectsWritableGet,
-  getListWritableProjectsApiV1ProjectsWritableGetQueryKey,
-} from "@/api/generated/projects/projects";
-import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-} from "@/api/generated/task-statuses/task-statuses";
-import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
-} from "@/api/generated/users/users";
 import { useComments } from "@/hooks/useComments";
+import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
+import { useTask } from "@/hooks/useTasks";
+import { useUsers } from "@/hooks/useUsers";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -65,14 +53,11 @@ import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   Comment,
   GenerateDescriptionResponse,
-  Project,
-  ProjectTaskStatus,
   Task,
   TaskPriority,
   TaskRecurrence,
   TaskRecurrenceStrategy,
   TagSummary,
-  User,
 } from "@/types/api";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { Input } from "@/components/ui/input";
@@ -142,32 +127,14 @@ export const TaskEditPage = () => {
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const taskQuery = useQuery({
-    queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
-    enabled: Number.isFinite(parsedTaskId),
-    queryFn: () => readTaskApiV1TasksTaskIdGet(parsedTaskId) as unknown as Promise<Task>,
-  });
+  const taskQuery = useTask(parsedTaskId);
 
-  const usersQuery = useQuery({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
-  });
+  const usersQuery = useUsers();
 
   const projectId = taskQuery.data?.project_id;
-  const projectQuery = useQuery({
-    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId!),
-    enabled: Number.isFinite(projectId),
-    queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<Project>,
-  });
+  const projectQuery = useProject(projectId ?? null);
 
-  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId!),
-    enabled: Number.isFinite(projectId),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId!) as unknown as Promise<
-        ProjectTaskStatus[]
-      >,
-  });
+  const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
   const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
@@ -410,11 +377,8 @@ export const TaskEditPage = () => {
   // Pure DAC: comment moderation requires write permission on project
   const canModerateComments = hasWritePermission;
 
-  const writableProjectsQuery = useQuery<Project[]>({
-    queryKey: getListWritableProjectsApiV1ProjectsWritableGetQueryKey(),
-    queryFn: () => listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<Project[]>,
+  const writableProjectsQuery = useWritableProjects({
     enabled: Boolean(canWriteProject && !projectIsArchived),
-    staleTime: 60 * 1000,
   });
   const writableProjects = writableProjectsQuery.data ?? [];
 

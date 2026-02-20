@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
@@ -12,24 +11,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-} from "@/api/generated/projects/projects";
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
-import {
-  listTasksApiV1TasksGet,
-  getListTasksApiV1TasksGetQueryKey,
-} from "@/api/generated/tasks/tasks";
-import {
-  recentCommentsApiV1CommentsRecentGet,
-  getRecentCommentsApiV1CommentsRecentGetQueryKey,
-} from "@/api/generated/comments/comments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUserStats } from "@/hooks/useUserStats";
+import { useProjects } from "@/hooks/useProjects";
+import { useInitiatives } from "@/hooks/useInitiatives";
+import { useTasks } from "@/hooks/useTasks";
+import { useRecentComments } from "@/hooks/useComments";
 import { useGuildPath } from "@/lib/guildUrl";
 import { StatsMetricCard } from "@/components/stats/StatsMetricCard";
 import { VelocityChart } from "@/components/stats/VelocityChart";
@@ -42,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
-import type { Initiative, Project, RecentActivityEntry, TaskListResponse } from "@/types/api";
 import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
 import { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
 
@@ -66,41 +52,22 @@ export function GuildDashboardPage() {
 
   const statsQuery = useUserStats(activeGuildId);
 
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: [...getListProjectsApiV1ProjectsGetQueryKey(), activeGuildId],
-    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
+  const projectsQuery = useProjects(undefined, {
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: [...getListInitiativesApiV1InitiativesGetQueryKey(), activeGuildId],
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
+  const initiativesQuery = useInitiatives({
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });
 
-  const upcomingTasksQuery = useQuery<TaskListResponse>({
-    queryKey: [
-      ...getListTasksApiV1TasksGetQueryKey(DASHBOARD_TASK_PARAMS),
-      "dashboard-upcoming",
-      activeGuildId,
-    ],
-    queryFn: () =>
-      listTasksApiV1TasksGet(DASHBOARD_TASK_PARAMS) as unknown as Promise<TaskListResponse>,
+  const upcomingTasksQuery = useTasks(DASHBOARD_TASK_PARAMS, {
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });
 
-  const recentCommentsQuery = useQuery<RecentActivityEntry[]>({
-    queryKey: [
-      ...getRecentCommentsApiV1CommentsRecentGetQueryKey(RECENT_COMMENTS_PARAMS),
-      activeGuildId,
-    ],
-    queryFn: () =>
-      recentCommentsApiV1CommentsRecentGet(RECENT_COMMENTS_PARAMS) as unknown as Promise<
-        RecentActivityEntry[]
-      >,
+  const recentCommentsQuery = useRecentComments(RECENT_COMMENTS_PARAMS, {
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });

@@ -1,19 +1,16 @@
 import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
 import {
-  listAllUsersApiV1AdminUsersGet,
-  getListAllUsersApiV1AdminUsersGetQueryKey,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
-  getPlatformAdminCountApiV1AdminPlatformAdminCountGet,
-  getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey,
   updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
 } from "@/api/generated/admin/admin";
+import { usePlatformUsers, usePlatformAdminCount } from "@/hooks/useAdmin";
 import { invalidateAdminUsers } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
@@ -25,10 +22,6 @@ import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type { User, UserRole } from "@/types/api";
 import { DataTable } from "@/components/ui/data-table";
 import { SortIcon } from "@/components/SortIcon";
-
-interface PlatformAdminCountResponse {
-  count: number;
-}
 
 export const SettingsPlatformUsersPage = () => {
   const { t } = useTranslation(["settings", "common"]);
@@ -50,18 +43,9 @@ export const SettingsPlatformUsersPage = () => {
 
   const isAdmin = user?.role === "admin";
 
-  const usersQuery = useQuery<User[]>({
-    queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
-    enabled: isAdmin,
-    queryFn: () => listAllUsersApiV1AdminUsersGet() as unknown as Promise<User[]>,
-  });
+  const usersQuery = usePlatformUsers({ enabled: isAdmin });
 
-  const adminCountQuery = useQuery<PlatformAdminCountResponse>({
-    queryKey: getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey(),
-    enabled: isAdmin,
-    queryFn: () =>
-      getPlatformAdminCountApiV1AdminPlatformAdminCountGet() as unknown as Promise<PlatformAdminCountResponse>,
-  });
+  const adminCountQuery = usePlatformAdminCount({ enabled: isAdmin });
 
   const resetPassword = useMutation({
     mutationFn: async (userId: number) => {

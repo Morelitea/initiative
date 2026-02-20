@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   DragEndEvent,
   DragOverEvent,
@@ -25,8 +25,6 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  listTasksApiV1TasksGet,
-  getListTasksApiV1TasksGetQueryKey,
   createTaskApiV1TasksPost,
   updateTaskApiV1TasksTaskIdPatch,
   deleteTaskApiV1TasksTaskIdDelete,
@@ -34,6 +32,7 @@ import {
   archiveDoneTasksApiV1TasksArchiveDonePost,
 } from "@/api/generated/tasks/tasks";
 import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import { useTasks } from "@/hooks/useTasks";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 
@@ -42,7 +41,6 @@ import type {
   TaskRecurrenceStrategy,
   ProjectTaskStatus,
   Task,
-  TaskListResponse,
   TaskPriority,
   TaskRecurrence,
   TaskReorderPayload,
@@ -171,9 +169,7 @@ export const ProjectTasksSection = ({
     ...(showArchived && { include_archived: true }),
   };
 
-  const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: getListTasksApiV1TasksGetQueryKey(taskListParams),
-    queryFn: () => listTasksApiV1TasksGet(taskListParams) as unknown as Promise<TaskListResponse>,
+  const tasksQuery = useTasks(taskListParams, {
     enabled: Number.isFinite(projectId) && filtersLoadedForProject === projectId,
   });
 

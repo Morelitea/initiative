@@ -1,11 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
-  getEmailSettingsApiV1SettingsEmailGet,
-  getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
   updateEmailSettingsApiV1SettingsEmailPut,
   sendTestEmailApiV1SettingsEmailTestPost,
 } from "@/api/generated/settings/settings";
@@ -15,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useEmailSettings } from "@/hooks/useSettings";
 import type { EmailSettings } from "@/types/api";
 
 interface EmailPayload {
@@ -44,11 +43,7 @@ export const SettingsEmailPage = () => {
   const [formState, setFormState] = useState(DEFAULT_STATE);
   const [password, setPassword] = useState("");
   const [testRecipient, setTestRecipient] = useState("");
-  const emailQuery = useQuery<EmailSettings>({
-    queryKey: getGetEmailSettingsApiV1SettingsEmailGetQueryKey(),
-    enabled: isPlatformAdmin,
-    queryFn: () => getEmailSettingsApiV1SettingsEmailGet() as unknown as Promise<EmailSettings>,
-  });
+  const emailQuery = useEmailSettings({ enabled: isPlatformAdmin });
 
   useEffect(() => {
     if (emailQuery.data) {

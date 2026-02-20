@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
-import {
-  checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet,
-  getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey,
-  deleteOwnAccountApiV1UsersMeDeleteAccountPost,
-} from "@/api/generated/users/users";
+import { deleteOwnAccountApiV1UsersMeDeleteAccountPost } from "@/api/generated/users/users";
+import { useMyDeletionEligibility } from "@/hooks/useAdmin";
 import { getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet } from "@/api/generated/initiatives/initiatives";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -93,12 +90,8 @@ export function DeleteAccountDialog({
   }, [open]);
 
   // Fetch deletion eligibility
-  const { refetch: checkEligibility, isFetching: isCheckingEligibility } = useQuery({
-    queryKey: getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey(),
-    queryFn: () =>
-      checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet() as unknown as Promise<DeletionEligibilityResponse>,
-    enabled: false,
-  });
+  const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
+    useMyDeletionEligibility();
 
   // Fetch initiative members for project transfer
   const [initiativeMembers, setInitiativeMembers] = useState<Record<number, User[]>>({});

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -11,12 +11,11 @@ import {
   removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete,
 } from "@/api/generated/documents/documents";
 import {
-  getListInitiativesApiV1InitiativesGetQueryKey,
-  listInitiativesApiV1InitiativesGet,
   getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey,
   listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidateAllDocuments } from "@/api/query-keys";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,7 +46,6 @@ import { useAuth } from "@/hooks/useAuth";
 import type {
   DocumentPermissionLevel,
   DocumentSummary,
-  Initiative,
   InitiativeMember,
   InitiativeRoleRead,
 } from "@/types/api";
@@ -108,11 +106,7 @@ export function BulkEditAccessDialog({
   }, [documents]);
 
   // Fetch initiative data to get member lists
-  const { data: initiatives = [] } = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: open,
-  });
+  const { data: initiatives = [] } = useInitiatives({ enabled: open });
 
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
