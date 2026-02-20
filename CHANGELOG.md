@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Translation files were cached by the browser across deploys, causing newly added i18n keys to render as raw strings — translation fetches now include a version query param for cache busting
+- Tasks endpoint returned no results when requesting tasks for a template project
 
 ## [0.31.0] - 2026-02-18
 
