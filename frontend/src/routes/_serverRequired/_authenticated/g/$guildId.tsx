@@ -41,14 +41,16 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
 function GuildLayout() {
   const params = useParams({ from: "/_serverRequired/_authenticated/g/$guildId" });
   const guildId = Number(params.guildId);
-  const { guilds, activeGuildId, loading, syncGuildFromUrl } = useGuilds();
+  const { guilds, loading, syncGuildFromUrl } = useGuilds();
 
-  // Sync guild context when URL guild ID changes
+  // Sync guild context when URL guild ID changes.
+  // syncGuildFromUrl is stable (no deps) and checks the ref internally,
+  // so we only need guildId here to fire when the URL changes.
   useEffect(() => {
-    if (Number.isFinite(guildId) && guildId !== activeGuildId) {
+    if (Number.isFinite(guildId)) {
       void syncGuildFromUrl(guildId);
     }
-  }, [guildId, activeGuildId, syncGuildFromUrl]);
+  }, [guildId, syncGuildFromUrl]);
 
   // Show loading state while guilds are loading
   if (loading) {
