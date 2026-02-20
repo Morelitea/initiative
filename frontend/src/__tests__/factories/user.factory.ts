@@ -40,7 +40,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
 
 export function buildUserGuildMember(
   overrides: Partial<UserGuildMember> = {}
-): UserReadGuildMember {
+): UserGuildMember {
   counter++;
   return {
     id: counter,
