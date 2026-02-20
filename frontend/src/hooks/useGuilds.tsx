@@ -12,6 +12,7 @@ import type { AxiosError } from "axios";
 import { toast } from "sonner";
 
 import { apiClient, setCurrentGuildId } from "@/api/client";
+import { resetGuildScopedQueries } from "@/api/query-keys";
 import { getItem, setItem, removeItem } from "@/lib/storage";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
@@ -72,6 +73,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const reorderDebounceRef = useRef<number | null>(null);
   const pendingOrderRef = useRef<number[] | null>(null);
   const hasFetchedRef = useRef(false);
+  const activeGuildIdRef = useRef(activeGuildId);
+  activeGuildIdRef.current = activeGuildId;
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
@@ -192,36 +195,39 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const switchGuild = useCallback(
     async (guildId: number) => {
       // Don't switch if we are already there
-      if (!user || guildId === activeGuildId) {
+      if (!user || guildId === activeGuildIdRef.current) {
         return;
       }
 
       // Update local state immediately so UI reacts
       setActiveGuildId(guildId);
 
+      // Clear guild-scoped query cache so stale data from the previous guild isn't shown
+      await resetGuildScopedQueries();
+
       // Refresh data in background to ensure everything is synced
       await Promise.all([refreshGuilds(), refreshUser()]);
     },
-    [user, activeGuildId, refreshGuilds, refreshUser]
+    [user, refreshGuilds, refreshUser]
   );
 
   /**
    * Sync guild context from URL without full navigation.
    * Used by guild-scoped routes to sync context from URL params.
    */
-  const syncGuildFromUrl = useCallback(
-    async (guildId: number) => {
-      if (guildId === activeGuildId) {
-        return;
-      }
+  const syncGuildFromUrl = useCallback(async (guildId: number) => {
+    if (guildId === activeGuildIdRef.current) {
+      return;
+    }
 
-      // Update local state immediately
-      setActiveGuildId(guildId);
-      setCurrentGuildId(guildId);
-      persistGuildId(guildId);
-    },
-    [activeGuildId]
-  );
+    // Update local state immediately
+    setActiveGuildId(guildId);
+    setCurrentGuildId(guildId);
+    persistGuildId(guildId);
+
+    // Clear guild-scoped query cache so stale data from the previous guild isn't shown
+    await resetGuildScopedQueries();
+  }, []);
 
   const reorderGuilds = useCallback(
     (guildIds: number[]) => {
