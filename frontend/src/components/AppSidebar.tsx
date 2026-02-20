@@ -264,7 +264,7 @@ export const AppSidebar = () => {
                   <TabsContent value="initiatives" className="mt-0 flex-1 overflow-hidden">
                     <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
                       {/* Favorites Section */}
-                      {favoritesQuery?.data && favoritesQuery.data.length > 0 && (
+                      {Array.isArray(favoritesQuery?.data) && favoritesQuery.data.length > 0 && (
                         <>
                           <SidebarGroup>
                             <SidebarGroupLabel className="flex items-center gap-2 py-2">

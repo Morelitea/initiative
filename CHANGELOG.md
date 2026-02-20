@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.4] - 2026-02-20
+
+### Fixed
+
+- Mobile (Capacitor) app crash on startup — Orval-generated API requests used a hardcoded empty `baseURL`, causing them to hit the WebView origin instead of the backend server and receiving HTML instead of JSON
+- Race condition where child provider effects fired API calls before `ServerProvider` set the backend URL from storage
+- Locale file 404s on mobile — `navigator.language` returns full locale codes (e.g., `en-US`) but only `en/` directories exist; added `load: "languageOnly"` to i18next config
+- `useProjectFavoriteMutation` and `useProjectPinMutation` crashing when toggling — `setQueryData` updaters treated paginated `ProjectListResponse` as a plain array
+- Defensive `Array.isArray` guard in `initStorage()` and AppSidebar favorites to prevent crashes from unexpected Capacitor bridge responses
+
 ## [0.31.3] - 2026-02-20
 
 ### Added

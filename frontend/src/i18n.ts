@@ -58,6 +58,7 @@ void i18n
   .use(storageLanguageDetector)
   .use(initReactI18next)
   .init({
+    load: "languageOnly",
     fallbackLng: "en",
     defaultNS,
     fallbackNS: "common",
