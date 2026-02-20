@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Tasks endpoint returned no results when requesting tasks for a template project
+
 ## [0.31.1] - 2026-02-18
 
 ### Fixed

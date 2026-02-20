@@ -510,24 +510,34 @@ async def _allowed_project_ids(
     session: SessionDep,
     user: User,
     guild_id: int,
+    *,
+    include_templates: bool = False,
 ) -> Optional[set[int]]:
     """Get project IDs where user has explicit or role-based permission.
 
     Returns set of project IDs where user has any permission level.
     """
     # User-specific permissions
+    user_conditions = [
+        ProjectPermission.user_id == user.id,
+        Initiative.guild_id == guild_id,
+        Project.is_archived == False,  # noqa: E712
+    ]
+    if not include_templates:
+        user_conditions.append(Project.is_template == False)  # noqa: E712
     user_perm_subq = (
         select(ProjectPermission.project_id)
         .join(Project)
         .join(Project.initiative)
-        .where(
-            ProjectPermission.user_id == user.id,
-            Initiative.guild_id == guild_id,
-            Project.is_archived == False,  # noqa: E712
-            Project.is_template == False,  # noqa: E712
-        )
+        .where(*user_conditions)
     )
     # Role-based permissions
+    role_conditions = [
+        Initiative.guild_id == guild_id,
+        Project.is_archived == False,  # noqa: E712
+    ]
+    if not include_templates:
+        role_conditions.append(Project.is_template == False)  # noqa: E712
     role_perm_subq = (
         select(ProjectRolePermission.project_id)
         .join(Project, Project.id == ProjectRolePermission.project_id)
@@ -537,11 +547,7 @@ async def _allowed_project_ids(
             (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
             & (InitiativeMember.user_id == user.id),
         )
-        .where(
-            Initiative.guild_id == guild_id,
-            Project.is_archived == False,  # noqa: E712
-            Project.is_template == False,  # noqa: E712
-        )
+        .where(*role_conditions)
     )
     combined = user_perm_subq.union(role_perm_subq)
     permission_ids_result = await session.execute(combined)
@@ -804,6 +810,7 @@ async def list_tasks(
         session,
         current_user,
         guild_context.guild_id,
+        include_templates=project_id is not None,
     )
     if allowed_ids is not None:
         if not allowed_ids:
