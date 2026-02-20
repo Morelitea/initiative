@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-02-19
+
 ### Added
 
 - Centralized query key invalidation helpers (`frontend/src/api/query-keys.ts`) with domain-specific functions for consistent cache management
