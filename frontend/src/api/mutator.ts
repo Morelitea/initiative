@@ -12,10 +12,13 @@ import { API_BASE_URL, apiClient } from "./client";
 // reach the actual backend instead of the WebView's own origin.
 export const apiMutator = <T>(
   config: AxiosRequestConfig,
-  _options?: AxiosRequestConfig // eslint-disable-line @typescript-eslint/no-unused-vars
+  options?: AxiosRequestConfig
 ): Promise<T> => {
   const baseURL = Capacitor.isNativePlatform() ? API_BASE_URL.replace(/\/api\/v1\/?$/, "") : "";
-  return apiClient<T>({ ...config, baseURL }).then(({ data }) => data);
+  const merged = options
+    ? { ...config, ...options, headers: { ...config.headers, ...options.headers }, baseURL }
+    : { ...config, baseURL };
+  return apiClient<T>(merged).then(({ data }) => data);
 };
 
 export default apiMutator;

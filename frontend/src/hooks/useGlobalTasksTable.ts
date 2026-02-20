@@ -320,6 +320,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
         await updateTaskStatusMutate({
           taskId: task.id,
           data: { task_status_id: targetStatusId },
+          requestOptions: { headers: { "X-Guild-ID": String(targetGuildId) } },
         });
       } catch (error) {
         console.error(error);

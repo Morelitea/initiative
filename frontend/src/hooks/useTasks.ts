@@ -112,7 +112,11 @@ export const useCreateTask = (
 export const useUpdateTask = (
   options?: MutationOpts<
     TaskListRead,
-    { taskId: number; data: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1] }
+    {
+      taskId: number;
+      data: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1];
+      requestOptions?: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[2];
+    }
   >
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -122,11 +126,17 @@ export const useUpdateTask = (
     mutationFn: async ({
       taskId,
       data,
+      requestOptions,
     }: {
       taskId: number;
       data: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1];
+      requestOptions?: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[2];
     }) => {
-      return updateTaskApiV1TasksTaskIdPatch(taskId, data) as unknown as Promise<TaskListRead>;
+      return updateTaskApiV1TasksTaskIdPatch(
+        taskId,
+        data,
+        requestOptions
+      ) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
