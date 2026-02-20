@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
@@ -18,17 +18,14 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import {
-  readDocumentApiV1DocumentsDocumentIdGet,
   getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
   updateDocumentApiV1DocumentsDocumentIdPatch,
   notifyMentionsApiV1DocumentsDocumentIdMentionsPost,
 } from "@/api/generated/documents/documents";
-import {
-  listCommentsApiV1CommentsGet,
-  getListCommentsApiV1CommentsGetQueryKey,
-} from "@/api/generated/comments/comments";
+import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
 import { invalidateAllDocuments } from "@/api/query-keys";
-import type { ListCommentsApiV1CommentsGetParams } from "@/api/generated/initiativeAPI.schemas";
+import { useDocument } from "@/hooks/useDocuments";
+import { useComments } from "@/hooks/useComments";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
@@ -122,20 +119,12 @@ export const DocumentDetailPage = () => {
     },
   });
 
-  const documentQuery = useQuery<DocumentRead>({
-    queryKey: getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(parsedId),
-    queryFn: () =>
-      readDocumentApiV1DocumentsDocumentIdGet(parsedId) as unknown as Promise<DocumentRead>,
-    enabled: Number.isFinite(parsedId),
-  });
+  const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
-  const commentsQueryParams: ListCommentsApiV1CommentsGetParams = { document_id: parsedId };
+  const commentsQueryParams = { document_id: parsedId };
   const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
-  const commentsQuery = useQuery<Comment[]>({
-    queryKey: commentsQueryKey,
+  const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedId),
-    queryFn: () =>
-      listCommentsApiV1CommentsGet(commentsQueryParams) as unknown as Promise<Comment[]>,
   });
 
   const document = documentQuery.data;

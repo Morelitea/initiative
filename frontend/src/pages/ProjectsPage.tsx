@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   DndContext,
   DragEndEvent,
@@ -38,17 +37,15 @@ import {
 import { useTranslation } from "react-i18next";
 
 import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-  createProjectApiV1ProjectsPost,
-  updateProjectApiV1ProjectsProjectIdPatch,
-  unarchiveProjectApiV1ProjectsProjectIdUnarchivePost,
-  reorderProjectsApiV1ProjectsReorderPost,
-} from "@/api/generated/projects/projects";
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
+  useProjects,
+  useTemplateProjects,
+  useArchivedProjects,
+  useCreateProject,
+  useUpdateProject,
+  useUnarchiveProject,
+  useReorderProjects,
+} from "@/hooks/useProjects";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { invalidateAllProjects } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -84,7 +81,7 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import { Project, Initiative } from "@/types/api";
+import { Project } from "@/types/api";
 import {
   Dialog,
   DialogContent,
@@ -191,14 +188,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return "custom";
   });
   const [customOrder, setCustomOrder] = useState<number[]>([]);
-  const removeTemplate = useMutation({
-    mutationFn: async (projectId: number) => {
-      await updateProjectApiV1ProjectsProjectIdPatch(projectId, { is_template: false });
-    },
-    onSuccess: () => {
-      void invalidateAllProjects();
-    },
-  });
+  const updateProjectMutation = useUpdateProject();
+  const removeTemplate = {
+    mutate: (projectId: number) =>
+      updateProjectMutation.mutate({ projectId, data: { is_template: false } }),
+    isPending: updateProjectMutation.isPending,
+  };
 
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
@@ -247,14 +242,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     }
   }, [activeGuildId, lockedInitiativeId]);
 
-  const unarchiveProject = useMutation({
-    mutationFn: async (projectId: number) => {
-      await unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(projectId);
-    },
-    onSuccess: () => {
-      void invalidateAllProjects();
-    },
-  });
+  const unarchiveProject = useUnarchiveProject();
 
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const stored = getItem(PROJECT_VIEW_KEY);
@@ -293,15 +281,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     setTagFilters(newTags.map((t) => t.id));
   };
 
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
-    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
-  });
+  const projectsQuery = useProjects();
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
+  const initiativesQuery = useInitiatives({
     enabled: user?.role === "admin" || hasClaimedManagerRole,
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
   });
   // Filter initiatives where user can create projects
   const creatableInitiatives = useMemo(() => {
@@ -353,16 +336,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return permission?.level === "owner" || permission?.level === "write";
   };
 
-  const templatesQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
-    queryFn: () =>
-      listProjectsApiV1ProjectsGet({ template: true }) as unknown as Promise<Project[]>,
-  });
-  const archivedQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
-    queryFn: () =>
-      listProjectsApiV1ProjectsGet({ archived: true }) as unknown as Promise<Project[]>,
-  });
+  const templatesQuery = useTemplateProjects();
+  const archivedQuery = useArchivedProjects();
 
   useEffect(() => {
     if (!canCreateProjects) {
@@ -397,17 +372,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
-  const reorderProjects = useMutation({
-    mutationFn: async (orderedIds: number[]) => {
-      await reorderProjectsApiV1ProjectsReorderPost({ project_ids: orderedIds });
-    },
-    onSettled: () => {
-      void invalidateAllProjects();
-    },
-  });
+  const reorderProjects = useReorderProjects();
 
-  const createProject = useMutation({
-    mutationFn: async () => {
+  const createProjectMutation = useCreateProject();
+  const createProject = {
+    ...createProjectMutation,
+    mutate: () => {
       const payload: Record<string, unknown> = { name, description };
       const trimmedIcon = icon.trim();
       if (trimmedIcon) {
@@ -415,7 +385,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       }
       const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
       if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
-        throw new Error("Select an initiative before creating a project");
+        return;
       }
       payload.initiative_id = selectedInitiativeId;
       payload.is_template = isTemplateProject;
@@ -428,23 +398,26 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       if (userGrants.length > 0) {
         payload.user_permissions = userGrants;
       }
-      return createProjectApiV1ProjectsPost(
-        payload as unknown as Parameters<typeof createProjectApiV1ProjectsPost>[0]
-      ) as unknown as Promise<Project>;
+      createProjectMutation.mutate(
+        payload as unknown as Parameters<typeof createProjectMutation.mutate>[0],
+        {
+          onSuccess: () => {
+            setName("");
+            setDescription("");
+            setIcon("");
+            setInitiativeId(null);
+            setSelectedTemplateId(NO_TEMPLATE_VALUE);
+            setIsTemplateProject(false);
+            setRoleGrants([]);
+            setUserGrants([]);
+            handleComposerOpenChange(false);
+          },
+        }
+      );
     },
-    onSuccess: () => {
-      setName("");
-      setDescription("");
-      setIcon("");
-      setInitiativeId(null);
-      setSelectedTemplateId(NO_TEMPLATE_VALUE);
-      setIsTemplateProject(false);
-      setRoleGrants([]);
-      setUserGrants([]);
-      handleComposerOpenChange(false);
-      void invalidateAllProjects();
-    },
-  });
+    isPending: createProjectMutation.isPending,
+    isError: createProjectMutation.isError,
+  };
 
   useEffect(() => {
     setItem(PROJECT_SEARCH_KEY, searchQuery);

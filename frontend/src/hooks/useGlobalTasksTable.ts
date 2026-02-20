@@ -10,11 +10,8 @@ import {
   getListTasksApiV1TasksGetQueryKey,
   updateTaskApiV1TasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
-import {
-  listProjectsApiV1ProjectsGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-} from "@/api/generated/projects/projects";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { useProjects, useTemplateProjects, useArchivedProjects } from "@/hooks/useProjects";
 import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
@@ -208,22 +205,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   );
 
   // --- Excluded projects (archived / template) ---
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
-    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
-  });
-
-  const templatesQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
-    queryFn: () =>
-      listProjectsApiV1ProjectsGet({ template: true }) as unknown as Promise<Project[]>,
-  });
-
-  const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
-    queryFn: () =>
-      listProjectsApiV1ProjectsGet({ archived: true }) as unknown as Promise<Project[]>,
-  });
+  const projectsQuery = useProjects();
+  const templatesQuery = useTemplateProjects();
+  const archivedProjectsQuery = useArchivedProjects();
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};

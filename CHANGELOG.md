@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Centralized frontend API query hooks into domain-specific hook files (`useDocuments`, `useProjects`, `useInitiatives`, `useComments`, `useNotifications`) following the `useTags` pattern — replaces inline `useQuery`/`useMutation` calls across pages with clean, reusable hooks that include error toasts and cache invalidation
+- Created `usePagination` hook for reusable page/pageSize state management with URL search param sync
+- Removed duplicate `TaskListResponse` and `DocumentListResponse` type definitions from `types/api.ts` in favor of Orval-generated versions
+- Deleted `src/api/notifications.ts` — all consumers migrated to `useNotifications` hooks
+
 ### Fixed
 
 - Tasks endpoint returned no results when requesting tasks for a template project
