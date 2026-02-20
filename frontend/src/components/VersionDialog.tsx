@@ -12,18 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useQuery } from "@tanstack/react-query";
-import {
-  getChangelogApiV1ChangelogGet,
-  getGetChangelogApiV1ChangelogGetQueryKey,
-} from "@/api/generated/version/version";
+import { useChangelog } from "@/hooks/useSettings";
 import { cn } from "@/lib/utils";
-
-interface ChangelogEntry {
-  version: string;
-  date: string;
-  changes: string;
-}
 
 interface VersionDialogProps {
   // For info mode (manual trigger)
@@ -66,12 +56,7 @@ export const VersionDialog = ({
     changelogParams.limit = limit;
   }
 
-  const { data, isLoading } = useQuery<{ entries: ChangelogEntry[] }>({
-    queryKey: getGetChangelogApiV1ChangelogGetQueryKey(changelogParams),
-    queryFn: () =>
-      getChangelogApiV1ChangelogGet(changelogParams) as unknown as Promise<{
-        entries: ChangelogEntry[];
-      }>,
+  const { data, isLoading } = useChangelog(changelogParams, {
     enabled: mode === "info" || (mode === "update" && Boolean(open)),
   });
 

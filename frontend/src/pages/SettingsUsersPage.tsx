@@ -1,15 +1,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
   approveUserApiV1UsersUserIdApprovePost,
   deleteUserApiV1UsersUserIdDelete,
 } from "@/api/generated/users/users";
+import { useUsers } from "@/hooks/useUsers";
 import {
   listGuildInvitesApiV1GuildsGuildIdInvitesGet,
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
@@ -98,11 +97,7 @@ export const SettingsUsersPage = () => {
 
   const inviteRows = useMemo(() => invites, [invites]);
 
-  const usersQuery = useQuery<UserGuildMember[]>({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    enabled: isGuildAdmin,
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<UserGuildMember[]>,
-  });
+  const usersQuery = useUsers({ enabled: isGuildAdmin });
 
   const approveUser = useMutation({
     mutationFn: async (userId: number) => {

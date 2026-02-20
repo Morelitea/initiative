@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 
 import {
-  readProjectApiV1ProjectsProjectIdGet,
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
   updateProjectApiV1ProjectsProjectIdPatch,
   deleteProjectApiV1ProjectsProjectIdDelete,
   archiveProjectApiV1ProjectsProjectIdArchivePost,
@@ -21,10 +19,6 @@ import {
   updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch,
   removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete,
 } from "@/api/generated/projects/projects";
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
 import { invalidateAllProjects, invalidateProject } from "@/api/query-keys";
 import {
   Breadcrumb,
@@ -59,15 +53,11 @@ import { Input } from "@/components/ui/input";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useAuth } from "@/hooks/useAuth";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
+import { useProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
-import {
-  Project,
-  Initiative,
-  ProjectPermissionLevel,
-  ProjectRolePermission,
-  TagSummary,
-} from "@/types/api";
+import { Project, ProjectPermissionLevel, ProjectRolePermission, TagSummary } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
@@ -110,18 +100,9 @@ export const ProjectSettingsPage = () => {
 
   const setProjectTagsMutation = useSetProjectTags();
 
-  const projectQuery = useQuery<Project>({
-    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(parsedProjectId),
-    queryFn: () =>
-      readProjectApiV1ProjectsProjectIdGet(parsedProjectId) as unknown as Promise<Project>,
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  const projectQuery = useProject(Number.isFinite(parsedProjectId) ? parsedProjectId : null);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    enabled: user?.role === "admin",
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-  });
+  const initiativesQuery = useInitiatives({ enabled: user?.role === "admin" });
 
   useEffect(() => {
     if (projectQuery.data) {

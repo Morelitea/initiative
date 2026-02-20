@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
@@ -20,20 +19,6 @@ import {
 } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
-import {
-  getListDocumentsApiV1DocumentsGetQueryKey,
-  listDocumentsApiV1DocumentsGet,
-} from "@/api/generated/documents/documents";
-import {
-  getListInitiativesApiV1InitiativesGetQueryKey,
-  listInitiativesApiV1InitiativesGet,
-} from "@/api/generated/initiatives/initiatives";
-import {
-  getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey,
-  favoriteProjectsApiV1ProjectsFavoritesGet,
-  getListProjectsApiV1ProjectsGetQueryKey,
-  listProjectsApiV1ProjectsGet,
-} from "@/api/generated/projects/projects";
 import { getItem, setItem } from "@/lib/storage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +54,10 @@ import { HomeSidebarContent } from "@/components/HomeSidebarContent";
 import { ModeToggle } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
+import { useAllDocumentIds } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiatives } from "@/hooks/useInitiatives";
+import { useProjects, useFavoriteProjects } from "@/hooks/useProjects";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { useTags } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
@@ -108,38 +96,19 @@ export const AppSidebar = () => {
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
+  const initiativesQuery = useInitiatives({ enabled: Boolean(activeGuild), staleTime: 60_000 });
+
+  const projectsQuery = useProjects(undefined, {
     enabled: Boolean(activeGuild),
     staleTime: 60_000,
   });
 
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
-    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
-    enabled: Boolean(activeGuild),
-    staleTime: 60_000,
-  });
-
-  const favoritesQuery = useQuery<Project[]>({
-    queryKey: getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey(),
-    queryFn: () => favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<Project[]>,
+  const favoritesQuery = useFavoriteProjects({
     enabled: activeGuildId !== null,
     staleTime: 60_000,
   });
 
-  const documentsQuery = useQuery<{ id: number; initiative_id: number }[]>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
-    queryFn: async () => {
-      const response = await (listDocumentsApiV1DocumentsGet({
-        page_size: 0,
-      }) as unknown as Promise<{ items: { id: number; initiative_id: number }[] }>);
-      return response.items;
-    },
-    enabled: Boolean(activeGuild),
-    staleTime: 60_000,
-  });
+  const documentsQuery = useAllDocumentIds({ enabled: Boolean(activeGuild), staleTime: 60_000 });
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, Project[]>();

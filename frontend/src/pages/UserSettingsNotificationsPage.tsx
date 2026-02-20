@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
-import {
-  getFcmConfigApiV1SettingsFcmConfigGet,
-  getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
-} from "@/api/generated/settings/settings";
+import { useFcmConfig } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,10 +60,6 @@ interface UserSettingsNotificationsPageProps {
   refreshUser: () => Promise<void>;
 }
 
-interface FCMConfigResponse {
-  enabled: boolean;
-}
-
 interface NotificationCategory {
   label: string;
   description: string;
@@ -85,11 +78,7 @@ export const UserSettingsNotificationsPage = ({
   const { t } = useTranslation("settings");
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
 
-  const { data: fcmConfig } = useQuery({
-    queryKey: getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey(),
-    queryFn: () => getFcmConfigApiV1SettingsFcmConfigGet() as unknown as Promise<FCMConfigResponse>,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: fcmConfig } = useFcmConfig();
   const showPushColumn = fcmConfig?.enabled ?? false;
 
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");

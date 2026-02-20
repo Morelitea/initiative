@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isAxiosError } from "axios";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -21,13 +21,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Loader2, Trash2, SquareCheck, Sparkles } from "lucide-react";
 
 import {
-  listSubtasksApiV1TasksTaskIdSubtasksGet,
-  getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey,
   createSubtaskApiV1TasksTaskIdSubtasksPost,
   createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost,
   reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut,
   generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost,
 } from "@/api/generated/tasks/tasks";
+import { useSubtasks } from "@/hooks/useTasks";
 import {
   updateSubtaskApiV1SubtasksSubtaskIdPatch,
   deleteSubtaskApiV1SubtasksSubtaskIdDelete,
@@ -71,26 +70,13 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
   const [generatedSubtasks, setGeneratedSubtasks] = useState<string[]>([]);
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
 
-  const subtasksQueryKey = useMemo(
-    () => getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey(taskId),
-    [taskId]
-  );
-
   const invalidateRelatedData = useCallback(() => {
     void invalidateTaskSubtasks(taskId);
     void invalidateTask(taskId);
     void invalidateAllTasks();
   }, [taskId]);
 
-  const subtasksQuery = useQuery<TaskSubtask[]>({
-    queryKey: subtasksQueryKey,
-    queryFn: async () => {
-      const response = await (listSubtasksApiV1TasksTaskIdSubtasksGet(
-        taskId
-      ) as unknown as Promise<{ data: TaskSubtask[] }>);
-      return response.data;
-    },
-  });
+  const subtasksQuery = useSubtasks(taskId);
 
   const [localSubtasks, setLocalSubtasks] = useState<TaskSubtask[]>([]);
 
@@ -126,10 +112,9 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
 
   const createSubtask = useMutation({
     mutationFn: async (content: string) => {
-      const response = await (createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, {
+      return createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, {
         content,
-      }) as unknown as Promise<{ data: TaskSubtask }>);
-      return response.data;
+      }) as unknown as Promise<TaskSubtask>;
     },
     onSuccess: () => {
       setNewContent("");
@@ -143,11 +128,10 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
 
   const updateSubtask = useMutation({
     mutationFn: async ({ subtaskId, data }: UpdatePayload) => {
-      const response = await (updateSubtaskApiV1SubtasksSubtaskIdPatch(
+      return updateSubtaskApiV1SubtasksSubtaskIdPatch(
         subtaskId,
         data
-      ) as unknown as Promise<{ data: TaskSubtask }>);
-      return response.data;
+      ) as unknown as Promise<TaskSubtask>;
     },
     onSuccess: (_response, variables) => {
       if (variables.data.content !== undefined) {
@@ -184,10 +168,9 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
 
   const reorderSubtasks = useMutation({
     mutationFn: async (items: { id: number; position: number }[]) => {
-      const response = await (reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, {
+      return reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, {
         items,
-      }) as unknown as Promise<{ data: TaskSubtask[] }>);
-      return response.data;
+      }) as unknown as Promise<TaskSubtask[]>;
     },
     onSuccess: () => {
       invalidateRelatedData();
@@ -199,10 +182,9 @@ export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
 
   const generateSubtasksMutation = useMutation({
     mutationFn: async () => {
-      const response = await (generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(
+      return generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(
         taskId
-      ) as unknown as Promise<{ data: GenerateSubtasksResponse }>);
-      return response.data;
+      ) as unknown as Promise<GenerateSubtasksResponse>;
     },
     onSuccess: (data) => {
       setGeneratedSubtasks(data.subtasks);

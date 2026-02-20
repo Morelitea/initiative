@@ -69,6 +69,35 @@ export default defineConfig([
     },
   },
   {
+    // Restrict direct React Query query/cache hooks to src/api and src/hooks.
+    // Pages and components should import domain hooks instead.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/api/**",
+      "src/hooks/**",
+      "src/lib/queryClient.ts",
+      "src/main.tsx",
+      "src/router.tsx",
+      "src/__tests__/**",
+      "src/components/ui/editor/plugins/autocomplete-plugin.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tanstack/react-query",
+              importNames: ["useQuery", "useQueryClient"],
+              message:
+                "Use domain hooks from @/hooks/ instead of direct React Query imports. Only src/api/ and src/hooks/ may use query hooks directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     settings: {
       react: {
         version: "detect",

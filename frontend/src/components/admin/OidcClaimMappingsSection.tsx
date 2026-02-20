@@ -1,19 +1,17 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
-  getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
-  getOidcMappingsApiV1SettingsOidcMappingsGet,
-  getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
-  getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
   createOidcMappingApiV1SettingsOidcMappingsPost,
   updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
 } from "@/api/generated/settings/settings";
+import type { OIDCClaimMappingRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateOidcMappings } from "@/api/query-keys";
+import { useOidcMappings, useOidcMappingOptions } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,43 +32,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface OIDCClaimMapping {
-  id: number;
-  claim_value: string;
-  target_type: "guild" | "initiative";
-  guild_id: number;
-  guild_role: string;
-  initiative_id?: number | null;
-  initiative_role_id?: number | null;
-  guild_name?: string | null;
-  initiative_name?: string | null;
-  initiative_role_name?: string | null;
-}
-
-interface OIDCMappingsData {
-  claim_path: string | null;
-  mappings: OIDCClaimMapping[];
-}
-
-interface OptionItem {
-  id: number;
-  name: string;
-}
-
-interface InitiativeOption extends OptionItem {
-  guild_id: number;
-}
-
-interface RoleOption extends OptionItem {
-  initiative_id: number;
-}
-
-interface MappingOptions {
-  guilds: OptionItem[];
-  initiatives: InitiativeOption[];
-  initiative_roles: RoleOption[];
-}
-
 export const OidcClaimMappingsSection = () => {
   const { t } = useTranslation("settings");
 
@@ -86,17 +47,8 @@ export const OidcClaimMappingsSection = () => {
     initiative_role_id: "",
   });
 
-  const mappingsQuery = useQuery<OIDCMappingsData>({
-    queryKey: getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey(),
-    queryFn: () =>
-      getOidcMappingsApiV1SettingsOidcMappingsGet() as unknown as Promise<OIDCMappingsData>,
-  });
-
-  const optionsQuery = useQuery<MappingOptions>({
-    queryKey: getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey(),
-    queryFn: () =>
-      getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet() as unknown as Promise<MappingOptions>,
-  });
+  const mappingsQuery = useOidcMappings();
+  const optionsQuery = useOidcMappingOptions();
 
   useEffect(() => {
     if (mappingsQuery.data) {
@@ -119,7 +71,7 @@ export const OidcClaimMappingsSection = () => {
     mutationFn: async (data: Record<string, unknown>) => {
       return createOidcMappingApiV1SettingsOidcMappingsPost(
         data as unknown as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
-      ) as unknown as Promise<OIDCClaimMapping>;
+      ) as unknown as Promise<OIDCClaimMappingRead>;
     },
     onSuccess: () => {
       toast.success(t("auth.mappingCreateSuccess"));
@@ -134,7 +86,7 @@ export const OidcClaimMappingsSection = () => {
       return updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
         id,
         data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
-      ) as unknown as Promise<OIDCClaimMapping>;
+      ) as unknown as Promise<OIDCClaimMappingRead>;
     },
     onSuccess: () => {
       toast.success(t("auth.mappingUpdateSuccess"));
@@ -180,12 +132,12 @@ export const OidcClaimMappingsSection = () => {
     });
   };
 
-  const startEdit = (mapping: OIDCClaimMapping) => {
+  const startEdit = (mapping: OIDCClaimMappingRead) => {
     setEditingId(mapping.id);
     setFormOpen(true);
     setForm({
       claim_value: mapping.claim_value,
-      target_type: mapping.target_type,
+      target_type: mapping.target_type as "guild" | "initiative",
       guild_id: String(mapping.guild_id),
       guild_role: mapping.guild_role,
       initiative_id: mapping.initiative_id ? String(mapping.initiative_id) : "",

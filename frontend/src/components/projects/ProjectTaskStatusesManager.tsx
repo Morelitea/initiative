@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   DndContext,
   type DragEndEvent,
@@ -20,7 +20,6 @@ import { Loader2, GripVertical, Trash2, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
   getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
   createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost,
   updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch,
@@ -30,6 +29,7 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { invalidateProjectTaskStatuses, invalidateAllTasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { useProjectTaskStatuses } from "@/hooks/useProjects";
 import type { ProjectTaskStatus, TaskStatusCategory } from "@/types/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -117,14 +117,7 @@ export const ProjectTaskStatusesManager = ({
     })
   );
 
-  const statusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: STATUS_QUERY_KEY(projectId),
-    enabled: Number.isFinite(projectId),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId) as unknown as Promise<
-        ProjectTaskStatus[]
-      >,
-  });
+  const statusesQuery = useProjectTaskStatuses(projectId);
 
   const reorderStatuses = useMutation({
     mutationFn: async (items: { id: number; position: number }[]) => {

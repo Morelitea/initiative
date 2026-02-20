@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  listTasksApiV1TasksGet,
-  updateTaskApiV1TasksTaskIdPatch,
-} from "@/api/generated/tasks/tasks";
+import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
+import { useTasks, usePrefetchTasks } from "@/hooks/useTasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -21,13 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
-import type {
-  ProjectTaskStatus,
-  Task,
-  TaskListResponse,
-  TaskPriority,
-  TaskStatusCategory,
-} from "@/types/api";
+import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -71,7 +63,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
   const router = useRouter();
-  const localQueryClient = useQueryClient();
+  const prefetchTasks = usePrefetchTasks();
   const searchParams = useSearch({ strict: false }) as { page?: number };
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -142,75 +134,33 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     setPage(1);
   }, [statusFilters, priorityFilters, setPage]);
 
-  const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: [
-      "tasks",
-      "tag",
-      tagId,
-      statusFilters,
-      priorityFilters,
-      page,
-      pageSize,
-      sortBy,
-      sortDir,
-    ],
-    queryFn: async () => {
-      const params: Record<string, string | string[] | number | number[]> = {
-        tag_ids: [tagId],
-      };
-      if (statusFilters.length > 0) {
-        params.status_category = statusFilters;
-      }
-      if (priorityFilters.length > 0) {
-        params.priorities = priorityFilters;
-      }
-      params.page = page;
-      params.page_size = pageSize;
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-      const response = await (listTasksApiV1TasksGet(params as never) as unknown as Promise<{
-        data: TaskListResponse;
-      }>);
-      return response.data;
-    },
-    placeholderData: keepPreviousData,
-  });
+  const taskParams = {
+    tag_ids: [tagId],
+    ...(statusFilters.length > 0 && { status_category: statusFilters }),
+    ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+    page,
+    page_size: pageSize,
+    ...(sortBy && { sort_by: sortBy }),
+    ...(sortDir && { sort_dir: sortDir }),
+  } as Parameters<typeof useTasks>[0];
+
+  const tasksQuery = useTasks(taskParams, { placeholderData: keepPreviousData });
 
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[] | number | number[]> = {
+      const params = {
         tag_ids: [tagId],
-      };
-      if (statusFilters.length > 0) params.status_category = statusFilters;
-      if (priorityFilters.length > 0) params.priorities = priorityFilters;
-      params.page = targetPage;
-      params.page_size = pageSize;
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-
-      void localQueryClient.prefetchQuery({
-        queryKey: [
-          "tasks",
-          "tag",
-          tagId,
-          statusFilters,
-          priorityFilters,
-          targetPage,
-          pageSize,
-          sortBy,
-          sortDir,
-        ],
-        queryFn: async () => {
-          const response = await (listTasksApiV1TasksGet(params as never) as unknown as Promise<{
-            data: TaskListResponse;
-          }>);
-          return response.data;
-        },
-        staleTime: 30_000,
-      });
+        ...(statusFilters.length > 0 && { status_category: statusFilters }),
+        ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+        page: targetPage,
+        page_size: pageSize,
+        ...(sortBy && { sort_by: sortBy }),
+        ...(sortDir && { sort_dir: sortDir }),
+      } as Parameters<typeof useTasks>[0];
+      void prefetchTasks(params);
     },
-    [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, localQueryClient]
+    [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, prefetchTasks]
   );
 
   const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({

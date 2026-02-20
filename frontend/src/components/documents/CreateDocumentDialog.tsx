@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2, Plus, Presentation, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -7,14 +7,10 @@ import { toast } from "sonner";
 import {
   copyDocumentApiV1DocumentsDocumentIdCopyPost,
   createDocumentApiV1DocumentsPost,
-  getListDocumentsApiV1DocumentsGetQueryKey,
-  listDocumentsApiV1DocumentsGet,
   uploadDocumentFileApiV1DocumentsUploadPost,
 } from "@/api/generated/documents/documents";
-import {
-  getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey,
-  getInitiativeApiV1InitiativesInitiativeIdGet,
-} from "@/api/generated/initiatives/initiatives";
+import { useAllDocumentIds } from "@/hooks/useDocuments";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
 import { apiClient } from "@/api/client";
 import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
@@ -50,7 +46,7 @@ import {
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
-import type { DocumentRead, DocumentSummary, Initiative } from "@/types/api";
+import type { DocumentRead, Initiative } from "@/types/api";
 
 type CreateDocumentDialogProps = {
   open: boolean;
@@ -102,26 +98,14 @@ export const CreateDocumentDialog = ({
   }, [initiativeId, initiatives]);
 
   // Query the initiative if we have an ID but it's not in the passed list
-  const initiativeQuery = useQuery<Initiative>({
-    queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
-    queryFn: () =>
-      getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId!) as unknown as Promise<Initiative>,
-    enabled: open && !!initiativeId && !lockedInitiativeFromList,
-  });
+  const initiativeQuery = useInitiative(
+    open && !!initiativeId && !lockedInitiativeFromList ? initiativeId! : null
+  );
 
   const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
   // Query templates
-  const templateDocumentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
-    queryFn: async () => {
-      const response = await (listDocumentsApiV1DocumentsGet({
-        page_size: 0,
-      }) as unknown as Promise<{ items: DocumentSummary[] }>);
-      return response.items;
-    },
-    enabled: open,
-  });
+  const templateDocumentsQuery = useAllDocumentIds({ enabled: open });
 
   // Filter templates — backend already enforces access control via RLS
   const manageableTemplates = useMemo(() => {

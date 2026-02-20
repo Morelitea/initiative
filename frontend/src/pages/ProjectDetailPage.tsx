@@ -1,19 +1,14 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
-
-import {
-  listUsersApiV1UsersGet,
-  getListUsersApiV1UsersGetQueryKey,
-} from "@/api/generated/users/users";
 import {
   invalidateAllTasks,
   invalidateProject,
   invalidateProjectTaskStatuses,
 } from "@/api/query-keys";
 import { useProject, useProjectTaskStatuses, useRecordProjectView } from "@/hooks/useProjects";
+import { useUsers } from "@/hooks/useUsers";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
@@ -29,7 +24,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -55,10 +49,7 @@ export const ProjectDetailPage = () => {
     Number.isFinite(parsedProjectId) ? parsedProjectId : null
   );
 
-  const usersQuery = useQuery<User[]>({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
-  });
+  const usersQuery = useUsers();
 
   const recordViewMutation = useRecordProjectView();
   const viewedProjectId = projectQuery.data?.id;

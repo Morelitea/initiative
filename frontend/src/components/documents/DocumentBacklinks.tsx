@@ -1,14 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, FileText, Link2 } from "lucide-react";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 
-import {
-  getBacklinksApiV1DocumentsDocumentIdBacklinksGet,
-  getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryKey,
-} from "@/api/generated/documents/documents";
+import { useDocumentBacklinks } from "@/hooks/useDocuments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -24,14 +20,7 @@ export function DocumentBacklinks({ documentId }: DocumentBacklinksProps) {
   const [isOpen, setIsOpen] = useState(true);
   const gp = useGuildPath();
 
-  const {
-    data: backlinks = [],
-    isLoading,
-    isError,
-  } = useQuery({
-    queryKey: getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryKey(documentId),
-    queryFn: () => getBacklinksApiV1DocumentsDocumentIdBacklinksGet(documentId),
-  });
+  const { data: backlinks = [], isLoading, isError } = useDocumentBacklinks(documentId);
 
   if (isLoading) {
     return null;

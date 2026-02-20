@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2, Settings } from "lucide-react";
 
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { DocumentsView } from "./DocumentsPage";
 import { ProjectsView } from "./ProjectsPage";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -23,7 +19,6 @@ import {
   canCreate,
 } from "@/hooks/useInitiativeRoles";
 import { Markdown } from "@/components/Markdown";
-import type { Initiative } from "@/types/api";
 
 export const InitiativeDetailPage = () => {
   const { initiativeId: initiativeIdParam } = useParams({ strict: false }) as {
@@ -45,11 +40,7 @@ export const InitiativeDetailPage = () => {
     hasValidInitiativeId ? initiativeId : null
   );
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-    enabled: hasValidInitiativeId,
-  });
+  const initiativesQuery = useInitiatives({ enabled: hasValidInitiativeId });
 
   const initiative =
     hasValidInitiativeId && initiativesQuery.data
