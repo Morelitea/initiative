@@ -13,7 +13,8 @@ import {
 } from "@dnd-kit/core";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { ProjectTaskStatus, Task, TaskPriority } from "@/types/api";
+import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectTaskStatus, Task } from "@/types/api";
 
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
 import { Badge } from "@/components/ui/badge";

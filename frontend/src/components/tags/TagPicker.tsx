@@ -17,7 +17,8 @@ import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { TagBadge } from "./TagBadge";
 import { useTags, useCreateTag } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
-import type { TagSummary, Tag } from "@/types/api";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { Tag } from "@/types/api";
 
 const DEFAULT_TAG_COLORS = [
   "#6366F1", // Indigo

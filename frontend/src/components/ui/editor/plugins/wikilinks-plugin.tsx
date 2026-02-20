@@ -17,7 +17,7 @@ import { FileText, Plus } from "lucide-react";
 
 import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-import { autocompleteDocuments, type DocumentAutocomplete } from "@/api/documents";
+import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 
 const LexicalTypeaheadMenuPlugin = lazy(() =>
   import("@lexical/react/LexicalTypeaheadMenuPlugin").then((mod) => ({

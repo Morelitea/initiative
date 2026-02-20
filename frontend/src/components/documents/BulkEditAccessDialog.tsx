@@ -46,9 +46,9 @@ import { useAuth } from "@/hooks/useAuth";
 import type {
   DocumentPermissionLevel,
   DocumentSummary,
-  InitiativeMember,
   InitiativeRoleRead,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeMember } from "@/types/api";
 
 interface BulkEditAccessDialogProps {
   open: boolean;

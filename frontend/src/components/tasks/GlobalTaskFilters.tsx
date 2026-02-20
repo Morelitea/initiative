@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { Guild, TaskPriority, TaskStatusCategory } from "@/types/api";
+import type { TaskPriority, TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { Guild } from "@/types/api";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 

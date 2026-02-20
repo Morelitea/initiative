@@ -62,8 +62,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import type { Comment, DocumentProjectLink, DocumentRead, TagSummary } from "@/types/api";
-import { uploadAttachment } from "@/api/attachments";
+import type {
+  DocumentProjectLink,
+  DocumentRead,
+  TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Comment } from "@/types/api";
+import { uploadAttachment } from "@/lib/attachmentUtils";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";

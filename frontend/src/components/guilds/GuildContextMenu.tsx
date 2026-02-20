@@ -5,7 +5,7 @@ import { Settings, Plus, Copy, LogOut, UserPlus, Users, FolderOpen } from "lucid
 import { toast } from "sonner";
 
 import { createGuildInviteApiV1GuildsGuildIdInvitesPost } from "@/api/generated/guilds/guilds";
-import type { GuildInviteRead } from "@/types/api";
+import type { GuildInviteRead } from "@/api/generated/initiativeAPI.schemas";
 
 import {
   ContextMenu,

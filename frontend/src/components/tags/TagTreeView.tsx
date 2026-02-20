@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { buildTagTree, countDocumentsForNode, type TagTreeNode } from "@/lib/tagTree";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { TagSummary } from "@/types/api";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 export const UNTAGGED_PATH = "__untagged__";
 

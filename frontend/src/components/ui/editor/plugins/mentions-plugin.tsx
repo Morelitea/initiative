@@ -12,7 +12,7 @@ import { $createMentionNode } from "@/components/ui/editor/nodes/mention-node";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import type { UserPublic } from "@/types/api";
+import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 
 const LexicalTypeaheadMenuPlugin = lazy(() =>
   import("@lexical/react/LexicalTypeaheadMenuPlugin").then((mod) => ({

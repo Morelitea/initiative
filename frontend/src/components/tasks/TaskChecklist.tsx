@@ -44,7 +44,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { TaskSubtask, TaskSubtaskProgress, GenerateSubtasksResponse } from "@/types/api";
+import type {
+  TaskSubtaskProgress,
+  GenerateSubtasksResponse,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { TaskSubtask } from "@/types/api";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 

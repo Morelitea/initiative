@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { RecentActivityEntry } from "@/types/api";
+import type { RecentActivityEntry } from "@/api/generated/initiativeAPI.schemas";
 
 interface RecentCommentsListProps {
   comments: RecentActivityEntry[];

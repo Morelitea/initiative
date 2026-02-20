@@ -137,11 +137,10 @@ export const CommentSection = ({
       commentId: number;
       payload: CommentUpdatePayload;
     }) => {
-      const response = await (updateCommentApiV1CommentsCommentIdPatch(
+      return updateCommentApiV1CommentsCommentIdPatch(
         commentId,
         payload
-      ) as unknown as Promise<{ data: Comment }>);
-      return response.data;
+      ) as unknown as Promise<Comment>;
     },
     onSuccess: (comment) => {
       setEditError(null);

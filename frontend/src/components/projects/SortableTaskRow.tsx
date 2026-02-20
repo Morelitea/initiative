@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ProjectTaskStatus, Task, TaskPriority, TaskStatusCategory } from "@/types/api";
+import type { TaskPriority, TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectTaskStatus, Task } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import type { TranslateFn } from "@/types/i18n";

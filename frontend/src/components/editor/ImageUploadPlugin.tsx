@@ -3,7 +3,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { COMMAND_PRIORITY_LOW, DROP_COMMAND, type PasteCommandType, PASTE_COMMAND } from "lexical";
 import { toast } from "sonner";
 
-import { uploadAttachment } from "@/api/attachments";
+import { uploadAttachment } from "@/lib/attachmentUtils";
 import { insertImageNode } from "@/components/editor/nodes/ImageNode";
 
 type ImageUploadPluginProps = {

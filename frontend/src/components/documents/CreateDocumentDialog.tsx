@@ -46,7 +46,8 @@ import {
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
-import type { DocumentRead, Initiative } from "@/types/api";
+import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
+import type { Initiative } from "@/types/api";
 
 type CreateDocumentDialogProps = {
   open: boolean;

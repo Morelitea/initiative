@@ -19,7 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
-import type { User, UserRole } from "@/types/api";
+import type { UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type { User } from "@/types/api";
 import { DataTable } from "@/components/ui/data-table";
 import { SortIcon } from "@/components/SortIcon";
 

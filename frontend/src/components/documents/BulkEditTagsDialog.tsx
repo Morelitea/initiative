@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TagPicker } from "@/components/tags/TagPicker";
-import type { DocumentSummary, TagSummary } from "@/types/api";
+import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 interface BulkEditTagsDialogProps {
   open: boolean;

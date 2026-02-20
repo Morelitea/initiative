@@ -27,9 +27,9 @@ import type {
   AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
-  UserAISettings,
   UserAISettingsUpdate,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { UserAISettings } from "@/types/api";
 
 interface FormState {
   enabled: boolean | null;

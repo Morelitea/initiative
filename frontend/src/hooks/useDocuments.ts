@@ -22,7 +22,11 @@ import {
   updateDocumentApiV1DocumentsDocumentIdPatch,
 } from "@/api/generated/documents/documents";
 import { invalidateAllDocuments } from "@/api/query-keys";
-import type { DocumentCountsResponse, DocumentListResponse, DocumentRead } from "@/types/api";
+import type {
+  DocumentCountsResponse,
+  DocumentListResponse,
+  DocumentRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import type {
   ListDocumentsApiV1DocumentsGetParams,
   GetDocumentCountsApiV1DocumentsCountsGetParams,

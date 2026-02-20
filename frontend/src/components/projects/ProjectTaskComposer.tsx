@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import type { TaskPriority, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
+import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
+import type { TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
 import { AssigneeSelector } from "@/components/projects/AssigneeSelector";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";

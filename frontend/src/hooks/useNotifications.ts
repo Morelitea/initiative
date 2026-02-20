@@ -10,10 +10,10 @@ import {
 } from "@/api/generated/notifications/notifications";
 import { invalidateNotifications } from "@/api/query-keys";
 import type {
-  Notification,
   NotificationCountResponse,
   NotificationListResponse,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { Notification } from "@/types/api";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 

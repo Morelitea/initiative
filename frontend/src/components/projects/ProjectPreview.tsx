@@ -12,7 +12,8 @@ import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
-import type { GuildRole, Initiative, Project } from "@/types/api";
+import type { GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import type { Initiative, Project } from "@/types/api";
 
 interface ProjectLinkProps {
   project: Project;

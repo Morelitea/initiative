@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useAuth } from "@/hooks/useAuth";
-import type { GuildInviteStatus } from "@/types/api";
+import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";

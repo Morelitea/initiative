@@ -27,13 +27,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type {
-  Task,
-  ProjectTaskStatus,
-  TaskPriority,
-  TaskRecurrence,
-  TaskRecurrenceStrategy,
-} from "@/types/api";
+import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
+import type { Task, ProjectTaskStatus, TaskRecurrence, TaskRecurrenceStrategy } from "@/types/api";
 import type { UserOption } from "@/components/projects/projectTasksConfig";
 
 export type TaskBulkUpdate = {

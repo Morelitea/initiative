@@ -29,9 +29,9 @@ import type {
   AIModelsResponse,
   AIProvider,
   AITestConnectionResponse,
-  PlatformAISettings,
   PlatformAISettingsUpdate,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { PlatformAISettings } from "@/types/api";
 
 interface FormState {
   enabled: boolean;
@@ -81,10 +81,9 @@ export const SettingsAIPage = () => {
 
   const updateMutation = useMutation({
     mutationFn: async (payload: PlatformAISettingsUpdate) => {
-      const response = await (updatePlatformAiSettingsApiV1SettingsAiPlatformPut(
+      return updatePlatformAiSettingsApiV1SettingsAiPlatformPut(
         payload
-      ) as unknown as Promise<{ data: PlatformAISettings }>);
-      return response.data;
+      ) as unknown as Promise<PlatformAISettings>;
     },
     onSuccess: (data) => {
       toast.success(t("ai.saveSuccess"));
@@ -101,13 +100,12 @@ export const SettingsAIPage = () => {
       if (!formState.provider) {
         throw new Error("No provider selected");
       }
-      const response = await (testAiConnectionApiV1SettingsAiTestPost({
+      return testAiConnectionApiV1SettingsAiTestPost({
         provider: formState.provider,
         api_key: formState.apiKey || null,
         base_url: formState.baseUrl || null,
         model: formState.model || null,
-      }) as unknown as Promise<{ data: AITestConnectionResponse }>);
-      return response.data;
+      }) as unknown as Promise<AITestConnectionResponse>;
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -127,12 +125,11 @@ export const SettingsAIPage = () => {
       if (!formState.provider) {
         throw new Error("No provider selected");
       }
-      const response = await (fetchAiModelsApiV1SettingsAiModelsPost({
+      return fetchAiModelsApiV1SettingsAiModelsPost({
         provider: formState.provider,
         api_key: formState.apiKey || null,
         base_url: formState.baseUrl || null,
-      }) as unknown as Promise<{ data: AIModelsResponse }>);
-      return response.data;
+      }) as unknown as Promise<AIModelsResponse>;
     },
     onSuccess: (data) => {
       if (data.models.length > 0) {

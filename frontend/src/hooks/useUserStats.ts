@@ -4,7 +4,7 @@ import {
   getUserStatsApiV1UsersMeStatsGet,
   getGetUserStatsApiV1UsersMeStatsGetQueryKey,
 } from "@/api/generated/users/users";
-import type { UserStatsResponse } from "@/types/api";
+import type { UserStatsResponse } from "@/api/generated/initiativeAPI.schemas";
 
 export function useUserStats(guildId?: number | null) {
   const params = guildId ? { guild_id: guildId } : undefined;

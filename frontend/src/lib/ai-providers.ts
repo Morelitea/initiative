@@ -1,4 +1,4 @@
-import type { AIProvider } from "@/types/api";
+import type { AIProvider } from "@/api/generated/initiativeAPI.schemas";
 
 export const OPENAI_MODELS = [
   "gpt-4o",

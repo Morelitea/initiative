@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { CheckSquare, FileText, FolderKanban, User } from "lucide-react";
 
 import { useMentionSuggestions } from "@/hooks/useComments";
-import type { MentionEntityType, MentionSuggestion } from "@/types/api";
+import type { MentionSuggestion } from "@/api/generated/initiativeAPI.schemas";
+import type { MentionEntityType } from "@/types/api";
 
 interface MentionPopoverProps {
   type: MentionEntityType;

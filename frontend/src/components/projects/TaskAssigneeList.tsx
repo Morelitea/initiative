@@ -1,4 +1,5 @@
-import type { TaskAssignee, UserPublic } from "@/types/api";
+import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
+import type { TaskAssignee } from "@/types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";

@@ -14,7 +14,8 @@ import {
 import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
 import { invalidateAllTasks, invalidateTask } from "@/api/query-keys";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
-import type { Task, TaskPriority } from "@/types/api";
+import type { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
+import type { Task } from "@/types/api";
 
 type TaskPrioritySelectorProps = {
   task: Task;
@@ -38,10 +39,9 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
 
   const updatePriority = useMutation({
     mutationFn: async (priority: TaskPriority) => {
-      const response = await (updateTaskApiV1TasksTaskIdPatch(task.id, {
+      return updateTaskApiV1TasksTaskIdPatch(task.id, {
         priority,
-      }) as unknown as Promise<{ data: Task }>);
-      return response.data;
+      }) as unknown as Promise<Task>;
     },
     onSuccess: (updatedTask) => {
       // Invalidate relevant queries

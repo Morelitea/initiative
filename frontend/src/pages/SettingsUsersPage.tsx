@@ -31,7 +31,11 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
-import type { GuildInviteRead, GuildRole, UserGuildMember } from "@/types/api";
+import type {
+  GuildInviteRead,
+  GuildRole,
+  UserGuildMember,
+} from "@/api/generated/initiativeAPI.schemas";
 import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";

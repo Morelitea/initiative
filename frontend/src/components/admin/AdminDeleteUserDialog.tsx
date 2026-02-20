@@ -29,13 +29,12 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import type {
-  User,
-  DeletionEligibilityResponse,
   AdminUserDeleteRequest,
   AccountDeletionResponse,
   GuildBlockerInfo,
   InitiativeBlockerInfo,
-} from "@/types/api";
+} from "@/api/generated/initiativeAPI.schemas";
+import type { User, DeletionEligibilityResponse } from "@/types/api";
 
 type DeletionType = "soft" | "hard";
 type DeletionStep =

@@ -11,7 +11,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getFileTypeLabel } from "@/lib/fileUtils";
-import type { DocumentSummary } from "@/types/api";
+import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DocumentCardProps {

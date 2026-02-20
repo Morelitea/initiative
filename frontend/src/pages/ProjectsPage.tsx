@@ -102,7 +102,8 @@ import {
   type RoleGrant,
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
-import type { Tag, TagSummary } from "@/types/api";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { Tag } from "@/types/api";
 
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
