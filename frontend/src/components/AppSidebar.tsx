@@ -116,7 +116,7 @@ export const AppSidebar = () => {
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, ProjectRead[]>();
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
     projects.forEach((project) => {
       if (!project.is_archived) {
         const existing = map.get(project.initiative_id) ?? [];

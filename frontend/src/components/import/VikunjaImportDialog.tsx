@@ -211,7 +211,7 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
 
   // Filter to only show projects where user has write or owner permission
   const activeProjects =
-    projectsQuery.data?.filter((p) => {
+    projectsQuery.data?.items?.filter((p) => {
       if (p.is_archived || p.is_template) return false;
       const userPermission = p.permissions?.find((perm) => perm.user_id === user?.id);
       return userPermission?.level === "owner" || userPermission?.level === "write";

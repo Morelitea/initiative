@@ -7,7 +7,7 @@ import type {
   TaskRecurrenceOutputFrequency,
   TaskRecurrenceOutputWeekdaysItem,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { TaskWeekPosition } from "@/types/api";
+import type { TaskWeekPosition } from "@/lib/recurrence";
 import { Label } from "@/components/ui/label";
 import {
   Select,

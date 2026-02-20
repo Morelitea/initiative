@@ -822,14 +822,16 @@ async def _list_global_projects(
     return list(result.all()), total_count
 
 
-@router.get("/", response_model=List[ProjectRead])
+@router.get("/", response_model=ProjectListResponse)
 async def list_projects(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     archived: Optional[bool] = Query(default=None),
     template: Optional[bool] = Query(default=None),
-) -> List[ProjectRead]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=0, ge=0, le=100),
+) -> ProjectListResponse:
     projects = await _visible_projects(
         session,
         current_user,
@@ -837,8 +839,23 @@ async def list_projects(
         archived=archived,
         template=template,
     )
-    return await _project_reads_with_order(
+    all_reads = await _project_reads_with_order(
         session, current_user, projects,
+    )
+    total_count = len(all_reads)
+    if page_size > 0:
+        start = (page - 1) * page_size
+        items = all_reads[start : start + page_size]
+        has_next = page * page_size < total_count
+    else:
+        items = all_reads
+        has_next = False
+    return ProjectListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=has_next,
     )
 
 

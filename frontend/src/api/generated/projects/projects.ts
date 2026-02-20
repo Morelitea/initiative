@@ -58,7 +58,7 @@ export const listProjectsApiV1ProjectsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ProjectRead[]>(
+  return apiMutator<ProjectListResponse>(
     { url: `/api/v1/projects/`, method: "GET", params, signal },
     options
   );

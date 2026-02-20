@@ -4,7 +4,8 @@ import type {
   TaskRecurrenceOutputFrequency,
   TaskRecurrenceOutputWeekdaysItem,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { TaskWeekPosition } from "@/types/api";
+
+export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
 import type { TranslateFn } from "@/types/i18n";
 
 export type RecurrencePreset =

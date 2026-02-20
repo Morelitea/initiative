@@ -53,7 +53,7 @@ export const TemplatesPage = () => {
     return <p className="text-destructive text-sm">{t("templates.loadError")}</p>;
   }
 
-  const projects = templatesQuery.data ?? [];
+  const projects = templatesQuery.data?.items ?? [];
 
   return (
     <div className="space-y-6">

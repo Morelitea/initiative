@@ -9,7 +9,7 @@ import { useDateLocale } from "@/hooks/useDateLocale";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
-import type { CommentWithReplies } from "@/types/api";
+import type { CommentWithReplies } from "./CommentSection";
 
 const MAX_VISUAL_DEPTH = 3;
 

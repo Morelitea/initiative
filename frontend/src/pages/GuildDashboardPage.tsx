@@ -84,7 +84,7 @@ export function GuildDashboardPage() {
           : "danger";
 
   // Recent projects sorted by updated_at
-  const recentProjects = [...(projectsQuery.data ?? [])]
+  const recentProjects = [...(projectsQuery.data?.items ?? [])]
     .filter((p) => !p.is_archived)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 6);
@@ -159,7 +159,7 @@ export function GuildDashboardPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <VelocityChart data={stats?.velocity_data ?? []} />
         <ProjectHealthList
-          projects={projectsQuery.data ?? []}
+          projects={projectsQuery.data?.items ?? []}
           isLoading={projectsQuery.isLoading}
         />
       </div>
@@ -238,7 +238,7 @@ export function GuildDashboardPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <InitiativeOverview
           initiatives={initiativesQuery.data ?? []}
-          projects={projectsQuery.data ?? []}
+          projects={projectsQuery.data?.items ?? []}
           isLoading={initiativesQuery.isLoading}
         />
         <RecentCommentsList

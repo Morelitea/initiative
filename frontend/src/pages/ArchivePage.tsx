@@ -53,7 +53,7 @@ export const ArchivePage = () => {
     return <p className="text-destructive text-sm">{t("archived.loadError")}</p>;
   }
 
-  const projects = archivedProjectsQuery.data ?? [];
+  const projects = archivedProjectsQuery.data?.items ?? [];
 
   return (
     <div className="space-y-6">

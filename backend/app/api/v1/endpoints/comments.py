@@ -1,4 +1,4 @@
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
@@ -16,6 +16,7 @@ from app.schemas.comment import (
     CommentCreate,
     CommentRead,
     CommentUpdate,
+    MentionEntityType,
     MentionSuggestion,
     RecentActivityEntry,
 )
@@ -228,7 +229,7 @@ async def search_mentionables(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    entity_type: Literal["user", "task", "doc", "project"] = Query(...),
+    entity_type: MentionEntityType = Query(...),
     initiative_id: int = Query(..., gt=0),
     q: str = Query(default="", max_length=100),
 ) -> List[MentionSuggestion]:
@@ -251,7 +252,7 @@ async def search_mentionables(
             detail="Initiative not found",
         )
 
-    if entity_type == "user":
+    if entity_type == MentionEntityType.user:
         # Get users who are members of this initiative
         stmt = (
             select(User)
@@ -272,14 +273,14 @@ async def search_mentionables(
             display = user.full_name or user.email
             suggestions.append(
                 MentionSuggestion(
-                    type="user",
+                    type=MentionEntityType.user,
                     id=user.id,
                     display_text=display,
                     subtitle=user.email if user.full_name else None,
                 )
             )
 
-    elif entity_type == "task":
+    elif entity_type == MentionEntityType.task:
         # Get tasks from projects in this initiative
         stmt = (
             select(Task, Project.name)
@@ -297,14 +298,14 @@ async def search_mentionables(
         for task, project_name in rows:
             suggestions.append(
                 MentionSuggestion(
-                    type="task",
+                    type=MentionEntityType.task,
                     id=task.id,
                     display_text=task.title,
                     subtitle=project_name,
                 )
             )
 
-    elif entity_type == "doc":
+    elif entity_type == MentionEntityType.doc:
         # Get documents in this initiative
         stmt = select(Document).where(
             Document.initiative_id == initiative_id,
@@ -318,14 +319,14 @@ async def search_mentionables(
         for doc in docs:
             suggestions.append(
                 MentionSuggestion(
-                    type="doc",
+                    type=MentionEntityType.doc,
                     id=doc.id,
                     display_text=doc.title,
                     subtitle=None,
                 )
             )
 
-    elif entity_type == "project":
+    elif entity_type == MentionEntityType.project:
         # Get projects in this initiative
         stmt = select(Project).where(
             Project.initiative_id == initiative_id,
@@ -340,7 +341,7 @@ async def search_mentionables(
         for project in projects:
             suggestions.append(
                 MentionSuggestion(
-                    type="project",
+                    type=MentionEntityType.project,
                     id=project.id,
                     display_text=project.name,
                     subtitle=project.description[:50] if project.description else None,

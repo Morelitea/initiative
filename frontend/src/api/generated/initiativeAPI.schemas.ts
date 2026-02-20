@@ -831,11 +831,20 @@ export interface LeaveGuildEligibilityResponse {
   sole_pm_initiatives: string[];
 }
 
+export type MentionEntityType = (typeof MentionEntityType)[keyof typeof MentionEntityType];
+
+export const MentionEntityType = {
+  user: "user",
+  task: "task",
+  doc: "doc",
+  project: "project",
+} as const;
+
 /**
  * A suggestion for mention autocomplete.
  */
 export interface MentionSuggestion {
-  type: string;
+  type: MentionEntityType;
   id: number;
   display_text: string;
   subtitle?: string | null;
@@ -965,6 +974,15 @@ export interface PasswordResetSubmit {
    */
   password: string;
 }
+
+export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
+
+export const PermissionKey = {
+  docs_enabled: "docs_enabled",
+  projects_enabled: "projects_enabled",
+  create_docs: "create_docs",
+  create_projects: "create_projects",
+} as const;
 
 export interface PlatformAISettingsResponse {
   enabled: boolean;
@@ -2074,6 +2092,15 @@ export type GetUserStatsApiV1UsersMeStatsGetParams = {
 export type ListProjectsApiV1ProjectsGetParams = {
   archived?: boolean | null;
   template?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type ListGlobalProjectsApiV1ProjectsGlobalGetParams = {
@@ -2163,7 +2190,7 @@ export type RecentCommentsApiV1CommentsRecentGetParams = {
 };
 
 export type SearchMentionablesApiV1CommentsMentionsSearchGetParams = {
-  entity_type: SearchMentionablesApiV1CommentsMentionsSearchGetEntityType;
+  entity_type: MentionEntityType;
   /**
    * @exclusiveMinimum 0
    */
@@ -2173,16 +2200,6 @@ export type SearchMentionablesApiV1CommentsMentionsSearchGetParams = {
    */
   q?: string;
 };
-
-export type SearchMentionablesApiV1CommentsMentionsSearchGetEntityType =
-  (typeof SearchMentionablesApiV1CommentsMentionsSearchGetEntityType)[keyof typeof SearchMentionablesApiV1CommentsMentionsSearchGetEntityType];
-
-export const SearchMentionablesApiV1CommentsMentionsSearchGetEntityType = {
-  user: "user",
-  task: "task",
-  doc: "doc",
-  project: "project",
-} as const;
 
 export type ListNotificationsApiV1NotificationsGetParams = {
   /**

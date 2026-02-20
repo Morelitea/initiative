@@ -15,7 +15,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { CommentInput } from "./CommentInput";
 import { CommentThread } from "./CommentThread";
 import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
-import type { CommentWithReplies } from "@/types/api";
+
+export interface CommentWithReplies extends CommentRead {
+  replies: CommentWithReplies[];
+}
 
 type CommentEntity = "task" | "document";
 

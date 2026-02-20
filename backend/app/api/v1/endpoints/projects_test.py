@@ -84,8 +84,13 @@ async def test_list_projects_as_admin_shows_all(
     response = await client.get("/api/v1/projects/", headers=headers)
 
     assert response.status_code == 200
-    data = response.json()
+    body = response.json()
+    data = body["items"]
     assert len(data) >= 2
+    assert body["page"] == 1
+    assert body["page_size"] == 0
+    assert body["has_next"] is False
+    assert body["total_count"] >= 2
 
 
 @pytest.mark.integration
@@ -122,7 +127,7 @@ async def test_list_projects_member_sees_initiative_projects(
     response = await client.get("/api/v1/projects/", headers=headers)
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     project_ids = {p["id"] for p in data}
     assert project.id in project_ids
 
@@ -148,7 +153,7 @@ async def test_list_projects_excludes_archived_by_default(
     response = await client.get("/api/v1/projects/", headers=headers)
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     project_ids = {p["id"] for p in data}
     assert project.id not in project_ids
 
@@ -172,7 +177,7 @@ async def test_list_projects_with_archived_filter(
     response = await client.get("/api/v1/projects/?archived=true", headers=headers)
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     project_ids = {p["id"] for p in data}
     assert project.id in project_ids
 
@@ -665,7 +670,7 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
     response1 = await client.get("/api/v1/projects/", headers=headers1)
 
     assert response1.status_code == 200
-    data1 = response1.json()
+    data1 = response1.json()["items"]
     project_ids1 = {p["id"] for p in data1}
     assert project1.id in project_ids1
 
