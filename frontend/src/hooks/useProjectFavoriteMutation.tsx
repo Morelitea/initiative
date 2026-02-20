@@ -8,7 +8,7 @@ import {
   getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey,
 } from "@/api/generated/projects/projects";
 import { queryClient } from "../lib/queryClient";
-import type { Project } from "../types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface ToggleArgs {
   projectId: number;
@@ -20,7 +20,10 @@ interface ToggleResponse {
   is_favorited: boolean;
 }
 
-const updateProjectListFavorite = (projects: Project[] | undefined, response: ToggleResponse) => {
+const updateProjectListFavorite = (
+  projects: ProjectRead[] | undefined,
+  response: ToggleResponse
+) => {
   if (!projects) {
     return projects;
   }
@@ -42,18 +45,19 @@ export const useProjectFavoriteMutation = () => {
       return { project_id: projectId, is_favorited: nextState };
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Project[]>(getListProjectsApiV1ProjectsGetQueryKey(), (projects) =>
-        updateProjectListFavorite(projects, data)
+      queryClient.setQueryData<ProjectRead[]>(
+        getListProjectsApiV1ProjectsGetQueryKey(),
+        (projects) => updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project[]>(
+      queryClient.setQueryData<ProjectRead[]>(
         getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
         (projects) => updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project[]>(
+      queryClient.setQueryData<ProjectRead[]>(
         getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
         (projects) => updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project>(
+      queryClient.setQueryData<ProjectRead>(
         getReadProjectApiV1ProjectsProjectIdGetQueryKey(data.project_id) as unknown as string[],
         (project) => (project ? { ...project, is_favorited: data.is_favorited } : project)
       );

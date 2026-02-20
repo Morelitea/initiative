@@ -57,9 +57,12 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import type { Tag } from "@/types/api";
-import type { ListDocumentsApiV1DocumentsGetParams } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DocumentSummary,
+  ListDocumentsApiV1DocumentsGetParams,
+  TagRead,
+  TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -318,7 +321,7 @@ export const DocumentsView = ({
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTagsForFilter = useMemo(() => {
     const tagMap = new Map(allTags.map((tg) => [tg.id, tg]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is Tag => tg !== undefined);
+    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is TagRead => tg !== undefined);
   }, [allTags, tagFilters]);
 
   const handleTagFiltersChange = (newTags: TagSummary[]) => {

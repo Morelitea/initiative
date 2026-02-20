@@ -46,8 +46,7 @@ import {
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
-import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Initiative } from "@/types/api";
+import type { DocumentRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 type CreateDocumentDialogProps = {
   open: boolean;
@@ -61,7 +60,7 @@ type CreateDocumentDialogProps = {
   /** Called after successful creation/upload */
   onSuccess?: (document: DocumentRead) => void;
   /** List of initiatives user can create documents in (required if initiativeId not provided) */
-  initiatives?: Initiative[];
+  initiatives?: InitiativeRead[];
 };
 
 export const CreateDocumentDialog = ({

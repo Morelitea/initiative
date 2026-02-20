@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
   TaskRecurrenceOutputFrequency,
   TaskRecurrenceOutputWeekdaysItem,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { TaskRecurrenceStrategy, TaskWeekPosition } from "@/types/api";
+import type { TaskWeekPosition } from "@/types/api";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -78,8 +79,8 @@ const getAnchorDate = (referenceDate?: string | null) => {
 type TaskRecurrenceSelectorProps = {
   recurrence: TaskRecurrenceOutput | null;
   onChange: (rule: TaskRecurrenceOutput | null) => void;
-  strategy: TaskRecurrenceStrategy;
-  onStrategyChange: (value: TaskRecurrenceStrategy) => void;
+  strategy: TaskListReadRecurrenceStrategy;
+  onStrategyChange: (value: TaskListReadRecurrenceStrategy) => void;
   disabled?: boolean;
   referenceDate?: string | null;
 };
@@ -618,7 +619,7 @@ export const TaskRecurrenceSelector = ({
             <Label>{t("recurrence.repeatStrategy")}</Label>
             <Select
               value={strategy}
-              onValueChange={(value) => onStrategyChange(value as TaskRecurrenceStrategy)}
+              onValueChange={(value) => onStrategyChange(value as TaskListReadRecurrenceStrategy)}
               disabled={disabled || !recurrence}
             >
               <SelectTrigger>

@@ -1,9 +1,10 @@
 import type {
+  TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
   TaskRecurrenceOutputFrequency,
   TaskRecurrenceOutputWeekdaysItem,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { TaskRecurrenceStrategy, TaskWeekPosition } from "@/types/api";
+import type { TaskWeekPosition } from "@/types/api";
 import type { TranslateFn } from "@/types/i18n";
 
 export type RecurrencePreset =
@@ -269,7 +270,7 @@ const describeMonthlyDetail = (rule: TaskRecurrenceOutput, t?: TranslateFn) => {
 
 export const summarizeRecurrence = (
   rule: TaskRecurrenceOutput | null,
-  options?: { referenceDate?: string | null; strategy?: TaskRecurrenceStrategy },
+  options?: { referenceDate?: string | null; strategy?: TaskListReadRecurrenceStrategy },
   t?: TranslateFn
 ): string => {
   if (!rule) {

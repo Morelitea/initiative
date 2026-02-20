@@ -1,9 +1,9 @@
 import type {
   ProjectPermissionRead,
+  ProjectRead,
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Project } from "@/types/api";
 
 let counter = 0;
 
@@ -64,7 +64,7 @@ export function buildProjectPermission(
   };
 }
 
-export function buildProject(overrides: Partial<Project> = {}): Project {
+export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead {
   counter++;
   return {
     id: counter,
@@ -79,7 +79,7 @@ export function buildProject(overrides: Partial<Project> = {}): Project {
     is_template: false,
     archived_at: null,
     pinned_at: null,
-    owner: undefined,
+    owner: null,
     initiative: null,
     permissions: [],
     role_permissions: [],

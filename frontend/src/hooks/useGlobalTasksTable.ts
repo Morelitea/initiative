@@ -12,17 +12,18 @@ import {
 } from "@/api/generated/tasks/tasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { useProjects, useTemplateProjects, useArchivedProjects } from "@/hooks/useProjects";
-import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllTasks } from "@/api/query-keys";
-import { getItem, setItem } from "@/lib/storage";
-import { useGuilds } from "@/hooks/useGuilds";
 import type {
+  ListTasksApiV1TasksGetParams,
+  ProjectRead,
+  TaskListRead,
   TaskListResponse,
   TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Project, Task } from "@/types/api";
+import { invalidateAllTasks } from "@/api/query-keys";
+import { getItem, setItem } from "@/lib/storage";
+import { useGuilds } from "@/hooks/useGuilds";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -209,7 +210,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   const archivedProjectsQuery = useArchivedProjects();
 
   const projectsById = useMemo(() => {
-    const result: Record<number, Project> = {};
+    const result: Record<number, ProjectRead> = {};
     const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
     projects.forEach((project) => {
       result[project.id] = project;
@@ -248,7 +249,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
         taskId,
         { task_status_id: taskStatusId },
         guildId ? { headers: { "X-Guild-ID": String(guildId) } } : undefined
-      ) as unknown as Promise<Task>;
+      ) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (updatedTask) => {
       void invalidateAllTasks();
@@ -326,7 +327,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   );
 
   const changeTaskStatusById = useCallback(
-    async (task: Task, targetStatusId: number) => {
+    async (task: TaskListRead, targetStatusId: number) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
@@ -348,7 +349,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   );
 
   const changeTaskStatus = useCallback(
-    async (task: Task, targetCategory: TaskStatusCategory) => {
+    async (task: TaskListRead, targetCategory: TaskStatusCategory) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));

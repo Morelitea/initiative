@@ -75,9 +75,10 @@ import {
 import type {
   InitiativeMemberRead,
   InitiativeMemberUpdate,
+  InitiativeRead,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Initiative, PermissionKey } from "@/types/api";
+import type { PermissionKey } from "@/types/api";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -176,11 +177,13 @@ export const InitiativeSettingsPage = () => {
   }, [usersQuery.data, initiative]);
 
   const updateInitiative = useMutation({
-    mutationFn: async (payload: Partial<Pick<Initiative, "name" | "description" | "color">>) => {
+    mutationFn: async (
+      payload: Partial<Pick<InitiativeRead, "name" | "description" | "color">>
+    ) => {
       return updateInitiativeApiV1InitiativesInitiativeIdPatch(
         initiativeId,
         payload
-      ) as unknown as Promise<Initiative>;
+      ) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: () => {
       toast.success(t("settings.updated"));
@@ -212,7 +215,7 @@ export const InitiativeSettingsPage = () => {
       return addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost(initiativeId, {
         user_id: userId,
         role_id: roleId,
-      }) as unknown as Promise<Initiative>;
+      }) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: () => {
       toast.success(t("settings.memberAdded"));
@@ -249,7 +252,7 @@ export const InitiativeSettingsPage = () => {
         initiativeId,
         userId,
         payload
-      ) as unknown as Promise<Initiative>;
+      ) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));

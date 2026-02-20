@@ -30,10 +30,10 @@ import {
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllProjects, invalidateRecentProjects } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { Project } from "@/types/api";
 import type {
   ListProjectsApiV1ProjectsGetParams,
   ProjectActivityResponse,
+  ProjectRead,
   ProjectRecentViewRead,
   ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
   TaskStatusRead,
@@ -45,11 +45,11 @@ type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 export const useProjects = (
   params?: ListProjectsApiV1ProjectsGetParams,
-  options?: QueryOpts<Project[]>
+  options?: QueryOpts<ProjectRead[]>
 ) => {
-  return useQuery<Project[]>({
+  return useQuery<ProjectRead[]>({
     queryKey: getListProjectsApiV1ProjectsGetQueryKey(params),
-    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<Project[]>,
+    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<ProjectRead[]>,
     ...options,
   });
 };
@@ -62,20 +62,22 @@ export const useArchivedProjects = () => {
   return useProjects({ archived: true });
 };
 
-export const useProject = (projectId: number | null, options?: QueryOpts<Project>) => {
+export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<Project>({
+  return useQuery<ProjectRead>({
     queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId!),
-    queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<Project>,
+    queryFn: () =>
+      readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<ProjectRead>,
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
 };
 
-export const useWritableProjects = (options?: QueryOpts<Project[]>) => {
-  return useQuery<Project[]>({
+export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
+  return useQuery<ProjectRead[]>({
     queryKey: getListWritableProjectsApiV1ProjectsWritableGetQueryKey(),
-    queryFn: () => listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<Project[]>,
+    queryFn: () =>
+      listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<ProjectRead[]>,
     staleTime: 60 * 1000,
     ...options,
   });
@@ -91,10 +93,10 @@ export const useRecentProjects = (options?: QueryOpts<ProjectRecentViewRead[]>) 
   });
 };
 
-export const useFavoriteProjects = (options?: QueryOpts<Project[]>) => {
-  return useQuery<Project[]>({
+export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
+  return useQuery<ProjectRead[]>({
     queryKey: getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey(),
-    queryFn: () => favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<Project[]>,
+    queryFn: () => favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<ProjectRead[]>,
     staleTime: 30 * 1000,
     ...options,
   });
@@ -177,7 +179,7 @@ export const useCreateProject = () => {
 
   return useMutation({
     mutationFn: async (data: Parameters<typeof createProjectApiV1ProjectsPost>[0]) => {
-      return createProjectApiV1ProjectsPost(data) as unknown as Promise<Project>;
+      return createProjectApiV1ProjectsPost(data) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();
@@ -201,7 +203,7 @@ export const useUpdateProject = () => {
       return updateProjectApiV1ProjectsProjectIdPatch(
         projectId,
         data
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();
@@ -260,7 +262,7 @@ export const useDuplicateProject = () => {
       return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(
         projectId,
         data
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: () => {
       void invalidateAllProjects();

@@ -8,8 +8,11 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/Markdown";
-import type { TaskPriority, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
+import type {
+  TaskListRead,
+  TaskPriority,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import type { TranslateFn } from "@/types/i18n";
@@ -21,7 +24,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 
 interface KanbanColumnProps {
   status: TaskStatusRead;
-  tasks: Task[];
+  tasks: TaskListRead[];
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onTaskClick: (taskId: number) => void;
@@ -192,7 +195,7 @@ const CollapsedHeader = ({
 };
 
 interface KanbanTaskCardProps {
-  task: Task;
+  task: TaskListRead;
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   onTaskClick: (taskId: number) => void;

@@ -17,19 +17,23 @@ import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
-import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Project, Task } from "@/types/api";
+import type {
+  ProjectRead,
+  TaskListRead,
+  TaskStatusCategory,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 interface GlobalTaskColumnsOptions {
   activeGuildId: number | null;
   isUpdatingTaskStatus: boolean;
-  changeTaskStatus: (task: Task, category: TaskStatusCategory) => Promise<void>;
-  changeTaskStatusById: (task: Task, statusId: number) => Promise<void>;
+  changeTaskStatus: (task: TaskListRead, category: TaskStatusCategory) => Promise<void>;
+  changeTaskStatusById: (task: TaskListRead, statusId: number) => Promise<void>;
   fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
   projectStatusCache: React.MutableRefObject<
     Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
-  projectsById: Record<number, Project>;
+  projectsById: Record<number, ProjectRead>;
   t: TranslateFn;
   showAssignees?: boolean;
 }
@@ -44,11 +48,11 @@ export function globalTaskColumns({
   projectsById,
   t,
   showAssignees = false,
-}: GlobalTaskColumnsOptions): ColumnDef<Task>[] {
+}: GlobalTaskColumnsOptions): ColumnDef<TaskListRead>[] {
   const guildDefaultLabel = t("myTasks.noGuild");
-  const getGuildGroupLabel = (task: Task) => task.guild_name ?? guildDefaultLabel;
+  const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
 
-  const taskGuildPath = (task: Task, path: string) => {
+  const taskGuildPath = (task: TaskListRead, path: string) => {
     const guildId = task.guild_id ?? activeGuildId;
     return guildId ? guildPath(guildId, path) : path;
   };

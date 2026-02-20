@@ -54,10 +54,11 @@ import type {
   CommentRead,
   GenerateDescriptionResponse,
   TagSummary,
+  TaskListRead,
+  TaskListReadRecurrenceStrategy,
   TaskPriority,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Task, TaskRecurrenceStrategy } from "@/types/api";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -121,7 +122,8 @@ export const TaskEditPage = () => {
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
-  const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
+  const [recurrenceStrategy, setRecurrenceStrategy] =
+    useState<TaskListReadRecurrenceStrategy>("fixed");
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -181,7 +183,7 @@ export const TaskEditPage = () => {
       return await (updateTaskApiV1TasksTaskIdPatch(
         parsedTaskId,
         payload as never
-      ) as unknown as Promise<Task>);
+      ) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask) => {
       setTitle(updatedTask.title);
@@ -202,7 +204,7 @@ export const TaskEditPage = () => {
     mutationFn: async () => {
       return await (duplicateTaskApiV1TasksTaskIdDuplicatePost(
         parsedTaskId
-      ) as unknown as Promise<Task>);
+      ) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (newTask) => {
       toast.success(t("edit.taskDuplicated"));
@@ -222,14 +224,14 @@ export const TaskEditPage = () => {
     },
   });
 
-  const moveTask = useMutation<Task, unknown, MoveTaskVariables>({
+  const moveTask = useMutation<TaskListRead, unknown, MoveTaskVariables>({
     mutationFn: async ({ targetProjectId }) => {
       return await (moveTaskApiV1TasksTaskIdMovePost(parsedTaskId, {
         target_project_id: targetProjectId,
-      }) as unknown as Promise<Task>);
+      }) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask, variables) => {
-      queryClient.setQueryData<Task>(
+      queryClient.setQueryData<TaskListRead>(
         getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
         updatedTask
       );
@@ -262,10 +264,10 @@ export const TaskEditPage = () => {
     mutationFn: async (archive: boolean) => {
       return await (updateTaskApiV1TasksTaskIdPatch(parsedTaskId, {
         is_archived: archive,
-      } as never) as unknown as Promise<Task>);
+      } as never) as unknown as Promise<TaskListRead>);
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task>(
+      queryClient.setQueryData<TaskListRead>(
         getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
         updatedTask
       );

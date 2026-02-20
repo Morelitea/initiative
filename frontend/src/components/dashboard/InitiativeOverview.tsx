@@ -6,11 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { Initiative, Project } from "@/types/api";
+import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface InitiativeOverviewProps {
-  initiatives: Initiative[];
-  projects: Project[];
+  initiatives: InitiativeRead[];
+  projects: ProjectRead[];
   isLoading?: boolean;
 }
 

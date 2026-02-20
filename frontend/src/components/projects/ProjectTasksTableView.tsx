@@ -14,8 +14,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MessageSquare } from "lucide-react";
 
-import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
+import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,7 +42,7 @@ import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuildPath } from "@/lib/guildUrl";
 
 type ProjectTasksListViewProps = {
-  tasks: Task[];
+  tasks: TaskListRead[];
   taskStatuses: TaskStatusRead[];
   sensors: DndContextProps["sensors"];
   canReorderTasks: boolean;
@@ -55,7 +54,7 @@ type ProjectTasksListViewProps = {
   onDragCancel: () => void;
   onStatusChange: (taskId: number, taskStatusId: number) => void;
   onTaskClick: (taskId: number) => void;
-  onTaskSelectionChange?: (selectedTasks: Task[]) => void;
+  onTaskSelectionChange?: (selectedTasks: TaskListRead[]) => void;
   onExitSelection?: () => void;
 };
 
@@ -74,7 +73,7 @@ const SortableRowWrapper = ({
   row,
   children,
   dragDisabled,
-}: DataTableRowWrapperProps<Task> & { dragDisabled: boolean }) => {
+}: DataTableRowWrapperProps<TaskListRead> & { dragDisabled: boolean }) => {
   const {
     attributes,
     listeners,
@@ -148,7 +147,7 @@ const ProjectTasksTableViewComponent = ({
     return { doneStatus, inProgressStatus };
   }, [taskStatuses]);
 
-  const columns = useMemo<ColumnDef<Task>[]>(
+  const columns = useMemo<ColumnDef<TaskListRead>[]>(
     () => [
       {
         id: "drag",
@@ -489,7 +488,7 @@ const DragHandleCell = () => {
 };
 
 type TaskCellProps = {
-  task: Task;
+  task: TaskListRead;
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
 };

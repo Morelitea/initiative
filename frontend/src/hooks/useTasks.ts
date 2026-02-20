@@ -8,22 +8,22 @@ import {
   listSubtasksApiV1TasksTaskIdSubtasksGet,
   getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey,
 } from "@/api/generated/tasks/tasks";
-import type { Task } from "@/types/api";
 import type {
   ListTasksApiV1TasksGetParams,
-  TaskListResponse,
   SubtaskRead,
+  TaskListRead,
+  TaskListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useTask = (taskId: number | null, options?: QueryOpts<Task>) => {
+export const useTask = (taskId: number | null, options?: QueryOpts<TaskListRead>) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<Task>({
+  return useQuery<TaskListRead>({
     queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(taskId!),
-    queryFn: () => readTaskApiV1TasksTaskIdGet(taskId!) as unknown as Promise<Task>,
+    queryFn: () => readTaskApiV1TasksTaskIdGet(taskId!) as unknown as Promise<TaskListRead>,
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });

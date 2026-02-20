@@ -1,5 +1,4 @@
-import type { InitiativeMemberRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Initiative } from "@/types/api";
+import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { buildUserPublic } from "./user.factory";
 
 let counter = 0;
@@ -29,10 +28,11 @@ export function buildInitiativeMember(
   };
 }
 
-export function buildInitiative(overrides: Partial<Initiative> = {}): Initiative {
+export function buildInitiative(overrides: Partial<InitiativeRead> = {}): InitiativeRead {
   counter++;
   return {
     id: counter,
+    guild_id: 1,
     name: `Initiative ${counter}`,
     description: `Description for initiative ${counter}`,
     color: "#3b82f6",

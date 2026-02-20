@@ -13,8 +13,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TagPicker } from "@/components/tags/TagPicker";
 import type { DueFilterOption, UserOption } from "@/components/projects/projectTasksConfig";
-import type { TagSummary, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Tag } from "@/types/api";
+import type { TagRead, TagSummary, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
 export type ListStatusFilter = "all" | "incomplete" | number;
 
@@ -22,7 +21,7 @@ type ProjectTasksFiltersProps = {
   viewMode: "kanban" | "table" | "calendar" | "gantt";
   userOptions: UserOption[];
   taskStatuses: TaskStatusRead[];
-  tags: Tag[];
+  tags: TagRead[];
   assigneeFilters: string[];
   dueFilter: DueFilterOption;
   statusFilters: number[];
@@ -56,7 +55,9 @@ export const ProjectTasksFilters = ({
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTags = useMemo(() => {
     const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((tag): tag is Tag => tag !== undefined);
+    return tagFilters
+      .map((id) => tagMap.get(id))
+      .filter((tag): tag is TagRead => tag !== undefined);
   }, [tags, tagFilters]);
 
   const handleTagsChange = (newTags: TagSummary[]) => {

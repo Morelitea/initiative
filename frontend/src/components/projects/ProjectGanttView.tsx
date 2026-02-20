@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { addDays, differenceInCalendarDays, parseISO, startOfWeek } from "date-fns";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
-import type { Task } from "@/types/api";
+import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -17,13 +17,13 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 type ProjectGanttViewProps = {
-  tasks: Task[];
+  tasks: TaskListRead[];
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
 };
 
 type NormalizedRange = {
-  task: Task;
+  task: TaskListRead;
   start: Date;
   end: Date;
 };
@@ -43,7 +43,7 @@ const parseDate = (value?: string | null): Date | null => {
   return parsed;
 };
 
-const normalizeRanges = (tasks: Task[]): NormalizedRange[] =>
+const normalizeRanges = (tasks: TaskListRead[]): NormalizedRange[] =>
   tasks
     .map((task) => {
       const start =

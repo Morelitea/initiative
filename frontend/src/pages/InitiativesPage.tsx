@@ -37,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
-import type { Initiative } from "@/types/api";
+import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -144,7 +144,7 @@ export const InitiativesPage = () => {
     );
   };
 
-  const renderMembershipBadge = (initiative: Initiative) => {
+  const renderMembershipBadge = (initiative: InitiativeRead) => {
     const membership = initiative.members.find((member) => member.user.id === user?.id);
     if (membership) {
       const roleLabel = membership.role === "project_manager" ? projectManagerLabel : memberLabel;

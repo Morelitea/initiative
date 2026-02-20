@@ -30,7 +30,7 @@ import { useServer } from "@/hooks/useServer";
 import { clearProjectViewApiV1ProjectsProjectIdViewDelete } from "@/api/generated/projects/projects";
 import { invalidateRecentProjects } from "@/api/query-keys";
 import { useRecentProjects } from "@/hooks/useProjects";
-import type { Project } from "@/types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
@@ -153,7 +153,7 @@ function AppLayout() {
               />
               <div className="min-w-0 flex-1">
                 <ProjectTabsBar
-                  projects={recentQuery.data as Project[] | undefined}
+                  projects={recentQuery.data as ProjectRead[] | undefined}
                   loading={recentQuery.isLoading}
                   activeProjectId={activeProjectId}
                   onClose={handleClearRecent}

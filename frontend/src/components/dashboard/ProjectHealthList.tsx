@@ -7,14 +7,14 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { Project } from "@/types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface ProjectHealthListProps {
-  projects: Project[];
+  projects: ProjectRead[];
   isLoading?: boolean;
 }
 
-function getHealthPercent(project: Project): number {
+function getHealthPercent(project: ProjectRead): number {
   const summary = project.task_summary;
   if (!summary || summary.total === 0) return 0;
   return Math.round((summary.completed / summary.total) * 100);

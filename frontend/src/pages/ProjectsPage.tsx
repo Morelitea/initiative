@@ -81,7 +81,7 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import { Project } from "@/types/api";
+import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import {
   Dialog,
   DialogContent,
@@ -102,8 +102,6 @@ import {
   type RoleGrant,
   type UserGrant,
 } from "@/components/access/CreateAccessControl";
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import type { Tag } from "@/types/api";
 
 const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
@@ -275,7 +273,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // Convert tag IDs to Tag objects for TagPicker
   const selectedTagsForFilter = useMemo(() => {
     const tagMap = new Map(allTags.map((t) => [t.id, t]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is Tag => t !== undefined);
+    return tagFilters.map((id) => tagMap.get(id)).filter((t): t is TagRead => t !== undefined);
   }, [allTags, tagFilters]);
 
   const handleTagFiltersChange = (newTags: TagSummary[]) => {
@@ -331,7 +329,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
 
   // Helper function for per-project DAC checks
-  const hasProjectWritePermission = (project: Project): boolean => {
+  const hasProjectWritePermission = (project: ProjectRead): boolean => {
     if (!user) return false;
     const permission = project.permissions?.find((p) => p.user_id === user.id);
     return permission?.level === "owner" || permission?.level === "write";
@@ -1253,7 +1251,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
 export const ProjectsPage = () => <ProjectsView />;
 
-const SortableProjectCardLink = ({ project, userId }: { project: Project; userId?: number }) => {
+const SortableProjectCardLink = ({
+  project,
+  userId,
+}: {
+  project: ProjectRead;
+  userId?: number;
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -1276,7 +1280,7 @@ const SortableProjectCardLink = ({ project, userId }: { project: Project; userId
   );
 };
 
-const SortableProjectRowLink = ({ project, userId }: { project: Project; userId?: number }) => {
+const SortableProjectRowLink = ({ project, userId }: { project: ProjectRead; userId?: number }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });

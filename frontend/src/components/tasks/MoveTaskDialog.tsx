@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 
-import type { Project } from "@/types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,7 @@ type MoveTaskDialogProps = {
   trigger?: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projects: Project[];
+  projects: ProjectRead[];
   currentProjectId?: number | null;
   isLoading?: boolean;
   isSaving?: boolean;

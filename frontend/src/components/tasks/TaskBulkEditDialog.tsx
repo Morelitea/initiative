@@ -28,11 +28,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type {
+  TaskListRead,
+  TaskListReadRecurrenceStrategy,
   TaskPriority,
   TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Task, TaskRecurrenceStrategy } from "@/types/api";
 import type { UserOption } from "@/components/projects/projectTasksConfig";
 
 export type TaskBulkUpdate = {
@@ -42,11 +43,11 @@ export type TaskBulkUpdate = {
   task_status_id: number;
   priority: TaskPriority;
   recurrence: TaskRecurrenceOutput | null;
-  recurrence_strategy: TaskRecurrenceStrategy;
+  recurrence_strategy: TaskListReadRecurrenceStrategy;
 };
 
 interface TaskBulkEditDialogProps {
-  selectedTasks: Task[];
+  selectedTasks: TaskListRead[];
   taskStatuses: TaskStatusRead[];
   userOptions: UserOption[];
   isSubmitting: boolean;
@@ -69,7 +70,8 @@ export const TaskBulkEditDialog = ({
   const [statusId, setStatusId] = useState<string>("");
   const [priority, setPriority] = useState<string>("");
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
-  const [recurrenceStrategy, setRecurrenceStrategy] = useState<TaskRecurrenceStrategy>("fixed");
+  const [recurrenceStrategy, setRecurrenceStrategy] =
+    useState<TaskListReadRecurrenceStrategy>("fixed");
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

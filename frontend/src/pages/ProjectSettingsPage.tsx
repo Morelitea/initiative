@@ -59,10 +59,10 @@ import { useProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
 import {
   ProjectPermissionLevel,
+  ProjectRead,
   ProjectRolePermissionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Project } from "@/types/api";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { TagPicker } from "@/components/tags";
 import { useSetProjectTags } from "@/hooks/useTags";
@@ -136,7 +136,7 @@ export const ProjectSettingsPage = () => {
       return updateProjectApiV1ProjectsProjectIdPatch(
         parsedProjectId,
         payload
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setInitiativeMessage(t("settings.initiative.updated"));
@@ -156,7 +156,7 @@ export const ProjectSettingsPage = () => {
       return updateProjectApiV1ProjectsProjectIdPatch(
         parsedProjectId,
         payload
-      ) as unknown as Promise<Project>;
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setIdentityMessage(t("settings.details.detailsUpdated"));
@@ -191,7 +191,7 @@ export const ProjectSettingsPage = () => {
     mutationFn: async () => {
       return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
         description: descriptionText,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setDescriptionMessage(t("settings.details.descriptionUpdated"));
@@ -205,7 +205,7 @@ export const ProjectSettingsPage = () => {
     mutationFn: async (name?: string) => {
       return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(parsedProjectId, {
         name: name?.trim() || undefined,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
       setDuplicateMessage(t("settings.duplicate.duplicated"));
@@ -219,7 +219,7 @@ export const ProjectSettingsPage = () => {
     mutationFn: async (nextStatus: boolean) => {
       return updateProjectApiV1ProjectsProjectIdPatch(parsedProjectId, {
         is_template: nextStatus,
-      }) as unknown as Promise<Project>;
+      }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (_data, nextStatus) => {
       setTemplateMessage(
