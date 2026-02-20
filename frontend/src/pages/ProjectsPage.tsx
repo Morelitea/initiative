@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   DragEndEvent,
@@ -37,7 +36,17 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  useProjects,
+  useTemplateProjects,
+  useArchivedProjects,
+  useCreateProject,
+  useUpdateProject,
+  useUnarchiveProject,
+  useReorderProjects,
+} from "@/hooks/useProjects";
+import { useInitiatives } from "@/hooks/useInitiatives";
+import { invalidateAllProjects } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Markdown } from "@/components/Markdown";
@@ -72,8 +81,7 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import { queryClient } from "@/lib/queryClient";
-import { Project, ProjectReorderPayload, Initiative } from "@/types/api";
+import { Project } from "@/types/api";
 import {
   Dialog,
   DialogContent,
@@ -122,12 +130,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const router = useRouter();
-  const localQueryClient = useQueryClient();
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
   const handleRefresh = useCallback(async () => {
-    await localQueryClient.invalidateQueries({ queryKey: ["projects"] });
-  }, [localQueryClient]);
+    await invalidateAllProjects();
+  }, []);
   const claimedManagedInitiatives = useMemo(
     () =>
       user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
@@ -181,17 +188,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return "custom";
   });
   const [customOrder, setCustomOrder] = useState<number[]>([]);
-  const removeTemplate = useMutation({
-    mutationFn: async (projectId: number) => {
-      await apiClient.patch(`/projects/${projectId}`, { is_template: false });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
-  });
+  const updateProjectMutation = useUpdateProject();
+  const removeTemplate = {
+    mutate: (projectId: number) =>
+      updateProjectMutation.mutate({ projectId, data: { is_template: false } }),
+    isPending: updateProjectMutation.isPending,
+  };
 
   const [initiativeFilter, setInitiativeFilter] = useState<string>(
     lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
@@ -240,17 +242,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     }
   }, [activeGuildId, lockedInitiativeId]);
 
-  const unarchiveProject = useMutation({
-    mutationFn: async (projectId: number) => {
-      await apiClient.post(`/projects/${projectId}/unarchive`, {});
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "archived"],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
-  });
+  const unarchiveProject = useUnarchiveProject();
 
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const stored = getItem(PROJECT_VIEW_KEY);
@@ -289,21 +281,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     setTagFilters(newTags.map((t) => t.id));
   };
 
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
-  });
+  const projectsQuery = useProjects();
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives", { guildId: activeGuildId }],
+  const initiativesQuery = useInitiatives({
     enabled: user?.role === "admin" || hasClaimedManagerRole,
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
   });
   // Filter initiatives where user can create projects
   const creatableInitiatives = useMemo(() => {
@@ -355,24 +336,8 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return permission?.level === "owner" || permission?.level === "write";
   };
 
-  const templatesQuery = useQuery<Project[]>({
-    queryKey: ["projects", "templates", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/", {
-        params: { template: true },
-      });
-      return response.data;
-    },
-  });
-  const archivedQuery = useQuery<Project[]>({
-    queryKey: ["projects", "archived", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/", {
-        params: { archived: true },
-      });
-      return response.data;
-    },
-  });
+  const templatesQuery = useTemplateProjects();
+  const archivedQuery = useArchivedProjects();
 
   useEffect(() => {
     if (!canCreateProjects) {
@@ -407,18 +372,12 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
-  const reorderProjects = useMutation({
-    mutationFn: async (orderedIds: number[]) => {
-      const payload: ProjectReorderPayload = { project_ids: orderedIds };
-      await apiClient.post("/projects/reorder", payload);
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
-  });
+  const reorderProjects = useReorderProjects();
 
-  const createProject = useMutation({
-    mutationFn: async () => {
+  const createProjectMutation = useCreateProject();
+  const createProject = {
+    ...createProjectMutation,
+    mutate: () => {
       const payload: Record<string, unknown> = { name, description };
       const trimmedIcon = icon.trim();
       if (trimmedIcon) {
@@ -426,7 +385,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       }
       const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
       if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
-        throw new Error("Select an initiative before creating a project");
+        return;
       }
       payload.initiative_id = selectedInitiativeId;
       payload.is_template = isTemplateProject;
@@ -439,25 +398,26 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       if (userGrants.length > 0) {
         payload.user_permissions = userGrants;
       }
-      const response = await apiClient.post<Project>("/projects/", payload);
-      return response.data;
+      createProjectMutation.mutate(
+        payload as unknown as Parameters<typeof createProjectMutation.mutate>[0],
+        {
+          onSuccess: () => {
+            setName("");
+            setDescription("");
+            setIcon("");
+            setInitiativeId(null);
+            setSelectedTemplateId(NO_TEMPLATE_VALUE);
+            setIsTemplateProject(false);
+            setRoleGrants([]);
+            setUserGrants([]);
+            handleComposerOpenChange(false);
+          },
+        }
+      );
     },
-    onSuccess: () => {
-      setName("");
-      setDescription("");
-      setIcon("");
-      setInitiativeId(null);
-      setSelectedTemplateId(NO_TEMPLATE_VALUE);
-      setIsTemplateProject(false);
-      setRoleGrants([]);
-      setUserGrants([]);
-      handleComposerOpenChange(false);
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["projects", "templates"],
-      });
-    },
-  });
+    isPending: createProjectMutation.isPending,
+    isError: createProjectMutation.isError,
+  };
 
   useEffect(() => {
     setItem(PROJECT_SEARCH_KEY, searchQuery);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isAxiosError } from "axios";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -20,7 +20,19 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Loader2, Trash2, SquareCheck, Sparkles } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  listSubtasksApiV1TasksTaskIdSubtasksGet,
+  getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey,
+  createSubtaskApiV1TasksTaskIdSubtasksPost,
+  createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost,
+  reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut,
+  generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost,
+} from "@/api/generated/tasks/tasks";
+import {
+  updateSubtaskApiV1SubtasksSubtaskIdPatch,
+  deleteSubtaskApiV1SubtasksSubtaskIdDelete,
+} from "@/api/generated/subtasks/subtasks";
+import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -48,9 +60,8 @@ type UpdatePayload = {
   data: Partial<Pick<TaskSubtask, "content" | "is_completed">>;
 };
 
-export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps) => {
+export const TaskChecklist = ({ taskId, canEdit }: TaskChecklistProps) => {
   const { t } = useTranslation(["tasks", "common"]);
-  const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [newContent, setNewContent] = useState("");
   const [contentDrafts, setContentDrafts] = useState<Record<number, string>>({});
@@ -60,21 +71,23 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
   const [generatedSubtasks, setGeneratedSubtasks] = useState<string[]>([]);
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
 
-  const subtasksQueryKey = useMemo(() => ["tasks", taskId, "subtasks"], [taskId]);
+  const subtasksQueryKey = useMemo(
+    () => getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey(taskId),
+    [taskId]
+  );
 
   const invalidateRelatedData = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: subtasksQueryKey });
-    void queryClient.invalidateQueries({ queryKey: ["task", taskId] });
-    if (Number.isFinite(projectId)) {
-      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
-    }
-    void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
-  }, [projectId, queryClient, subtasksQueryKey, taskId]);
+    void invalidateTaskSubtasks(taskId);
+    void invalidateTask(taskId);
+    void invalidateAllTasks();
+  }, [taskId]);
 
   const subtasksQuery = useQuery<TaskSubtask[]>({
     queryKey: subtasksQueryKey,
     queryFn: async () => {
-      const response = await apiClient.get<TaskSubtask[]>(`/tasks/${taskId}/subtasks`);
+      const response = await (listSubtasksApiV1TasksTaskIdSubtasksGet(
+        taskId
+      ) as unknown as Promise<{ data: TaskSubtask[] }>);
       return response.data;
     },
   });
@@ -113,9 +126,9 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
 
   const createSubtask = useMutation({
     mutationFn: async (content: string) => {
-      const response = await apiClient.post<TaskSubtask>(`/tasks/${taskId}/subtasks`, {
+      const response = await (createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, {
         content,
-      });
+      }) as unknown as Promise<{ data: TaskSubtask }>);
       return response.data;
     },
     onSuccess: () => {
@@ -130,7 +143,10 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
 
   const updateSubtask = useMutation({
     mutationFn: async ({ subtaskId, data }: UpdatePayload) => {
-      const response = await apiClient.patch<TaskSubtask>(`/subtasks/${subtaskId}`, data);
+      const response = await (updateSubtaskApiV1SubtasksSubtaskIdPatch(
+        subtaskId,
+        data
+      ) as unknown as Promise<{ data: TaskSubtask }>);
       return response.data;
     },
     onSuccess: (_response, variables) => {
@@ -150,7 +166,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
 
   const deleteSubtask = useMutation({
     mutationFn: async (subtaskId: number) => {
-      await apiClient.delete(`/subtasks/${subtaskId}`);
+      await deleteSubtaskApiV1SubtasksSubtaskIdDelete(subtaskId);
     },
     onSuccess: (_response, subtaskId) => {
       setContentDrafts((previous) => {
@@ -168,9 +184,9 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
 
   const reorderSubtasks = useMutation({
     mutationFn: async (items: { id: number; position: number }[]) => {
-      const response = await apiClient.put<TaskSubtask[]>(`/tasks/${taskId}/subtasks/order`, {
+      const response = await (reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, {
         items,
-      });
+      }) as unknown as Promise<{ data: TaskSubtask[] }>);
       return response.data;
     },
     onSuccess: () => {
@@ -183,9 +199,9 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
 
   const generateSubtasksMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<GenerateSubtasksResponse>(
-        `/tasks/${taskId}/ai/subtasks`
-      );
+      const response = await (generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(
+        taskId
+      ) as unknown as Promise<{ data: GenerateSubtasksResponse }>);
       return response.data;
     },
     onSuccess: (data) => {
@@ -206,7 +222,7 @@ export const TaskChecklist = ({ taskId, projectId, canEdit }: TaskChecklistProps
     }
 
     try {
-      await apiClient.post<TaskSubtask[]>(`/tasks/${taskId}/subtasks/batch`, {
+      await createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost(taskId, {
         contents: subtasksToAdd,
       });
       invalidateRelatedData();

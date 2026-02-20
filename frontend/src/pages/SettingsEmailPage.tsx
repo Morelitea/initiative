@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  getEmailSettingsApiV1SettingsEmailGet,
+  getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
+  updateEmailSettingsApiV1SettingsEmailPut,
+  sendTestEmailApiV1SettingsEmailTestPost,
+} from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,12 +45,9 @@ export const SettingsEmailPage = () => {
   const [password, setPassword] = useState("");
   const [testRecipient, setTestRecipient] = useState("");
   const emailQuery = useQuery<EmailSettings>({
-    queryKey: ["settings", "email"],
+    queryKey: getGetEmailSettingsApiV1SettingsEmailGetQueryKey(),
     enabled: isPlatformAdmin,
-    queryFn: async () => {
-      const response = await apiClient.get<EmailSettings>("/settings/email");
-      return response.data;
-    },
+    queryFn: () => getEmailSettingsApiV1SettingsEmailGet() as unknown as Promise<EmailSettings>,
   });
 
   useEffect(() => {
@@ -65,8 +67,9 @@ export const SettingsEmailPage = () => {
 
   const updateMutation = useMutation({
     mutationFn: async (payload: EmailPayload) => {
-      const response = await apiClient.put<EmailSettings>("/settings/email", payload);
-      return response.data;
+      return updateEmailSettingsApiV1SettingsEmailPut(
+        payload as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
+      ) as unknown as Promise<EmailSettings>;
     },
     onSuccess: (data) => {
       toast.success(t("email.saveSuccess"));
@@ -79,9 +82,9 @@ export const SettingsEmailPage = () => {
 
   const testMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post("/settings/email/test", {
+      await sendTestEmailApiV1SettingsEmailTestPost({
         recipient: testRecipient || null,
-      });
+      } as Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]);
     },
     onSuccess: () => toast.success(t("email.testSuccess")),
     onError: () => toast.error(t("email.testError")),

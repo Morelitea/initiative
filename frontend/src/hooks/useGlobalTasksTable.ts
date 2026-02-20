@@ -5,9 +5,16 @@ import type { SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  listTasksApiV1TasksGet,
+  getListTasksApiV1TasksGetQueryKey,
+  updateTaskApiV1TasksTaskIdPatch,
+} from "@/api/generated/tasks/tasks";
+import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { useProjects, useTemplateProjects, useArchivedProjects } from "@/hooks/useProjects";
+import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
-import { queryClient } from "@/lib/queryClient";
 import { useGuilds } from "@/hooks/useGuilds";
 import type {
   Project,
@@ -159,112 +166,48 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   }, [statusFilters, priorityFilters, guildFilters, setPage]);
 
   // --- Tasks query ---
-  const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: [
-      "tasks",
-      "global",
-      scope,
-      statusFilters,
-      priorityFilters,
-      guildFilters,
+  const tasksParams = useMemo(() => {
+    const params: ListTasksApiV1TasksGetParams = {
+      scope: scope as ListTasksApiV1TasksGetParams["scope"],
       page,
-      pageSize,
-      sortBy,
-      sortDir,
-    ],
-    queryFn: async () => {
-      const params: Record<string, string | string[] | number | number[]> = { scope };
+      page_size: pageSize,
+      sort_by: sortBy ?? undefined,
+      sort_dir: sortDir ?? undefined,
+    };
+    if (statusFilters.length > 0) params.status_category = statusFilters;
+    if (priorityFilters.length > 0) params.priorities = priorityFilters;
+    if (guildFilters.length > 0) params.guild_ids = guildFilters;
+    return params;
+  }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sortBy, sortDir]);
 
-      if (statusFilters.length > 0) {
-        params.status_category = statusFilters;
-      }
-      if (priorityFilters.length > 0) {
-        params.priorities = priorityFilters;
-      }
-      if (guildFilters.length > 0) {
-        params.guild_ids = guildFilters;
-      }
-
-      params.page = page;
-      params.page_size = pageSize;
-
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-
-      const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
-      return response.data;
-    },
+  const tasksQuery = useQuery<TaskListResponse>({
+    queryKey: getListTasksApiV1TasksGetQueryKey(tasksParams),
+    queryFn: () => listTasksApiV1TasksGet(tasksParams) as unknown as Promise<TaskListResponse>,
     placeholderData: keepPreviousData,
   });
 
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[] | number | number[]> = { scope };
-      if (statusFilters.length > 0) params.status_category = statusFilters;
-      if (priorityFilters.length > 0) params.priorities = priorityFilters;
-      if (guildFilters.length > 0) params.guild_ids = guildFilters;
-      params.page = targetPage;
-      params.page_size = pageSize;
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
+      const prefetchParams: ListTasksApiV1TasksGetParams = {
+        ...tasksParams,
+        page: targetPage,
+      };
 
       void localQueryClient.prefetchQuery({
-        queryKey: [
-          "tasks",
-          "global",
-          scope,
-          statusFilters,
-          priorityFilters,
-          guildFilters,
-          targetPage,
-          pageSize,
-          sortBy,
-          sortDir,
-        ],
-        queryFn: async () => {
-          const response = await apiClient.get<TaskListResponse>("/tasks/", { params });
-          return response.data;
-        },
+        queryKey: getListTasksApiV1TasksGetQueryKey(prefetchParams),
+        queryFn: () =>
+          listTasksApiV1TasksGet(prefetchParams) as unknown as Promise<TaskListResponse>,
         staleTime: 30_000,
       });
     },
-    [
-      scope,
-      statusFilters,
-      priorityFilters,
-      guildFilters,
-      pageSize,
-      sortBy,
-      sortDir,
-      localQueryClient,
-    ]
+    [tasksParams, localQueryClient]
   );
 
   // --- Excluded projects (archived / template) ---
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
-  });
-
-  const templatesQuery = useQuery<Project[]>({
-    queryKey: ["projects", "templates", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/", { params: { template: true } });
-      return response.data;
-    },
-  });
-
-  const archivedProjectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "archived", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/", { params: { archived: true } });
-      return response.data;
-    },
-  });
+  const projectsQuery = useProjects();
+  const templatesQuery = useTemplateProjects();
+  const archivedProjectsQuery = useArchivedProjects();
 
   const projectsById = useMemo(() => {
     const result: Record<number, Project> = {};
@@ -302,23 +245,14 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       taskStatusId: number;
       guildId: number | null;
     }) => {
-      const response = await apiClient.patch<Task>(
-        `/tasks/${taskId}`,
-        {
-          task_status_id: taskStatusId,
-        },
-        guildId
-          ? {
-              headers: {
-                "X-Guild-ID": String(guildId),
-              },
-            }
-          : undefined
-      );
-      return response.data;
+      return updateTaskApiV1TasksTaskIdPatch(
+        taskId,
+        { task_status_id: taskStatusId },
+        guildId ? { headers: { "X-Guild-ID": String(guildId) } } : undefined
+      ) as unknown as Promise<Task>;
     },
     onSuccess: (updatedTask) => {
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
+      void invalidateAllTasks();
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
@@ -364,20 +298,15 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const response = await apiClient.get<ProjectTaskStatus[]>(
-      `/projects/${projectId}/task-statuses/`,
-      {
-        headers: {
-          "X-Guild-ID": String(guildId),
-        },
-      }
-    );
+    const statuses = (await listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId, {
+      headers: { "X-Guild-ID": String(guildId) },
+    })) as unknown as ProjectTaskStatus[];
     const merged = cached
       ? [
           ...cached.statuses,
-          ...response.data.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
+          ...statuses.filter((status) => !cached.statuses.some((s) => s.id === status.id)),
         ]
-      : response.data;
+      : statuses;
     projectStatusCache.current.set(projectId, { statuses: merged, complete: true });
     return merged;
   }, []);

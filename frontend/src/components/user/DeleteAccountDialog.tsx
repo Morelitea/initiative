@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet,
+  getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey,
+  deleteOwnAccountApiV1UsersMeDeleteAccountPost,
+} from "@/api/generated/users/users";
+import { getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet } from "@/api/generated/initiatives/initiatives";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -89,13 +94,9 @@ export function DeleteAccountDialog({
 
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } = useQuery({
-    queryKey: ["deletion-eligibility"],
-    queryFn: async () => {
-      const response = await apiClient.get<DeletionEligibilityResponse>(
-        "/users/me/deletion-eligibility"
-      );
-      return response.data;
-    },
+    queryKey: getCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGetQueryKey(),
+    queryFn: () =>
+      checkDeletionEligibilityApiV1UsersMeDeletionEligibilityGet() as unknown as Promise<DeletionEligibilityResponse>,
     enabled: false,
   });
 
@@ -106,10 +107,12 @@ export function DeleteAccountDialog({
       if (initiativeMembers[initiativeId]) return;
 
       try {
-        const response = await apiClient.get<User[]>(`/initiatives/${initiativeId}/members`);
+        const data = (await getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
+          initiativeId
+        )) as unknown as User[];
         setInitiativeMembers((prev) => ({
           ...prev,
-          [initiativeId]: response.data.filter((u) => u.id !== user.id),
+          [initiativeId]: data.filter((u) => u.id !== user.id),
         }));
       } catch (error) {
         console.error("Failed to fetch initiative members:", error);
@@ -121,8 +124,7 @@ export function DeleteAccountDialog({
   // Delete account mutation
   const deleteAccount = useMutation({
     mutationFn: async (request: AccountDeletionRequest) => {
-      const response = await apiClient.post("/users/me/delete-account", request);
-      return response.data;
+      return deleteOwnAccountApiV1UsersMeDeleteAccountPost(request);
     },
     onSuccess: () => {
       toast.success(

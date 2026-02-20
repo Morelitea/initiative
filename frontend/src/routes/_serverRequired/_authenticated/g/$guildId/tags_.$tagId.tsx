@@ -1,5 +1,11 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-import { apiClient } from "@/api/client";
+
+import {
+  getTagApiV1TagsTagIdGet,
+  getGetTagApiV1TagsTagIdGetQueryKey,
+  getTagEntitiesApiV1TagsTagIdEntitiesGet,
+  getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey,
+} from "@/api/generated/tags/tags";
 
 type TagDetailSearchParams = {
   page?: number;
@@ -22,13 +28,13 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
     try {
       await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: ["tags", tagId],
-          queryFn: () => apiClient.get(`/tags/${tagId}`).then((r) => r.data),
+          queryKey: getGetTagApiV1TagsTagIdGetQueryKey(tagId),
+          queryFn: () => getTagApiV1TagsTagIdGet(tagId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: ["tags", tagId, "entities"],
-          queryFn: () => apiClient.get(`/tags/${tagId}/entities`).then((r) => r.data),
+          queryKey: getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey(tagId),
+          queryFn: () => getTagEntitiesApiV1TagsTagIdEntitiesGet(tagId),
           staleTime: 30_000,
         }),
       ]);

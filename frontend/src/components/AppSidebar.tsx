@@ -20,7 +20,20 @@ import {
 } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
-import { apiClient } from "@/api/client";
+import {
+  getListDocumentsApiV1DocumentsGetQueryKey,
+  listDocumentsApiV1DocumentsGet,
+} from "@/api/generated/documents/documents";
+import {
+  getListInitiativesApiV1InitiativesGetQueryKey,
+  listInitiativesApiV1InitiativesGet,
+} from "@/api/generated/initiatives/initiatives";
+import {
+  getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey,
+  favoriteProjectsApiV1ProjectsFavoritesGet,
+  getListProjectsApiV1ProjectsGetQueryKey,
+  listProjectsApiV1ProjectsGet,
+} from "@/api/generated/projects/projects";
 import { getItem, setItem } from "@/lib/storage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -96,45 +109,33 @@ export const AppSidebar = () => {
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives", activeGuildId],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
     enabled: Boolean(activeGuild),
     staleTime: 60_000,
   });
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", activeGuildId],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+    queryKey: getListProjectsApiV1ProjectsGetQueryKey(),
+    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
     enabled: Boolean(activeGuild),
     staleTime: 60_000,
   });
 
   const favoritesQuery = useQuery<Project[]>({
-    queryKey: ["projects", activeGuildId, "favorites"],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/favorites");
-      return response.data;
-    },
+    queryKey: getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey(),
+    queryFn: () => favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<Project[]>,
     enabled: activeGuildId !== null,
     staleTime: 60_000,
   });
 
   const documentsQuery = useQuery<{ id: number; initiative_id: number }[]>({
-    queryKey: ["documents", activeGuildId],
+    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
     queryFn: async () => {
-      const response = await apiClient.get<{ items: { id: number; initiative_id: number }[] }>(
-        "/documents/",
-        {
-          params: { page_size: "0" },
-        }
-      );
-      return response.data.items;
+      const response = await (listDocumentsApiV1DocumentsGet({
+        page_size: 0,
+      }) as unknown as Promise<{ items: { id: number; initiative_id: number }[] }>);
+      return response.items;
     },
     enabled: Boolean(activeGuild),
     staleTime: 60_000,

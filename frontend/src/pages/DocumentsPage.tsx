@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -20,10 +20,16 @@ import {
   Copy,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import {
+  useDocumentsList,
+  useDocumentCounts,
+  useDeleteDocument,
+  useCopyDocument,
+  prefetchDocumentsList,
+} from "@/hooks/useDocuments";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -52,15 +58,8 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type {
-  DocumentCountsResponse,
-  DocumentListResponse,
-  DocumentRead,
-  DocumentSummary,
-  Initiative,
-  Tag,
-  TagSummary,
-} from "@/types/api";
+import type { DocumentSummary, Tag, TagSummary } from "@/types/api";
+import type { ListDocumentsApiV1DocumentsGetParams } from "@/api/generated/initiativeAPI.schemas";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -409,135 +408,51 @@ export const DocumentsView = ({
     setPage(1);
   }, [viewMode, initiativeFilter, searchQuery, queryTagIdsKey, treeWantsUntagged, setPage]);
 
-  const documentsQuery = useQuery<DocumentListResponse>({
-    queryKey: [
-      "documents",
-      {
-        guildId: activeGuildId,
-        initiative: initiativeFilter,
-        search: searchQuery,
-        tagFilters: queryTagIds,
-        untagged: treeWantsUntagged,
-        page,
-        pageSize,
-        sortBy,
-        sortDir,
-      },
-    ],
-    queryFn: async () => {
-      const params: Record<string, string | string[]> = {};
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
-      }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
-      if (queryTagIds.length > 0) {
-        params.tag_ids = queryTagIds.map(String);
-      }
-      if (treeWantsUntagged && treeTagIds.length === 0) {
-        params.untagged = "true";
-      }
-      params.page = String(page);
-      params.page_size = String(pageSize);
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-      const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
-      return response.data;
-    },
-    placeholderData: keepPreviousData,
-  });
+  const documentsQueryParams: ListDocumentsApiV1DocumentsGetParams = {
+    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
+      ? { initiative_id: Number(initiativeFilter) }
+      : {}),
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+    ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
+    page,
+    page_size: pageSize,
+    ...(sortBy ? { sort_by: sortBy } : {}),
+    ...(sortDir ? { sort_dir: sortDir } : {}),
+  };
+
+  const documentsQuery = useDocumentsList(documentsQueryParams);
 
   // Counts query for tags view sidebar
-  const countsQuery = useQuery<DocumentCountsResponse>({
-    queryKey: [
-      "documents",
-      "counts",
-      {
-        guildId: activeGuildId,
-        initiative: initiativeFilter,
-        search: searchQuery,
-      },
-    ],
-    queryFn: async () => {
-      const params: Record<string, string> = {};
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
-      }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
-      const response = await apiClient.get<DocumentCountsResponse>("/documents/counts", { params });
-      return response.data;
-    },
-    enabled: viewMode === "tags",
-  });
+  const countsQueryParams = {
+    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
+      ? { initiative_id: Number(initiativeFilter) }
+      : {}),
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+  };
+
+  const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
 
   // Prefetch adjacent page on hover
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params: Record<string, string | string[]> = {};
-      if (initiativeFilter !== INITIATIVE_FILTER_ALL) {
-        params.initiative_id = initiativeFilter;
-      }
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
-      if (queryTagIds.length > 0) {
-        params.tag_ids = queryTagIds.map(String);
-      }
-      if (treeWantsUntagged && treeTagIds.length === 0) {
-        params.untagged = "true";
-      }
-      params.page = String(targetPage);
-      params.page_size = String(pageSize);
-      if (sortBy) params.sort_by = sortBy;
-      if (sortDir) params.sort_dir = sortDir;
-
-      void queryClient.prefetchQuery({
-        queryKey: [
-          "documents",
-          {
-            guildId: activeGuildId,
-            initiative: initiativeFilter,
-            search: searchQuery,
-            tagFilters: queryTagIds,
-            untagged: treeWantsUntagged,
-            page: targetPage,
-            pageSize,
-            sortBy,
-            sortDir,
-          },
-        ],
-        queryFn: async () => {
-          const response = await apiClient.get<DocumentListResponse>("/documents/", { params });
-          return response.data;
-        },
-        staleTime: 30_000,
-      });
+      const prefetchParams: ListDocumentsApiV1DocumentsGetParams = {
+        ...(initiativeFilter !== INITIATIVE_FILTER_ALL
+          ? { initiative_id: Number(initiativeFilter) }
+          : {}),
+        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
+        page: targetPage,
+        page_size: pageSize,
+        ...(sortBy ? { sort_by: sortBy } : {}),
+        ...(sortDir ? { sort_dir: sortDir } : {}),
+      };
+      void prefetchDocumentsList(queryClient, prefetchParams);
     },
-    [
-      activeGuildId,
-      initiativeFilter,
-      searchQuery,
-      queryTagIds,
-      treeWantsUntagged,
-      treeTagIds,
-      pageSize,
-      sortBy,
-      sortDir,
-      queryClient,
-    ]
+    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, queryClient]
   );
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
-  });
+  const initiativesQuery = useInitiatives();
 
   // Filter initiatives where user can create documents
   const creatableInitiatives = useMemo(() => {
@@ -802,46 +717,36 @@ export const DocumentsView = ({
     [t, dateLocale]
   );
 
-  const deleteDocuments = useMutation({
-    mutationFn: async (documentIds: number[]) => {
-      await Promise.all(documentIds.map((id) => apiClient.delete(`/documents/${id}`)));
+  const deleteDocumentsMutation = useDeleteDocument();
+  const deleteDocuments = {
+    mutate: (documentIds: number[]) => {
+      deleteDocumentsMutation.mutate(documentIds, {
+        onSuccess: () => {
+          setSelectedDocuments([]);
+        },
+      });
     },
-    onSuccess: (_data, documentIds) => {
-      const count = documentIds.length;
-      toast.success(t("bulk.deleted", { count }));
-      setSelectedDocuments([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("bulk.deleteError");
-      toast.error(message);
-    },
-  });
+    isPending: deleteDocumentsMutation.isPending,
+  };
 
-  const duplicateDocuments = useMutation({
-    mutationFn: async (documentsToClone: DocumentSummary[]) => {
-      const results = await Promise.all(
-        documentsToClone.map((doc) => {
-          const payload = {
-            target_initiative_id: doc.initiative?.id,
-            title: `${doc.title} (copy)`,
-          };
-          return apiClient.post<DocumentRead>(`/documents/${doc.id}/copy`, payload);
-        })
+  const copyDocumentMutation = useCopyDocument();
+  const duplicateDocuments = {
+    mutate: (documentsToClone: DocumentSummary[]) => {
+      copyDocumentMutation.mutate(
+        documentsToClone.map((doc) => ({
+          id: doc.id,
+          initiative_id: doc.initiative_id,
+          title: doc.title,
+        })),
+        {
+          onSuccess: () => {
+            setSelectedDocuments([]);
+          },
+        }
       );
-      return results.map((r) => r.data);
     },
-    onSuccess: (data) => {
-      const count = data.length;
-      toast.success(t("bulk.duplicated", { count }));
-      setSelectedDocuments([]);
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("bulk.duplicateError");
-      toast.error(message);
-    },
-  });
+    isPending: copyDocumentMutation.isPending,
+  };
 
   const initiatives = initiativesQuery.data ?? [];
   // Filter initiatives where user can view docs (for the dropdown)

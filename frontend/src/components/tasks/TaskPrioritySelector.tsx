@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { apiClient } from "@/api/client";
+import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
+import { invalidateAllTasks, invalidateTask } from "@/api/query-keys";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import type { Task, TaskPriority } from "@/types/api";
 
@@ -22,9 +23,8 @@ type TaskPrioritySelectorProps = {
   disabled?: boolean;
 };
 
-export const TaskPrioritySelector = ({ task, guildId, disabled }: TaskPrioritySelectorProps) => {
+export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorProps) => {
   const { t } = useTranslation("tasks");
-  const queryClient = useQueryClient();
 
   const PRIORITIES: { value: TaskPriority; label: string }[] = useMemo(
     () => [
@@ -38,18 +38,15 @@ export const TaskPrioritySelector = ({ task, guildId, disabled }: TaskPrioritySe
 
   const updatePriority = useMutation({
     mutationFn: async (priority: TaskPriority) => {
-      const response = await apiClient.patch<Task>(
-        `/tasks/${task.id}`,
-        { priority },
-        guildId != null ? { headers: { "X-Guild-ID": String(guildId) } } : undefined
-      );
+      const response = await (updateTaskApiV1TasksTaskIdPatch(task.id, {
+        priority,
+      }) as unknown as Promise<{ data: Task }>);
       return response.data;
     },
     onSuccess: (updatedTask) => {
       // Invalidate relevant queries
-      void queryClient.invalidateQueries({ queryKey: ["tasks", task.project_id] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
-      void queryClient.invalidateQueries({ queryKey: ["task", task.id] });
+      void invalidateAllTasks();
+      void invalidateTask(task.id);
       toast.success(
         t("prioritySelector.changed", { priority: t(`priority.${updatedTask.priority}`) })
       );

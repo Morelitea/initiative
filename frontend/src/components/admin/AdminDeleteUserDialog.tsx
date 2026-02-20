@@ -4,7 +4,15 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
+  getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
+  deleteUserApiV1AdminUsersUserIdDelete,
+  adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
+  adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
+  adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
+} from "@/api/generated/admin/admin";
+import { getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet } from "@/api/generated/initiatives/initiatives";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -79,13 +87,13 @@ export function AdminDeleteUserDialog({
 
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } = useQuery({
-    queryKey: ["admin", "deletion-eligibility", targetUser.id],
-    queryFn: async () => {
-      const response = await apiClient.get<DeletionEligibilityResponse>(
-        `/admin/users/${targetUser.id}/deletion-eligibility`
-      );
-      return response.data;
-    },
+    queryKey: getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey(
+      targetUser.id
+    ),
+    queryFn: () =>
+      checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet(
+        targetUser.id
+      ) as unknown as Promise<DeletionEligibilityResponse>,
     enabled: false,
   });
 
@@ -96,10 +104,12 @@ export function AdminDeleteUserDialog({
       if (initiativeMembers[initiativeId]) return;
 
       try {
-        const response = await apiClient.get<User[]>(`/initiatives/${initiativeId}/members`);
+        const members = await (getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
+          initiativeId
+        ) as unknown as Promise<User[]>);
         setInitiativeMembers((prev) => ({
           ...prev,
-          [initiativeId]: response.data.filter((u) => u.id !== targetUser.id),
+          [initiativeId]: members.filter((u) => u.id !== targetUser.id),
         }));
       } catch (error) {
         console.error("Failed to fetch initiative members:", error);
@@ -111,7 +121,11 @@ export function AdminDeleteUserDialog({
   // Mutations for resolving blockers
   const promoteGuildMember = useMutation({
     mutationFn: async ({ guildId, userId }: { guildId: number; userId: number }) => {
-      await apiClient.patch(`/admin/guilds/${guildId}/members/${userId}/role`, { role: "admin" });
+      await adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch(
+        guildId,
+        userId,
+        { role: "admin" }
+      );
     },
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.promoteSuccess"));
@@ -128,7 +142,7 @@ export function AdminDeleteUserDialog({
 
   const deleteGuild = useMutation({
     mutationFn: async (guildId: number) => {
-      await apiClient.delete(`/admin/guilds/${guildId}`);
+      await adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId);
     },
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.deleteGuildSuccess"));
@@ -146,9 +160,11 @@ export function AdminDeleteUserDialog({
 
   const promoteInitiativeMember = useMutation({
     mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
-      await apiClient.patch(`/admin/initiatives/${initiativeId}/members/${userId}/role`, {
-        role: "project_manager",
-      });
+      await adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
+        initiativeId,
+        userId,
+        { role: "project_manager" }
+      );
     },
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.promoteSuccess"));
@@ -166,11 +182,10 @@ export function AdminDeleteUserDialog({
   // Delete user mutation
   const deleteUser = useMutation({
     mutationFn: async (request: AdminUserDeleteRequest) => {
-      const response = await apiClient.delete<AccountDeletionResponse>(
-        `/admin/users/${targetUser.id}`,
-        { data: request }
-      );
-      return response.data;
+      return deleteUserApiV1AdminUsersUserIdDelete(
+        targetUser.id,
+        request
+      ) as unknown as Promise<AccountDeletionResponse>;
     },
     onSuccess: (data) => {
       toast.success(data.message);

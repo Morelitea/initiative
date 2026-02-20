@@ -1,7 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 
-import { apiClient } from "@/api/client";
-import { useGuilds } from "@/hooks/useGuilds";
+import {
+  favoriteProjectApiV1ProjectsProjectIdFavoritePost,
+  unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete,
+  getListProjectsApiV1ProjectsGetQueryKey,
+  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+  getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey,
+} from "@/api/generated/projects/projects";
 import { queryClient } from "../lib/queryClient";
 import type { Project } from "../types/api";
 
@@ -27,32 +32,34 @@ const updateProjectListFavorite = (projects: Project[] | undefined, response: To
 };
 
 export const useProjectFavoriteMutation = () => {
-  const { activeGuildId } = useGuilds();
-  const favoritesQueryKey = ["projects", activeGuildId, "favorites"] as const;
-
   return useMutation<ToggleResponse, unknown, ToggleArgs>({
     mutationFn: async ({ projectId, nextState }) => {
       if (nextState) {
-        await apiClient.post(`/projects/${projectId}/favorite`);
+        await favoriteProjectApiV1ProjectsProjectIdFavoritePost(projectId);
       } else {
-        await apiClient.delete(`/projects/${projectId}/favorite`);
+        await unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete(projectId);
       }
       return { project_id: projectId, is_favorited: nextState };
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Project[]>(["projects"], (projects) =>
+      queryClient.setQueryData<Project[]>(getListProjectsApiV1ProjectsGetQueryKey(), (projects) =>
         updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project[]>(["projects", "templates"], (projects) =>
-        updateProjectListFavorite(projects, data)
+      queryClient.setQueryData<Project[]>(
+        getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
+        (projects) => updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project[]>(["projects", "archived"], (projects) =>
-        updateProjectListFavorite(projects, data)
+      queryClient.setQueryData<Project[]>(
+        getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
+        (projects) => updateProjectListFavorite(projects, data)
       );
-      queryClient.setQueryData<Project>(["projects", data.project_id], (project) =>
-        project ? { ...project, is_favorited: data.is_favorited } : project
+      queryClient.setQueryData<Project>(
+        getReadProjectApiV1ProjectsProjectIdGetQueryKey(data.project_id) as unknown as string[],
+        (project) => (project ? { ...project, is_favorited: data.is_favorited } : project)
       );
-      queryClient.invalidateQueries({ queryKey: favoritesQueryKey });
+      queryClient.invalidateQueries({
+        queryKey: getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey(),
+      });
     },
   });
 };

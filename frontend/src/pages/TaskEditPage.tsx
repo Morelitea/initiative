@@ -5,8 +5,37 @@ import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
+import {
+  readTaskApiV1TasksTaskIdGet,
+  getReadTaskApiV1TasksTaskIdGetQueryKey,
+  updateTaskApiV1TasksTaskIdPatch,
+  duplicateTaskApiV1TasksTaskIdDuplicatePost,
+  deleteTaskApiV1TasksTaskIdDelete,
+  moveTaskApiV1TasksTaskIdMovePost,
+  generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost,
+} from "@/api/generated/tasks/tasks";
+import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
+import {
+  readProjectApiV1ProjectsProjectIdGet,
+  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+  listWritableProjectsApiV1ProjectsWritableGet,
+  getListWritableProjectsApiV1ProjectsWritableGetQueryKey,
+} from "@/api/generated/projects/projects";
+import {
+  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+} from "@/api/generated/task-statuses/task-statuses";
+import {
+  listUsersApiV1UsersGet,
+  getListUsersApiV1UsersGetQueryKey,
+} from "@/api/generated/users/users";
+import { useComments } from "@/hooks/useComments";
+import {
+  invalidateAllTasks,
+  invalidateProject,
+  invalidateProjectTaskStatuses,
+} from "@/api/query-keys";
 import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -92,7 +121,7 @@ export const TaskEditPage = () => {
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   useAuth();
-  const { activeGuild } = useGuilds();
+  useGuilds();
   const { t } = useTranslation(["tasks", "common"]);
   const gp = useGuildPath();
   const { data: roleLabels } = useRoleLabels();
@@ -114,53 +143,36 @@ export const TaskEditPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const taskQuery = useQuery({
-    queryKey: ["task", parsedTaskId],
+    queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
     enabled: Number.isFinite(parsedTaskId),
-    queryFn: async () => {
-      const response = await apiClient.get<Task>(`/tasks/${parsedTaskId}`);
-      return response.data;
-    },
+    queryFn: () => readTaskApiV1TasksTaskIdGet(parsedTaskId) as unknown as Promise<Task>,
   });
 
   const usersQuery = useQuery({
-    queryKey: ["users", { guildId: activeGuild?.id }],
-    queryFn: async () => {
-      const response = await apiClient.get<User[]>("/users/");
-      return response.data;
-    },
+    queryKey: getListUsersApiV1UsersGetQueryKey(),
+    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
   });
 
   const projectId = taskQuery.data?.project_id;
   const projectQuery = useQuery({
-    queryKey: ["project", projectId],
+    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId!),
     enabled: Number.isFinite(projectId),
-    queryFn: async () => {
-      const response = await apiClient.get<Project>(`/projects/${projectId}`);
-      return response.data;
-    },
+    queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<Project>,
   });
 
   const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: ["projects", projectId, "task-statuses"],
+    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId!),
     enabled: Number.isFinite(projectId),
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectTaskStatus[]>(
-        `/projects/${projectId}/task-statuses/`
-      );
-      return response.data;
-    },
+    queryFn: () =>
+      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId!) as unknown as Promise<
+        ProjectTaskStatus[]
+      >,
   });
 
-  const commentsQueryKey = ["comments", "task", parsedTaskId];
-  const commentsQuery = useQuery({
-    queryKey: commentsQueryKey,
+  const commentsQueryParams = { task_id: parsedTaskId };
+  const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
+  const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedTaskId),
-    queryFn: async () => {
-      const response = await apiClient.get<Comment[]>("/comments/", {
-        params: { task_id: parsedTaskId },
-      });
-      return response.data;
-    },
   });
 
   const setTaskTagsMutation = useSetTaskTags();
@@ -200,8 +212,10 @@ export const TaskEditPage = () => {
         recurrence,
         recurrence_strategy: recurrence ? recurrenceStrategy : "fixed",
       };
-      const response = await apiClient.patch<Task>(`/tasks/${parsedTaskId}`, payload);
-      return response.data;
+      return await (updateTaskApiV1TasksTaskIdPatch(
+        parsedTaskId,
+        payload as never
+      ) as unknown as Promise<Task>);
     },
     onSuccess: (updatedTask) => {
       setTitle(updatedTask.title);
@@ -220,59 +234,49 @@ export const TaskEditPage = () => {
 
   const duplicateTask = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<Task>(`/tasks/${parsedTaskId}/duplicate`);
-      return response.data;
+      return await (duplicateTaskApiV1TasksTaskIdDuplicatePost(
+        parsedTaskId
+      ) as unknown as Promise<Task>);
     },
     onSuccess: (newTask) => {
       toast.success(t("edit.taskDuplicated"));
-      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      void invalidateAllTasks();
       router.navigate({ to: gp(`/tasks/${newTask.id}`) });
     },
   });
 
   const deleteTask = useMutation({
     mutationFn: async () => {
-      await apiClient.delete(`/tasks/${parsedTaskId}`);
+      await deleteTaskApiV1TasksTaskIdDelete(parsedTaskId);
     },
     onSuccess: () => {
       toast.success(t("edit.taskDeleted"));
-      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      void invalidateAllTasks();
       router.navigate({ to: gp(`/projects/${projectId}`) });
     },
   });
 
   const moveTask = useMutation<Task, unknown, MoveTaskVariables>({
     mutationFn: async ({ targetProjectId }) => {
-      const response = await apiClient.post<Task>(`/tasks/${parsedTaskId}/move`, {
+      return await (moveTaskApiV1TasksTaskIdMovePost(parsedTaskId, {
         target_project_id: targetProjectId,
-      });
-      return response.data;
+      }) as unknown as Promise<Task>);
     },
     onSuccess: (updatedTask, variables) => {
-      queryClient.setQueryData<Task>(["task", parsedTaskId], updatedTask);
+      queryClient.setQueryData<Task>(
+        getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
+        updatedTask
+      );
       const previousProjectId = variables?.previousProjectId;
       if (typeof previousProjectId === "number") {
-        queryClient.setQueryData<Task[] | undefined>(["tasks", previousProjectId], (previous) => {
-          if (!previous) {
-            return previous;
-          }
-          return previous.filter((taskItem) => taskItem.id !== updatedTask.id);
-        });
-        void queryClient.invalidateQueries({
-          queryKey: ["projects", previousProjectId, "task-statuses"],
-        });
-        void queryClient.invalidateQueries({ queryKey: ["project", previousProjectId] });
+        void invalidateProjectTaskStatuses(previousProjectId);
+        void invalidateProject(previousProjectId);
       }
       if (typeof variables?.targetProjectId === "number") {
-        void queryClient.invalidateQueries({ queryKey: ["tasks", variables.targetProjectId] });
-        void queryClient.invalidateQueries({
-          queryKey: ["projects", variables.targetProjectId, "task-statuses"],
-        });
-        void queryClient.invalidateQueries({ queryKey: ["project", variables.targetProjectId] });
+        void invalidateProjectTaskStatuses(variables.targetProjectId);
+        void invalidateProject(variables.targetProjectId);
       }
-      void queryClient.invalidateQueries({ queryKey: ["tasks", "global"] });
+      void invalidateAllTasks();
       setIsMoveDialogOpen(false);
       toast.success(
         t("edit.moveSuccess", {
@@ -290,16 +294,17 @@ export const TaskEditPage = () => {
 
   const toggleArchive = useMutation({
     mutationFn: async (archive: boolean) => {
-      const response = await apiClient.patch<Task>(`/tasks/${parsedTaskId}`, {
+      return await (updateTaskApiV1TasksTaskIdPatch(parsedTaskId, {
         is_archived: archive,
-      });
-      return response.data;
+      } as never) as unknown as Promise<Task>);
     },
     onSuccess: (updatedTask) => {
-      queryClient.setQueryData<Task>(["task", parsedTaskId], updatedTask);
+      queryClient.setQueryData<Task>(
+        getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
+        updatedTask
+      );
       toast.success(updatedTask.is_archived ? t("edit.taskArchived") : t("edit.taskUnarchived"));
-      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = isAxiosError(error)
@@ -311,10 +316,9 @@ export const TaskEditPage = () => {
 
   const generateDescription = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post<GenerateDescriptionResponse>(
-        `/tasks/${parsedTaskId}/ai/description`
-      );
-      return response.data;
+      return await (generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost(
+        parsedTaskId
+      ) as unknown as Promise<GenerateDescriptionResponse>);
     },
     onSuccess: (data) => {
       setDescription(data.description);
@@ -407,11 +411,8 @@ export const TaskEditPage = () => {
   const canModerateComments = hasWritePermission;
 
   const writableProjectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "writable"],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/writable");
-      return response.data;
-    },
+    queryKey: getListWritableProjectsApiV1ProjectsWritableGetQueryKey(),
+    queryFn: () => listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<Project[]>,
     enabled: Boolean(canWriteProject && !projectIsArchived),
     staleTime: 60 * 1000,
   });

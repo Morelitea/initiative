@@ -12,7 +12,22 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  listProjectsApiV1ProjectsGet,
+  getListProjectsApiV1ProjectsGetQueryKey,
+} from "@/api/generated/projects/projects";
+import {
+  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1InitiativesGetQueryKey,
+} from "@/api/generated/initiatives/initiatives";
+import {
+  listTasksApiV1TasksGet,
+  getListTasksApiV1TasksGetQueryKey,
+} from "@/api/generated/tasks/tasks";
+import {
+  recentCommentsApiV1CommentsRecentGet,
+  getRecentCommentsApiV1CommentsRecentGetQueryKey,
+} from "@/api/generated/comments/comments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUserStats } from "@/hooks/useUserStats";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -28,6 +43,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import type { Initiative, Project, RecentActivityEntry, TaskListResponse } from "@/types/api";
+import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+
+const DASHBOARD_TASK_PARAMS: ListTasksApiV1TasksGetParams = {
+  status_category: [
+    TaskStatusCategory.backlog,
+    TaskStatusCategory.todo,
+    TaskStatusCategory.in_progress,
+  ],
+  sort_by: "due_date",
+  sort_dir: "asc",
+  page_size: 10,
+};
+
+const RECENT_COMMENTS_PARAMS = { limit: 10 };
 
 export function GuildDashboardPage() {
   const { t } = useTranslation("dashboard");
@@ -37,50 +67,40 @@ export function GuildDashboardPage() {
   const statsQuery = useUserStats(activeGuildId);
 
   const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", activeGuildId],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+    queryKey: [...getListProjectsApiV1ProjectsGetQueryKey(), activeGuildId],
+    queryFn: () => listProjectsApiV1ProjectsGet() as unknown as Promise<Project[]>,
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });
 
   const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: ["initiatives", activeGuildId],
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
+    queryKey: [...getListInitiativesApiV1InitiativesGetQueryKey(), activeGuildId],
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });
 
   const upcomingTasksQuery = useQuery<TaskListResponse>({
-    queryKey: ["tasks", "dashboard-upcoming", activeGuildId],
-    queryFn: async () => {
-      const response = await apiClient.get<TaskListResponse>("/tasks/", {
-        params: {
-          status_category: ["backlog", "todo", "in_progress"],
-          sort_by: "due_date",
-          sort_dir: "asc",
-          page_size: 10,
-        },
-      });
-      return response.data;
-    },
+    queryKey: [
+      ...getListTasksApiV1TasksGetQueryKey(DASHBOARD_TASK_PARAMS),
+      "dashboard-upcoming",
+      activeGuildId,
+    ],
+    queryFn: () =>
+      listTasksApiV1TasksGet(DASHBOARD_TASK_PARAMS) as unknown as Promise<TaskListResponse>,
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });
 
   const recentCommentsQuery = useQuery<RecentActivityEntry[]>({
-    queryKey: ["comments", "recent", activeGuildId],
-    queryFn: async () => {
-      const response = await apiClient.get<RecentActivityEntry[]>("/comments/recent", {
-        params: { limit: 10 },
-      });
-      return response.data;
-    },
+    queryKey: [
+      ...getRecentCommentsApiV1CommentsRecentGetQueryKey(RECENT_COMMENTS_PARAMS),
+      activeGuildId,
+    ],
+    queryFn: () =>
+      recentCommentsApiV1CommentsRecentGet(RECENT_COMMENTS_PARAMS) as unknown as Promise<
+        RecentActivityEntry[]
+      >,
     staleTime: 60_000,
     enabled: Boolean(activeGuild),
   });

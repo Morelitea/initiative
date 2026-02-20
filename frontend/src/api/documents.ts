@@ -1,4 +1,7 @@
-import { apiClient } from "@/api/client";
+import {
+  autocompleteDocumentsApiV1DocumentsAutocompleteGet,
+  getBacklinksApiV1DocumentsDocumentIdBacklinksGet,
+} from "@/api/generated/documents/documents";
 
 export interface DocumentAutocomplete {
   id: number;
@@ -21,20 +24,18 @@ export async function autocompleteDocuments(
   query: string,
   limit = 10
 ): Promise<DocumentAutocomplete[]> {
-  const response = await apiClient.get<DocumentAutocomplete[]>("/documents/autocomplete", {
-    params: {
-      initiative_id: initiativeId,
-      q: query,
-      limit,
-    },
-  });
-  return response.data;
+  return autocompleteDocumentsApiV1DocumentsAutocompleteGet({
+    initiative_id: initiativeId,
+    q: query,
+    limit,
+  }) as unknown as Promise<DocumentAutocomplete[]>;
 }
 
 /**
  * Get documents that link to the specified document (backlinks).
  */
 export async function getDocumentBacklinks(documentId: number): Promise<DocumentBacklink[]> {
-  const response = await apiClient.get<DocumentBacklink[]>(`/documents/${documentId}/backlinks`);
-  return response.data;
+  return getBacklinksApiV1DocumentsDocumentIdBacklinksGet(documentId) as unknown as Promise<
+    DocumentBacklink[]
+  >;
 }

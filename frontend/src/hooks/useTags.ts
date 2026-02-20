@@ -2,8 +2,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
-import { useGuilds } from "@/hooks/useGuilds";
+import {
+  listTagsApiV1TagsGet,
+  getListTagsApiV1TagsGetQueryKey,
+  getTagApiV1TagsTagIdGet,
+  getGetTagApiV1TagsTagIdGetQueryKey,
+  createTagApiV1TagsPost,
+  updateTagApiV1TagsTagIdPatch,
+  deleteTagApiV1TagsTagIdDelete,
+  getTagEntitiesApiV1TagsTagIdEntitiesGet,
+  getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey,
+} from "@/api/generated/tags/tags";
+import { setTaskTagsApiV1TasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
+import { setProjectTagsApiV1ProjectsProjectIdTagsPut } from "@/api/generated/projects/projects";
+import { setDocumentTagsApiV1DocumentsDocumentIdTagsPut } from "@/api/generated/documents/documents";
+import {
+  invalidateAllTags,
+  invalidateAllTasks,
+  invalidateAllProjects,
+  invalidateAllDocuments,
+} from "@/api/query-keys";
 import type {
   DocumentRead,
   Project,
@@ -14,31 +32,18 @@ import type {
   Task,
 } from "@/types/api";
 
-const TAGS_KEY = "tags";
-const TASKS_KEY = "tasks";
-const PROJECTS_KEY = "projects";
-const DOCUMENTS_KEY = "documents";
-
 export const useTags = () => {
-  const { activeGuildId } = useGuilds();
   return useQuery<Tag[]>({
-    queryKey: [TAGS_KEY, { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Tag[]>("/tags/");
-      return response.data;
-    },
-    staleTime: 60 * 1000, // 1 minute
+    queryKey: getListTagsApiV1TagsGetQueryKey(),
+    queryFn: () => listTagsApiV1TagsGet() as unknown as Promise<Tag[]>,
+    staleTime: 60 * 1000,
   });
 };
 
 export const useTag = (tagId: number | null) => {
-  const { activeGuildId } = useGuilds();
   return useQuery<Tag>({
-    queryKey: [TAGS_KEY, { guildId: activeGuildId }, tagId],
-    queryFn: async () => {
-      const response = await apiClient.get<Tag>(`/tags/${tagId}`);
-      return response.data;
-    },
+    queryKey: getGetTagApiV1TagsTagIdGetQueryKey(tagId!),
+    queryFn: () => getTagApiV1TagsTagIdGet(tagId!) as unknown as Promise<Tag>,
     enabled: !!tagId,
     staleTime: 60 * 1000,
   });
@@ -47,15 +52,13 @@ export const useTag = (tagId: number | null) => {
 export const useCreateTag = () => {
   const { t } = useTranslation("tags");
   const queryClient = useQueryClient();
-  const { activeGuildId } = useGuilds();
 
   return useMutation({
     mutationFn: async (data: TagCreate) => {
-      const response = await apiClient.post<Tag>("/tags/", data);
-      return response.data;
+      return createTagApiV1TagsPost(data) as unknown as Promise<Tag>;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
+      void queryClient.invalidateQueries({ queryKey: getListTagsApiV1TagsGetQueryKey() });
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("createError");
@@ -66,17 +69,14 @@ export const useCreateTag = () => {
 
 export const useUpdateTag = () => {
   const { t } = useTranslation("tags");
-  const queryClient = useQueryClient();
-  const { activeGuildId } = useGuilds();
 
   return useMutation({
     mutationFn: async ({ tagId, data }: { tagId: number; data: TagUpdate }) => {
-      const response = await apiClient.patch<Tag>(`/tags/${tagId}`, data);
-      return response.data;
+      return updateTagApiV1TagsTagIdPatch(tagId, data) as unknown as Promise<Tag>;
     },
     onSuccess: () => {
       toast.success(t("updated"));
-      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
+      void invalidateAllTags();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("updateError");
@@ -87,18 +87,15 @@ export const useUpdateTag = () => {
 
 export const useDeleteTag = () => {
   const { t } = useTranslation("tags");
-  const queryClient = useQueryClient();
-  const { activeGuildId } = useGuilds();
 
   return useMutation({
     mutationFn: async (tagId: number) => {
-      await apiClient.delete(`/tags/${tagId}`);
+      await deleteTagApiV1TagsTagIdDelete(tagId);
     },
     onSuccess: () => {
       toast.success(t("deleted"));
-      void queryClient.invalidateQueries({ queryKey: [TAGS_KEY, { guildId: activeGuildId }] });
-      // Also invalidate tasks since they may have had this tag
-      void queryClient.invalidateQueries({ queryKey: [TASKS_KEY] });
+      void invalidateAllTags();
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("deleteError");
@@ -109,24 +106,15 @@ export const useDeleteTag = () => {
 
 export const useSetTaskTags = () => {
   const { t } = useTranslation("tags");
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ taskId, tagIds }: { taskId: number; tagIds: number[] }) => {
-      const response = await apiClient.put<Task>(`/tasks/${taskId}/tags`, {
+      return setTaskTagsApiV1TasksTaskIdTagsPut(taskId, {
         tag_ids: tagIds,
-      });
-      return response.data;
+      }) as unknown as Promise<Task>;
     },
-    onSuccess: (data) => {
-      // Update the specific task in cache
-      void queryClient.invalidateQueries({
-        queryKey: [TASKS_KEY],
-      });
-      // Also invalidate the single task query if it exists
-      void queryClient.invalidateQueries({
-        queryKey: ["task", data.id],
-      });
+    onSuccess: () => {
+      void invalidateAllTasks();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("taskTagsError");
@@ -136,32 +124,26 @@ export const useSetTaskTags = () => {
 };
 
 export const useTagEntities = (tagId: number | null) => {
-  const { activeGuildId } = useGuilds();
   return useQuery<TaggedEntitiesResponse>({
-    queryKey: [TAGS_KEY, { guildId: activeGuildId }, tagId, "entities"],
-    queryFn: async () => {
-      const response = await apiClient.get<TaggedEntitiesResponse>(`/tags/${tagId}/entities`);
-      return response.data;
-    },
+    queryKey: getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey(tagId!),
+    queryFn: () =>
+      getTagEntitiesApiV1TagsTagIdEntitiesGet(tagId!) as unknown as Promise<TaggedEntitiesResponse>,
     enabled: !!tagId,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
   });
 };
 
 export const useSetProjectTags = () => {
   const { t } = useTranslation("tags");
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ projectId, tagIds }: { projectId: number; tagIds: number[] }) => {
-      const response = await apiClient.put<Project>(`/projects/${projectId}/tags`, {
+      return setProjectTagsApiV1ProjectsProjectIdTagsPut(projectId, {
         tag_ids: tagIds,
-      });
-      return response.data;
+      }) as unknown as Promise<Project>;
     },
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: [PROJECTS_KEY] });
-      void queryClient.invalidateQueries({ queryKey: ["project", data.id] });
+    onSuccess: () => {
+      void invalidateAllProjects();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("projectTagsError");
@@ -172,18 +154,15 @@ export const useSetProjectTags = () => {
 
 export const useSetDocumentTags = () => {
   const { t } = useTranslation("tags");
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ documentId, tagIds }: { documentId: number; tagIds: number[] }) => {
-      const response = await apiClient.put<DocumentRead>(`/documents/${documentId}/tags`, {
+      return setDocumentTagsApiV1DocumentsDocumentIdTagsPut(documentId, {
         tag_ids: tagIds,
-      });
-      return response.data;
+      }) as unknown as Promise<DocumentRead>;
     },
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: [DOCUMENTS_KEY] });
-      void queryClient.invalidateQueries({ queryKey: ["document", data.id] });
+    onSuccess: () => {
+      void invalidateAllDocuments();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("documentTagsError");

@@ -114,6 +114,17 @@ export type DeletionEligibilityResponse = AdminDeletionEligibilityResponse;
 /** Backward compat alias */
 export type ProjectDocumentLink = ProjectDocumentSummary;
 
+// --- Paginated response wrappers (frontend-only; not in the OpenAPI spec) ---
+// TaskListResponse and DocumentListResponse are now generated — see initiativeAPI.schemas.
+// ProjectListResponse remains frontend-only (projects endpoint isn't paginated).
+
+export type ProjectListResponse = {
+  items: ProjectRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+};
+
 // --- Types not in the OpenAPI spec (frontend-only constructs) ---
 
 export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";

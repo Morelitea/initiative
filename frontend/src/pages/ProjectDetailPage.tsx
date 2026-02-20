@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  listUsersApiV1UsersGet,
+  getListUsersApiV1UsersGetQueryKey,
+} from "@/api/generated/users/users";
+import {
+  invalidateAllTasks,
+  invalidateProject,
+  invalidateProjectTaskStatuses,
+} from "@/api/query-keys";
+import { useProject, useProjectTaskStatuses, useRecordProjectView } from "@/hooks/useProjects";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
@@ -19,76 +28,46 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
-import { queryClient } from "@/lib/queryClient";
-import type { Project, ProjectTaskStatus, User } from "@/types/api";
+import type { User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
   const { projectId } = useParams({ strict: false }) as { projectId: string };
   const router = useRouter();
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
-  const localQueryClient = useQueryClient();
   const parsedProjectId = Number(projectId);
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
-      localQueryClient.invalidateQueries({ queryKey: ["project", parsedProjectId] }),
-      localQueryClient.invalidateQueries({ queryKey: ["tasks", parsedProjectId] }),
-      localQueryClient.invalidateQueries({
-        queryKey: ["projects", parsedProjectId, "task-statuses"],
-      }),
+      invalidateProject(parsedProjectId),
+      invalidateAllTasks(),
+      invalidateProjectTaskStatuses(parsedProjectId),
     ]);
-  }, [localQueryClient, parsedProjectId]);
+  }, [parsedProjectId]);
 
-  const projectQuery = useQuery<Project>({
-    queryKey: ["project", parsedProjectId],
-    queryFn: async () => {
-      const response = await apiClient.get<Project>(`/projects/${parsedProjectId}`);
-      return response.data;
-    },
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  const projectQuery = useProject(Number.isFinite(parsedProjectId) ? parsedProjectId : null);
 
   // Tasks query is now inside ProjectTasksSection to support server-side filtering
 
-  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: ["projects", parsedProjectId, "task-statuses"],
-    queryFn: async () => {
-      const response = await apiClient.get<ProjectTaskStatus[]>(
-        `/projects/${parsedProjectId}/task-statuses/`
-      );
-      return response.data;
-    },
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  const taskStatusesQuery = useProjectTaskStatuses(
+    Number.isFinite(parsedProjectId) ? parsedProjectId : null
+  );
 
   const usersQuery = useQuery<User[]>({
-    queryKey: ["users", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<User[]>("/users/");
-      return response.data;
-    },
+    queryKey: getListUsersApiV1UsersGetQueryKey(),
+    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
   });
 
+  const recordViewMutation = useRecordProjectView();
   const viewedProjectId = projectQuery.data?.id;
   useEffect(() => {
     if (!viewedProjectId) {
       return;
     }
-    const recordView = async () => {
-      try {
-        await apiClient.post(`/projects/${viewedProjectId}/view`);
-        await queryClient.invalidateQueries({ queryKey: ["projects", activeGuildId, "recent"] });
-      } catch (error) {
-        console.error("Failed to record project view", error);
-      }
-    };
-    void recordView();
-  }, [viewedProjectId, activeGuildId]);
+    recordViewMutation.mutate(viewedProjectId);
+  }, [viewedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   // Includes both explicit user permissions and role-based permissions

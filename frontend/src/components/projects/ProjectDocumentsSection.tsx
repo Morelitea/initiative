@@ -1,12 +1,20 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { getItem, setItem } from "@/lib/storage";
 import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-import { apiClient } from "@/api/client";
+import {
+  listDocumentsApiV1DocumentsGet,
+  getListDocumentsApiV1DocumentsGetQueryKey,
+} from "@/api/generated/documents/documents";
+import {
+  attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost,
+  detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete,
+} from "@/api/generated/projects/projects";
+import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -48,7 +56,6 @@ export const ProjectDocumentsSection = ({
 }: ProjectDocumentsSectionProps) => {
   const { t } = useTranslation("projects");
   const dateLocale = useDateLocale();
-  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
@@ -58,12 +65,16 @@ export const ProjectDocumentsSection = ({
   });
 
   const initiativeDocsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "initiative", initiativeId],
+    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({
+      initiative_id: initiativeId,
+      page_size: 0,
+    }),
     queryFn: async () => {
-      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
-        params: { initiative_id: initiativeId, page_size: "0" },
-      });
-      return response.data.items;
+      const response = await (listDocumentsApiV1DocumentsGet({
+        initiative_id: initiativeId,
+        page_size: 0,
+      }) as unknown as Promise<{ items: DocumentSummary[] }>);
+      return response.items;
     },
   });
 
@@ -77,19 +88,18 @@ export const ProjectDocumentsSection = ({
       if (!selectedDocumentId) {
         throw new Error("Select a document to attach.");
       }
-      const response = await apiClient.post(
-        `/projects/${projectId}/documents/${selectedDocumentId}`,
-        {}
+      const response = await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
+        projectId,
+        Number(selectedDocumentId)
       );
-      return response.data;
+      return response;
     },
     onSuccess: () => {
       toast.success(t("documents.attached"));
       setDialogOpen(false);
       setSelectedDocumentId("");
-      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
+      void invalidateProject(projectId);
+      void invalidateAllDocuments();
     },
     onError: () => {
       toast.error(t("documents.attachError"));
@@ -98,14 +108,16 @@ export const ProjectDocumentsSection = ({
 
   const detachMutation = useMutation({
     mutationFn: async (documentId: number) => {
-      await apiClient.delete(`/projects/${projectId}/documents/${documentId}`);
+      await detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete(
+        projectId,
+        documentId
+      );
       return documentId;
     },
     onSuccess: () => {
       toast.success(t("documents.detached"));
-      void queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["documents"] });
-      void queryClient.invalidateQueries({ queryKey: ["documents", "initiative", initiativeId] });
+      void invalidateProject(projectId);
+      void invalidateAllDocuments();
     },
     onError: () => {
       toast.error(t("documents.detachError"));

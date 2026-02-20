@@ -4,7 +4,11 @@ import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { HelpCircle, MessageSquarePlus } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  createCommentApiV1CommentsPost,
+  updateCommentApiV1CommentsCommentIdPatch,
+  deleteCommentApiV1CommentsCommentIdDelete,
+} from "@/api/generated/comments/comments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
@@ -82,7 +86,9 @@ export const CommentSection = ({
 
   const createComment = useMutation({
     mutationFn: async (payload: CommentPayload) => {
-      const response = await apiClient.post<Comment>("/comments/", payload);
+      const response = await (createCommentApiV1CommentsPost(payload) as unknown as Promise<{
+        data: Comment;
+      }>);
       return response.data;
     },
     onSuccess: (comment) => {
@@ -104,7 +110,7 @@ export const CommentSection = ({
 
   const deleteComment = useMutation({
     mutationFn: async (commentId: number) => {
-      await apiClient.delete(`/comments/${commentId}`);
+      await deleteCommentApiV1CommentsCommentIdDelete(commentId);
       return commentId;
     },
     onSuccess: (commentId) => {
@@ -131,7 +137,10 @@ export const CommentSection = ({
       commentId: number;
       payload: CommentUpdatePayload;
     }) => {
-      const response = await apiClient.patch<Comment>(`/comments/${commentId}`, payload);
+      const response = await (updateCommentApiV1CommentsCommentIdPatch(
+        commentId,
+        payload
+      ) as unknown as Promise<{ data: Comment }>);
       return response.data;
     },
     onSuccess: (comment) => {

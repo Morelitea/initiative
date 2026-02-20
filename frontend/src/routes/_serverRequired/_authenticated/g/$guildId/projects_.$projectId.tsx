@@ -1,6 +1,22 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
-import { apiClient } from "@/api/client";
 import { getItem } from "@/lib/storage";
+
+import {
+  readProjectApiV1ProjectsProjectIdGet,
+  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+} from "@/api/generated/projects/projects";
+import {
+  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+} from "@/api/generated/task-statuses/task-statuses";
+import {
+  listUsersApiV1UsersGet,
+  getListUsersApiV1UsersGetQueryKey,
+} from "@/api/generated/users/users";
+import {
+  listTasksApiV1TasksGet,
+  getListTasksApiV1TasksGetQueryKey,
+} from "@/api/generated/tasks/tasks";
 
 type StoredFilters = {
   viewMode: string;
@@ -39,7 +55,6 @@ export const Route = createFileRoute(
 )({
   loader: async ({ context, params }) => {
     const projectId = Number(params.projectId);
-    const guildId = Number(params.guildId);
     const { queryClient } = context;
 
     // Read saved filters from storage
@@ -58,23 +73,23 @@ export const Route = createFileRoute(
     try {
       await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: ["project", projectId],
-          queryFn: () => apiClient.get(`/projects/${projectId}`).then((r) => r.data),
+          queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId),
+          queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId),
           staleTime: 30_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: ["projects", projectId, "task-statuses"],
-          queryFn: () => apiClient.get(`/projects/${projectId}/task-statuses/`).then((r) => r.data),
+          queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId),
+          queryFn: () => listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: ["users", { guildId }],
-          queryFn: () => apiClient.get("/users/").then((r) => r.data),
+          queryKey: getListUsersApiV1UsersGetQueryKey(),
+          queryFn: () => listUsersApiV1UsersGet(),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: ["tasks", projectId, assigneeFilters, statusFilters, showArchived],
-          queryFn: () => apiClient.get("/tasks/", { params: taskParams }).then((r) => r.data),
+          queryKey: getListTasksApiV1TasksGetQueryKey(taskParams),
+          queryFn: () => listTasksApiV1TasksGet(taskParams),
           staleTime: 30_000,
         }),
       ]);

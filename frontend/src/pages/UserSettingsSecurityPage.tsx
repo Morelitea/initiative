@@ -4,7 +4,17 @@ import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Smartphone, Trash2 } from "lucide-react";
 
-import { apiClient } from "@/api/client";
+import {
+  listMyApiKeysApiV1UsersMeApiKeysGet,
+  getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey,
+  createMyApiKeyApiV1UsersMeApiKeysPost,
+  deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete,
+} from "@/api/generated/users/users";
+import {
+  listDeviceTokensApiV1AuthDeviceTokensGet,
+  getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey,
+  revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete,
+} from "@/api/generated/auth/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -29,8 +39,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const API_KEYS_QUERY_KEY = ["settings", "api-keys"] as const;
-const DEVICE_TOKENS_QUERY_KEY = ["auth", "device-tokens"] as const;
+const API_KEYS_QUERY_KEY = getListMyApiKeysApiV1UsersMeApiKeysGetQueryKey();
+const DEVICE_TOKENS_QUERY_KEY = getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey();
 
 const formatDateTime = (value?: string | null) => {
   if (!value) {
@@ -67,16 +77,14 @@ export const UserSettingsSecurityPage = () => {
   // API Keys queries and mutations
   const apiKeysQuery = useQuery<ApiKeyListResponse>({
     queryKey: API_KEYS_QUERY_KEY,
-    queryFn: async () => {
-      const response = await apiClient.get<ApiKeyListResponse>("/users/me/api-keys");
-      return response.data;
-    },
+    queryFn: () => listMyApiKeysApiV1UsersMeApiKeysGet() as unknown as Promise<ApiKeyListResponse>,
   });
 
   const createKey = useMutation({
     mutationFn: async (payload: { name: string; expires_at?: string | null }) => {
-      const response = await apiClient.post<ApiKeyCreateResponse>("/users/me/api-keys", payload);
-      return response.data;
+      return createMyApiKeyApiV1UsersMeApiKeysPost(
+        payload as Parameters<typeof createMyApiKeyApiV1UsersMeApiKeysPost>[0]
+      ) as unknown as Promise<ApiKeyCreateResponse>;
     },
     onSuccess: (data) => {
       toast.success(t("security.createSuccess"));
@@ -92,7 +100,7 @@ export const UserSettingsSecurityPage = () => {
 
   const deleteKey = useMutation({
     mutationFn: async (apiKeyId: number) => {
-      await apiClient.delete(`/users/me/api-keys/${apiKeyId}`);
+      await deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete(apiKeyId);
     },
     onMutate: (keyId: number) => {
       setDeleteTarget(keyId);
@@ -112,15 +120,13 @@ export const UserSettingsSecurityPage = () => {
   // Device tokens queries and mutations
   const devicesQuery = useQuery<DeviceTokenInfo[]>({
     queryKey: DEVICE_TOKENS_QUERY_KEY,
-    queryFn: async () => {
-      const response = await apiClient.get<DeviceTokenInfo[]>("/auth/device-tokens");
-      return response.data;
-    },
+    queryFn: () =>
+      listDeviceTokensApiV1AuthDeviceTokensGet() as unknown as Promise<DeviceTokenInfo[]>,
   });
 
   const revokeToken = useMutation({
     mutationFn: async (tokenId: number) => {
-      await apiClient.delete(`/auth/device-tokens/${tokenId}`);
+      await revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete(tokenId);
     },
     onSuccess: () => {
       toast.success(t("security.revokeSuccess"));

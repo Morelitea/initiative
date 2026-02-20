@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import {
+  getGuildAiSettingsApiV1SettingsAiGuildGet,
+  getGetGuildAiSettingsApiV1SettingsAiGuildGetQueryKey,
+  updateGuildAiSettingsApiV1SettingsAiGuildPut,
+  testAiConnectionApiV1SettingsAiTestPost,
+  fetchAiModelsApiV1SettingsAiModelsPost,
+} from "@/api/generated/ai-settings/ai-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,12 +63,10 @@ export const SettingsGuildAIPage = () => {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const settingsQuery = useQuery<GuildAISettings>({
-    queryKey: ["settings", "ai", "guild", guildId],
+    queryKey: [...getGetGuildAiSettingsApiV1SettingsAiGuildGetQueryKey(), guildId],
     enabled: isGuildAdmin && !!guildId,
-    queryFn: async () => {
-      const response = await apiClient.get<GuildAISettings>("/settings/ai/guild");
-      return response.data;
-    },
+    queryFn: () =>
+      getGuildAiSettingsApiV1SettingsAiGuildGet() as unknown as Promise<GuildAISettings>,
   });
 
   useEffect(() => {
@@ -90,8 +94,9 @@ export const SettingsGuildAIPage = () => {
 
   const updateMutation = useMutation({
     mutationFn: async (payload: GuildAISettingsUpdate) => {
-      const response = await apiClient.put<GuildAISettings>("/settings/ai/guild", payload);
-      return response.data;
+      return updateGuildAiSettingsApiV1SettingsAiGuildPut(
+        payload as Parameters<typeof updateGuildAiSettingsApiV1SettingsAiGuildPut>[0]
+      ) as unknown as Promise<GuildAISettings>;
     },
     onSuccess: (data) => {
       toast.success(t("guildAI.saveSuccess"));
@@ -113,7 +118,7 @@ export const SettingsGuildAIPage = () => {
       if (!provider) {
         throw new Error("No provider selected");
       }
-      const response = await apiClient.post<AITestConnectionResponse>("/settings/ai/test", {
+      return testAiConnectionApiV1SettingsAiTestPost({
         provider: provider,
         api_key: formState.apiKey || null,
         base_url: formState.useInheritedSettings
@@ -122,8 +127,9 @@ export const SettingsGuildAIPage = () => {
         model: formState.useInheritedSettings
           ? settingsQuery.data?.effective_model
           : formState.model || null,
-      });
-      return response.data;
+      } as Parameters<
+        typeof testAiConnectionApiV1SettingsAiTestPost
+      >[0]) as unknown as Promise<AITestConnectionResponse>;
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -146,14 +152,15 @@ export const SettingsGuildAIPage = () => {
       if (!provider) {
         throw new Error("No provider selected");
       }
-      const response = await apiClient.post<AIModelsResponse>("/settings/ai/models", {
+      return fetchAiModelsApiV1SettingsAiModelsPost({
         provider: provider,
         api_key: formState.apiKey || null,
         base_url: formState.useInheritedSettings
           ? settingsQuery.data?.effective_base_url
           : formState.baseUrl || null,
-      });
-      return response.data;
+      } as Parameters<
+        typeof fetchAiModelsApiV1SettingsAiModelsPost
+      >[0]) as unknown as Promise<AIModelsResponse>;
     },
     onSuccess: (data) => {
       if (data.models.length > 0) {

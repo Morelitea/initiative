@@ -1,57 +1,17 @@
 import { useEffect, useRef } from "react";
 
 import { API_BASE_URL } from "@/api/client";
-import { queryClient } from "../lib/queryClient";
+import {
+  invalidateAllTasks,
+  invalidateAllProjects,
+  invalidateAllDocuments,
+  invalidateProject,
+  invalidateDocument,
+  invalidateProjectActivity,
+  invalidateTaskComments,
+  invalidateDocumentComments,
+} from "@/api/query-keys";
 import { useAuth } from "./useAuth";
-
-const invalidateByKey = (key: string) => {
-  void queryClient.invalidateQueries({
-    queryKey: [key],
-    exact: false,
-  });
-};
-
-const invalidateProjectById = (projectId: unknown) => {
-  if (typeof projectId !== "number") {
-    return;
-  }
-  void queryClient.invalidateQueries({ queryKey: ["projects", projectId] });
-};
-
-const invalidateDocumentById = (documentId: unknown) => {
-  if (typeof documentId !== "number") {
-    return;
-  }
-  void queryClient.invalidateQueries({ queryKey: ["documents", documentId] });
-};
-
-const invalidateProjectActivityByTask = (payload?: Record<string, unknown>) => {
-  if (!payload) {
-    return;
-  }
-  const projectId =
-    typeof payload.project_id === "number" ? payload.project_id : Number(payload.project_id);
-  if (Number.isFinite(projectId)) {
-    void queryClient.invalidateQueries({ queryKey: ["projects", Number(projectId), "activity"] });
-  }
-};
-
-const invalidateCommentsByPayload = (payload?: Record<string, unknown>) => {
-  if (!payload) {
-    return;
-  }
-  const taskId = typeof payload.task_id === "number" ? payload.task_id : Number(payload.task_id);
-  if (Number.isFinite(taskId)) {
-    void queryClient.invalidateQueries({ queryKey: ["comments", "task", Number(taskId)] });
-  }
-  const documentId =
-    typeof payload.document_id === "number" ? payload.document_id : Number(payload.document_id);
-  if (Number.isFinite(documentId)) {
-    void queryClient.invalidateQueries({
-      queryKey: ["comments", "document", Number(documentId)],
-    });
-  }
-};
 
 // Message type for authentication (must match backend)
 const MSG_AUTH = 5;
@@ -93,6 +53,37 @@ const sendAuthMessage = (websocket: WebSocket, token: string) => {
   message[0] = MSG_AUTH;
   message.set(payloadBytes, 1);
   websocket.send(message);
+};
+
+const handleTaskEvent = (data?: Record<string, unknown>) => {
+  void invalidateAllTasks();
+  const projectId = data?.project_id;
+  if (typeof projectId === "number") {
+    void invalidateProject(projectId);
+  }
+};
+
+const handleProjectEvent = () => {
+  void invalidateAllProjects();
+};
+
+const handleCommentEvent = (data?: Record<string, unknown>) => {
+  const taskId = typeof data?.task_id === "number" ? data.task_id : Number(data?.task_id);
+  if (Number.isFinite(taskId)) {
+    void invalidateTaskComments(taskId);
+  }
+  const documentId =
+    typeof data?.document_id === "number" ? data.document_id : Number(data?.document_id);
+  if (Number.isFinite(documentId)) {
+    void invalidateDocumentComments(documentId);
+    void invalidateDocument(documentId);
+  }
+  void invalidateAllDocuments();
+  const projectId =
+    typeof data?.project_id === "number" ? data.project_id : Number(data?.project_id);
+  if (Number.isFinite(projectId)) {
+    void invalidateProjectActivity(projectId);
+  }
 };
 
 export const useRealtimeUpdates = () => {
@@ -154,19 +145,14 @@ export const useRealtimeUpdates = () => {
             data?: Record<string, unknown>;
           };
           switch (payload.resource) {
-            case "task": {
-              invalidateByKey("tasks");
-              invalidateProjectById(payload.data?.project_id);
+            case "task":
+              handleTaskEvent(payload.data);
               break;
-            }
             case "project":
-              invalidateByKey("projects");
+              handleProjectEvent();
               break;
             case "comment":
-              invalidateCommentsByPayload(payload.data);
-              invalidateDocumentById(payload.data?.document_id);
-              invalidateByKey("documents");
-              invalidateProjectActivityByTask(payload.data);
+              handleCommentEvent(payload.data);
               break;
             default:
               break;

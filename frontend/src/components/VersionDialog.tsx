@@ -13,7 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import {
+  getChangelogApiV1ChangelogGet,
+  getGetChangelogApiV1ChangelogGetQueryKey,
+} from "@/api/generated/version/version";
 import { cn } from "@/lib/utils";
 
 interface ChangelogEntry {
@@ -55,19 +58,20 @@ export const VersionDialog = ({
   const versionToShow = mode === "update" && newVersion ? newVersion : undefined;
   const limit = mode === "update" ? 1 : 5;
 
+  const changelogParams: { version?: string; limit?: number } = {};
+  if (versionToShow) {
+    changelogParams.version = versionToShow;
+  }
+  if (mode === "info") {
+    changelogParams.limit = limit;
+  }
+
   const { data, isLoading } = useQuery<{ entries: ChangelogEntry[] }>({
-    queryKey: ["changelog", versionToShow, limit],
-    queryFn: async () => {
-      const params: { version?: string; limit?: number } = {};
-      if (versionToShow) {
-        params.version = versionToShow;
-      }
-      if (mode === "info") {
-        params.limit = limit;
-      }
-      const response = await apiClient.get("/changelog", { params });
-      return response.data;
-    },
+    queryKey: getGetChangelogApiV1ChangelogGetQueryKey(changelogParams),
+    queryFn: () =>
+      getChangelogApiV1ChangelogGet(changelogParams) as unknown as Promise<{
+        entries: ChangelogEntry[];
+      }>,
     enabled: mode === "info" || (mode === "update" && Boolean(open)),
   });
 

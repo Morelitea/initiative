@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -52,7 +52,9 @@ export const UserSettingsInterfacePage = ({
 
   const updateInterfacePrefs = useMutation({
     mutationFn: async (payload: Record<string, boolean | number | string>) => {
-      await apiClient.patch<User>("/users/me", payload);
+      await updateUsersMeApiV1UsersMePatch(
+        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
+      );
     },
     onSuccess: async (_, variables) => {
       if (variables.week_starts_on !== undefined) {

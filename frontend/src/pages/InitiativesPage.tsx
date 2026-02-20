@@ -1,12 +1,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getListInitiativesApiV1InitiativesGetQueryKey } from "@/api/generated/initiatives/initiatives";
+import { useInitiatives, useCreateInitiative } from "@/hooks/useInitiatives";
+import { useProjects } from "@/hooks/useProjects";
+import { useDocumentsList } from "@/hooks/useDocuments";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -36,21 +38,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
-import type { DocumentSummary, Initiative, Project } from "@/types/api";
+import type { Initiative } from "@/types/api";
 
-const getInitiativesQueryKey = (guildId: number | null) => ["initiatives", { guildId }] as const;
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativesPage = () => {
   const { user } = useAuth();
   const { t } = useTranslation("initiatives");
-  const { activeGuild, activeGuildId } = useGuilds();
+  const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
   const queryClient = useQueryClient();
   const searchParams = useSearch({ strict: false }) as { create?: string };
 
-  const initiativesQueryKey = getInitiativesQueryKey(activeGuildId);
+  const initiativesQueryKey = getListInitiativesApiV1InitiativesGetQueryKey();
 
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: initiativesQueryKey });
@@ -63,36 +64,14 @@ export const InitiativesPage = () => {
   const isGuildAdmin = activeGuild?.role === "admin" || user?.role === "admin";
   const canCreateInitiatives = Boolean(activeGuild && isGuildAdmin);
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: initiativesQueryKey,
-    queryFn: async () => {
-      const response = await apiClient.get<Initiative[]>("/initiatives/");
-      return response.data;
-    },
-    enabled: Boolean(activeGuild),
-  });
+  const initiativesQuery = useInitiatives({ enabled: Boolean(activeGuild) });
 
-  const projectsQuery = useQuery<Project[]>({
-    queryKey: ["projects", "initiative-counts", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<Project[]>("/projects/");
-      return response.data;
-    },
+  const projectsQuery = useProjects(undefined, {
     enabled: Boolean(activeGuild),
     staleTime: 30_000,
   });
 
-  const documentsQuery = useQuery<DocumentSummary[]>({
-    queryKey: ["documents", "initiative-counts", { guildId: activeGuildId }],
-    queryFn: async () => {
-      const response = await apiClient.get<{ items: DocumentSummary[] }>("/documents/", {
-        params: { page_size: "0" },
-      });
-      return response.data.items;
-    },
-    enabled: Boolean(activeGuild),
-    staleTime: 30_000,
-  });
+  const documentsListQuery = useDocumentsList({ page_size: 0 });
 
   const visibleInitiatives = useMemo(() => {
     if (!user) {
@@ -119,12 +98,12 @@ export const InitiativesPage = () => {
 
   const documentCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    const documents = Array.isArray(documentsQuery.data) ? documentsQuery.data : [];
+    const documents = documentsListQuery.data?.items ?? [];
     documents.forEach((document) => {
       counts.set(document.initiative_id, (counts.get(document.initiative_id) ?? 0) + 1);
     });
     return counts;
-  }, [documentsQuery.data]);
+  }, [documentsListQuery.data]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -143,23 +122,7 @@ export const InitiativesPage = () => {
     }
   }, [searchParams]);
 
-  const createInitiative = useMutation({
-    mutationFn: async (payload: { name: string; description?: string; color?: string }) => {
-      const response = await apiClient.post<Initiative>("/initiatives/", payload);
-      return response.data;
-    },
-    onSuccess: (initiative) => {
-      toast.success(t("createDialog.created", { name: initiative.name }));
-      setCreateDialogOpen(false);
-      setNewName("");
-      setNewDescription("");
-      setNewColor(DEFAULT_INITIATIVE_COLOR);
-      void queryClient.invalidateQueries({ queryKey: ["initiatives"] });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "initiatives:createDialog.createError"));
-    },
-  });
+  const createInitiative = useCreateInitiative();
 
   const handleCreateInitiative = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -168,11 +131,21 @@ export const InitiativesPage = () => {
       toast.error(t("createDialog.nameRequired"));
       return;
     }
-    createInitiative.mutate({
-      name: trimmedName,
-      description: newDescription.trim() || undefined,
-      color: newColor,
-    });
+    createInitiative.mutate(
+      {
+        name: trimmedName,
+        description: newDescription.trim() || undefined,
+        color: newColor,
+      },
+      {
+        onSuccess: () => {
+          setCreateDialogOpen(false);
+          setNewName("");
+          setNewDescription("");
+          setNewColor(DEFAULT_INITIATIVE_COLOR);
+        },
+      }
+    );
   };
 
   const renderMembershipBadge = (initiative: Initiative) => {
@@ -257,7 +230,7 @@ export const InitiativesPage = () => {
                       <p>
                         {t("documentsLabel")}{" "}
                         <span className="font-semibold">
-                          {documentsQuery.isLoading
+                          {documentsListQuery.isLoading
                             ? "…"
                             : (documentCounts.get(initiative.id) ?? 0)}
                         </span>

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Settings, Plus, Copy, LogOut, UserPlus, Users, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { createGuildInviteApiV1GuildsGuildIdInvitesPost } from "@/api/generated/guilds/guilds";
 import type { GuildInviteRead } from "@/types/api";
 
 import {
@@ -37,8 +37,11 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     if (creatingInvite) return;
     setCreatingInvite(true);
     try {
-      const response = await apiClient.post<GuildInviteRead>(`/guilds/${guild.id}/invites`, {});
-      const inviteLink = `${window.location.origin}/invite/${response.data.code}`;
+      const data = (await createGuildInviteApiV1GuildsGuildIdInvitesPost(
+        guild.id,
+        {}
+      )) as unknown as GuildInviteRead;
+      const inviteLink = `${window.location.origin}/invite/${data.code}`;
       await navigator.clipboard.writeText(inviteLink);
       toast.success(t("inviteLinkCopied"));
     } catch (err) {

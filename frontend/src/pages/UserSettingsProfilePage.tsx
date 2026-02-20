@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { apiClient } from "@/api/client";
+import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,7 +72,9 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
         payload.avatar_url = avatarUrl || null;
         payload.avatar_base64 = null;
       }
-      await apiClient.patch<User>("/users/me", payload);
+      await updateUsersMeApiV1UsersMePatch(
+        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
+      );
     },
     onSuccess: async () => {
       setPassword("");

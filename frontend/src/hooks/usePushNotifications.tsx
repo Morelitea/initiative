@@ -4,7 +4,7 @@ import { PushNotifications, type PermissionStatus } from "@capacitor/push-notifi
 import { Capacitor } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
 
-import { apiClient } from "@/api/client";
+import { registerPushTokenApiV1PushRegisterPost } from "@/api/generated/push/push";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
 import FirebaseRuntime from "@/plugins/firebaseRuntime";
@@ -73,7 +73,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             console.log("Push registration success, token:", token.value);
             // Send token to backend
             try {
-              await apiClient.post("/push/register", {
+              await registerPushTokenApiV1PushRegisterPost({
                 push_token: token.value,
                 platform: Capacitor.getPlatform(),
               });
