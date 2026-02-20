@@ -445,7 +445,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (!Number.isFinite(templateId)) {
       return;
     }
-    const template = templatesQuery.data?.find((item) => item.id === templateId);
+    const template = templatesQuery.data?.items?.find((item) => item.id === templateId);
     if (!template) {
       return;
     }
@@ -453,7 +453,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
   useEffect(() => {
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
     const reorderableProjects = projects.filter((project) => !project.pinned_at);
     if (reorderableProjects.length === 0) {
       setCustomOrder((prev) => (prev.length ? [] : prev));
@@ -493,7 +493,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     }
   };
 
-  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+  const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);
 
   const availableInitiatives = useMemo(() => {
     const initiatives = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
@@ -948,9 +948,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               <p className="text-muted-foreground text-sm">{t("templates.loading")}</p>
             ) : templatesQuery.isError ? (
               <p className="text-destructive text-sm">{t("templates.loadError")}</p>
-            ) : templatesQuery.data?.length ? (
+            ) : templatesQuery.data?.items?.length ? (
               <div className="grid gap-4 md:grid-cols-2">
-                {templatesQuery.data.map((template) => (
+                {templatesQuery.data.items.map((template) => (
                   <Card key={template.id} className="shadow-sm">
                     <CardHeader>
                       <CardTitle className="text-xl">{template.name}</CardTitle>
@@ -1010,9 +1010,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               <p className="text-muted-foreground text-sm">{t("archived.loading")}</p>
             ) : archivedQuery.isError ? (
               <p className="text-destructive text-sm">{t("archived.loadError")}</p>
-            ) : archivedQuery.data?.length ? (
+            ) : archivedQuery.data?.items?.length ? (
               <div className="grid gap-4 md:grid-cols-2">
-                {archivedQuery.data.map((archived) => (
+                {archivedQuery.data.items.map((archived) => (
                   <Card key={archived.id} className="shadow-sm">
                     <CardHeader>
                       <CardTitle className="text-xl">{archived.name}</CardTitle>
@@ -1166,7 +1166,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                           <SelectItem value={NO_TEMPLATE_VALUE}>
                             {t("createDialog.noTemplate")}
                           </SelectItem>
-                          {templatesQuery.data?.map((template) => (
+                          {templatesQuery.data?.items?.map((template) => (
                             <SelectItem key={template.id} value={String(template.id)}>
                               {template.name}
                             </SelectItem>

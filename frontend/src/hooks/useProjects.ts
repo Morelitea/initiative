@@ -23,6 +23,8 @@ import {
   duplicateProjectApiV1ProjectsProjectIdDuplicatePost,
   reorderProjectsApiV1ProjectsReorderPost,
   recordProjectViewApiV1ProjectsProjectIdViewPost,
+  listGlobalProjectsApiV1ProjectsGlobalGet,
+  getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey,
 } from "@/api/generated/projects/projects";
 import {
   listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
@@ -32,7 +34,9 @@ import { invalidateAllProjects, invalidateRecentProjects } from "@/api/query-key
 import { getErrorMessage } from "@/lib/errorMessage";
 import type {
   ListProjectsApiV1ProjectsGetParams,
+  ListGlobalProjectsApiV1ProjectsGlobalGetParams,
   ProjectActivityResponse,
+  ProjectListResponse,
   ProjectRead,
   ProjectRecentViewRead,
   ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
@@ -45,11 +49,11 @@ type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 export const useProjects = (
   params?: ListProjectsApiV1ProjectsGetParams,
-  options?: QueryOpts<ProjectRead[]>
+  options?: QueryOpts<ProjectListResponse>
 ) => {
-  return useQuery<ProjectRead[]>({
+  return useQuery<ProjectListResponse>({
     queryKey: getListProjectsApiV1ProjectsGetQueryKey(params),
-    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<ProjectRead[]>,
+    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<ProjectListResponse>,
     ...options,
   });
 };
@@ -138,35 +142,25 @@ export const useProjectActivity = (
 
 // ── Global (cross-guild) queries ────────────────────────────────────────────
 
-import { apiClient } from "@/api/client";
-import type { ProjectListResponse } from "@/types/api";
-
-export const GLOBAL_PROJECTS_QUERY_KEY = "/api/v1/projects/global" as const;
-
-export const globalProjectsQueryFn = async (
-  params: Record<string, string | string[] | number | number[]>
-) => {
-  const response = await apiClient.get<ProjectListResponse>("/projects/global", { params });
-  return response.data;
-};
-
 export const useGlobalProjects = (
-  params: Record<string, string | string[] | number | number[]>,
+  params?: ListGlobalProjectsApiV1ProjectsGlobalGetParams,
   options?: QueryOpts<ProjectListResponse>
 ) => {
   return useQuery<ProjectListResponse>({
-    queryKey: [GLOBAL_PROJECTS_QUERY_KEY, params],
-    queryFn: () => globalProjectsQueryFn(params),
+    queryKey: getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey(params),
+    queryFn: () =>
+      listGlobalProjectsApiV1ProjectsGlobalGet(params) as unknown as Promise<ProjectListResponse>,
     ...options,
   });
 };
 
 export const usePrefetchGlobalProjects = () => {
   const qc = useQueryClient();
-  return (params: Record<string, string | string[] | number | number[]>) => {
+  return (params?: ListGlobalProjectsApiV1ProjectsGlobalGetParams) => {
     return qc.prefetchQuery({
-      queryKey: [GLOBAL_PROJECTS_QUERY_KEY, params],
-      queryFn: () => globalProjectsQueryFn(params),
+      queryKey: getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey(params),
+      queryFn: () =>
+        listGlobalProjectsApiV1ProjectsGlobalGet(params) as unknown as Promise<ProjectListResponse>,
       staleTime: 30_000,
     });
   };

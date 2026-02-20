@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.initiative import InitiativeRole
+from app.models.initiative import InitiativeRole, PermissionKey
 from app.schemas.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -34,7 +34,7 @@ class InitiativeRolePermissionRead(BaseModel):
     """Permission entry for a role."""
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
-    permission_key: str
+    permission_key: PermissionKey
     enabled: bool
 
 
@@ -48,7 +48,7 @@ class InitiativeRoleRead(BaseModel):
     is_builtin: bool
     is_manager: bool
     position: int
-    permissions: Dict[str, bool] = Field(default_factory=dict)
+    permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
     member_count: int = 0
 
 
@@ -57,14 +57,14 @@ class InitiativeRoleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     display_name: str = Field(..., min_length=1, max_length=100)
     is_manager: bool = False
-    permissions: Optional[Dict[str, bool]] = None
+    permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
 class InitiativeRoleUpdate(BaseModel):
     """Update a role's display name and/or permissions."""
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     is_manager: Optional[bool] = None
-    permissions: Optional[Dict[str, bool]] = None
+    permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
 class MyInitiativePermissions(BaseModel):
@@ -75,7 +75,7 @@ class MyInitiativePermissions(BaseModel):
     role_name: Optional[str] = None
     role_display_name: Optional[str] = None
     is_manager: bool = False
-    permissions: Dict[str, bool] = Field(default_factory=dict)
+    permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
 
 
 # Member schemas - updated to work with role_id
@@ -170,13 +170,13 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
             # Check role permissions (use getattr to avoid lazy loading)
             role_permissions = getattr(role_ref, "permissions", None) or []
             for perm in role_permissions:
-                if perm.permission_key == "docs_enabled":
+                if perm.permission_key == PermissionKey.docs_enabled:
                     can_view_docs = perm.enabled
-                elif perm.permission_key == "projects_enabled":
+                elif perm.permission_key == PermissionKey.projects_enabled:
                     can_view_projects = perm.enabled
-                elif perm.permission_key == "create_docs" and perm.enabled:
+                elif perm.permission_key == PermissionKey.create_docs and perm.enabled:
                     can_create_docs = True
-                elif perm.permission_key == "create_projects" and perm.enabled:
+                elif perm.permission_key == PermissionKey.create_projects and perm.enabled:
                     can_create_projects = True
 
         # Determine legacy role for backward compatibility

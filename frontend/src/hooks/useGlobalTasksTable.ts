@@ -211,7 +211,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
 
   const projectsById = useMemo(() => {
     const result: Record<number, ProjectRead> = {};
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
     projects.forEach((project) => {
       result[project.id] = project;
     });
@@ -220,9 +220,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
 
   const excludedProjectIds = useMemo(() => {
     const ids = new Set<number>();
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
-    const templates = Array.isArray(templatesQuery.data) ? templatesQuery.data : [];
-    const archived = Array.isArray(archivedProjectsQuery.data) ? archivedProjectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
+    const templates = templatesQuery.data?.items ?? [];
+    const archived = archivedProjectsQuery.data?.items ?? [];
 
     projects.forEach((project) => {
       if (project.is_archived || project.is_template) {

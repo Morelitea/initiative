@@ -85,7 +85,7 @@ export const InitiativesPage = () => {
 
   const projectCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
+    const projects = projectsQuery.data?.items ?? [];
     projects.forEach((project) => {
       counts.set(project.initiative_id, (counts.get(project.initiative_id) ?? 0) + 1);
     });

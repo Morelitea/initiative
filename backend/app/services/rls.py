@@ -164,7 +164,7 @@ async def check_initiative_permission(
     *,
     initiative_id: int,
     user: User,
-    permission_key: PermissionKey | str,
+    permission_key: PermissionKey,
 ) -> bool:
     """Check if user has a specific permission in the initiative.
 
@@ -192,14 +192,12 @@ async def check_initiative_permission(
         return True
 
     # Check specific permission
-    perm_key_enum = permission_key if isinstance(permission_key, PermissionKey) else PermissionKey(permission_key)
-    perm_key_str = perm_key_enum.value
     for perm in membership.role_ref.permissions:
-        if perm.permission_key == perm_key_str:
+        if perm.permission_key == permission_key:
             return perm.enabled
 
     # Permission not explicitly set - use documented default
-    return DEFAULT_PERMISSION_VALUES.get(perm_key_enum, False)
+    return DEFAULT_PERMISSION_VALUES.get(permission_key, False)
 
 
 async def has_feature_access(

@@ -14,8 +14,8 @@ import {
   deleteCommentApiV1CommentsCommentIdDelete,
 } from "@/api/generated/comments/comments";
 import { invalidateAllComments } from "@/api/query-keys";
-import type { MentionEntityType } from "@/types/api";
 import type {
+  MentionEntityType,
   CommentRead,
   ListCommentsApiV1CommentsGetParams,
   MentionSuggestion,

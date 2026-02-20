@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -94,7 +94,12 @@ class InitiativeRolePermission(SQLModel, table=True):
             primary_key=True,
         )
     )
-    permission_key: str = Field(max_length=50, primary_key=True)  # e.g., "docs_enabled"
+    permission_key: PermissionKey = Field(
+        sa_column=Column(
+            SAEnum(PermissionKey, name="permissionkey", create_constraint=False, native_enum=False, length=50),
+            primary_key=True,
+        )
+    )
     enabled: bool = Field(default=True)
 
     role: Optional["InitiativeRoleModel"] = Relationship(back_populates="permissions")

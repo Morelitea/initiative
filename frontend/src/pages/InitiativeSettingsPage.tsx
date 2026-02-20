@@ -77,8 +77,8 @@ import type {
   InitiativeMemberUpdate,
   InitiativeRead,
   InitiativeRoleRead,
+  PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { PermissionKey } from "@/types/api";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 

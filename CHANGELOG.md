@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Paginated `GET /api/v1/projects/` endpoint with `page` and `page_size` query params (`page_size=0` returns all, preserving backward compatibility)
+- `MentionEntityType` enum for mention search endpoint — replaces open-ended string parameter
+- `PermissionKey` enum enforced at API, model, and database levels — adds CHECK constraint to `initiative_role_permissions.permission_key` column
+- Alembic migration to add CHECK constraint for valid `permission_key` values
+
 ### Changed
 
 - Centralized remaining inline queries — `GuildDashboardPage`, `MyProjectsPage`, `MyDocumentsPage` now use domain hooks (`useProjects`, `useInitiatives`, `useTasks`, `useRecentComments`, `useGlobalProjects`, `useGlobalDocuments`)
 - Eliminated direct `useQueryClient` usage from pages/components — added `usePrefetchTasks`, `usePrefetchGlobalProjects`, `usePrefetchGlobalDocuments`, `usePrefetchDocumentsList`, `useSetDocumentCache`, `useCommentsCache`, and `useUpdateRoleLabels` hooks
 - Added ESLint rule (`no-restricted-imports`) to prevent direct `useQuery`/`useQueryClient` imports outside `src/api/` and `src/hooks/`
-- Migrated direct type imports from `@/types/api` to `@/api/generated/initiativeAPI.schemas` — types that exist directly in the generated Orval schemas are now imported from source, reducing reliance on the backward-compat alias layer
+- Migrated `useGlobalProjects` from raw `apiClient` to Orval-generated `listGlobalProjectsApiV1ProjectsGlobalGet` with generated query keys
+- Removed custom `ProjectListResponse`, `MentionEntityType`, and `PermissionKey` types from `frontend/src/types/api.ts` — now generated from backend OpenAPI spec
+- Moved `TaskWeekPosition` to `lib/recurrence.ts` and `CommentWithReplies` to `CommentSection.tsx` — `types/api.ts` is now a pure re-export of generated schemas
 
 ### Fixed
 
