@@ -65,7 +65,11 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { guildPath } from "@/lib/guildUrl";
 import { buildTagTree, type TagTreeNode } from "@/lib/tagTree";
-import type { Initiative, Project, Tag as TagType } from "@/types/api";
+import type {
+  InitiativeRead,
+  ProjectRead,
+  TagRead as TagType,
+} from "@/api/generated/initiativeAPI.schemas";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
@@ -111,7 +115,7 @@ export const AppSidebar = () => {
   const documentsQuery = useAllDocumentIds({ enabled: Boolean(activeGuild), staleTime: 60_000 });
 
   const projectsByInitiative = useMemo(() => {
-    const map = new Map<number, Project[]>();
+    const map = new Map<number, ProjectRead[]>();
     const projects = Array.isArray(projectsQuery.data) ? projectsQuery.data : [];
     projects.forEach((project) => {
       if (!project.is_archived) {
@@ -147,7 +151,7 @@ export const AppSidebar = () => {
   }, [initiativesQuery.data, user, isGuildAdmin]);
 
   // Check if user can manage a specific initiative
-  const canManageInitiative = (initiative: Initiative): boolean => {
+  const canManageInitiative = (initiative: InitiativeRead): boolean => {
     if (isGuildAdmin) {
       return true;
     }
@@ -160,7 +164,7 @@ export const AppSidebar = () => {
   };
 
   // Get user's permissions for an initiative
-  const getUserPermissions = (initiative: Initiative) => {
+  const getUserPermissions = (initiative: InitiativeRead) => {
     if (!user) {
       return {
         canViewDocs: true,
@@ -516,8 +520,8 @@ export const AppSidebar = () => {
 };
 
 interface InitiativeSectionProps {
-  initiative: Initiative;
-  projects: Project[];
+  initiative: InitiativeRead;
+  projects: ProjectRead[];
   documentCount: number;
   canManageInitiative: boolean;
   activeProjectId: number | null;
@@ -546,7 +550,7 @@ const InitiativeSection = ({
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   // Pure DAC: check if user has write access to a specific project
-  const canManageProject = (project: Project): boolean => {
+  const canManageProject = (project: ProjectRead): boolean => {
     if (!userId) return false;
     const level = project.my_permission_level;
     return level === "owner" || level === "write";

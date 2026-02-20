@@ -1,5 +1,4 @@
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import type { Tag } from "@/types/api";
+import type { TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -28,7 +27,7 @@ export function buildTagSummary(overrides: Partial<TagSummary> = {}): TagSummary
   };
 }
 
-export function buildTag(overrides: Partial<Tag> = {}): Tag {
+export function buildTag(overrides: Partial<TagRead> = {}): TagRead {
   counter++;
   return {
     id: counter,

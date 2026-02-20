@@ -1,13 +1,13 @@
 import { TextAlignStart } from "lucide-react";
 
-import type { Task } from "@/types/api";
+import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
 
 interface TaskDescriptionHoverCardProps {
-  task: Task;
+  task: TaskListRead;
   className?: string;
 }
 

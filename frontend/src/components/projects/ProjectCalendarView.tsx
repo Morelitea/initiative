@@ -14,19 +14,19 @@ import {
 } from "date-fns";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 
-import type { Task } from "@/types/api";
+import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 type ProjectCalendarViewProps = {
-  tasks: Task[];
+  tasks: TaskListRead[];
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
 };
 
 type CalendarEntry = {
-  task: Task;
+  task: TaskListRead;
   type: "start" | "due";
 };
 

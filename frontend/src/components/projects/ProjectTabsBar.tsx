@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { useGuilds } from "@/hooks/useGuilds";
-import type { Project } from "@/types/api";
+import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 interface ProjectTabsBarProps {
-  projects?: Project[];
+  projects?: ProjectRead[];
   activeProjectId?: number | null;
   loading?: boolean;
   onClose: (projectId: number) => void;

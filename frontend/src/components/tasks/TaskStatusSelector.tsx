@@ -9,14 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
+import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
 type TaskStatusSelectorProps = {
-  task: Task;
+  task: TaskListRead;
   activeGuildId: number | null;
   isUpdatingTaskStatus: boolean;
-  changeTaskStatusById: (task: Task, statusId: number) => Promise<void>;
+  changeTaskStatusById: (task: TaskListRead, statusId: number) => Promise<void>;
   fetchProjectStatuses: (projectId: number, guildId: number | null) => Promise<TaskStatusRead[]>;
   projectStatusCache: React.MutableRefObject<
     Map<number, { statuses: TaskStatusRead[]; complete: boolean }>

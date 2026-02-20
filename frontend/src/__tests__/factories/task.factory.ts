@@ -1,9 +1,9 @@
 import type {
   TaskAssigneeSummary,
+  TaskListRead,
   TaskListResponse,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
 
 let counter = 0;
 
@@ -24,7 +24,7 @@ export function buildTaskAssignee(
   };
 }
 
-export function buildTask(overrides: Partial<Task> = {}): Task {
+export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
   counter++;
 
   const defaultStatus: TaskStatusRead = {
@@ -68,7 +68,7 @@ export function buildTask(overrides: Partial<Task> = {}): Task {
 }
 
 export function buildTaskListResponse(
-  itemsOrOverrides: Task[] | Partial<TaskListResponse> = {}
+  itemsOrOverrides: TaskListRead[] | Partial<TaskListResponse> = {}
 ): TaskListResponse {
   if (Array.isArray(itemsOrOverrides)) {
     return {

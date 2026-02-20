@@ -20,11 +20,11 @@ import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import type {
+  TaskListRead,
   TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -179,7 +179,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     }) => {
       return updateTaskApiV1TasksTaskIdPatch(taskId, {
         task_status_id: taskStatusId,
-      }) as unknown as Promise<Task>;
+      }) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (updatedTask) => {
       void invalidateAllTasks();
@@ -245,7 +245,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   );
 
   const changeTaskStatusById = useCallback(
-    async (task: Task, targetStatusId: number) => {
+    async (task: TaskListRead, targetStatusId: number) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
@@ -267,7 +267,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   );
 
   const changeTaskStatus = useCallback(
-    async (task: Task, targetCategory: TaskStatusCategory) => {
+    async (task: TaskListRead, targetCategory: TaskStatusCategory) => {
       const targetGuildId = task.guild_id ?? activeGuildId ?? null;
       if (!targetGuildId) {
         toast.error(t("errors.guildContext"));
@@ -287,7 +287,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
-  const columns: ColumnDef<Task>[] = [
+  const columns: ColumnDef<TaskListRead>[] = [
     {
       id: "completed",
       header: () => <span className="font-medium">{t("columns.done")}</span>,

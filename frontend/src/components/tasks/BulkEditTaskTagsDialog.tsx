@@ -16,13 +16,12 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TagPicker } from "@/components/tags/TagPicker";
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
+import type { TagSummary, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface BulkEditTaskTagsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tasks: Task[];
+  tasks: TaskListRead[];
   onSuccess: () => void;
 }
 

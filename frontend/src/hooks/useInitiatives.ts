@@ -22,27 +22,28 @@ import {
   invalidateInitiativeMembers,
 } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { Initiative } from "@/types/api";
-import type { InitiativeMemberRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useInitiatives = (options?: QueryOpts<Initiative[]>) => {
-  return useQuery<Initiative[]>({
+export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
+  return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
+    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<InitiativeRead[]>,
     ...options,
   });
 };
 
-export const useInitiative = (initiativeId: number | null, options?: QueryOpts<Initiative>) => {
+export const useInitiative = (initiativeId: number | null, options?: QueryOpts<InitiativeRead>) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<Initiative>({
+  return useQuery<InitiativeRead>({
     queryKey: getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId!),
     queryFn: () =>
-      getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId!) as unknown as Promise<Initiative>,
+      getInitiativeApiV1InitiativesInitiativeIdGet(
+        initiativeId!
+      ) as unknown as Promise<InitiativeRead>,
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
@@ -71,7 +72,7 @@ export const useCreateInitiative = () => {
 
   return useMutation({
     mutationFn: async (data: { name: string; description?: string; color?: string }) => {
-      return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<Initiative>;
+      return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: (initiative) => {
       toast.success(t("createDialog.created", { name: initiative.name }));
@@ -95,7 +96,7 @@ export const useUpdateInitiative = () => {
       return updateInitiativeApiV1InitiativesInitiativeIdPatch(
         initiativeId,
         data
-      ) as unknown as Promise<Initiative>;
+      ) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: (_data, { initiativeId }) => {
       void invalidateAllInitiatives();

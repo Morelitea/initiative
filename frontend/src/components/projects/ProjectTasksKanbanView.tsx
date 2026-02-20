@@ -13,8 +13,11 @@ import {
 } from "@dnd-kit/core";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { TaskPriority, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
+import type {
+  TaskListRead,
+  TaskPriority,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
 import { Badge } from "@/components/ui/badge";
@@ -25,14 +28,14 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 
 type ProjectTasksKanbanViewProps = {
   taskStatuses: TaskStatusRead[];
-  groupedTasks: Record<number, Task[]>;
+  groupedTasks: Record<number, TaskListRead[]>;
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
   canOpenTask: boolean;
   onTaskClick: (taskId: number) => void;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
   sensors: DndContextProps["sensors"];
-  activeTask: Task | null;
+  activeTask: TaskListRead | null;
   onDragStart: (event: DragStartEvent) => void;
   onDragOver: (event: DragOverEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
@@ -151,7 +154,7 @@ const TaskDragOverlay = ({
   task,
   priorityVariant,
 }: {
-  task: Task;
+  task: TaskListRead;
   priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
 }) => {
   const { t } = useTranslation("projects");

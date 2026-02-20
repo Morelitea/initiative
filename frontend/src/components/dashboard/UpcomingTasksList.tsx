@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { Task } from "@/types/api";
+import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface UpcomingTasksListProps {
-  tasks: Task[];
+  tasks: TaskListRead[];
   isLoading?: boolean;
 }
 

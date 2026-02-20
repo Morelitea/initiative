@@ -13,11 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type {
+  TaskListRead,
   TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { Task } from "@/types/api";
 import { truncateText } from "@/lib/text";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import type { TranslateFn } from "@/types/i18n";
@@ -28,7 +28,7 @@ import { TagBadge } from "@/components/tags";
 import { useGuildPath } from "@/lib/guildUrl";
 
 interface SortableTaskRowProps {
-  task: Task;
+  task: TaskListRead;
   dragDisabled: boolean;
   statusDisabled: boolean;
   taskStatuses: TaskStatusRead[];
