@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Template document dropdown in CreateDocumentDialog not showing templates accessible via role-based permissions (only showed templates with explicit user permissions)
+
 ## [0.31.2] - 2026-02-19
 
 ### Added
