@@ -23,14 +23,24 @@ import {
   duplicateProjectApiV1ProjectsProjectIdDuplicatePost,
   reorderProjectsApiV1ProjectsReorderPost,
   recordProjectViewApiV1ProjectsProjectIdViewPost,
+  clearProjectViewApiV1ProjectsProjectIdViewDelete,
   listGlobalProjectsApiV1ProjectsGlobalGet,
   getListGlobalProjectsApiV1ProjectsGlobalGetQueryKey,
 } from "@/api/generated/projects/projects";
 import {
   listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
   getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
+  createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost,
+  updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch,
+  deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete,
+  reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost,
 } from "@/api/generated/task-statuses/task-statuses";
-import { invalidateAllProjects, invalidateRecentProjects } from "@/api/query-keys";
+import {
+  invalidateAllProjects,
+  invalidateAllTasks,
+  invalidateProjectTaskStatuses,
+  invalidateRecentProjects,
+} from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type {
   ListProjectsApiV1ProjectsGetParams,
@@ -41,7 +51,12 @@ import type {
   ProjectRecentViewRead,
   ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
   TaskStatusRead,
+  TaskStatusCreate,
+  TaskStatusUpdate,
+  TaskStatusReorderRequest,
+  TaskStatusDeleteRequest,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { MutationOpts } from "@/types/mutation";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
@@ -168,25 +183,43 @@ export const usePrefetchGlobalProjects = () => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-export const useCreateProject = () => {
+export const useCreateProject = (
+  options?: MutationOpts<ProjectRead, Parameters<typeof createProjectApiV1ProjectsPost>[0]>
+) => {
   const { t } = useTranslation("projects");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
+    ...rest,
     mutationFn: async (data: Parameters<typeof createProjectApiV1ProjectsPost>[0]) => {
       return createProjectApiV1ProjectsPost(data) as unknown as Promise<ProjectRead>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllProjects();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("createDialog.createError");
+    onError: (...args) => {
+      const message = args[0] instanceof Error ? args[0].message : t("createDialog.createError");
       toast.error(message);
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useUpdateProject = () => {
+export const useUpdateProject = (
+  options?: MutationOpts<
+    ProjectRead,
+    {
+      projectId: number;
+      data: Parameters<typeof updateProjectApiV1ProjectsProjectIdPatch>[1];
+    }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async ({
       projectId,
       data,
@@ -199,53 +232,85 @@ export const useUpdateProject = () => {
         data
       ) as unknown as Promise<ProjectRead>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllProjects();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "projects:settings.details.updateError"));
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "projects:settings.details.updateError"));
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useDeleteProject = () => {
+export const useDeleteProject = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (projectId: number) => {
       await deleteProjectApiV1ProjectsProjectIdDelete(projectId);
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllProjects();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "projects:detail.loadError"));
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "projects:detail.loadError"));
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useArchiveProject = () => {
+export const useArchiveProject = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (projectId: number) => {
       await archiveProjectApiV1ProjectsProjectIdArchivePost(projectId);
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllProjects();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };
 
-export const useUnarchiveProject = () => {
+export const useUnarchiveProject = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (projectId: number) => {
       await unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(projectId);
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllProjects();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };
 
-export const useDuplicateProject = () => {
+export const useDuplicateProject = (
+  options?: MutationOpts<
+    ProjectRead,
+    {
+      projectId: number;
+      data: Parameters<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>[1];
+    }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async ({
       projectId,
       data,
@@ -258,30 +323,160 @@ export const useDuplicateProject = () => {
         data
       ) as unknown as Promise<ProjectRead>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllProjects();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };
 
-export const useReorderProjects = () => {
+export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (orderedIds: number[]) => {
       await reorderProjectsApiV1ProjectsReorderPost({ project_ids: orderedIds });
     },
-    onSettled: () => {
+    onSuccess,
+    onError,
+    onSettled: (...args) => {
       void invalidateAllProjects();
+      onSettled?.(...args);
     },
   });
 };
 
-export const useRecordProjectView = () => {
+export const useRecordProjectView = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (projectId: number) => {
       await recordProjectViewApiV1ProjectsProjectIdViewPost(projectId);
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateRecentProjects();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
+  });
+};
+
+export const useClearProjectView = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (projectId: number) => {
+      await clearProjectViewApiV1ProjectsProjectIdViewDelete(projectId);
+    },
+    onSuccess: (...args) => {
+      void invalidateRecentProjects();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+// ── Task Status Mutations ───────────────────────────────────────────────────
+
+export const useCreateTaskStatus = (
+  projectId: number,
+  options?: MutationOpts<TaskStatusRead, TaskStatusCreate>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: TaskStatusCreate) => {
+      return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(
+        projectId,
+        data
+      ) as unknown as Promise<TaskStatusRead>;
+    },
+    onSuccess: (...args) => {
+      void invalidateProjectTaskStatuses(projectId);
+      void invalidateAllTasks();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useUpdateTaskStatus = (
+  projectId: number,
+  options?: MutationOpts<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ statusId, data }: { statusId: number; data: TaskStatusUpdate }) => {
+      return updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
+        projectId,
+        statusId,
+        data
+      ) as unknown as Promise<TaskStatusRead>;
+    },
+    onSuccess: (...args) => {
+      void invalidateProjectTaskStatuses(projectId);
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useDeleteTaskStatus = (
+  projectId: number,
+  options?: MutationOpts<void, { statusId: number; data: TaskStatusDeleteRequest }>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ statusId, data }: { statusId: number; data: TaskStatusDeleteRequest }) => {
+      await deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete(
+        projectId,
+        statusId,
+        data
+      );
+    },
+    onSuccess: (...args) => {
+      void invalidateProjectTaskStatuses(projectId);
+      void invalidateAllTasks();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useReorderTaskStatuses = (
+  projectId: number,
+  options?: MutationOpts<TaskStatusRead[], TaskStatusReorderRequest>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: TaskStatusReorderRequest) => {
+      return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(
+        projectId,
+        data
+      ) as unknown as Promise<TaskStatusRead[]>;
+    },
+    onSuccess: (...args) => {
+      void invalidateProjectTaskStatuses(projectId);
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
   });
 };

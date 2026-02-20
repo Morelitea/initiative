@@ -1,29 +1,23 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { queryClient } from "@/lib/queryClient";
-import {
-  getReadTaskApiV1TasksTaskIdGetQueryKey,
-  updateTaskApiV1TasksTaskIdPatch,
-  duplicateTaskApiV1TasksTaskIdDuplicatePost,
-  deleteTaskApiV1TasksTaskIdDelete,
-  moveTaskApiV1TasksTaskIdMovePost,
-  generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost,
-} from "@/api/generated/tasks/tasks";
+import { getReadTaskApiV1TasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
 import { useComments } from "@/hooks/useComments";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
-import { useTask } from "@/hooks/useTasks";
-import { useUsers } from "@/hooks/useUsers";
 import {
-  invalidateAllTasks,
-  invalidateProject,
-  invalidateProjectTaskStatuses,
-} from "@/api/query-keys";
+  useTask,
+  useUpdateTask,
+  useDeleteTask,
+  useDuplicateTask,
+  useMoveTask,
+  useGenerateTaskDescription,
+} from "@/hooks/useTasks";
+import { useUsers } from "@/hooks/useUsers";
+import { invalidateProject, invalidateProjectTaskStatuses } from "@/api/query-keys";
 import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -52,7 +46,6 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   CommentRead,
-  GenerateDescriptionResponse,
   TagSummary,
   TaskListRead,
   TaskListReadRecurrenceStrategy,
@@ -127,6 +120,7 @@ export const TaskEditPage = () => {
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
 
   const taskQuery = useTask(parsedTaskId);
 
@@ -164,27 +158,7 @@ export const TaskEditPage = () => {
   const isProjectContextLoading =
     Number.isFinite(projectId) && projectQuery.isLoading && !projectQuery.data;
 
-  const updateTask = useMutation({
-    mutationFn: async () => {
-      if (!Number.isFinite(statusId)) {
-        throw new Error(t("edit.taskStatusRequired"));
-      }
-      const payload: Record<string, unknown> = {
-        title,
-        description: description || null,
-        task_status_id: statusId,
-        priority,
-        assignee_ids: assigneeIds,
-        start_date: startDate ? new Date(startDate).toISOString() : null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        recurrence,
-        recurrence_strategy: recurrence ? recurrenceStrategy : "fixed",
-      };
-      return await (updateTaskApiV1TasksTaskIdPatch(
-        parsedTaskId,
-        payload as never
-      ) as unknown as Promise<TaskListRead>);
-    },
+  const updateTask = useUpdateTask({
     onSuccess: (updatedTask) => {
       setTitle(updatedTask.title);
       setDescription(updatedTask.description ?? "");
@@ -200,104 +174,60 @@ export const TaskEditPage = () => {
     },
   });
 
-  const duplicateTask = useMutation({
-    mutationFn: async () => {
-      return await (duplicateTaskApiV1TasksTaskIdDuplicatePost(
-        parsedTaskId
-      ) as unknown as Promise<TaskListRead>);
-    },
+  const duplicateTask = useDuplicateTask({
     onSuccess: (newTask) => {
       toast.success(t("edit.taskDuplicated"));
-      void invalidateAllTasks();
       router.navigate({ to: gp(`/tasks/${newTask.id}`) });
     },
   });
 
-  const deleteTask = useMutation({
-    mutationFn: async () => {
-      await deleteTaskApiV1TasksTaskIdDelete(parsedTaskId);
-    },
+  const deleteTask = useDeleteTask({
     onSuccess: () => {
       toast.success(t("edit.taskDeleted"));
-      void invalidateAllTasks();
       router.navigate({ to: gp(`/projects/${projectId}`) });
     },
   });
 
-  const moveTask = useMutation<TaskListRead, unknown, MoveTaskVariables>({
-    mutationFn: async ({ targetProjectId }) => {
-      return await (moveTaskApiV1TasksTaskIdMovePost(parsedTaskId, {
-        target_project_id: targetProjectId,
-      }) as unknown as Promise<TaskListRead>);
-    },
-    onSuccess: (updatedTask, variables) => {
+  const moveTask = useMoveTask({
+    onSuccess: (updatedTask) => {
       queryClient.setQueryData<TaskListRead>(
         getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
         updatedTask
       );
-      const previousProjectId = variables?.previousProjectId;
+      const previousProjectId = moveContext?.previousProjectId;
       if (typeof previousProjectId === "number") {
         void invalidateProjectTaskStatuses(previousProjectId);
         void invalidateProject(previousProjectId);
       }
-      if (typeof variables?.targetProjectId === "number") {
-        void invalidateProjectTaskStatuses(variables.targetProjectId);
-        void invalidateProject(variables.targetProjectId);
+      if (typeof moveContext?.targetProjectId === "number") {
+        void invalidateProjectTaskStatuses(moveContext.targetProjectId);
+        void invalidateProject(moveContext.targetProjectId);
       }
-      void invalidateAllTasks();
       setIsMoveDialogOpen(false);
       toast.success(
         t("edit.moveSuccess", {
-          projectName: variables?.targetProjectName ?? "the selected project",
+          projectName: moveContext?.targetProjectName ?? "the selected project",
         })
       );
-    },
-    onError: (error) => {
-      const message = isAxiosError(error)
-        ? (error.response?.data?.detail ?? t("edit.moveError"))
-        : t("edit.moveError");
-      toast.error(message);
+      setMoveContext(null);
     },
   });
 
-  const toggleArchive = useMutation({
-    mutationFn: async (archive: boolean) => {
-      return await (updateTaskApiV1TasksTaskIdPatch(parsedTaskId, {
-        is_archived: archive,
-      } as never) as unknown as Promise<TaskListRead>);
-    },
+  const toggleArchive = useUpdateTask({
     onSuccess: (updatedTask) => {
       queryClient.setQueryData<TaskListRead>(
         getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
         updatedTask
       );
       toast.success(updatedTask.is_archived ? t("edit.taskArchived") : t("edit.taskUnarchived"));
-      void invalidateAllTasks();
-    },
-    onError: (error) => {
-      const message = isAxiosError(error)
-        ? (error.response?.data?.detail ?? t("edit.archiveError"))
-        : t("edit.archiveError");
-      toast.error(message);
     },
   });
 
-  const generateDescription = useMutation({
-    mutationFn: async () => {
-      return await (generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost(
-        parsedTaskId
-      ) as unknown as Promise<GenerateDescriptionResponse>);
-    },
+  const generateDescription = useGenerateTaskDescription({
     onSuccess: (data) => {
       setDescription(data.description);
       setIsEditingDescription(true);
       toast.success(t("edit.descriptionGenerated"));
-    },
-    onError: (error) => {
-      const message = isAxiosError(error)
-        ? (error.response?.data?.detail ?? t("edit.generateDescriptionError"))
-        : t("edit.generateDescriptionError");
-      toast.error(message);
     },
   });
 
@@ -306,7 +236,22 @@ export const TaskEditPage = () => {
     if (isReadOnly) {
       return;
     }
-    updateTask.mutate();
+    if (!Number.isFinite(statusId)) {
+      toast.error(t("edit.taskStatusRequired"));
+      return;
+    }
+    const payload: Record<string, unknown> = {
+      title,
+      description: description || null,
+      task_status_id: statusId,
+      priority,
+      assignee_ids: assigneeIds,
+      start_date: startDate ? new Date(startDate).toISOString() : null,
+      due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      recurrence,
+      recurrence_strategy: recurrence ? recurrenceStrategy : "fixed",
+    };
+    updateTask.mutate({ taskId: parsedTaskId, data: payload as never });
   };
 
   const handleMoveTask = (targetProjectId: number) => {
@@ -314,10 +259,15 @@ export const TaskEditPage = () => {
       return;
     }
     const targetProject = writableProjects.find((project) => project.id === targetProjectId);
-    moveTask.mutate({
+    const context: MoveTaskVariables = {
       targetProjectId,
       targetProjectName: targetProject?.name,
       previousProjectId: task.project_id ?? null,
+    };
+    setMoveContext(context);
+    moveTask.mutate({
+      taskId: parsedTaskId,
+      targetProjectId,
     });
   };
 
@@ -556,7 +506,7 @@ export const TaskEditPage = () => {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 text-xs"
-                      onClick={() => generateDescription.mutate()}
+                      onClick={() => generateDescription.mutate(parsedTaskId)}
                       disabled={generateDescription.isPending}
                     >
                       {generateDescription.isPending ? (
@@ -733,7 +683,7 @@ export const TaskEditPage = () => {
                       type="button"
                       variant="secondary"
                       onClick={() => {
-                        duplicateTask.mutate();
+                        duplicateTask.mutate(parsedTaskId);
                       }}
                       disabled={duplicateTask.isPending}
                     >
@@ -743,7 +693,12 @@ export const TaskEditPage = () => {
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => toggleArchive.mutate(!task?.is_archived)}
+                      onClick={() =>
+                        toggleArchive.mutate({
+                          taskId: parsedTaskId,
+                          data: { is_archived: !task?.is_archived } as never,
+                        })
+                      }
                       disabled={toggleArchive.isPending}
                     >
                       {task?.is_archived ? (
@@ -804,7 +759,7 @@ export const TaskEditPage = () => {
         description={t("edit.deleteDescription")}
         confirmLabel={t("common:delete")}
         onConfirm={() => {
-          deleteTask.mutate();
+          deleteTask.mutate(parsedTaskId);
           setShowDeleteConfirm(false);
         }}
         isLoading={deleteTask.isPending}

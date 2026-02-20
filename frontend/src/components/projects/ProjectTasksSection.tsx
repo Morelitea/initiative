@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import {
   DragEndEvent,
   DragOverEvent,
@@ -24,13 +23,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  createTaskApiV1TasksPost,
-  updateTaskApiV1TasksTaskIdPatch,
-  deleteTaskApiV1TasksTaskIdDelete,
-  reorderTasksApiV1TasksReorderPost,
-  archiveDoneTasksApiV1TasksArchiveDonePost,
-} from "@/api/generated/tasks/tasks";
 import type {
   ListTasksApiV1TasksGetParams,
   TaskListRead,
@@ -40,8 +32,16 @@ import type {
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useTasks } from "@/hooks/useTasks";
-import { invalidateAllTasks } from "@/api/query-keys";
+import {
+  useTasks,
+  useCreateTask,
+  useUpdateTask,
+  useBulkUpdateTasks,
+  useBulkDeleteTasks,
+  useBulkArchiveTasks,
+  useArchiveDoneTasks,
+  useReorderTasks,
+} from "@/hooks/useTasks";
 import { getItem, setItem } from "@/lib/storage";
 
 import { useTags } from "@/hooks/useTags";
@@ -57,7 +57,7 @@ import {
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
 import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
-import { TaskBulkEditDialog, type TaskBulkUpdate } from "@/components/tasks/TaskBulkEditDialog";
+import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
 import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -342,31 +342,7 @@ export const ProjectTasksSection = ({
     [persistCollapsedStatuses]
   );
 
-  const createTask = useMutation({
-    mutationFn: async () => {
-      if (!defaultStatusId) {
-        throw new Error("No default task status configured");
-      }
-      const payload: Record<string, unknown> = {
-        project_id: projectId,
-        title,
-        description,
-        priority,
-        assignee_ids: assigneeIds,
-        start_date: startDate ? new Date(startDate).toISOString() : null,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        recurrence: recurrence,
-        task_status_id: defaultStatusId,
-      };
-      if (recurrence) {
-        payload.recurrence = recurrence;
-        payload.recurrence_strategy = recurrenceStrategy;
-      } else {
-        payload.recurrence = null;
-        payload.recurrence_strategy = "fixed";
-      }
-      return await (createTaskApiV1TasksPost(payload as never) as unknown as Promise<TaskListRead>);
-    },
+  const createTask = useCreateTask({
     onSuccess: (newTask) => {
       setTitle("");
       setDescription("");
@@ -378,20 +354,11 @@ export const ProjectTasksSection = ({
       setRecurrenceStrategy("fixed");
       setIsComposerOpen(false);
       setLocalOverride((prev) => [...(prev ?? projectTasks), newTask]);
-      void invalidateAllTasks();
       toast.success(t("tasks.taskCreated"));
-    },
-    onError: () => {
-      toast.error(t("tasks.createError"));
     },
   });
 
-  const updateTaskStatus = useMutation({
-    mutationFn: async ({ taskId, taskStatusId }: { taskId: number; taskStatusId: number }) => {
-      return await (updateTaskApiV1TasksTaskIdPatch(taskId, {
-        task_status_id: taskStatusId,
-      } as never) as unknown as Promise<TaskListRead>);
-    },
+  const updateTaskStatus = useUpdateTask({
     onSuccess: (updatedTask) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
@@ -403,93 +370,39 @@ export const ProjectTasksSection = ({
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
-      void invalidateAllTasks();
       toast.success(t("tasks.taskUpdated"));
     },
   });
 
-  const bulkUpdateTasks = useMutation({
-    mutationFn: async ({
-      taskIds,
-      changes,
-    }: {
-      taskIds: number[];
-      changes: Partial<TaskBulkUpdate>;
-    }) => {
-      const results = await Promise.all(
-        taskIds.map(
-          (taskId) =>
-            updateTaskApiV1TasksTaskIdPatch(
-              taskId,
-              changes as never
-            ) as unknown as Promise<TaskListRead>
-        )
-      );
-      return results;
-    },
+  const bulkUpdateTasks = useBulkUpdateTasks({
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
       toast.success(t("tasks.bulkUpdated", { count }));
       // setSelectedTasks([]);
       setIsBulkEditDialogOpen(false);
       setLocalOverride(null);
-      void invalidateAllTasks();
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("tasks.bulkUpdateError");
-      toast.error(message);
     },
   });
 
-  const bulkDeleteTasks = useMutation({
-    mutationFn: async (taskIds: number[]) => {
-      await Promise.all(taskIds.map((taskId) => deleteTaskApiV1TasksTaskIdDelete(taskId)));
-    },
+  const bulkDeleteTasks = useBulkDeleteTasks({
     onSuccess: (_data, taskIds) => {
       const count = taskIds.length;
       toast.success(t("tasks.bulkDeleted", { count }));
       setSelectedTasks([]);
       setLocalOverride(null);
-      void invalidateAllTasks();
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("tasks.bulkDeleteError");
-      toast.error(message);
     },
   });
 
-  const bulkArchiveTasks = useMutation({
-    mutationFn: async (taskIds: number[]) => {
-      const results = await Promise.all(
-        taskIds.map(
-          (taskId) =>
-            updateTaskApiV1TasksTaskIdPatch(taskId, {
-              is_archived: true,
-            } as never) as unknown as Promise<TaskListRead>
-        )
-      );
-      return results;
-    },
+  const bulkArchiveTasks = useBulkArchiveTasks({
     onSuccess: (updatedTasks) => {
       const count = updatedTasks.length;
       toast.success(t("tasks.archivedSuccess", { count }));
       setSelectedTasks([]);
       setLocalOverride(null);
-      void invalidateAllTasks();
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("tasks.archiveError");
-      toast.error(message);
     },
   });
 
-  const archiveDoneTasks = useMutation({
-    mutationFn: async (taskStatusId?: number) => {
-      return await (archiveDoneTasksApiV1TasksArchiveDonePost({
-        project_id: projectId,
-        ...(taskStatusId !== undefined && { task_status_id: taskStatusId }),
-      }) as unknown as Promise<{ archived_count: number }>);
-    },
+  const archiveDoneTasks = useArchiveDoneTasks({
     onSuccess: (data) => {
       const count = data.archived_count;
       if (count === 0) {
@@ -497,27 +410,10 @@ export const ProjectTasksSection = ({
       } else {
         toast.success(t("tasks.archivedSuccess", { count }));
       }
-      void invalidateAllTasks();
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("tasks.archiveError");
-      toast.error(message);
     },
   });
 
-  const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useMutation({
-    mutationFn: async (payload: TaskReorderRequest) => {
-      return await (reorderTasksApiV1TasksReorderPost(payload as never) as unknown as Promise<
-        TaskListRead[]
-      >);
-    },
-    onSuccess: () => {
-      // Don't set localOverride from response - it returns unfiltered tasks.
-      // The optimistic update already shows the new order, and query
-      // invalidation will confirm with filters (clearing localOverride).
-      void invalidateAllTasks();
-    },
-  });
+  const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useReorderTasks();
 
   const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
   const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
@@ -964,7 +860,7 @@ export const ProjectTasksSection = ({
             onStatusChange={(taskId, taskStatusId) =>
               updateTaskStatus.mutate({
                 taskId,
-                taskStatusId,
+                data: { task_status_id: taskStatusId },
               })
             }
             onTaskClick={onTaskClick}
@@ -1045,7 +941,31 @@ export const ProjectTasksSection = ({
               onDueDateChange={setDueDate}
               onRecurrenceChange={setRecurrence}
               onRecurrenceStrategyChange={setRecurrenceStrategy}
-              onSubmit={() => createTask.mutate()}
+              onSubmit={() => {
+                if (!defaultStatusId) {
+                  toast.error(t("tasks.createError"));
+                  return;
+                }
+                const payload: Record<string, unknown> = {
+                  project_id: projectId,
+                  title,
+                  description,
+                  priority,
+                  assignee_ids: assigneeIds,
+                  start_date: startDate ? new Date(startDate).toISOString() : null,
+                  due_date: dueDate ? new Date(dueDate).toISOString() : null,
+                  recurrence: recurrence,
+                  task_status_id: defaultStatusId,
+                };
+                if (recurrence) {
+                  payload.recurrence = recurrence;
+                  payload.recurrence_strategy = recurrenceStrategy;
+                } else {
+                  payload.recurrence = null;
+                  payload.recurrence_strategy = "fixed";
+                }
+                createTask.mutate(payload as never);
+              }}
               onCancel={() => setIsComposerOpen(false)}
               autoFocusTitle
             />
@@ -1059,7 +979,7 @@ export const ProjectTasksSection = ({
               onApply={(changes) => {
                 bulkUpdateTasks.mutate({
                   taskIds: selectedTasks.map((t) => t.id),
-                  changes,
+                  changes: changes as Parameters<typeof bulkUpdateTasks.mutate>[0]["changes"],
                 });
               }}
               onCancel={() => setIsBulkEditDialogOpen(false)}
@@ -1087,7 +1007,10 @@ export const ProjectTasksSection = ({
         })()}
         confirmLabel={t("tasks.archiveConfirm")}
         onConfirm={() => {
-          archiveDoneTasks.mutate(archiveDialogStatusId);
+          archiveDoneTasks.mutate({
+            projectId,
+            taskStatusId: archiveDialogStatusId,
+          });
           setIsArchiveDialogOpen(false);
         }}
         isLoading={archiveDoneTasks.isPending}

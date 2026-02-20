@@ -8,7 +8,6 @@ import {
   useLocation,
   useSearch,
 } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2, LogOut, Menu, Plus, Ticket } from "lucide-react";
 
@@ -27,9 +26,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
-import { clearProjectViewApiV1ProjectsProjectIdViewDelete } from "@/api/generated/projects/projects";
-import { invalidateRecentProjects } from "@/api/query-keys";
-import { useRecentProjects } from "@/hooks/useProjects";
+import { useRecentProjects, useClearProjectView } from "@/hooks/useProjects";
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 /**
@@ -92,15 +89,7 @@ function AppLayout() {
     staleTime: 30_000,
   });
 
-  const clearRecent = useMutation({
-    mutationFn: async (projectId: number) => {
-      await clearProjectViewApiV1ProjectsProjectIdViewDelete(projectId);
-      return projectId;
-    },
-    onSuccess: () => {
-      void invalidateRecentProjects();
-    },
-  });
+  const clearRecent = useClearProjectView();
 
   // Now we can have conditional returns
   // Show loading state while auth or guild membership is being determined

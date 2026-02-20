@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -8,10 +8,10 @@ import { useTranslation } from "react-i18next";
 import {
   listTasksApiV1TasksGet,
   getListTasksApiV1TasksGetQueryKey,
-  updateTaskApiV1TasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { useProjects, useTemplateProjects, useArchivedProjects } from "@/hooks/useProjects";
+import { useUpdateTask } from "@/hooks/useTasks";
 import type {
   ListTasksApiV1TasksGetParams,
   ProjectRead,
@@ -21,7 +21,6 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateAllTasks } from "@/api/query-keys";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuilds } from "@/hooks/useGuilds";
 
@@ -235,24 +234,8 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   }, [projectsQuery.data, templatesQuery.data, archivedProjectsQuery.data]);
 
   // --- Status mutation ---
-  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useMutation({
-    mutationFn: async ({
-      taskId,
-      taskStatusId,
-      guildId,
-    }: {
-      taskId: number;
-      taskStatusId: number;
-      guildId: number | null;
-    }) => {
-      return updateTaskApiV1TasksTaskIdPatch(
-        taskId,
-        { task_status_id: taskStatusId },
-        guildId ? { headers: { "X-Guild-ID": String(guildId) } } : undefined
-      ) as unknown as Promise<TaskListRead>;
-    },
+  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useUpdateTask({
     onSuccess: (updatedTask) => {
-      void invalidateAllTasks();
       const cached = projectStatusCache.current.get(updatedTask.project_id);
       if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
         cached.statuses.push(updatedTask.task_status);
@@ -336,8 +319,8 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       try {
         await updateTaskStatusMutate({
           taskId: task.id,
-          taskStatusId: targetStatusId,
-          guildId: targetGuildId,
+          data: { task_status_id: targetStatusId },
+          requestOptions: { headers: { "X-Guild-ID": String(targetGuildId) } },
         });
       } catch (error) {
         console.error(error);

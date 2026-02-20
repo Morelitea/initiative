@@ -1,11 +1,8 @@
 import { useMemo } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { updateProjectApiV1ProjectsProjectIdPatch } from "@/api/generated/projects/projects";
-import { invalidateAllProjects } from "@/api/query-keys";
-import { useTemplateProjects } from "@/hooks/useProjects";
+import { useTemplateProjects, useUpdateProject } from "@/hooks/useProjects";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,14 +33,7 @@ export const TemplatesPage = () => {
 
   const templatesQuery = useTemplateProjects();
 
-  const deactivateTemplate = useMutation({
-    mutationFn: async (projectId: number) => {
-      await updateProjectApiV1ProjectsProjectIdPatch(projectId, { is_template: false });
-    },
-    onSuccess: () => {
-      void invalidateAllProjects();
-    },
-  });
+  const deactivateTemplate = useUpdateProject();
 
   if (templatesQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">{t("templates.loading")}</p>;
@@ -97,7 +87,12 @@ export const TemplatesPage = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => deactivateTemplate.mutate(project.id)}
+                    onClick={() =>
+                      deactivateTemplate.mutate({
+                        projectId: project.id,
+                        data: { is_template: false },
+                      })
+                    }
                     disabled={deactivateTemplate.isPending}
                   >
                     {t("templates.stopUsingAsTemplate")}
