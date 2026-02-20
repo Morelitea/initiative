@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Centralized query key invalidation helpers (`frontend/src/api/query-keys.ts`) with domain-specific functions for consistent cache management
+
 ### Changed
 
+- Migrated ~70 frontend files from manual `apiClient` calls to Orval-generated functions and React Query hooks
+  - Pages: all project, task, document, initiative, settings, and user settings pages
+  - Components: sidebar, comment section, import dialogs, bulk edit dialogs, task checklist, notifications
+  - Hooks: tags, roles, AI settings, interface colors, version check, push notifications, realtime updates
+  - Route loaders: all `ensureQueryData` calls updated to use generated fetchers and query keys
 - Centralized frontend API query hooks into domain-specific hook files (`useDocuments`, `useProjects`, `useInitiatives`, `useComments`, `useNotifications`) following the `useTags` pattern — replaces inline `useQuery`/`useMutation` calls across pages with clean, reusable hooks that include error toasts and cache invalidation
 - Created `usePagination` hook for reusable page/pageSize state management with URL search param sync
+- Replaced manual query keys (e.g., `["projects"]`) with generated URL-based keys (e.g., `["/api/v1/projects/"]`)
+- Replaced manual `queryClient.invalidateQueries()` calls with domain-specific helpers from `query-keys.ts`
+- Orval config updated to `httpClient: "axios"` for clean return types (no discriminated union wrappers)
+- API mutator updated to accept `AxiosRequestConfig` and prevent double URL prefixing with `baseURL: ""`
 - Removed duplicate `TaskListResponse` and `DocumentListResponse` type definitions from `types/api.ts` in favor of Orval-generated versions
 - Deleted `src/api/notifications.ts` — all consumers migrated to `useNotifications` hooks
 
@@ -74,19 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `pnpm generate:api` script to regenerate from a running backend
 - CI check (`check-generated-types` job) that fails when generated frontend types drift from backend schemas
 - `backend/scripts/export_openapi.py` to export OpenAPI spec without a running server (used by CI)
-- Centralized query key invalidation helpers (`frontend/src/api/query-keys.ts`) with domain-specific functions for consistent cache management
 
 ### Changed
 
-- Migrated ~70 frontend files from manual `apiClient` calls to Orval-generated functions and React Query hooks
-  - Pages: all project, task, document, initiative, settings, and user settings pages
-  - Components: sidebar, comment section, import dialogs, bulk edit dialogs, task checklist, notifications
-  - Hooks: tags, roles, AI settings, interface colors, version check, push notifications, realtime updates
-  - Route loaders: all `ensureQueryData` calls updated to use generated fetchers and query keys
-- Replaced manual query keys (e.g., `["projects"]`) with generated URL-based keys (e.g., `["/api/v1/projects/"]`)
-- Replaced manual `queryClient.invalidateQueries()` calls with domain-specific helpers from `query-keys.ts`
-- Orval config updated to `httpClient: "axios"` for clean return types (no discriminated union wrappers)
-- API mutator updated to accept `AxiosRequestConfig` and prevent double URL prefixing with `baseURL: ""`
 - Backend Pydantic schemas now use `ConfigDict(json_schema_serialization_defaults_required=True)` so optional fields with defaults appear as required in the OpenAPI spec, producing cleaner generated types
 - `frontend/src/types/api.ts` replaced ~800 lines of hand-maintained type definitions with re-exports from Orval-generated types
 - Excluded `src/api/generated/**` from ESLint (Orval generates function overloads that trigger `no-redeclare`)
