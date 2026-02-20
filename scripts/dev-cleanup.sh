@@ -4,9 +4,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Stop backend (uvicorn on port 8000)
-lsof -ti:8000 2>/dev/null | xargs -r kill 2>/dev/null || true
+# Stop backend (uvicorn on port 8000)
+lsof -ti:8000 2>/dev/null | { xargs kill 2>/dev/null || true; }
 # Stop frontend (Vite on port 5173)
-lsof -ti:5173 2>/dev/null | xargs -r kill 2>/dev/null || true
+lsof -ti:5173 2>/dev/null | { xargs kill 2>/dev/null || true; }
 
 cd "$SCRIPT_DIR/../backend"
 
