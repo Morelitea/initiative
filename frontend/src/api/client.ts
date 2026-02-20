@@ -90,9 +90,6 @@ export const getCurrentGuildId = () => activeGuildId;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
   paramsSerializer: (params) => {
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
