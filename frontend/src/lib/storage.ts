@@ -20,6 +20,9 @@ export async function initStorage(): Promise<void> {
     return;
   }
   const { keys } = await Preferences.keys();
+  if (!Array.isArray(keys)) {
+    return;
+  }
   const entries = await Promise.all(
     keys.map(async (key) => {
       const { value } = await Preferences.get({ key });

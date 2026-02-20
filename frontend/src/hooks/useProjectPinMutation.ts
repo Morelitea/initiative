@@ -6,18 +6,24 @@ import {
   getReadProjectApiV1ProjectsProjectIdGetQueryKey,
 } from "@/api/generated/projects/projects";
 import { queryClient } from "@/lib/queryClient";
-import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectListResponse, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface ToggleArgs {
   projectId: number;
   nextState: boolean;
 }
 
-const replaceProjectInList = (projects: ProjectRead[] | undefined, updated: ProjectRead) => {
-  if (!projects) {
-    return projects;
+const replaceProjectInList = (
+  prev: ProjectListResponse | undefined,
+  updated: ProjectRead
+): ProjectListResponse | undefined => {
+  if (!prev) {
+    return prev;
   }
-  return projects.map((project) => (project.id === updated.id ? updated : project));
+  return {
+    ...prev,
+    items: prev.items.map((project) => (project.id === updated.id ? updated : project)),
+  };
 };
 
 export const useProjectPinMutation = () =>
@@ -28,17 +34,17 @@ export const useProjectPinMutation = () =>
       }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<ProjectRead[]>(
+      queryClient.setQueryData<ProjectListResponse>(
         getListProjectsApiV1ProjectsGetQueryKey(),
-        (projects) => replaceProjectInList(projects, data)
+        (prev) => replaceProjectInList(prev, data)
       );
-      queryClient.setQueryData<ProjectRead[]>(
+      queryClient.setQueryData<ProjectListResponse>(
         getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
-        (projects) => replaceProjectInList(projects, data)
+        (prev) => replaceProjectInList(prev, data)
       );
-      queryClient.setQueryData<ProjectRead[]>(
+      queryClient.setQueryData<ProjectListResponse>(
         getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
-        (projects) => replaceProjectInList(projects, data)
+        (prev) => replaceProjectInList(prev, data)
       );
       queryClient.setQueryData<ProjectRead>(
         getReadProjectApiV1ProjectsProjectIdGetQueryKey(data.id) as unknown as string[],

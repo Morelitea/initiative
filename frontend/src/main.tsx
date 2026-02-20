@@ -7,11 +7,15 @@ import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 
+import { Capacitor } from "@capacitor/core";
+
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { setApiBaseUrl } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
+import { getStoredServerUrl } from "@/lib/serverStorage";
 import { initStorage } from "@/lib/storage";
 import { router } from "@/router";
 import { registerServiceWorker } from "@/serviceWorkerRegistration";
@@ -43,6 +47,16 @@ const InnerApp = () => {
 
 async function bootstrap() {
   await initStorage();
+
+  // On native, set the API base URL immediately from storage so requests
+  // reach the real backend before React effects run (avoids race condition
+  // where child provider effects fire before ServerProvider's useEffect).
+  if (Capacitor.isNativePlatform()) {
+    const storedUrl = getStoredServerUrl();
+    if (storedUrl) {
+      setApiBaseUrl(storedUrl);
+    }
+  }
 
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
