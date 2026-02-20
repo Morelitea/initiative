@@ -6,7 +6,7 @@ export function resetCounter(): void {
   counter = 0;
 }
 
-export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserReadPublic {
+export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic {
   counter++;
   return {
     id: counter,
