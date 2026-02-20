@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.3] - 2026-02-20
+
 ### Added
 
 - Paginated `GET /api/v1/projects/` endpoint with `page` and `page_size` query params (`page_size=0` returns all, preserving backward compatibility)
