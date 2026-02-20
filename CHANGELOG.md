@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.4] - 2026-02-20
+
 ### Fixed
 
 - Mobile (Capacitor) app crash on startup — Orval-generated API requests used a hardcoded empty `baseURL`, causing them to hit the WebView origin instead of the backend server and receiving HTML instead of JSON
