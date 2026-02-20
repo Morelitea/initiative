@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -20,22 +20,16 @@ import {
   Copy,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import {
-  listDocumentsApiV1DocumentsGet,
-  getListDocumentsApiV1DocumentsGetQueryKey,
-  getDocumentCountsApiV1DocumentsCountsGet,
-  getGetDocumentCountsApiV1DocumentsCountsGetQueryKey,
-  deleteDocumentApiV1DocumentsDocumentIdDelete,
-  copyDocumentApiV1DocumentsDocumentIdCopyPost,
-} from "@/api/generated/documents/documents";
-import {
-  listInitiativesApiV1InitiativesGet,
-  getListInitiativesApiV1InitiativesGetQueryKey,
-} from "@/api/generated/initiatives/initiatives";
-import { invalidateAllDocuments } from "@/api/query-keys";
+  useDocumentsList,
+  useDocumentCounts,
+  useDeleteDocument,
+  useCopyDocument,
+  prefetchDocumentsList,
+} from "@/hooks/useDocuments";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
@@ -64,19 +58,8 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
-import type {
-  DocumentCountsResponse,
-  DocumentListResponse,
-  DocumentRead,
-  DocumentSummary,
-  Initiative,
-  Tag,
-  TagSummary,
-} from "@/types/api";
-import type {
-  ListDocumentsApiV1DocumentsGetParams,
-  GetDocumentCountsApiV1DocumentsCountsGetParams,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentSummary, Tag, TagSummary } from "@/types/api";
+import type { ListDocumentsApiV1DocumentsGetParams } from "@/api/generated/initiativeAPI.schemas";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn } from "@/lib/sorting";
@@ -437,31 +420,17 @@ export const DocumentsView = ({
     ...(sortDir ? { sort_dir: sortDir } : {}),
   };
 
-  const documentsQuery = useQuery<DocumentListResponse>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey(documentsQueryParams),
-    queryFn: () =>
-      listDocumentsApiV1DocumentsGet(
-        documentsQueryParams
-      ) as unknown as Promise<DocumentListResponse>,
-    placeholderData: keepPreviousData,
-  });
+  const documentsQuery = useDocumentsList(documentsQueryParams);
 
   // Counts query for tags view sidebar
-  const countsQueryParams: GetDocumentCountsApiV1DocumentsCountsGetParams = {
+  const countsQueryParams = {
     ...(initiativeFilter !== INITIATIVE_FILTER_ALL
       ? { initiative_id: Number(initiativeFilter) }
       : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
   };
 
-  const countsQuery = useQuery<DocumentCountsResponse>({
-    queryKey: getGetDocumentCountsApiV1DocumentsCountsGetQueryKey(countsQueryParams),
-    queryFn: () =>
-      getDocumentCountsApiV1DocumentsCountsGet(
-        countsQueryParams
-      ) as unknown as Promise<DocumentCountsResponse>,
-    enabled: viewMode === "tags",
-  });
+  const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
 
   // Prefetch adjacent page on hover
   const prefetchPage = useCallback(
@@ -478,23 +447,12 @@ export const DocumentsView = ({
         ...(sortBy ? { sort_by: sortBy } : {}),
         ...(sortDir ? { sort_dir: sortDir } : {}),
       };
-
-      void queryClient.prefetchQuery({
-        queryKey: getListDocumentsApiV1DocumentsGetQueryKey(prefetchParams),
-        queryFn: () =>
-          listDocumentsApiV1DocumentsGet(
-            prefetchParams
-          ) as unknown as Promise<DocumentListResponse>,
-        staleTime: 30_000,
-      });
+      void prefetchDocumentsList(queryClient, prefetchParams);
     },
     [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, queryClient]
   );
 
-  const initiativesQuery = useQuery<Initiative[]>({
-    queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-    queryFn: () => listInitiativesApiV1InitiativesGet() as unknown as Promise<Initiative[]>,
-  });
+  const initiativesQuery = useInitiatives();
 
   // Filter initiatives where user can create documents
   const creatableInitiatives = useMemo(() => {
@@ -759,46 +717,36 @@ export const DocumentsView = ({
     [t, dateLocale]
   );
 
-  const deleteDocuments = useMutation({
-    mutationFn: async (documentIds: number[]) => {
-      await Promise.all(documentIds.map((id) => deleteDocumentApiV1DocumentsDocumentIdDelete(id)));
+  const deleteDocumentsMutation = useDeleteDocument();
+  const deleteDocuments = {
+    mutate: (documentIds: number[]) => {
+      deleteDocumentsMutation.mutate(documentIds, {
+        onSuccess: () => {
+          setSelectedDocuments([]);
+        },
+      });
     },
-    onSuccess: (_data, documentIds) => {
-      const count = documentIds.length;
-      toast.success(t("bulk.deleted", { count }));
-      setSelectedDocuments([]);
-      void invalidateAllDocuments();
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("bulk.deleteError");
-      toast.error(message);
-    },
-  });
+    isPending: deleteDocumentsMutation.isPending,
+  };
 
-  const duplicateDocuments = useMutation({
-    mutationFn: async (documentsToClone: DocumentSummary[]) => {
-      const results = await Promise.all(
-        documentsToClone.map(
-          (doc) =>
-            copyDocumentApiV1DocumentsDocumentIdCopyPost(doc.id, {
-              target_initiative_id: doc.initiative_id,
-              title: `${doc.title} (copy)`,
-            }) as unknown as Promise<DocumentRead>
-        )
+  const copyDocumentMutation = useCopyDocument();
+  const duplicateDocuments = {
+    mutate: (documentsToClone: DocumentSummary[]) => {
+      copyDocumentMutation.mutate(
+        documentsToClone.map((doc) => ({
+          id: doc.id,
+          initiative_id: doc.initiative_id,
+          title: doc.title,
+        })),
+        {
+          onSuccess: () => {
+            setSelectedDocuments([]);
+          },
+        }
       );
-      return results;
     },
-    onSuccess: (data) => {
-      const count = data.length;
-      toast.success(t("bulk.duplicated", { count }));
-      setSelectedDocuments([]);
-      void invalidateAllDocuments();
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("bulk.duplicateError");
-      toast.error(message);
-    },
-  });
+    isPending: copyDocumentMutation.isPending,
+  };
 
   const initiatives = initiativesQuery.data ?? [];
   // Filter initiatives where user can view docs (for the dropdown)

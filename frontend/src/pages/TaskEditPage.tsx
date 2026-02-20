@@ -15,10 +15,7 @@ import {
   moveTaskApiV1TasksTaskIdMovePost,
   generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost,
 } from "@/api/generated/tasks/tasks";
-import {
-  listCommentsApiV1CommentsGet,
-  getListCommentsApiV1CommentsGetQueryKey,
-} from "@/api/generated/comments/comments";
+import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
 import {
   readProjectApiV1ProjectsProjectIdGet,
   getReadProjectApiV1ProjectsProjectIdGetQueryKey,
@@ -33,6 +30,7 @@ import {
   listUsersApiV1UsersGet,
   getListUsersApiV1UsersGetQueryKey,
 } from "@/api/generated/users/users";
+import { useComments } from "@/hooks/useComments";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -173,11 +171,8 @@ export const TaskEditPage = () => {
 
   const commentsQueryParams = { task_id: parsedTaskId };
   const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
-  const commentsQuery = useQuery({
-    queryKey: commentsQueryKey,
+  const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedTaskId),
-    queryFn: () =>
-      listCommentsApiV1CommentsGet(commentsQueryParams) as unknown as Promise<Comment[]>,
   });
 
   const setTaskTagsMutation = useSetTaskTags();

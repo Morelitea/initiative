@@ -1,16 +1,13 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import {
-  fetchNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from "@/api/notifications";
-import { invalidateNotifications } from "@/api/query-keys";
-import { getListNotificationsApiV1NotificationsGetQueryKey } from "@/api/generated/notifications/notifications";
+  useNotifications,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from "@/hooks/useNotifications";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,8 +15,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Notification } from "@/types/api";
 import { useAuth } from "@/hooks/useAuth";
 import { guildPath } from "@/lib/guildUrl";
-
-const NOTIFICATION_QUERY_KEY = getListNotificationsApiV1NotificationsGetQueryKey();
 
 // Build guild-scoped URL directly
 const buildGuildPath = (guildId: number, targetPath: string): string => {
@@ -164,26 +159,14 @@ export const NotificationBell = () => {
   const { t } = useTranslation("guilds");
   const isEnabled = Boolean(user && token);
 
-  const notificationsQuery = useQuery({
-    queryKey: NOTIFICATION_QUERY_KEY,
-    queryFn: fetchNotifications,
+  const notificationsQuery = useNotifications({
     refetchInterval: 30_000,
     enabled: isEnabled,
   });
 
-  const markReadMutation = useMutation({
-    mutationFn: (notificationId: number) => markNotificationRead(notificationId),
-    onSuccess: () => {
-      void invalidateNotifications();
-    },
-  });
+  const markReadMutation = useMarkNotificationRead();
 
-  const markAllMutation = useMutation({
-    mutationFn: markAllNotificationsRead,
-    onSuccess: () => {
-      void invalidateNotifications();
-    },
-  });
+  const markAllMutation = useMarkAllNotificationsRead();
 
   if (!user || !token) {
     return null;

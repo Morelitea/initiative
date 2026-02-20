@@ -5,15 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 
 import {
-  readProjectApiV1ProjectsProjectIdGet,
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
-  recordProjectViewApiV1ProjectsProjectIdViewPost,
-} from "@/api/generated/projects/projects";
-import {
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-} from "@/api/generated/task-statuses/task-statuses";
-import {
   listUsersApiV1UsersGet,
   getListUsersApiV1UsersGetQueryKey,
 } from "@/api/generated/users/users";
@@ -21,8 +12,8 @@ import {
   invalidateAllTasks,
   invalidateProject,
   invalidateProjectTaskStatuses,
-  invalidateRecentProjects,
 } from "@/api/query-keys";
+import { useProject, useProjectTaskStatuses, useRecordProjectView } from "@/hooks/useProjects";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
@@ -38,7 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { Project, ProjectTaskStatus, User } from "@/types/api";
+import type { User } from "@/types/api";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -56,44 +47,27 @@ export const ProjectDetailPage = () => {
     ]);
   }, [parsedProjectId]);
 
-  const projectQuery = useQuery<Project>({
-    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(parsedProjectId),
-    queryFn: () =>
-      readProjectApiV1ProjectsProjectIdGet(parsedProjectId) as unknown as Promise<Project>,
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  const projectQuery = useProject(Number.isFinite(parsedProjectId) ? parsedProjectId : null);
 
   // Tasks query is now inside ProjectTasksSection to support server-side filtering
 
-  const taskStatusesQuery = useQuery<ProjectTaskStatus[]>({
-    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(parsedProjectId),
-    queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(parsedProjectId) as unknown as Promise<
-        ProjectTaskStatus[]
-      >,
-    enabled: Number.isFinite(parsedProjectId),
-  });
+  const taskStatusesQuery = useProjectTaskStatuses(
+    Number.isFinite(parsedProjectId) ? parsedProjectId : null
+  );
 
   const usersQuery = useQuery<User[]>({
     queryKey: getListUsersApiV1UsersGetQueryKey(),
     queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<User[]>,
   });
 
+  const recordViewMutation = useRecordProjectView();
   const viewedProjectId = projectQuery.data?.id;
   useEffect(() => {
     if (!viewedProjectId) {
       return;
     }
-    const recordView = async () => {
-      try {
-        await recordProjectViewApiV1ProjectsProjectIdViewPost(viewedProjectId);
-        await invalidateRecentProjects();
-      } catch (error) {
-        console.error("Failed to record project view", error);
-      }
-    };
-    void recordView();
-  }, [viewedProjectId]);
+    recordViewMutation.mutate(viewedProjectId);
+  }, [viewedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   // Includes both explicit user permissions and role-based permissions
