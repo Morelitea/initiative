@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -122,9 +122,12 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
               {eligibility.is_last_admin && <li>{t("leave.lastAdminWarning")}</li>}
               {eligibility.sole_pm_initiatives.length > 0 && (
                 <li>
-                  {t("leave.solePmWarning", {
-                    initiatives: eligibility.sole_pm_initiatives.join(", "),
-                  })}
+                  <Trans
+                    i18nKey="leave.solePmWarning"
+                    ns="guilds"
+                    values={{ initiatives: eligibility.sole_pm_initiatives.join(", ") }}
+                    components={{ bold: <strong /> }}
+                  />
                 </li>
               )}
             </ul>
@@ -135,7 +138,12 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
 
     return (
       <AlertDialogDescription>
-        {t("leave.description", { name: guild.name })}
+        <Trans
+          i18nKey="leave.description"
+          ns="guilds"
+          values={{ name: guild.name }}
+          components={{ bold: <strong /> }}
+        />
       </AlertDialogDescription>
     );
   };

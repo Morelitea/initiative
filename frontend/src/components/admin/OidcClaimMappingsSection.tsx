@@ -1,17 +1,16 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  createOidcMappingApiV1SettingsOidcMappingsPost,
-  updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
-  updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
-  deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete,
-} from "@/api/generated/settings/settings";
 import type { OIDCClaimMappingRead } from "@/api/generated/initiativeAPI.schemas";
-import { invalidateOidcMappings } from "@/api/query-keys";
-import { useOidcMappings, useOidcMappingOptions } from "@/hooks/useSettings";
+import {
+  useOidcMappings,
+  useOidcMappingOptions,
+  useUpdateOidcClaimPath,
+  useCreateOidcMapping,
+  useUpdateOidcMapping,
+  useDeleteOidcMapping,
+} from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,54 +55,29 @@ export const OidcClaimMappingsSection = () => {
     }
   }, [mappingsQuery.data]);
 
-  const updateClaimPath = useMutation({
-    mutationFn: async (path: string | null) => {
-      await updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut({ claim_path: path || null });
-    },
-    onSuccess: () => {
-      toast.success(t("auth.claimPathSuccess"));
-      void invalidateOidcMappings();
-    },
+  const updateClaimPath = useUpdateOidcClaimPath({
+    onSuccess: () => toast.success(t("auth.claimPathSuccess")),
     onError: () => toast.error(t("auth.claimPathError")),
   });
 
-  const createMapping = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      return createOidcMappingApiV1SettingsOidcMappingsPost(
-        data as unknown as Parameters<typeof createOidcMappingApiV1SettingsOidcMappingsPost>[0]
-      ) as unknown as Promise<OIDCClaimMappingRead>;
-    },
+  const createMapping = useCreateOidcMapping({
     onSuccess: () => {
       toast.success(t("auth.mappingCreateSuccess"));
-      void invalidateOidcMappings();
       resetForm();
     },
     onError: () => toast.error(t("auth.mappingCreateError")),
   });
 
-  const updateMapping = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
-      return updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut(
-        id,
-        data as Parameters<typeof updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut>[1]
-      ) as unknown as Promise<OIDCClaimMappingRead>;
-    },
+  const updateMapping = useUpdateOidcMapping({
     onSuccess: () => {
       toast.success(t("auth.mappingUpdateSuccess"));
-      void invalidateOidcMappings();
       resetForm();
     },
     onError: () => toast.error(t("auth.mappingUpdateError")),
   });
 
-  const deleteMapping = useMutation({
-    mutationFn: async (id: number) => {
-      await deleteOidcMappingApiV1SettingsOidcMappingsMappingIdDelete(id);
-    },
-    onSuccess: () => {
-      toast.success(t("auth.mappingDeleteSuccess"));
-      void invalidateOidcMappings();
-    },
+  const deleteMapping = useDeleteOidcMapping({
+    onSuccess: () => toast.success(t("auth.mappingDeleteSuccess")),
     onError: () => toast.error(t("auth.mappingDeleteError")),
   });
 
@@ -147,23 +121,25 @@ export const OidcClaimMappingsSection = () => {
 
   const handleClaimPathSubmit = (e: FormEvent) => {
     e.preventDefault();
-    updateClaimPath.mutate(claimPath.trim() || null);
+    updateClaimPath.mutate({ claim_path: claimPath.trim() || null });
   };
 
   const handleMappingSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const payload: Record<string, unknown> = {
+    const payload = {
       claim_value: form.claim_value.trim(),
       target_type: form.target_type,
       guild_id: Number(form.guild_id),
       guild_role: form.guild_role,
+      ...(form.target_type === "initiative"
+        ? {
+            initiative_id: Number(form.initiative_id),
+            initiative_role_id: Number(form.initiative_role_id),
+          }
+        : {}),
     };
-    if (form.target_type === "initiative") {
-      payload.initiative_id = Number(form.initiative_id);
-      payload.initiative_role_id = Number(form.initiative_role_id);
-    }
     if (editingId) {
-      updateMapping.mutate({ id: editingId, data: payload });
+      updateMapping.mutate({ mappingId: editingId, data: payload });
     } else {
       createMapping.mutate(payload);
     }

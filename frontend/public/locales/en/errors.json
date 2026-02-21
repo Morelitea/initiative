@@ -158,6 +158,7 @@
   "ADMIN_INITIATIVE_NOT_FOUND": "Initiative not found",
   "ADMIN_USER_NOT_IN_INITIATIVE": "User not found in initiative",
   "ADMIN_CANNOT_DEMOTE_LAST_PM": "Cannot demote the last project manager",
+  "ADMIN_ROLE_NOT_FOUND": "Initiative role not found",
   "USER_CANNOT_DELETE_LAST_ADMIN": "Cannot delete the last platform admin account",
   "USER_INVALID_PASSWORD": "Invalid password",
   "USER_CONFIRMATION_MISMATCH": "Confirmation text must be 'DELETE MY ACCOUNT'",

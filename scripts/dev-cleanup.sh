@@ -3,11 +3,30 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+echo "Stopping dev servers..."
+
 # Stop backend (uvicorn on port 8000)
-# Stop backend (uvicorn on port 8000)
-lsof -ti:8000 2>/dev/null | { xargs kill 2>/dev/null || true; }
+if command -v lsof &>/dev/null; then
+    lsof -ti:8000 2>/dev/null | xargs kill 2>/dev/null || true
+elif command -v fuser &>/dev/null; then
+    fuser -k 8000/tcp 2>/dev/null || true
+fi
+# Also kill by process name as fallback
+pkill -f "uvicorn app.main:app" 2>/dev/null || true
+
 # Stop frontend (Vite on port 5173)
-lsof -ti:5173 2>/dev/null | { xargs kill 2>/dev/null || true; }
+if command -v lsof &>/dev/null; then
+    lsof -ti:5173 2>/dev/null | xargs kill 2>/dev/null || true
+elif command -v fuser &>/dev/null; then
+    fuser -k 5173/tcp 2>/dev/null || true
+fi
+# Also kill by process name as fallback
+pkill -f "vite" 2>/dev/null || true
+
+# Give processes a moment to shut down
+sleep 1
+
+echo "Servers stopped."
 
 cd "$SCRIPT_DIR/../backend"
 

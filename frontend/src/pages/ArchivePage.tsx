@@ -1,11 +1,8 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
-import { unarchiveProjectApiV1ProjectsProjectIdUnarchivePost } from "@/api/generated/projects/projects";
-import { invalidateAllProjects } from "@/api/query-keys";
-import { useArchivedProjects } from "@/hooks/useProjects";
+import { useArchivedProjects, useUnarchiveProject } from "@/hooks/useProjects";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,14 +33,7 @@ export const ArchivePage = () => {
 
   const archivedProjectsQuery = useArchivedProjects();
 
-  const unarchiveProject = useMutation({
-    mutationFn: async (projectId: number) => {
-      await unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(projectId);
-    },
-    onSuccess: () => {
-      void invalidateAllProjects();
-    },
-  });
+  const unarchiveProject = useUnarchiveProject();
 
   if (archivedProjectsQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">{t("archived.loading")}</p>;

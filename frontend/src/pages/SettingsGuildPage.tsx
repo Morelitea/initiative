@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import {
   updateGuildApiV1GuildsGuildIdPatch,
@@ -233,12 +233,22 @@ export const SettingsGuildPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("settings.deleteConfirmDescription", { name: activeGuild?.name })}
+              <Trans
+                i18nKey="settings.deleteConfirmDescription"
+                ns="guilds"
+                values={{ name: activeGuild?.name }}
+                components={{ bold: <strong /> }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="delete-guild-confirm-input">
-              {t("settings.deleteConfirmLabel", { name: activeGuild?.name })}
+              <Trans
+                i18nKey="settings.deleteConfirmLabel"
+                ns="guilds"
+                values={{ name: activeGuild?.name }}
+                components={{ bold: <strong /> }}
+              />
             </Label>
             <Input
               id="delete-guild-confirm-input"

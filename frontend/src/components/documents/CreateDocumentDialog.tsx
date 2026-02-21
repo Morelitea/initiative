@@ -1,19 +1,10 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, Loader2, Plus, Presentation, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import {
-  copyDocumentApiV1DocumentsDocumentIdCopyPost,
-  createDocumentApiV1DocumentsPost,
-  uploadDocumentFileApiV1DocumentsUploadPost,
-} from "@/api/generated/documents/documents";
-import { useAllDocumentIds } from "@/hooks/useDocuments";
+import { useAllDocumentIds, useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
-import { apiClient } from "@/api/client";
-import { invalidateAllDocuments, invalidateProject } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -109,7 +100,7 @@ export const CreateDocumentDialog = ({
 
   // Filter templates — backend already enforces access control via RLS
   const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data) return [];
+    if (!templateDocumentsQuery.data || !Array.isArray(templateDocumentsQuery.data)) return [];
     return templateDocumentsQuery.data.filter((doc) => doc.is_template);
   }, [templateDocumentsQuery.data]);
 
@@ -147,138 +138,19 @@ export const CreateDocumentDialog = ({
     if (!isValid) setSelectedTemplateId("");
   }, [manageableTemplates, selectedTemplateId]);
 
-  // Helper to apply role + user permissions via follow-up API calls.
-  // Used for copy-from-template and upload paths where the create payload can't carry them.
-  // Returns the count of failed permission calls so callers can warn the user.
-  //
-  // Note: cross-initiative role grants are handled differently per path:
-  // - Direct create (POST /documents/): backend silently drops invalid roles (no error).
-  // - Copy/upload paths (this helper): individual POST calls return 400, counted as failures.
-  // This inconsistency is cosmetic — CreateAccessControl filters to valid roles in the UI.
-  const applyDocumentPermissions = async (documentId: number): Promise<number> => {
-    let failures = 0;
-    for (const rg of roleGrants) {
-      try {
-        await apiClient.post(`/documents/${documentId}/role-permissions`, {
-          initiative_role_id: rg.initiative_role_id,
-          level: rg.level,
-        });
-      } catch {
-        failures++;
-      }
-    }
-    // Batch user grants by level to use bulk endpoint
-    const byLevel = new Map<string, number[]>();
-    for (const ug of userGrants) {
-      const arr = byLevel.get(ug.level) ?? [];
-      arr.push(ug.user_id);
-      byLevel.set(ug.level, arr);
-    }
-    for (const [level, userIds] of byLevel) {
-      try {
-        await apiClient.post(`/documents/${documentId}/members/bulk`, {
-          user_ids: userIds,
-          level,
-        });
-      } catch {
-        failures++;
-      }
-    }
-    return failures;
-  };
-
-  const createDocument = useMutation({
-    mutationFn: async () => {
-      const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) throw new Error(t("create.titleRequired"));
-      if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
-
-      let newDocument: DocumentRead;
-      let permissionFailures = 0;
-
-      if (selectedTemplateId) {
-        newDocument = await (copyDocumentApiV1DocumentsDocumentIdCopyPost(
-          Number(selectedTemplateId),
-          { target_initiative_id: effectiveInitiativeId, title: trimmedTitle }
-        ) as unknown as Promise<DocumentRead>);
-      } else {
-        newDocument = await (createDocumentApiV1DocumentsPost({
-          title: trimmedTitle,
-          initiative_id: effectiveInitiativeId,
-          is_template: isTemplateDocument,
-        }) as unknown as Promise<DocumentRead>);
-      }
-
-      // Auto-attach to project if specified
-      if (projectId) {
-        await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
-          projectId,
-          newDocument.id
-        );
-      }
-
-      return { document: newDocument, permissionFailures };
-    },
-    onSuccess: ({ document, permissionFailures: failures }) => {
+  const createDocument = useCreateDocument({
+    onSuccess: (document) => {
       toast.success(projectId ? t("create.createdAttached") : t("create.created"));
-      if (failures > 0) {
-        toast.warning(t("create.somePermissionsFailed"));
-      }
       onOpenChange(false);
-      void invalidateAllDocuments();
-      if (projectId) {
-        void invalidateProject(projectId);
-      }
       onSuccess?.(document);
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("create.createError");
-      toast.error(message);
     },
   });
 
-  const uploadDocument = useMutation({
-    mutationFn: async () => {
-      if (!selectedFile) throw new Error(t("create.fileRequired"));
-      const trimmedTitle = newTitle.trim();
-      if (!trimmedTitle) throw new Error(t("create.titleRequired"));
-      if (!effectiveInitiativeId) throw new Error(t("create.initiativeRequired"));
-
-      const newDocument = await (uploadDocumentFileApiV1DocumentsUploadPost({
-        file: selectedFile,
-        title: trimmedTitle,
-        initiative_id: effectiveInitiativeId,
-      }) as unknown as Promise<DocumentRead>);
-
-      // Apply permissions before project-attach so they're always applied
-      // even if the attach call fails
-      const permissionFailures = await applyDocumentPermissions(newDocument.id);
-
-      // Auto-attach to project if specified
-      if (projectId) {
-        await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
-          projectId,
-          newDocument.id
-        );
-      }
-
-      return { document: newDocument, permissionFailures };
-    },
-    onSuccess: ({ document, permissionFailures: failures }) => {
+  const uploadDocument = useUploadDocument({
+    onSuccess: (document) => {
       toast.success(projectId ? t("create.uploadedAttached") : t("create.uploaded"));
-      if (failures > 0) {
-        toast.warning(t("create.somePermissionsFailed"));
-      }
       onOpenChange(false);
-      void invalidateAllDocuments();
-      if (projectId) {
-        void invalidateProject(projectId);
-      }
       onSuccess?.(document);
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("create.uploadError");
-      toast.error(message);
     },
   });
 
@@ -507,7 +379,19 @@ export const CreateDocumentDialog = ({
           {createDialogTab === "new" ? (
             <Button
               type="button"
-              onClick={() => createDocument.mutate()}
+              onClick={() => {
+                const trimmedTitle = newTitle.trim();
+                if (!trimmedTitle || !effectiveInitiativeId) return;
+                createDocument.mutate({
+                  title: trimmedTitle,
+                  initiative_id: effectiveInitiativeId,
+                  is_template: isTemplateDocument,
+                  template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined,
+                  project_id: projectId,
+                  role_grants: roleGrants,
+                  user_grants: userGrants,
+                });
+              }}
               disabled={!canSubmitNew || accessLoading}
             >
               {createDocument.isPending ? (
@@ -522,7 +406,19 @@ export const CreateDocumentDialog = ({
           ) : (
             <Button
               type="button"
-              onClick={() => uploadDocument.mutate()}
+              onClick={() => {
+                if (!selectedFile || !effectiveInitiativeId) return;
+                const trimmedTitle = newTitle.trim();
+                if (!trimmedTitle) return;
+                uploadDocument.mutate({
+                  file: selectedFile,
+                  title: trimmedTitle,
+                  initiative_id: effectiveInitiativeId,
+                  project_id: projectId,
+                  role_grants: roleGrants,
+                  user_grants: userGrants,
+                });
+              }}
               disabled={!canSubmitUpload || accessLoading}
             >
               {uploadDocument.isPending ? (

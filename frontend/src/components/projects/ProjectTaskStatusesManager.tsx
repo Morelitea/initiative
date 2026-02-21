@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import {
   DndContext,
   type DragEndEvent,
@@ -19,17 +18,15 @@ import { CSS } from "@dnd-kit/utilities";
 import { Loader2, GripVertical, Trash2, Save } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-  createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost,
-  updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch,
-  deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete,
-  reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost,
-} from "@/api/generated/task-statuses/task-statuses";
-import { queryClient } from "@/lib/queryClient";
 import { invalidateProjectTaskStatuses, invalidateAllTasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { useProjectTaskStatuses } from "@/hooks/useProjects";
+import {
+  useProjectTaskStatuses,
+  useCreateTaskStatus,
+  useUpdateTaskStatus,
+  useDeleteTaskStatus,
+  useReorderTaskStatuses,
+} from "@/hooks/useProjects";
 import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,9 +60,6 @@ import { cn } from "@/lib/utils";
 import type { TFunction } from "i18next";
 
 const CATEGORY_VALUES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
-
-const STATUS_QUERY_KEY = (projectId: number) =>
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId);
 
 const sortStatuses = (items: TaskStatusRead[]): TaskStatusRead[] => {
   return [...items].sort((a, b) => {
@@ -119,16 +113,10 @@ export const ProjectTaskStatusesManager = ({
 
   const statusesQuery = useProjectTaskStatuses(projectId);
 
-  const reorderStatuses = useMutation({
-    mutationFn: async (items: { id: number; position: number }[]) => {
-      return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(projectId, {
-        items,
-      }) as unknown as Promise<TaskStatusRead[]>;
-    },
+  const reorderStatuses = useReorderTaskStatuses(projectId, {
     onSuccess: (data) => {
       const sorted = sortStatuses(data);
       setOrderedStatuses(sorted);
-      queryClient.setQueryData(STATUS_QUERY_KEY(projectId), sorted);
       toast.success(t("statuses.orderSaved"));
     },
     onError: (error) => {
@@ -152,77 +140,39 @@ export const ProjectTaskStatusesManager = ({
     setDrafts(nextDrafts);
   }, [statusesQuery.data, reorderStatuses.isPending]);
 
-  const invalidateStatuses = () => {
-    void invalidateProjectTaskStatuses(projectId);
-    void invalidateAllTasks();
-  };
-
-  const createStatus = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        name: newName.trim(),
-        category: newCategory,
-        is_default: false,
-      };
-      if (!payload.name) {
-        throw new Error("Name is required");
-      }
-      return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(
-        projectId,
-        payload
-      ) as unknown as Promise<TaskStatusRead>;
-    },
+  const createStatus = useCreateTaskStatus(projectId, {
     onSuccess: () => {
       setNewName("");
       toast.success(t("statuses.created"));
-      invalidateStatuses();
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "projects:statuses.createError"));
     },
   });
 
-  const updateStatus = useMutation({
-    mutationFn: async ({ statusId, data }: { statusId: number; data: Record<string, unknown> }) => {
-      return updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
-        projectId,
-        statusId,
-        data as Parameters<
-          typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch
-        >[2]
-      ) as unknown as Promise<TaskStatusRead>;
-    },
+  const updateStatus = useUpdateTaskStatus(projectId, {
     onSuccess: () => {
       toast.success(t("statuses.updated"));
-      invalidateStatuses();
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "projects:statuses.updateError"));
     },
   });
 
-  const deleteStatus = useMutation({
-    mutationFn: async ({
-      statusId,
-      fallbackStatusId,
-    }: {
-      statusId: number;
-      fallbackStatusId: number;
-    }) => {
-      await deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete(projectId, statusId, {
-        fallback_status_id: fallbackStatusId,
-      });
-    },
+  const deleteStatusMutation = useDeleteTaskStatus(projectId, {
     onSuccess: () => {
       toast.success(t("statuses.deleted"));
       setFallbackId("");
       setDeleteTarget(null);
-      invalidateStatuses();
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "projects:statuses.deleteError"));
     },
   });
+
+  // Separate instance for bulk updates in handleSaveAll to avoid conflicting
+  // with the single-status updateStatus callbacks (toast messages differ).
+  const bulkUpdateStatus = useUpdateTaskStatus(projectId);
 
   const defaultStatusId = useMemo(() => {
     return orderedStatuses.find((status) => status.is_default)?.id ?? null;
@@ -244,7 +194,7 @@ export const ProjectTaskStatusesManager = ({
       }
       const next = arrayMove(prev, oldIndex, newIndex);
       const payload = next.map((status, index) => ({ id: status.id, position: index }));
-      reorderStatuses.mutate(payload);
+      reorderStatuses.mutate({ items: payload });
       return next.map((status, index) => ({ ...status, position: index }));
     });
   };
@@ -292,13 +242,10 @@ export const ProjectTaskStatusesManager = ({
     // Execute all updates with individual error handling
     const results = await Promise.allSettled(
       updates.map(({ statusId, data }) =>
-        updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
-          projectId,
+        bulkUpdateStatus.mutateAsync({
           statusId,
-          data as Parameters<
-            typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch
-          >[2]
-        )
+          data: data as { name?: string | null; category?: TaskStatusCategory | null },
+        })
       )
     );
 
@@ -327,7 +274,10 @@ export const ProjectTaskStatusesManager = ({
       });
     }
 
-    invalidateStatuses();
+    // The centralized hook invalidates per-call, but we also need to ensure
+    // all tasks are refreshed after bulk edits (category changes may affect task display).
+    void invalidateProjectTaskStatuses(projectId);
+    void invalidateAllTasks();
   };
 
   const hasChanges = useMemo(() => {
@@ -360,7 +310,10 @@ export const ProjectTaskStatusesManager = ({
       toast.error(t("statuses.selectFallbackError"));
       return;
     }
-    deleteStatus.mutate({ statusId: deleteTarget.id, fallbackStatusId: fallback });
+    deleteStatusMutation.mutate({
+      statusId: deleteTarget.id,
+      data: { fallback_status_id: fallback },
+    });
   };
 
   const fallbackOptions = deleteTarget
@@ -412,7 +365,17 @@ export const ProjectTaskStatusesManager = ({
               </SelectContent>
             </Select>
             <Button
-              onClick={() => createStatus.mutate()}
+              onClick={() => {
+                const trimmedName = newName.trim();
+                if (!trimmedName) {
+                  return;
+                }
+                createStatus.mutate({
+                  name: trimmedName,
+                  category: newCategory,
+                  is_default: false,
+                });
+              }}
               disabled={!canManage || createStatus.isPending}
             >
               {createStatus.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -531,9 +494,11 @@ export const ProjectTaskStatusesManager = ({
             <Button
               variant="destructive"
               onClick={handleDeleteConfirm}
-              disabled={deleteStatus.isPending || !fallbackOptions.length}
+              disabled={deleteStatusMutation.isPending || !fallbackOptions.length}
             >
-              {deleteStatus.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {deleteStatusMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               {t("common:delete")}
             </Button>
           </DialogFooter>

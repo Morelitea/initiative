@@ -130,7 +130,7 @@ class DocumentPermission(SQLModel, table=True):
     __tablename__ = "document_permissions"
 
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
     guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     level: DocumentPermissionLevel = Field(
         default=DocumentPermissionLevel.write,

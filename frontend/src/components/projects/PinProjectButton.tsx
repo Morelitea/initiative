@@ -3,7 +3,7 @@ import { Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
-import { useProjectPinMutation } from "@/hooks/useProjectPinMutation";
+import { useToggleProjectPin } from "@/hooks/useProjects";
 
 interface PinProjectButtonProps {
   projectId: number;
@@ -30,7 +30,7 @@ export const PinProjectButton = ({
   iconSize = "md",
 }: PinProjectButtonProps) => {
   const { t } = useTranslation("projects");
-  const pinMutation = useProjectPinMutation();
+  const pinMutation = useToggleProjectPin();
   const pending = pinMutation.isPending && pinMutation.variables?.projectId === projectId;
   const sizeClasses = iconSize === "sm" ? "h-7 w-7" : "h-9 w-9";
   const baseClasses =

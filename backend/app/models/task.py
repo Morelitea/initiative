@@ -54,7 +54,7 @@ class TaskAssignee(SQLModel, table=True):
     __tablename__ = "task_assignees"
 
     task_id: int = Field(foreign_key="tasks.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
     guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
 
 
@@ -115,7 +115,7 @@ class Task(SQLModel, table=True):
     )
     is_archived: bool = Field(
         default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false", index=True),
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     created_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
     created_at: datetime = Field(

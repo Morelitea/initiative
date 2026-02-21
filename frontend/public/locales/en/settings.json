@@ -70,7 +70,7 @@
     "loggedIn": "Logged in {{date}}",
     "revoke": "Revoke",
     "revokeDialogTitle": "Revoke device access?",
-    "revokeDialogDescription": "This will log out <strong>{{deviceName}}</strong>. They will need to log in again to access your account.",
+    "revokeDialogDescription": "This will log out <bold>{{deviceName}}</bold>. They will need to log in again to access your account.",
     "revokeDialogCancel": "Cancel",
     "revokeDialogConfirm": "Revoke access",
     "revoking": "Revoking\u2026",
@@ -239,7 +239,7 @@
     "deactivateTitle": "Deactivate Account",
     "deactivateDescription": "Temporarily disable your account. You won't be able to log in, but all your data will be preserved. An administrator can reactivate your account later.",
     "permanentDeleteTitle": "Permanently Delete Account",
-    "permanentDeleteDescription": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\". <strong>This cannot be undone.</strong>",
+    "permanentDeleteDescription": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\". <bold>This cannot be undone.</bold>",
     "permanentDeleteDescriptionText": "Completely remove your account from the system. Projects will be transferred to other users. Comments and documents will remain but show \"[Deleted User]\".",
     "cannotBeUndone": "This cannot be undone.",
     "deleteButton": "Delete Account"

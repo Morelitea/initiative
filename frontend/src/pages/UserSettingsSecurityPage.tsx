@@ -1,30 +1,20 @@
 import { FormEvent, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Smartphone, Trash2 } from "lucide-react";
 
 import {
-  createMyApiKeyApiV1UsersMeApiKeysPost,
-  deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete,
-} from "@/api/generated/users/users";
-import { revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete } from "@/api/generated/auth/auth";
-import {
   useMyApiKeys,
   useDeviceTokens,
-  API_KEYS_QUERY_KEY,
-  DEVICE_TOKENS_QUERY_KEY,
+  useCreateApiKey,
+  useDeleteApiKey,
+  useRevokeDeviceToken,
 } from "@/hooks/useSecurity";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { queryClient } from "@/lib/queryClient";
-import type {
-  ApiKeyCreateResponse,
-  ApiKeyMetadata,
-  DeviceTokenInfo,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { ApiKeyMetadata, DeviceTokenInfo } from "@/api/generated/initiativeAPI.schemas";
 import { Input } from "@/components/ui/input";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
@@ -73,34 +63,24 @@ export const UserSettingsSecurityPage = () => {
   // API Keys queries and mutations
   const apiKeysQuery = useMyApiKeys();
 
-  const createKey = useMutation({
-    mutationFn: async (payload: { name: string; expires_at?: string | null }) => {
-      return createMyApiKeyApiV1UsersMeApiKeysPost(
-        payload as Parameters<typeof createMyApiKeyApiV1UsersMeApiKeysPost>[0]
-      ) as unknown as Promise<ApiKeyCreateResponse>;
-    },
+  const createKey = useCreateApiKey({
     onSuccess: (data) => {
       toast.success(t("security.createSuccess"));
       setGeneratedSecret(data.secret);
       setName("");
       setExpiresAtInput("");
-      void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
     },
     onError: () => {
       toast.error(t("security.createError"));
     },
   });
 
-  const deleteKey = useMutation({
-    mutationFn: async (apiKeyId: number) => {
-      await deleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete(apiKeyId);
-    },
+  const deleteKey = useDeleteApiKey({
     onMutate: (keyId: number) => {
       setDeleteTarget(keyId);
     },
     onSuccess: () => {
       toast.success(t("security.deleteSuccess"));
-      void queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
     },
     onError: () => {
       toast.error(t("security.deleteError"));
@@ -113,13 +93,9 @@ export const UserSettingsSecurityPage = () => {
   // Device tokens queries and mutations
   const devicesQuery = useDeviceTokens();
 
-  const revokeToken = useMutation({
-    mutationFn: async (tokenId: number) => {
-      await revokeDeviceTokenApiV1AuthDeviceTokensTokenIdDelete(tokenId);
-    },
+  const revokeToken = useRevokeDeviceToken({
     onSuccess: () => {
       toast.success(t("security.revokeSuccess"));
-      void queryClient.invalidateQueries({ queryKey: DEVICE_TOKENS_QUERY_KEY });
     },
     onError: () => {
       toast.error(t("security.revokeError"));
@@ -357,7 +333,7 @@ export const UserSettingsSecurityPage = () => {
                 i18nKey="security.revokeDialogDescription"
                 ns="settings"
                 values={{ deviceName: revokeTarget?.device_name ?? t("security.unknownDevice") }}
-                components={{ strong: <span className="font-medium" /> }}
+                components={{ bold: <span className="font-medium" /> }}
               />
             </AlertDialogDescription>
           </AlertDialogHeader>

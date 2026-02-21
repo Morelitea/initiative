@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 
-import { updateOidcSettingsApiV1SettingsAuthPut } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
-import { useOidcSettings } from "@/hooks/useSettings";
+import { useOidcSettings, useUpdateOidcSettings } from "@/hooks/useSettings";
 import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
 
 interface OidcSettings {
@@ -45,12 +43,8 @@ export const SettingsAuthPage = () => {
 
   const oidcQuery = useOidcSettings({ enabled: isPlatformAdmin });
 
-  const updateOidcSettings = useMutation({
-    mutationFn: async (payload: OidcSettings & { client_secret?: string }) => {
-      return updateOidcSettingsApiV1SettingsAuthPut(payload) as unknown as Promise<OidcSettings>;
-    },
+  const updateOidcSettings = useUpdateOidcSettings({
     onSuccess: () => {
-      void oidcQuery.refetch();
       setClientSecret("");
     },
   });
@@ -92,7 +86,7 @@ export const SettingsAuthPage = () => {
       provider_name: formState.provider_name || null,
       scopes: formState.scopes.split(/[\s,]+/).filter(Boolean),
       client_secret: clientSecret || undefined,
-    });
+    } as OidcSettings & { client_secret?: string });
   };
 
   return (

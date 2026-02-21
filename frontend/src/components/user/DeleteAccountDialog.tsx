@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
-import { deleteOwnAccountApiV1UsersMeDeleteAccountPost } from "@/api/generated/users/users";
+import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { useMyDeletionEligibility } from "@/hooks/useAdmin";
-import { getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet } from "@/api/generated/initiatives/initiatives";
+import { getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet } from "@/api/generated/users/users";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,13 +44,6 @@ interface DeletionEligibilityResponse {
   warnings: string[];
   owned_projects: ProjectBasic[];
   last_admin_guilds: string[];
-}
-
-interface AccountDeletionRequest {
-  deletion_type: DeletionType;
-  password: string;
-  confirmation_text: string;
-  project_transfers?: Record<number, number>;
 }
 
 interface DeleteAccountDialogProps {
@@ -100,7 +92,7 @@ export function DeleteAccountDialog({
       if (initiativeMembers[initiativeId]) return;
 
       try {
-        const data = (await getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
+        const data = (await getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet(
           initiativeId
         )) as unknown as UserRead[];
         setInitiativeMembers((prev) => ({
@@ -115,10 +107,7 @@ export function DeleteAccountDialog({
   );
 
   // Delete account mutation
-  const deleteAccount = useMutation({
-    mutationFn: async (request: AccountDeletionRequest) => {
-      return deleteOwnAccountApiV1UsersMeDeleteAccountPost(request);
-    },
+  const deleteAccount = useDeleteOwnAccount({
     onSuccess: () => {
       toast.success(
         deletionType === "soft"

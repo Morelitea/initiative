@@ -1,20 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  updateEmailSettingsApiV1SettingsEmailPut,
-  sendTestEmailApiV1SettingsEmailTestPost,
-} from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
-import { useEmailSettings } from "@/hooks/useSettings";
-import type { EmailSettingsResponse } from "@/api/generated/initiativeAPI.schemas";
+import { useEmailSettings, useUpdateEmailSettings, useSendTestEmail } from "@/hooks/useSettings";
 
 interface EmailPayload {
   host?: string | null;
@@ -60,27 +54,16 @@ export const SettingsEmailPage = () => {
     }
   }, [emailQuery.data]);
 
-  const updateMutation = useMutation({
-    mutationFn: async (payload: EmailPayload) => {
-      return updateEmailSettingsApiV1SettingsEmailPut(
-        payload as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
-      ) as unknown as Promise<EmailSettingsResponse>;
-    },
+  const updateMutation = useUpdateEmailSettings({
     onSuccess: (data) => {
       toast.success(t("email.saveSuccess"));
       setPassword("");
       setTestRecipient(data.test_recipient ?? "");
-      void emailQuery.refetch();
     },
     onError: () => toast.error(t("email.saveError")),
   });
 
-  const testMutation = useMutation({
-    mutationFn: async () => {
-      await sendTestEmailApiV1SettingsEmailTestPost({
-        recipient: testRecipient || null,
-      } as Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]);
-    },
+  const testMutation = useSendTestEmail({
     onSuccess: () => toast.success(t("email.testSuccess")),
     onError: () => toast.error(t("email.testError")),
   });
@@ -225,7 +208,7 @@ export const SettingsEmailPage = () => {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => testMutation.mutate()}
+                onClick={() => testMutation.mutate({ recipient: testRecipient || null })}
                 disabled={testMutation.isPending}
               >
                 {testMutation.isPending ? t("email.sendingTest") : t("email.sendTest")}

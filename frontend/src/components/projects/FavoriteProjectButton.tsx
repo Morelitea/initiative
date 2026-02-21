@@ -3,7 +3,7 @@ import { Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
-import { useProjectFavoriteMutation } from "@/hooks/useProjectFavoriteMutation";
+import { useToggleProjectFavorite } from "@/hooks/useProjects";
 
 interface FavoriteProjectButtonProps {
   projectId: number;
@@ -21,7 +21,7 @@ export const FavoriteProjectButton = ({
   iconSize = "md",
 }: FavoriteProjectButtonProps) => {
   const { t } = useTranslation("projects");
-  const favoriteMutation = useProjectFavoriteMutation();
+  const favoriteMutation = useToggleProjectFavorite();
   const pending = favoriteMutation.isPending && favoriteMutation.variables?.projectId === projectId;
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {

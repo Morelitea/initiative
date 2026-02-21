@@ -26,7 +26,7 @@ class Project(SQLModel, table=True):
     icon: Optional[str] = Field(default=None, max_length=8)
     description: Optional[str] = Field(default=None)
     owner_id: int = Field(foreign_key="users.id", nullable=False)
-    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
+    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -97,7 +97,7 @@ class ProjectPermission(SQLModel, table=True):
     __tablename__ = "project_permissions"
 
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
     guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
     level: ProjectPermissionLevel = Field(
         default=ProjectPermissionLevel.write,

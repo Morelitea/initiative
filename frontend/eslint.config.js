@@ -35,10 +35,7 @@ export default defineConfig([
   i18next.configs["flat/recommended"],
   {
     // Disable i18next rule for UI primitives, editor plugins, and test files
-    files: [
-      "src/components/ui/**",
-      "src/__tests__/**",
-    ],
+    files: ["src/components/ui/**", "src/__tests__/**"],
     rules: {
       "i18next/no-literal-string": "off",
     },
@@ -88,7 +85,7 @@ export default defineConfig([
           paths: [
             {
               name: "@tanstack/react-query",
-              importNames: ["useQuery", "useQueryClient"],
+              importNames: ["useQuery", "useQueryClient", "useMutation"],
               message:
                 "Use domain hooks from @/hooks/ instead of direct React Query imports. Only src/api/ and src/hooks/ may use query hooks directly.",
             },

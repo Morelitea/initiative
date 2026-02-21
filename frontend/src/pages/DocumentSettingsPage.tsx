@@ -1,27 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRightLeft, Copy, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-
-import {
-  updateDocumentApiV1DocumentsDocumentIdPatch,
-  deleteDocumentApiV1DocumentsDocumentIdDelete,
-  duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost,
-  copyDocumentApiV1DocumentsDocumentIdCopyPost,
-  addDocumentMemberApiV1DocumentsDocumentIdMembersPost,
-  updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch,
-  removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete,
-  addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost,
-  removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost,
-  addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost,
-  updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch,
-  removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete,
-} from "@/api/generated/documents/documents";
-import { invalidateAllDocuments, invalidateDocument } from "@/api/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -55,17 +38,31 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
-import { useDocument, useSetDocumentCache } from "@/hooks/useDocuments";
+import {
+  useDocument,
+  useSetDocumentCache,
+  useUpdateDocument,
+  useDeleteDocument,
+  useDuplicateDocument,
+  useAddDocumentMember,
+  useUpdateDocumentMember,
+  useRemoveDocumentMember,
+  useAddDocumentMembersBulk,
+  useRemoveDocumentMembersBulk,
+  useAddDocumentRolePermission,
+  useUpdateDocumentRolePermission,
+  useRemoveDocumentRolePermission,
+  useCopyDocumentToInitiative,
+} from "@/hooks/useDocuments";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import type {
-  DocumentRead,
   DocumentPermissionLevel,
+  DocumentRolePermissionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { DocumentRolePermissionRead } from "@/api/generated/initiativeAPI.schemas";
 import { TagPicker } from "@/components/tags";
 import { useSetDocumentTags } from "@/hooks/useTags";
 
@@ -215,19 +212,14 @@ export const DocumentSettingsPage = () => {
     }
   }, [copyDialogOpen, copyableInitiatives, copyInitiativeId]);
 
-  const addMember = useMutation({
-    mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
-      await addDocumentMemberApiV1DocumentsDocumentIdMembersPost(parsedId, {
-        user_id: userId,
-        level,
-      });
-    },
+  // ── Centralized mutation hooks ──────────────────────────────────────────
+
+  const addMember = useAddDocumentMember(parsedId, {
     onSuccess: () => {
       setAccessMessage(t("settings.accessGranted"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -235,16 +227,10 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const updateMemberLevel = useMutation({
-    mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
-      await updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch(parsedId, userId, {
-        level,
-      });
-    },
+  const updateMemberLevel = useUpdateDocumentMember(parsedId, {
     onSuccess: () => {
       setAccessMessage(t("settings.accessUpdated"));
       setAccessError(null);
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -252,14 +238,10 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const removeMember = useMutation({
-    mutationFn: async (userId: number) => {
-      await removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete(parsedId, userId);
-    },
+  const removeMember = useRemoveDocumentMember(parsedId, {
     onSuccess: () => {
       setAccessMessage(t("settings.accessRemoved"));
       setAccessError(null);
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -267,20 +249,12 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const addAllMembers = useMutation({
-    mutationFn: async (level: DocumentPermissionLevel) => {
-      const userIds = availableMembers.map((member) => member.user.id);
-      await addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost(parsedId, {
-        user_ids: userIds,
-        level,
-      });
-    },
+  const addAllMembers = useAddDocumentMembersBulk(parsedId, {
     onSuccess: () => {
       setAccessMessage(t("settings.accessGranted"));
       setAccessError(null);
       setSelectedNewUserId("");
       setSelectedNewLevel("read");
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -288,24 +262,11 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const bulkUpdateLevel = useMutation({
-    mutationFn: async ({
-      userIds,
-      level,
-    }: {
-      userIds: number[];
-      level: DocumentPermissionLevel;
-    }) => {
-      await addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost(parsedId, {
-        user_ids: userIds,
-        level,
-      });
-    },
+  const bulkUpdateLevel = useAddDocumentMembersBulk(parsedId, {
     onSuccess: () => {
       setAccessMessage(t("settings.accessUpdated"));
       setAccessError(null);
       setSelectedMembers([]);
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -313,17 +274,11 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const bulkRemoveMembers = useMutation({
-    mutationFn: async (userIds: number[]) => {
-      await removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost(parsedId, {
-        user_ids: userIds,
-      });
-    },
+  const bulkRemoveMembers = useRemoveDocumentMembersBulk(parsedId, {
     onSuccess: () => {
       setAccessMessage(t("settings.accessRemoved"));
       setAccessError(null);
       setSelectedMembers([]);
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       setAccessMessage(null);
@@ -331,23 +286,10 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const duplicateDocument = useMutation({
-    mutationFn: async () => {
-      if (!document) {
-        throw new Error("Document is not loaded yet.");
-      }
-      const trimmedTitle = duplicateTitle.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-      return duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost(document.id, {
-        title: trimmedTitle,
-      }) as unknown as Promise<DocumentRead>;
-    },
+  const duplicateDocumentMutation = useDuplicateDocument(parsedId, {
     onSuccess: (duplicated) => {
       toast.success(t("settings.documentDuplicated"));
       setDuplicateDialogOpen(false);
-      void invalidateAllDocuments();
       router.navigate({
         to: gp(`/documents/${duplicated.id}`),
       });
@@ -358,23 +300,7 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const copyDocument = useMutation({
-    mutationFn: async () => {
-      if (!document) {
-        throw new Error("Document is not loaded yet.");
-      }
-      if (!copyInitiativeId) {
-        throw new Error("Select a target initiative");
-      }
-      const trimmedTitle = copyTitle.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-      return copyDocumentApiV1DocumentsDocumentIdCopyPost(document.id, {
-        target_initiative_id: Number(copyInitiativeId),
-        title: trimmedTitle,
-      }) as unknown as Promise<DocumentRead>;
-    },
+  const copyDocumentMutation = useCopyDocumentToInitiative(parsedId, {
     onSuccess: (copied) => {
       toast.success(
         t("settings.documentCopied", {
@@ -383,7 +309,6 @@ export const DocumentSettingsPage = () => {
         })
       );
       setCopyDialogOpen(false);
-      void invalidateAllDocuments();
       router.navigate({ to: gp(`/documents/${copied.id}`) });
     },
     onError: (error) => {
@@ -392,13 +317,9 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const deleteDocument = useMutation({
-    mutationFn: async () => {
-      await deleteDocumentApiV1DocumentsDocumentIdDelete(parsedId);
-    },
+  const deleteDocumentMutation = useDeleteDocument({
     onSuccess: () => {
       toast.success(t("settings.documentDeleted"));
-      void invalidateAllDocuments();
       setDeleteDialogOpen(false);
       router.navigate({ to: gp("/documents") });
     },
@@ -407,19 +328,10 @@ export const DocumentSettingsPage = () => {
     },
   });
 
-  const updateTemplate = useMutation({
-    mutationFn: async (nextValue: boolean) => {
-      if (!document) {
-        throw new Error("Document is not loaded yet.");
-      }
-      return updateDocumentApiV1DocumentsDocumentIdPatch(document.id, {
-        is_template: nextValue,
-      }) as unknown as Promise<DocumentRead>;
-    },
+  const updateTemplate = useUpdateDocument({
     onSuccess: (updated) => {
       setIsTemplate(updated.is_template);
       setDocumentCache(parsedId, updated);
-      void invalidateAllDocuments();
     },
     onError: () => {
       toast.error(t("settings.templateError"));
@@ -427,51 +339,29 @@ export const DocumentSettingsPage = () => {
   });
 
   // Role permission mutations
-  const addRolePermission = useMutation({
-    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost(parsedId, {
-        initiative_role_id: roleId,
-        level,
-      });
-    },
+  const addRolePermission = useAddDocumentRolePermission(parsedId, {
     onSuccess: () => {
       toast.success(t("settings.roleAccessGranted"));
       setSelectedNewRoleId("");
       setSelectedNewRoleLevel("read");
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       toast.error(t("settings.grantRoleAccessError"));
     },
   });
 
-  const updateRolePermission = useMutation({
-    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch(
-        parsedId,
-        roleId,
-        { level }
-      );
-    },
+  const updateRolePermission = useUpdateDocumentRolePermission(parsedId, {
     onSuccess: () => {
       toast.success(t("settings.roleAccessUpdated"));
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       toast.error(t("settings.updateRoleAccessError"));
     },
   });
 
-  const removeRolePermission = useMutation({
-    mutationFn: async (roleId: number) => {
-      await removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete(
-        parsedId,
-        roleId
-      );
-    },
+  const removeRolePermission = useRemoveDocumentRolePermission(parsedId, {
     onSuccess: () => {
       toast.success(t("settings.roleAccessRemoved"));
-      void invalidateDocument(parsedId);
     },
     onError: () => {
       toast.error(t("settings.removeRoleAccessError"));
@@ -493,9 +383,12 @@ export const DocumentSettingsPage = () => {
     }
     const previous = isTemplate;
     setIsTemplate(value);
-    updateTemplate.mutate(value, {
-      onError: () => setIsTemplate(previous),
-    });
+    updateTemplate.mutate(
+      { documentId: document.id, data: { is_template: value } },
+      {
+        onError: () => setIsTemplate(previous),
+      }
+    );
   };
 
   // Column definitions for the permissions table
@@ -851,7 +744,7 @@ export const DocumentSettingsPage = () => {
                           .map((m) => m.userId);
                         if (userIds.length > 0) {
                           bulkUpdateLevel.mutate({
-                            userIds,
+                            user_ids: userIds,
                             level: level as DocumentPermissionLevel,
                           });
                         }
@@ -875,7 +768,7 @@ export const DocumentSettingsPage = () => {
                           .filter((m) => !m.isOwner)
                           .map((m) => m.userId);
                         if (userIds.length > 0) {
-                          bulkRemoveMembers.mutate(userIds);
+                          bulkRemoveMembers.mutate({ user_ids: userIds });
                         }
                       }}
                       disabled={bulkUpdateLevel.isPending || bulkRemoveMembers.isPending}
@@ -956,7 +849,12 @@ export const DocumentSettingsPage = () => {
                       <Button
                         type="button"
                         variant="secondary"
-                        onClick={() => addAllMembers.mutate(selectedNewLevel)}
+                        onClick={() =>
+                          addAllMembers.mutate({
+                            user_ids: availableMembers.map((member) => member.user.id),
+                            level: selectedNewLevel,
+                          })
+                        }
                         disabled={addMember.isPending || addAllMembers.isPending}
                       >
                         {addAllMembers.isPending
@@ -1053,10 +951,14 @@ export const DocumentSettingsPage = () => {
             </Button>
             <Button
               type="button"
-              onClick={() => duplicateDocument.mutate()}
-              disabled={duplicateDocument.isPending || !duplicateTitle.trim()}
+              onClick={() => {
+                const trimmedTitle = duplicateTitle.trim();
+                if (!trimmedTitle) return;
+                duplicateDocumentMutation.mutate({ title: trimmedTitle });
+              }}
+              disabled={duplicateDocumentMutation.isPending || !duplicateTitle.trim()}
             >
-              {duplicateDocument.isPending ? (
+              {duplicateDocumentMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {t("settings.duplicating")}
@@ -1119,15 +1021,22 @@ export const DocumentSettingsPage = () => {
             </Button>
             <Button
               type="button"
-              onClick={() => copyDocument.mutate()}
+              onClick={() => {
+                const trimmedTitle = copyTitle.trim();
+                if (!trimmedTitle || !copyInitiativeId) return;
+                copyDocumentMutation.mutate({
+                  target_initiative_id: Number(copyInitiativeId),
+                  title: trimmedTitle,
+                });
+              }}
               disabled={
-                copyDocument.isPending ||
+                copyDocumentMutation.isPending ||
                 copyableInitiatives.length === 0 ||
                 !copyInitiativeId ||
                 !copyTitle.trim()
               }
             >
-              {copyDocument.isPending ? (
+              {copyDocumentMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {t("settings.copying")}
@@ -1153,10 +1062,10 @@ export const DocumentSettingsPage = () => {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => deleteDocument.mutate()}
-              disabled={deleteDocument.isPending}
+              onClick={() => deleteDocumentMutation.mutate([parsedId])}
+              disabled={deleteDocumentMutation.isPending}
             >
-              {deleteDocument.isPending ? (
+              {deleteDocumentMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {t("settings.deleting")}

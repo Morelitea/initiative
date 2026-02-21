@@ -167,6 +167,20 @@ export const invalidateAllGuilds = () => invalidatePrefix("/api/v1/guilds");
 export const invalidateGuildInvites = (guildId: number) =>
   invalidateExact([`/api/v1/guilds/${guildId}/invites`]);
 
+// ── Guild Switch ────────────────────────────────────────────────────────────
+// Keys that are NOT guild-scoped and should survive a guild switch
+const GLOBAL_KEY_PREFIXES = ["/api/v1/guilds", "/api/v1/users/me", "/api/v1/version"];
+
+/** Remove all guild-scoped query data so stale cross-guild results are never shown. */
+export const resetGuildScopedQueries = () =>
+  queryClient.resetQueries({
+    predicate: (query) => {
+      const first = query.queryKey[0];
+      if (typeof first !== "string") return true;
+      return !GLOBAL_KEY_PREFIXES.some((prefix) => first.startsWith(prefix));
+    },
+  });
+
 // ── Subtasks ─────────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +10,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { updateTaskApiV1TasksTaskIdPatch } from "@/api/generated/tasks/tasks";
-import { invalidateAllTasks, invalidateTask } from "@/api/query-keys";
+import { useUpdateTask } from "@/hooks/useTasks";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import type { TaskListRead, TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 
@@ -36,31 +34,18 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
     [t]
   );
 
-  const updatePriority = useMutation({
-    mutationFn: async (priority: TaskPriority) => {
-      return updateTaskApiV1TasksTaskIdPatch(task.id, {
-        priority,
-      }) as unknown as Promise<TaskListRead>;
-    },
+  const updatePriority = useUpdateTask({
     onSuccess: (updatedTask) => {
-      // Invalidate relevant queries
-      void invalidateAllTasks();
-      void invalidateTask(task.id);
       toast.success(
         t("prioritySelector.changed", { priority: t(`priority.${updatedTask.priority}`) })
       );
-    },
-    onError: (error) => {
-      console.error(error);
-      const message = error instanceof Error ? error.message : t("prioritySelector.updateError");
-      toast.error(message);
     },
   });
 
   const handlePriorityChange = (value: string) => {
     const newPriority = value as TaskPriority;
     if (newPriority !== task.priority) {
-      updatePriority.mutate(newPriority);
+      updatePriority.mutate({ taskId: task.id, data: { priority: newPriority } });
     }
   };
 

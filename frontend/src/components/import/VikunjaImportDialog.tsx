@@ -1,15 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
-import {
-  parseVikunjaJsonApiV1ImportsVikunjaParsePost,
-  importFromVikunjaApiV1ImportsVikunjaPost,
-} from "@/api/generated/imports/imports";
-import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useParseVikunjaJson, useImportFromVikunja } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,15 +131,11 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   }, [selectedSourceProject, taskStatusesQuery.data]);
 
   // Parse JSON mutation
-  const parseMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return parseVikunjaJsonApiV1ImportsVikunjaParsePost(
-        content
-      ) as unknown as Promise<VikunjaParseResult>;
-    },
+  const parseMutation = useParseVikunjaJson({
     onSuccess: (data) => {
-      setParseResult(data);
-      if (data.projects.length === 0) {
+      const result = data as VikunjaParseResult;
+      setParseResult(result);
+      if (result.projects.length === 0) {
         toast.error(t("vikunja.noProjectsFound"));
       } else {
         setStep("select-project");
@@ -156,21 +147,10 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   });
 
   // Import mutation
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedTargetProjectId) throw new Error("No target project selected");
-      if (!selectedSourceProjectId) throw new Error("No source project selected");
-      return importFromVikunjaApiV1ImportsVikunjaPost({
-        project_id: selectedTargetProjectId,
-        json_content: jsonContent,
-        source_project_id: selectedSourceProjectId,
-        bucket_mapping: bucketMapping,
-      }) as unknown as Promise<ImportResult>;
-    },
+  const importMutation = useImportFromVikunja({
     onSuccess: (data) => {
-      setImportResult(data);
+      setImportResult(data as ImportResult);
       setStep("result");
-      void invalidateAllTasks();
     },
     onError: () => {
       toast.error(t("common.importFailed"));
@@ -206,8 +186,20 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
   }, [selectedSourceProjectId, selectedTargetProjectId]);
 
   const handleImport = useCallback(() => {
-    importMutation.mutate();
-  }, [importMutation]);
+    if (!selectedTargetProjectId || !selectedSourceProjectId) return;
+    importMutation.mutate({
+      project_id: selectedTargetProjectId,
+      json_content: jsonContent,
+      source_project_id: selectedSourceProjectId,
+      bucket_mapping: bucketMapping,
+    });
+  }, [
+    importMutation,
+    selectedTargetProjectId,
+    selectedSourceProjectId,
+    jsonContent,
+    bucketMapping,
+  ]);
 
   // Filter to only show projects where user has write or owner permission
   const activeProjects =

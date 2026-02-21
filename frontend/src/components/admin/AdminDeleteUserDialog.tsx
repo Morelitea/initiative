@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 
 import {
-  deleteUserApiV1AdminUsersUserIdDelete,
-  adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
-  adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
-  adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
-} from "@/api/generated/admin/admin";
-import { useUserDeletionEligibility } from "@/hooks/useAdmin";
-import { getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet } from "@/api/generated/initiatives/initiatives";
+  useUserDeletionEligibility,
+  useAdminDeleteUser,
+  useAdminPromoteGuildMember,
+  useAdminDeleteGuild,
+  useAdminPromoteInitiativeMember,
+} from "@/hooks/useAdmin";
+import { adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet } from "@/api/generated/admin/admin";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,8 +28,6 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import type {
-  AdminUserDeleteRequest,
-  AccountDeletionResponse,
   AdminDeletionEligibilityResponse,
   GuildBlockerInfo,
   InitiativeBlockerInfo,
@@ -95,7 +92,7 @@ export function AdminDeleteUserDialog({
       if (initiativeMembers[initiativeId]) return;
 
       try {
-        const members = await (getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
+        const members = await (adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet(
           initiativeId
         ) as unknown as Promise<UserRead[]>);
         setInitiativeMembers((prev) => ({
@@ -110,14 +107,7 @@ export function AdminDeleteUserDialog({
   );
 
   // Mutations for resolving blockers
-  const promoteGuildMember = useMutation({
-    mutationFn: async ({ guildId, userId }: { guildId: number; userId: number }) => {
-      await adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch(
-        guildId,
-        userId,
-        { role: "admin" }
-      );
-    },
+  const promoteGuildMember = useAdminPromoteGuildMember({
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.promoteSuccess"));
       await refreshEligibility();
@@ -131,10 +121,7 @@ export function AdminDeleteUserDialog({
     onSettled: () => setIsResolvingBlocker(false),
   });
 
-  const deleteGuild = useMutation({
-    mutationFn: async (guildId: number) => {
-      await adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId);
-    },
+  const deleteGuild = useAdminDeleteGuild({
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.deleteGuildSuccess"));
       setGuildDeleteConfirm(null);
@@ -149,14 +136,7 @@ export function AdminDeleteUserDialog({
     onSettled: () => setIsResolvingBlocker(false),
   });
 
-  const promoteInitiativeMember = useMutation({
-    mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
-      await adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
-        initiativeId,
-        userId,
-        { role: "project_manager" }
-      );
-    },
+  const promoteInitiativeMember = useAdminPromoteInitiativeMember({
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.promoteSuccess"));
       await refreshEligibility();
@@ -171,13 +151,7 @@ export function AdminDeleteUserDialog({
   });
 
   // Delete user mutation
-  const deleteUser = useMutation({
-    mutationFn: async (request: AdminUserDeleteRequest) => {
-      return deleteUserApiV1AdminUsersUserIdDelete(
-        targetUser.id,
-        request
-      ) as unknown as Promise<AccountDeletionResponse>;
-    },
+  const deleteUser = useAdminDeleteUser(targetUser.id, {
     onSuccess: (data) => {
       toast.success(data.message);
       onSuccess();

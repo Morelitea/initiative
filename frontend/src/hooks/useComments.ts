@@ -22,6 +22,7 @@ import type {
   RecentActivityEntry,
   RecentCommentsApiV1CommentsRecentGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { MutationOpts } from "@/types/mutation";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
@@ -100,27 +101,41 @@ export const useCommentsCache = (params: ListCommentsApiV1CommentsGetParams) => 
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-export const useCreateComment = () => {
+export const useCreateComment = (
+  options?: MutationOpts<CommentRead, Parameters<typeof createCommentApiV1CommentsPost>[0]>
+) => {
   const { t } = useTranslation("common");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
+    ...rest,
     mutationFn: async (data: Parameters<typeof createCommentApiV1CommentsPost>[0]) => {
       return createCommentApiV1CommentsPost(data) as unknown as Promise<CommentRead>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllComments();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("error");
+    onError: (...args) => {
+      const message = args[0] instanceof Error ? args[0].message : t("error");
       toast.error(message);
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useUpdateComment = () => {
+export const useUpdateComment = (
+  options?: MutationOpts<
+    CommentRead,
+    { commentId: number; data: Parameters<typeof updateCommentApiV1CommentsCommentIdPatch>[1] }
+  >
+) => {
   const { t } = useTranslation("common");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
+    ...rest,
     mutationFn: async ({
       commentId,
       data,
@@ -133,29 +148,37 @@ export const useUpdateComment = () => {
         data
       ) as unknown as Promise<CommentRead>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllComments();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("error");
+    onError: (...args) => {
+      const message = args[0] instanceof Error ? args[0].message : t("error");
       toast.error(message);
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useDeleteComment = () => {
+export const useDeleteComment = (options?: MutationOpts<void, number>) => {
   const { t } = useTranslation("common");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
+    ...rest,
     mutationFn: async (commentId: number) => {
       await deleteCommentApiV1CommentsCommentIdDelete(commentId);
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllComments();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("error");
+    onError: (...args) => {
+      const message = args[0] instanceof Error ? args[0].message : t("error");
       toast.error(message);
+      onError?.(...args);
     },
+    onSettled,
   });
 };
