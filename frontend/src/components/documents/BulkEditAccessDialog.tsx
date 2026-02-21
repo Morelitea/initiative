@@ -49,12 +49,10 @@ import type {
   InitiativeMemberRead,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogWithSuccessProps } from "@/types/dialog";
 
-interface BulkEditAccessDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface BulkEditAccessDialogProps extends DialogWithSuccessProps {
   documents: DocumentSummary[];
-  onSuccess: () => void;
 }
 
 interface SelectableUser {

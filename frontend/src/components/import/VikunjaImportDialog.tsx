@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogProps } from "@/types/dialog";
 
 interface VikunjaBucket {
   id: number;
@@ -50,10 +51,7 @@ interface ImportResult {
   errors: string[];
 }
 
-interface VikunjaImportDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+type VikunjaImportDialogProps = DialogProps;
 
 type Step = "upload" | "select-project" | "configure" | "result";
 

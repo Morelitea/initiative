@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogWithSuccessProps } from "@/types/dialog";
 
 type DeletionType = "soft" | "hard";
 type DeletionStep = "choose-type" | "check-blockers" | "transfer-projects" | "confirm";
@@ -46,10 +47,7 @@ interface DeletionEligibilityResponse {
   last_admin_guilds: string[];
 }
 
-interface DeleteAccountDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+interface DeleteAccountDialogProps extends DialogWithSuccessProps {
   user: UserRead;
 }
 
