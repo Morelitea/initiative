@@ -26,21 +26,23 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
 
     # Subsumed by composite PK (leading-column redundancy)
-    op.drop_index("ix_task_tags_task_id", table_name="task_tags")
-    op.drop_index("ix_project_tags_project_id", table_name="project_tags")
-    op.drop_index("ix_document_tags_document_id", table_name="document_tags")
-    op.drop_index("ix_project_favorites_user_id", table_name="project_favorites")
-    op.drop_index("ix_recent_project_views_user_id", table_name="recent_project_views")
-    op.drop_index("ix_project_documents_project_id", table_name="project_documents")
+    # Use IF EXISTS so the migration is idempotent — these indexes may not
+    # exist on databases that were created without the model-level index=True.
+    op.execute("DROP INDEX IF EXISTS ix_task_tags_task_id")
+    op.execute("DROP INDEX IF EXISTS ix_project_tags_project_id")
+    op.execute("DROP INDEX IF EXISTS ix_document_tags_document_id")
+    op.execute("DROP INDEX IF EXISTS ix_project_favorites_user_id")
+    op.execute("DROP INDEX IF EXISTS ix_recent_project_views_user_id")
+    op.execute("DROP INDEX IF EXISTS ix_project_documents_project_id")
 
     # Subsumed by idx_tasks_project_archived(project_id, is_archived)
-    op.drop_index("ix_tasks_is_archived", table_name="tasks")
+    op.execute("DROP INDEX IF EXISTS ix_tasks_is_archived")
 
     # Never used — all queries filter by user_id first via PK
-    op.drop_index("ix_recent_project_views_last_viewed_at", table_name="recent_project_views")
+    op.execute("DROP INDEX IF EXISTS ix_recent_project_views_last_viewed_at")
 
     # Duplicate of unique constraint index users_email_key
-    op.drop_index("ix_users_email", table_name="users")
+    op.execute("DROP INDEX IF EXISTS ix_users_email")
 
     # ------------------------------------------------------------------
     # Add 6 high-priority indexes
