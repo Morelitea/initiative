@@ -1,24 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { Link, useRouter, useSearch } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  FileSpreadsheet,
-  Filter,
-  LayoutGrid,
-  Loader2,
-  Plus,
-  Presentation,
-  Shield,
-  Table,
-  Tags,
-  Copy,
-  Trash2,
-} from "lucide-react";
+import type { SortingState } from "@tanstack/react-table";
+import { useRouter, useSearch } from "@tanstack/react-router";
+import { LayoutGrid, Loader2, Plus, Table, Tags } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -33,25 +16,16 @@ import { getItem, setItem } from "@/lib/storage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DataTable } from "@/components/ui/data-table";
-import { Badge } from "@/components/ui/badge";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { BulkEditAccessDialog } from "@/components/documents/BulkEditAccessDialog";
+import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
+import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
+import { DocumentsListView } from "@/components/documents/DocumentsListView";
+import { PaginationBar } from "@/components/documents/PaginationBar";
 import { useAuth } from "@/hooks/useAuth";
-import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
   useMyInitiativePermissions,
@@ -63,12 +37,7 @@ import type {
   TagRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getFileTypeLabel } from "@/lib/fileUtils";
-import { SortIcon } from "@/components/SortIcon";
-import { dateSortingFn } from "@/lib/sorting";
-import { TagBadge } from "@/components/tags/TagBadge";
-import { TagPicker } from "@/components/tags/TagPicker";
-import { TagTreeView, UNTAGGED_PATH } from "@/components/tags/TagTreeView";
+import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { useTags } from "@/hooks/useTags";
 
@@ -88,106 +57,6 @@ const getDefaultDocumentFiltersVisibility = () => {
   return window.matchMedia("(min-width: 640px)").matches;
 };
 
-// Cell component that uses guild-scoped URLs
-const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
-  const gp = useGuildPath();
-  return (
-    <div className="min-w-[220px] sm:min-w-0">
-      <Link
-        to={gp(`/documents/${document.id}`)}
-        className="text-primary font-medium hover:underline"
-      >
-        {document.title}
-      </Link>
-    </div>
-  );
-};
-
-const DocumentTagsCell = ({ tags }: { tags: TagSummary[] }) => {
-  const gp = useGuildPath();
-  if (tags.length === 0) {
-    return <span className="text-muted-foreground text-sm">—</span>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1">
-      {tags.slice(0, 3).map((tag) => (
-        <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-      ))}
-      {tags.length > 3 && <span className="text-muted-foreground text-xs">+{tags.length - 3}</span>}
-    </div>
-  );
-};
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
-
-interface PaginationBarProps {
-  page: number;
-  pageSize: number;
-  totalCount: number;
-  hasNext: boolean;
-  onPageChange: (updater: number | ((prev: number) => number)) => void;
-  onPageSizeChange: (size: number) => void;
-  onPrefetchPage: (page: number) => void;
-}
-
-const PaginationBar = ({
-  page,
-  pageSize,
-  totalCount,
-  hasNext,
-  onPageChange,
-  onPageSizeChange,
-  onPrefetchPage,
-}: PaginationBarProps) => {
-  const { t } = useTranslation("documents");
-  const start = (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, totalCount);
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground text-sm">{t("page.perPage")}</span>
-        <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
-          <SelectTrigger className="h-8 w-20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {PAGE_SIZE_OPTIONS.map((opt) => (
-              <SelectItem key={opt} value={String(opt)}>
-                {opt}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-muted-foreground text-sm">
-          {t("page.rangeOf", { start, end, total: totalCount })}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 self-end sm:self-auto">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange((p) => Math.max(1, p - 1))}
-          disabled={page <= 1}
-          onMouseEnter={() => onPrefetchPage(page - 1)}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          {t("page.previous")}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange((p) => p + 1)}
-          disabled={!hasNext}
-          onMouseEnter={() => hasNext && onPrefetchPage(page + 1)}
-        >
-          {t("page.next")}
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
   fixedTagIds?: number[];
@@ -200,7 +69,6 @@ export const DocumentsView = ({
   canCreate,
 }: DocumentsViewProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const dateLocale = useDateLocale();
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
@@ -605,121 +473,6 @@ export const DocumentsView = ({
     }
   };
 
-  // Column definitions with translations (must be inside component for hook access)
-  const documentColumns: ColumnDef<DocumentSummary>[] = useMemo(
-    () => [
-      {
-        accessorKey: "title",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("columns.title")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ row }) => <DocumentTitleCell document={row.original} />,
-        enableSorting: true,
-        sortingFn: "alphanumeric",
-        enableHiding: false,
-      },
-      {
-        id: "last updated",
-        accessorKey: "updated_at",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("columns.lastUpdated")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ row }) => {
-          const updatedAt = new Date(row.original.updated_at);
-          return (
-            <div className="min-w-[100px] sm:min-w-0">
-              <span className="text-muted-foreground">
-                {formatDistanceToNow(updatedAt, { addSuffix: true, locale: dateLocale })}
-              </span>
-            </div>
-          );
-        },
-        sortingFn: dateSortingFn,
-      },
-      {
-        accessorKey: "projects",
-        header: t("columns.projects"),
-        cell: ({ row }) => {
-          const count = row.original.projects.length;
-          return <span>{count}</span>;
-        },
-      },
-      {
-        id: "tags",
-        header: t("columns.tags"),
-        cell: ({ row }) => <DocumentTagsCell tags={row.original.tags ?? []} />,
-        size: 150,
-      },
-      {
-        id: "owner",
-        header: t("columns.owner"),
-        cell: ({ row }) => {
-          const ownerPermission = (row.original.permissions ?? []).find((p) => p.level === "owner");
-          if (!ownerPermission) {
-            return <span className="text-muted-foreground">—</span>;
-          }
-          const ownerMember = row.original.initiative?.members?.find(
-            (m) => m.user.id === ownerPermission.user_id
-          );
-          const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
-          return (
-            <span>{ownerName || t("bulk.userFallback", { id: ownerPermission.user_id })}</span>
-          );
-        },
-      },
-      {
-        id: "type",
-        accessorKey: "is_template",
-        header: t("columns.type"),
-        cell: ({ row }) => {
-          const doc = row.original;
-          const isFile = doc.document_type === "file";
-          const fileTypeLabel = isFile
-            ? getFileTypeLabel(doc.file_content_type, doc.original_filename)
-            : null;
-
-          return (
-            <div className="flex items-center gap-2">
-              {isFile ? (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  {fileTypeLabel === "Excel" ? (
-                    <FileSpreadsheet className="h-3 w-3" />
-                  ) : fileTypeLabel === "PowerPoint" ? (
-                    <Presentation className="h-3 w-3" />
-                  ) : (
-                    <FileText className="h-3 w-3" />
-                  )}
-                  {fileTypeLabel}
-                </Badge>
-              ) : doc.is_template ? (
-                <Badge variant="outline">{t("type.template")}</Badge>
-              ) : (
-                <span className="text-muted-foreground">{t("type.document")}</span>
-              )}
-            </div>
-          );
-        },
-      },
-    ],
-    [t, dateLocale]
-  );
-
   const deleteDocuments = useDeleteDocument({
     onSuccess: () => setSelectedDocuments([]),
   });
@@ -833,95 +586,22 @@ export const DocumentsView = ({
         </div>
       )}
 
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-        <div className="flex items-center justify-between sm:hidden">
-          <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
-            <Filter className="h-4 w-4" />
-            {t("page.filters")}
-          </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-3">
-              {filtersOpen ? t("page.hideFilters") : t("page.showFilters")}
-              <ChevronDown
-                className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-              />
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
-            <div className="w-full space-y-2 sm:flex-1">
-              <Label
-                htmlFor="document-search"
-                className="text-muted-foreground block text-xs font-medium"
-              >
-                {t("page.searchLabel")}
-              </Label>
-              <Input
-                id="document-search"
-                type="search"
-                placeholder={t("page.searchPlaceholder")}
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </div>
-            {lockedInitiativeId ? (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label className="text-muted-foreground block text-xs font-medium">
-                  {t("page.initiativeLabel")}
-                </Label>
-                <p className="text-sm font-medium">
-                  {lockedInitiative?.name ?? t("page.selectedInitiative")}
-                </p>
-              </div>
-            ) : (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label
-                  htmlFor="document-initiative-filter"
-                  className="text-muted-foreground block text-xs font-medium"
-                >
-                  {t("page.initiativeLabel")}
-                </Label>
-                <Select
-                  value={initiativeFilter}
-                  onValueChange={(value) => setInitiativeFilter(value)}
-                  disabled={initiativesQuery.isLoading}
-                >
-                  <SelectTrigger id="document-initiative-filter">
-                    <SelectValue placeholder={t("page.allInitiatives")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      {t("page.allInitiatives")}
-                    </SelectItem>
-                    {viewableInitiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {viewMode !== "tags" && !fixedTagIds && (
-              <div className="w-full space-y-2 sm:w-48">
-                <Label
-                  htmlFor="document-tag-filter"
-                  className="text-muted-foreground block text-xs font-medium"
-                >
-                  {t("page.filterByTag")}
-                </Label>
-                <TagPicker
-                  selectedTags={selectedTagsForFilter}
-                  onChange={handleTagFiltersChange}
-                  placeholder={t("page.allTags")}
-                  variant="filter"
-                />
-              </div>
-            )}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      <DocumentsFilterBar
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        initiativeFilter={initiativeFilter}
+        onInitiativeFilterChange={setInitiativeFilter}
+        lockedInitiativeId={lockedInitiativeId}
+        lockedInitiativeName={lockedInitiative?.name ?? null}
+        viewableInitiatives={viewableInitiatives}
+        initiativesLoading={initiativesQuery.isLoading}
+        filtersOpen={filtersOpen}
+        onFiltersOpenChange={setFiltersOpen}
+        viewMode={viewMode}
+        tagFilters={selectedTagsForFilter}
+        onTagFiltersChange={handleTagFiltersChange}
+        fixedTagIds={fixedTagIds}
+      />
 
       {!canViewDocs ? (
         <Card className="border-destructive/50 bg-destructive/5">
@@ -938,77 +618,21 @@ export const DocumentsView = ({
       ) : documentsQuery.isError ? (
         <p className="text-destructive text-sm">{t("page.loadError")}</p>
       ) : viewMode === "tags" ? (
-        <div className="flex flex-col gap-4 md:flex-row">
-          {/* Mobile: collapsible tag panel */}
-          <Collapsible className="border-muted bg-background/40 rounded-md border md:hidden">
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium"
-              >
-                <span className="flex items-center gap-2">
-                  <Tags className="h-4 w-4" />
-                  {t("page.browseByTag")}
-                  {treeSelectedPaths.size > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                      {treeSelectedPaths.size}
-                    </Badge>
-                  )}
-                </span>
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="max-h-64">
-                <TagTreeView
-                  tags={allTags}
-                  tagCounts={countsQuery.data?.tag_counts ?? {}}
-                  untaggedCount={countsQuery.data?.untagged_count ?? 0}
-                  selectedTagPaths={treeSelectedPaths}
-                  onToggleTag={handleTreeTagToggle}
-                />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-          {/* Desktop: fixed sidebar */}
-          <div className="border-muted bg-background/40 hidden w-64 shrink-0 rounded-md border md:block">
-            <TagTreeView
-              tags={allTags}
-              tagCounts={countsQuery.data?.tag_counts ?? {}}
-              untaggedCount={countsQuery.data?.untagged_count ?? 0}
-              selectedTagPaths={treeSelectedPaths}
-              onToggleTag={handleTreeTagToggle}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            {displayDocuments.length > 0 ? (
-              <>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
-                  {displayDocuments.map((document) => (
-                    <DocumentCard key={document.id} document={document} hideInitiative />
-                  ))}
-                </div>
-                {totalCount > 0 && (
-                  <div className="mt-4">
-                    <PaginationBar
-                      page={page}
-                      pageSize={pageSize}
-                      totalCount={totalCount}
-                      hasNext={hasNext}
-                      onPageChange={setPage}
-                      onPageSizeChange={handlePageSizeChange}
-                      onPrefetchPage={prefetchPage}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-muted-foreground py-8 text-center text-sm">
-                {t("page.noMatchingTags")}
-              </div>
-            )}
-          </div>
-        </div>
+        <DocumentsTagsView
+          documents={displayDocuments}
+          allTags={allTags}
+          tagCounts={countsQuery.data?.tag_counts ?? {}}
+          untaggedCount={countsQuery.data?.untagged_count ?? 0}
+          treeSelectedPaths={treeSelectedPaths}
+          onToggleTag={handleTreeTagToggle}
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          hasNext={hasNext}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+          onPrefetchPage={prefetchPage}
+        />
       ) : totalCount > 0 ? (
         viewMode === "grid" ? (
           <>
@@ -1030,112 +654,31 @@ export const DocumentsView = ({
             )}
           </>
         ) : (
-          <>
-            {selectedDocuments.length > 0 && (
-              <div className="border-primary bg-primary/5 flex items-center justify-between rounded-md border p-4">
-                <div className="text-sm font-medium">
-                  {t("bulk.selected", { count: selectedDocuments.length })}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBulkEditTagsOpen(true)}
-                    disabled={!canEditSelectedDocuments}
-                    title={canEditSelectedDocuments ? undefined : t("bulk.needEditAccessTags")}
-                  >
-                    <Tags className="h-4 w-4" />
-                    {t("bulk.editTags")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBulkEditAccessOpen(true)}
-                    disabled={!canEditSelectedDocuments}
-                    title={
-                      canEditSelectedDocuments ? undefined : t("bulk.needEditAccessPermissions")
-                    }
-                  >
-                    <Shield className="h-4 w-4" />
-                    {t("bulk.editAccess")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      duplicateDocuments.mutate(selectedDocuments);
-                    }}
-                    disabled={duplicateDocuments.isPending || !canDuplicateSelectedDocuments}
-                    title={
-                      canDuplicateSelectedDocuments ? undefined : t("bulk.needEditAccessDuplicate")
-                    }
-                  >
-                    {duplicateDocuments.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {t("bulk.duplicating")}
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        {t("bulk.duplicate")}
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      if (confirm(t("bulk.deleteConfirm", { count: selectedDocuments.length }))) {
-                        deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
-                      }
-                    }}
-                    disabled={deleteDocuments.isPending || !canDeleteSelectedDocuments}
-                    title={canDeleteSelectedDocuments ? undefined : t("bulk.needOwnerAccess")}
-                  >
-                    {deleteDocuments.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {t("bulk.deleting")}
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        {t("common:delete")}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
-            <DataTable
-              columns={documentColumns}
-              data={documents}
-              enableFilterInput
-              filterInputColumnKey="title"
-              filterInputPlaceholder={t("page.filterPlaceholder")}
-              enableColumnVisibilityDropdown
-              enablePagination
-              manualPagination
-              pageCount={totalPages}
-              rowCount={totalCount}
-              onPaginationChange={(pag) => {
-                if (pag.pageSize !== pageSize) {
-                  handlePageSizeChange(pag.pageSize);
-                } else {
-                  setPage(pag.pageIndex + 1);
-                }
-              }}
-              onPrefetchPage={(pageIndex) => prefetchPage(pageIndex + 1)}
-              manualSorting
-              onSortingChange={handleSortingChange}
-              enableResetSorting
-              enableRowSelection
-              onRowSelectionChange={setSelectedDocuments}
-              getRowId={(row) => String(row.id)}
-              onExitSelection={() => setSelectedDocuments([])}
-            />
-          </>
+          <DocumentsListView
+            documents={documents}
+            selectedDocuments={selectedDocuments}
+            onSelectedDocumentsChange={setSelectedDocuments}
+            canEditSelectedDocuments={canEditSelectedDocuments}
+            canDuplicateSelectedDocuments={canDuplicateSelectedDocuments}
+            canDeleteSelectedDocuments={canDeleteSelectedDocuments}
+            onBulkEditTags={() => setBulkEditTagsOpen(true)}
+            onBulkEditAccess={() => setBulkEditAccessOpen(true)}
+            onBulkDuplicate={() => duplicateDocuments.mutate(selectedDocuments)}
+            isBulkDuplicating={duplicateDocuments.isPending}
+            onBulkDelete={() => {
+              if (confirm(t("bulk.deleteConfirm", { count: selectedDocuments.length }))) {
+                deleteDocuments.mutate(selectedDocuments.map((doc) => doc.id));
+              }
+            }}
+            isBulkDeleting={deleteDocuments.isPending}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageSizeChange={handlePageSizeChange}
+            onPageChange={setPage}
+            onPrefetchPage={prefetchPage}
+            onSortingChange={handleSortingChange}
+          />
         )
       ) : (
         <Card>
