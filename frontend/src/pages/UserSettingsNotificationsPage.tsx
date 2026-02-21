@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
+import { useUpdateNotificationPreferences } from "@/hooks/useUsers";
 import { useFcmConfig } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,21 +114,8 @@ export const UserSettingsNotificationsPage = ({
     setPushMentions(user.push_mentions ?? true);
   }, [user]);
 
-  const updateNotificationToggles = useMutation({
-    mutationFn: async (payload: Record<string, boolean>) => {
-      await updateUsersMeApiV1UsersMePatch(
-        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
-      );
-    },
-  });
-
-  const updateNotificationSchedule = useMutation({
-    mutationFn: async (payload: Record<string, string>) => {
-      await updateUsersMeApiV1UsersMePatch(
-        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
-      );
-    },
-  });
+  const updateNotificationToggles = useUpdateNotificationPreferences();
+  const updateNotificationSchedule = useUpdateNotificationPreferences();
 
   const handleNotificationToggle = (
     field: NotificationField,

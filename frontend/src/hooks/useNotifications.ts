@@ -12,8 +12,9 @@ import { invalidateNotifications } from "@/api/query-keys";
 import type {
   NotificationCountResponse,
   NotificationListResponse,
+  NotificationRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
+import type { MutationOpts } from "@/types/mutation";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -38,26 +39,40 @@ export const useUnreadNotificationCount = (options?: { enabled?: boolean }) => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-export const useMarkNotificationRead = () => {
+export const useMarkNotificationRead = (options?: MutationOpts<NotificationRead, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (notificationId: number) => {
       return markNotificationReadApiV1NotificationsNotificationIdReadPost(
         notificationId
       ) as unknown as Promise<NotificationRead>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateNotifications();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };
 
-export const useMarkAllNotificationsRead = () => {
+export const useMarkAllNotificationsRead = (
+  options?: MutationOpts<NotificationCountResponse, void>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async () => {
       return markAllNotificationsReadApiV1NotificationsReadAllPost() as unknown as Promise<NotificationCountResponse>;
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateNotifications();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };

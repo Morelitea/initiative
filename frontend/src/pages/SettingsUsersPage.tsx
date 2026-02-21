@@ -1,21 +1,19 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
-  approveUserApiV1UsersUserIdApprovePost,
-  deleteUserApiV1UsersUserIdDelete,
-} from "@/api/generated/users/users";
-import { useUsers } from "@/hooks/useUsers";
+  useUsers,
+  useApproveUser,
+  useUpdateGuildMembership,
+  useRemoveGuildMember,
+} from "@/hooks/useUsers";
 import {
   listGuildInvitesApiV1GuildsGuildIdInvitesGet,
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
   deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete,
-  updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch,
 } from "@/api/generated/guilds/guilds";
-import { invalidateUsersList } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,42 +101,20 @@ export const SettingsUsersPage = () => {
 
   const usersQuery = useUsers({ enabled: isGuildAdmin });
 
-  const approveUser = useMutation({
-    mutationFn: async (userId: number) => {
-      await approveUserApiV1UsersUserIdApprovePost(userId);
-    },
-    onSuccess: () => {
-      void invalidateUsersList();
-    },
-  });
+  const approveUser = useApproveUser();
 
-  const updateGuildMembership = useMutation({
-    mutationFn: async ({ userId, role }: { userId: number; role: GuildRole }) => {
-      await updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch(activeGuildId!, userId, {
-        role,
-      } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]);
-    },
-    onSuccess: () => {
-      void invalidateUsersList();
-    },
+  const updateGuildMembership = useUpdateGuildMembership({
     onError: (error: unknown) => {
       const message = getErrorMessage(error, "guilds:users.failedToUpdateRole");
       toast.error(message);
     },
   });
 
-  const deleteUser = useMutation({
-    mutationFn: async (userId: number) => {
-      await deleteUserApiV1UsersUserIdDelete(userId);
-    },
-    onSuccess: () => {
-      void invalidateUsersList();
-    },
-  });
+  const deleteUser = useRemoveGuildMember();
 
   const handleRoleChange = (userId: number, role: GuildRole) => {
     // Update guild membership role
-    updateGuildMembership.mutate({ userId, role });
+    updateGuildMembership.mutate({ guildId: activeGuildId!, userId, role });
   };
 
   const handleDeleteUser = (userId: number, email: string) => {

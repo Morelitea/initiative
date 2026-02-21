@@ -1,16 +1,16 @@
 import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
 import {
-  triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
-  reactivateUserApiV1AdminUsersUserIdReactivatePost,
-  updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
-} from "@/api/generated/admin/admin";
-import { usePlatformUsers, usePlatformAdminCount } from "@/hooks/useAdmin";
+  usePlatformUsers,
+  usePlatformAdminCount,
+  useAdminTriggerPasswordReset,
+  useAdminReactivateUser,
+  useAdminUpdatePlatformRole,
+} from "@/hooks/useAdmin";
 import { invalidateAdminUsers } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
@@ -47,10 +47,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const adminCountQuery = usePlatformAdminCount({ enabled: isAdmin });
 
-  const resetPassword = useMutation({
-    mutationFn: async (userId: number) => {
-      await triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost(userId);
-    },
+  const resetPassword = useAdminTriggerPasswordReset({
     onSuccess: (_data, userId) => {
       const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
       toast.success(t("platformUsers.resetSuccess", { email: userEmail }));
@@ -65,14 +62,10 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
-  const reactivateUser = useMutation({
-    mutationFn: async (userId: number) => {
-      await reactivateUserApiV1AdminUsersUserIdReactivatePost(userId);
-    },
+  const reactivateUser = useAdminReactivateUser({
     onSuccess: (_data, userId) => {
       const userEmail = usersQuery.data?.find((u) => u.id === userId)?.email ?? "user";
       toast.success(t("platformUsers.reactivateSuccess", { email: userEmail }));
-      void usersQuery.refetch();
     },
     onError: (error: unknown) => {
       const message =
@@ -94,14 +87,8 @@ export const SettingsPlatformUsersPage = () => {
     }
   };
 
-  const updatePlatformRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: number; role: UserRole }) => {
-      await updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch(userId, { role } as Parameters<
-        typeof updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch
-      >[1]);
-    },
+  const updatePlatformRole = useAdminUpdatePlatformRole({
     onSuccess: () => {
-      void invalidateAdminUsers();
       toast.success(
         roleChangeConfirm?.newRole === "admin"
           ? t("platformUsers.promoteSuccess")

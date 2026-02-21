@@ -1,15 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
-import {
-  parseTicktickCsvApiV1ImportsTicktickParsePost,
-  importFromTicktickApiV1ImportsTicktickPost,
-} from "@/api/generated/imports/imports";
-import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useParseTickTickCsv, useImportFromTickTick } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
@@ -134,15 +129,11 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   }, [selectedSourceList, taskStatusesQuery.data]);
 
   // Parse CSV mutation
-  const parseMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return parseTicktickCsvApiV1ImportsTicktickParsePost(
-        content
-      ) as unknown as Promise<TickTickParseResult>;
-    },
+  const parseMutation = useParseTickTickCsv({
     onSuccess: (data) => {
-      setParseResult(data);
-      if (data.lists.length === 0) {
+      const result = data as TickTickParseResult;
+      setParseResult(result);
+      if (result.lists.length === 0) {
         toast.error(t("ticktick.noListsFound"));
       } else {
         setStep("select-list");
@@ -154,21 +145,10 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   });
 
   // Import mutation
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedTargetProjectId) throw new Error("No target project selected");
-      if (!selectedSourceListName) throw new Error("No source list selected");
-      return importFromTicktickApiV1ImportsTicktickPost({
-        project_id: selectedTargetProjectId,
-        csv_content: csvContent,
-        source_list_name: selectedSourceListName,
-        column_mapping: columnMapping,
-      }) as unknown as Promise<ImportResult>;
-    },
+  const importMutation = useImportFromTickTick({
     onSuccess: (data) => {
-      setImportResult(data);
+      setImportResult(data as ImportResult);
       setStep("result");
-      void invalidateAllTasks();
     },
     onError: () => {
       toast.error(t("common.importFailed"));
@@ -204,8 +184,14 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
   }, [selectedSourceListName, selectedTargetProjectId]);
 
   const handleImport = useCallback(() => {
-    importMutation.mutate();
-  }, [importMutation]);
+    if (!selectedTargetProjectId || !selectedSourceListName) return;
+    importMutation.mutate({
+      project_id: selectedTargetProjectId,
+      csv_content: csvContent,
+      source_list_name: selectedSourceListName,
+      column_mapping: columnMapping,
+    });
+  }, [importMutation, selectedTargetProjectId, selectedSourceListName, csvContent, columnMapping]);
 
   // Filter to only show projects where user has write or owner permission
   const activeProjects =

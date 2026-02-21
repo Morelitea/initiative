@@ -29,6 +29,7 @@ import type {
   HTTPValidationError,
   PlatformAdminCountResponse,
   PlatformRoleUpdate,
+  UserPublic,
   UserRead,
   VerificationSendResponse,
 } from "../initiativeAPI.schemas";
@@ -1092,6 +1093,206 @@ export const useAdminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRo
     queryClient
   );
 };
+/**
+ * List members of any initiative (platform admin only).
+
+Bypasses RLS so admins can see members across guilds,
+e.g. when choosing a project transfer target during user deletion.
+ * @summary Admin Get Initiative Members
+ */
+export const adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet = (
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserPublic[]>(
+    { url: `/api/v1/admin/initiatives/${initiativeId}/members`, method: "GET", signal },
+    options
+  );
+};
+
+export const getAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetQueryKey = (
+  initiativeId: number
+) => {
+  return [`/api/v1/admin/initiatives/${initiativeId}/members`] as const;
+};
+
+export const getAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetQueryKey(initiativeId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>>
+  > = ({ signal }) =>
+    adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet(
+      initiativeId,
+      requestOptions,
+      signal
+    );
+
+  return { queryKey, queryFn, enabled: !!initiativeId, ...queryOptions } as UseQueryOptions<
+    Awaited<
+      ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+    >,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type AdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>>
+  >;
+export type AdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  initiativeId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Admin Get Initiative Members
+ */
+
+export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetQueryOptions(
+      initiativeId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * Update an initiative member's role (platform admin only).
 

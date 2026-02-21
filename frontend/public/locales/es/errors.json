@@ -158,6 +158,7 @@
   "ADMIN_INITIATIVE_NOT_FOUND": "Iniciativa no encontrada",
   "ADMIN_USER_NOT_IN_INITIATIVE": "Usuario no encontrado en la iniciativa",
   "ADMIN_CANNOT_DEMOTE_LAST_PM": "No se puede degradar al último gerente de proyecto",
+  "ADMIN_ROLE_NOT_FOUND": "Rol de iniciativa no encontrado",
   "USER_CANNOT_DELETE_LAST_ADMIN": "No se puede eliminar la última cuenta de administrador de la plataforma",
   "USER_INVALID_PASSWORD": "Contraseña no válida",
   "USER_CONFIRMATION_MISMATCH": "El texto de confirmación debe ser 'DELETE MY ACCOUNT'",

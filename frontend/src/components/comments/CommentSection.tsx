@@ -1,17 +1,12 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { HelpCircle, MessageSquarePlus } from "lucide-react";
 
-import {
-  createCommentApiV1CommentsPost,
-  updateCommentApiV1CommentsCommentIdPatch,
-  deleteCommentApiV1CommentsCommentIdDelete,
-} from "@/api/generated/comments/comments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
+import { useCreateComment, useUpdateComment, useDeleteComment } from "@/hooks/useComments";
 import { CommentInput } from "./CommentInput";
 import { CommentThread } from "./CommentThread";
 import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
@@ -40,10 +35,6 @@ interface CommentPayload {
   task_id?: number;
   document_id?: number;
   parent_comment_id?: number;
-}
-
-interface CommentUpdatePayload {
-  content: string;
 }
 
 // Build comment tree from flat list
@@ -88,13 +79,7 @@ export const CommentSection = ({
   const [editError, setEditError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  const createComment = useMutation({
-    mutationFn: async (payload: CommentPayload) => {
-      const response = await (createCommentApiV1CommentsPost(payload) as unknown as Promise<{
-        data: CommentRead;
-      }>);
-      return response.data;
-    },
+  const createComment = useCreateComment({
     onSuccess: (comment) => {
       setContent("");
       setError(null);
@@ -112,12 +97,8 @@ export const CommentSection = ({
     },
   });
 
-  const deleteComment = useMutation({
-    mutationFn: async (commentId: number) => {
-      await deleteCommentApiV1CommentsCommentIdDelete(commentId);
-      return commentId;
-    },
-    onSuccess: (commentId) => {
+  const deleteComment = useDeleteComment({
+    onSuccess: (_data, commentId) => {
       setDeleteError(null);
       onCommentDeleted?.(commentId);
     },
@@ -133,19 +114,7 @@ export const CommentSection = ({
     },
   });
 
-  const updateComment = useMutation({
-    mutationFn: async ({
-      commentId,
-      payload,
-    }: {
-      commentId: number;
-      payload: CommentUpdatePayload;
-    }) => {
-      return updateCommentApiV1CommentsCommentIdPatch(
-        commentId,
-        payload
-      ) as unknown as Promise<CommentRead>;
-    },
+  const updateComment = useUpdateComment({
     onSuccess: (comment) => {
       setEditError(null);
       onCommentUpdated?.(comment);
@@ -216,7 +185,7 @@ export const CommentSection = ({
     const normalized = editedContent.trim();
     if (!normalized) return false;
     try {
-      await updateComment.mutateAsync({ commentId, payload: { content: normalized } });
+      await updateComment.mutateAsync({ commentId, data: { content: normalized } });
       return true;
     } catch {
       return false;

@@ -1,15 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
-import {
-  parseTodoistCsvApiV1ImportsTodoistParsePost,
-  importFromTodoistApiV1ImportsTodoistPost,
-} from "@/api/generated/imports/imports";
-import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { useParseTodoistCsv, useImportFromTodoist } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,15 +116,11 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
   }, [parseResult, taskStatusesQuery.data]);
 
   // Parse CSV mutation
-  const parseMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return parseTodoistCsvApiV1ImportsTodoistParsePost(
-        content
-      ) as unknown as Promise<TodoistParseResult>;
-    },
+  const parseMutation = useParseTodoistCsv({
     onSuccess: (data) => {
-      setParseResult(data);
-      if (data.sections.length === 0) {
+      const result = data as TodoistParseResult;
+      setParseResult(result);
+      if (result.sections.length === 0) {
         toast.error(t("todoist.noSectionsFound"));
       }
     },
@@ -139,20 +130,10 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
   });
 
   // Import mutation
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedProjectId) throw new Error("No project selected");
-      return importFromTodoistApiV1ImportsTodoistPost({
-        project_id: selectedProjectId,
-        csv_content: csvContent,
-        section_mapping: sectionMapping,
-      }) as unknown as Promise<ImportResult>;
-    },
+  const importMutation = useImportFromTodoist({
     onSuccess: (data) => {
-      setImportResult(data);
+      setImportResult(data as ImportResult);
       setStep("result");
-      // Invalidate tasks query to refresh the project view
-      void invalidateAllTasks();
     },
     onError: () => {
       toast.error(t("common.importFailed"));
@@ -188,8 +169,13 @@ export const TodoistImportDialog = ({ open, onOpenChange }: TodoistImportDialogP
   }, [step, parseResult, selectedProjectId]);
 
   const handleImport = useCallback(() => {
-    importMutation.mutate();
-  }, [importMutation]);
+    if (!selectedProjectId) return;
+    importMutation.mutate({
+      project_id: selectedProjectId,
+      csv_content: csvContent,
+      section_mapping: sectionMapping,
+    });
+  }, [importMutation, selectedProjectId, csvContent, sectionMapping]);
 
   // Filter to only show projects where user has write or owner permission
   const activeProjects =
