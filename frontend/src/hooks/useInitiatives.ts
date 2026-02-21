@@ -23,6 +23,7 @@ import {
 } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { MutationOpts } from "@/types/mutation";
 
 type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
@@ -67,25 +68,43 @@ export const useInitiativeMembers = (
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-export const useCreateInitiative = () => {
+export const useCreateInitiative = (
+  options?: MutationOpts<InitiativeRead, { name: string; description?: string; color?: string }>
+) => {
   const { t } = useTranslation("initiatives");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
+    ...rest,
     mutationFn: async (data: { name: string; description?: string; color?: string }) => {
       return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<InitiativeRead>;
     },
-    onSuccess: (initiative) => {
-      toast.success(t("createDialog.created", { name: initiative.name }));
+    onSuccess: (...args) => {
+      toast.success(t("createDialog.created", { name: args[0].name }));
       void invalidateAllInitiatives();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "initiatives:createDialog.createError"));
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "initiatives:createDialog.createError"));
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useUpdateInitiative = () => {
+export const useUpdateInitiative = (
+  options?: MutationOpts<
+    InitiativeRead,
+    {
+      initiativeId: number;
+      data: Parameters<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>[1];
+    }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async ({
       initiativeId,
       data,
@@ -98,32 +117,52 @@ export const useUpdateInitiative = () => {
         data
       ) as unknown as Promise<InitiativeRead>;
     },
-    onSuccess: (_data, { initiativeId }) => {
+    onSuccess: (...args) => {
       void invalidateAllInitiatives();
-      void invalidateInitiative(initiativeId);
+      void invalidateInitiative(args[1].initiativeId);
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "initiatives:settings.updateError"));
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "initiatives:settings.updateError"));
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useDeleteInitiative = () => {
+export const useDeleteInitiative = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async (initiativeId: number) => {
       await deleteInitiativeApiV1InitiativesInitiativeIdDelete(initiativeId);
     },
-    onSuccess: () => {
+    onSuccess: (...args) => {
       void invalidateAllInitiatives();
+      onSuccess?.(...args);
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "initiatives:settings.deleteError"));
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "initiatives:settings.deleteError"));
+      onError?.(...args);
     },
+    onSettled,
   });
 };
 
-export const useAddInitiativeMember = () => {
+export const useAddInitiativeMember = (
+  options?: MutationOpts<
+    InitiativeMemberRead,
+    {
+      initiativeId: number;
+      data: Parameters<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>[1];
+    }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async ({
       initiativeId,
       data,
@@ -136,30 +175,55 @@ export const useAddInitiativeMember = () => {
         data
       ) as unknown as Promise<InitiativeMemberRead>;
     },
-    onSuccess: (_data, { initiativeId }) => {
-      void invalidateInitiativeMembers(initiativeId);
+    onSuccess: (...args) => {
+      void invalidateInitiativeMembers(args[1].initiativeId);
       void invalidateAllInitiatives();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };
 
-export const useRemoveInitiativeMember = () => {
+export const useRemoveInitiativeMember = (
+  options?: MutationOpts<void, { initiativeId: number; userId: number }>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
       await removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete(
         initiativeId,
         userId
       );
     },
-    onSuccess: (_data, { initiativeId }) => {
-      void invalidateInitiativeMembers(initiativeId);
+    onSuccess: (...args) => {
+      void invalidateInitiativeMembers(args[1].initiativeId);
       void invalidateAllInitiatives();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };
 
-export const useUpdateInitiativeMember = () => {
+export const useUpdateInitiativeMember = (
+  options?: MutationOpts<
+    InitiativeMemberRead,
+    {
+      initiativeId: number;
+      userId: number;
+      data: Parameters<
+        typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch
+      >[2];
+    }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
   return useMutation({
+    ...rest,
     mutationFn: async ({
       initiativeId,
       userId,
@@ -177,9 +241,12 @@ export const useUpdateInitiativeMember = () => {
         data
       ) as unknown as Promise<InitiativeMemberRead>;
     },
-    onSuccess: (_data, { initiativeId }) => {
-      void invalidateInitiativeMembers(initiativeId);
+    onSuccess: (...args) => {
+      void invalidateInitiativeMembers(args[1].initiativeId);
       void invalidateAllInitiatives();
+      onSuccess?.(...args);
     },
+    onError,
+    onSettled,
   });
 };

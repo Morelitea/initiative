@@ -720,36 +720,13 @@ export const DocumentsView = ({
     [t, dateLocale]
   );
 
-  const deleteDocumentsMutation = useDeleteDocument();
-  const deleteDocuments = {
-    mutate: (documentIds: number[]) => {
-      deleteDocumentsMutation.mutate(documentIds, {
-        onSuccess: () => {
-          setSelectedDocuments([]);
-        },
-      });
-    },
-    isPending: deleteDocumentsMutation.isPending,
-  };
+  const deleteDocuments = useDeleteDocument({
+    onSuccess: () => setSelectedDocuments([]),
+  });
 
-  const copyDocumentMutation = useCopyDocument();
-  const duplicateDocuments = {
-    mutate: (documentsToClone: DocumentSummary[]) => {
-      copyDocumentMutation.mutate(
-        documentsToClone.map((doc) => ({
-          id: doc.id,
-          initiative_id: doc.initiative_id,
-          title: doc.title,
-        })),
-        {
-          onSuccess: () => {
-            setSelectedDocuments([]);
-          },
-        }
-      );
-    },
-    isPending: copyDocumentMutation.isPending,
-  };
+  const duplicateDocuments = useCopyDocument({
+    onSuccess: () => setSelectedDocuments([]),
+  });
 
   const initiatives = initiativesQuery.data ?? [];
   // Filter initiatives where user can view docs (for the dropdown)

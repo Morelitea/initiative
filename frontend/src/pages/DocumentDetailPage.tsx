@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
@@ -17,12 +16,8 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
-import {
-  updateDocumentApiV1DocumentsDocumentIdPatch,
-  notifyMentionsApiV1DocumentsDocumentIdMentionsPost,
-} from "@/api/generated/documents/documents";
-import { invalidateAllDocuments } from "@/api/query-keys";
-import { useDocument, useSetDocumentCache } from "@/hooks/useDocuments";
+import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
+import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
 import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
@@ -65,7 +60,6 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type {
   CommentRead,
   DocumentProjectLink,
-  DocumentRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { uploadAttachment } from "@/lib/attachmentUtils";
@@ -282,33 +276,11 @@ export const DocumentDetailPage = () => {
     commentsCache.updateComment(updatedComment);
   };
 
-  const saveDocument = useMutation({
-    mutationFn: async () => {
-      if (!document) {
-        throw new Error("Document is not loaded yet.");
-      }
-      const trimmedTitle = title?.trim();
-      if (!trimmedTitle) {
-        throw new Error("Document title is required");
-      }
-      const payload = {
-        title: trimmedTitle,
-        content: contentState as unknown as Record<string, unknown>,
-        featured_image_url: featuredImageUrl,
-      };
-      return updateDocumentApiV1DocumentsDocumentIdPatch(
-        parsedId,
-        payload
-      ) as unknown as Promise<DocumentRead>;
-    },
-    onSuccess: (updated) => {
+  const saveDocument = useUpdateDocument({
+    onSuccess: () => {
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
-      isAutosaveRef.current = false;
-      setDocumentCache(parsedId, updated);
-      // Only invalidate the documents list (for sidebar title updates), not all project queries
-      void invalidateAllDocuments();
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
@@ -317,10 +289,8 @@ export const DocumentDetailPage = () => {
         }).catch((err) => console.error("Failed to notify mentions:", err));
       }
     },
-    onError: (error) => {
+    onSettled: () => {
       isAutosaveRef.current = false;
-      const message = error instanceof Error ? error.message : t("detail.saveError");
-      toast.error(message);
     },
   });
 
@@ -349,7 +319,14 @@ export const DocumentDetailPage = () => {
     if (collaboration.isCollaborating) {
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
-        saveDocument.mutate();
+        saveDocument.mutate({
+          documentId: parsedId,
+          data: {
+            title: title?.trim(),
+            content: contentState as unknown as Record<string, unknown>,
+            featured_image_url: featuredImageUrl,
+          },
+        });
       }, 10000);
       return () => clearTimeout(timer);
     } else {
@@ -358,7 +335,14 @@ export const DocumentDetailPage = () => {
       }
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
-        saveDocument.mutate();
+        saveDocument.mutate({
+          documentId: parsedId,
+          data: {
+            title: title?.trim(),
+            content: contentState as unknown as Record<string, unknown>,
+            featured_image_url: featuredImageUrl,
+          },
+        });
       }, 2000);
       return () => clearTimeout(timer);
     }
@@ -367,6 +351,7 @@ export const DocumentDetailPage = () => {
     isDirty,
     canEditDocument,
     saveDocument,
+    parsedId,
     title,
     contentState,
     featuredImageUrl,
@@ -723,7 +708,16 @@ export const DocumentDetailPage = () => {
                     <>
                       <Button
                         type="button"
-                        onClick={() => saveDocument.mutate()}
+                        onClick={() =>
+                          saveDocument.mutate({
+                            documentId: parsedId,
+                            data: {
+                              title: title?.trim(),
+                              content: contentState as unknown as Record<string, unknown>,
+                              featured_image_url: featuredImageUrl,
+                            },
+                          })
+                        }
                         disabled={!isDirty || saveDocument.isPending}
                       >
                         {saveDocument.isPending ? (

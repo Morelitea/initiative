@@ -1,20 +1,10 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-
-import {
-  updateInitiativeApiV1InitiativesInitiativeIdPatch,
-  deleteInitiativeApiV1InitiativesInitiativeIdDelete,
-  addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost,
-  removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete,
-  updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch,
-} from "@/api/generated/initiatives/initiatives";
-import { invalidateAllInitiatives } from "@/api/query-keys";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -60,7 +50,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import {
+  useInitiatives,
+  useUpdateInitiative,
+  useDeleteInitiative,
+  useAddInitiativeMember,
+  useRemoveInitiativeMember,
+  useUpdateInitiativeMember,
+} from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
@@ -74,8 +71,6 @@ import {
 } from "@/hooks/useInitiativeRoles";
 import type {
   InitiativeMemberRead,
-  InitiativeMemberUpdate,
-  InitiativeRead,
   InitiativeRoleRead,
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -176,18 +171,9 @@ export const InitiativeSettingsPage = () => {
     return usersQuery.data.filter((candidate) => !existingIds.has(candidate.id));
   }, [usersQuery.data, initiative]);
 
-  const updateInitiative = useMutation({
-    mutationFn: async (
-      payload: Partial<Pick<InitiativeRead, "name" | "description" | "color">>
-    ) => {
-      return updateInitiativeApiV1InitiativesInitiativeIdPatch(
-        initiativeId,
-        payload
-      ) as unknown as Promise<InitiativeRead>;
-    },
+  const updateInitiative = useUpdateInitiative({
     onSuccess: () => {
       toast.success(t("settings.updated"));
-      void invalidateAllInitiatives();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("settings.updateError");
@@ -195,13 +181,9 @@ export const InitiativeSettingsPage = () => {
     },
   });
 
-  const deleteInitiative = useMutation({
-    mutationFn: async () => {
-      await deleteInitiativeApiV1InitiativesInitiativeIdDelete(initiativeId);
-    },
+  const deleteInitiative = useDeleteInitiative({
     onSuccess: () => {
       toast.success(t("settings.deleted"));
-      void invalidateAllInitiatives();
       router.navigate({ to: gp("/initiatives") });
     },
     onError: (error) => {
@@ -210,17 +192,10 @@ export const InitiativeSettingsPage = () => {
     },
   });
 
-  const addMember = useMutation({
-    mutationFn: async ({ userId, roleId }: { userId: number; roleId: number }) => {
-      return addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost(initiativeId, {
-        user_id: userId,
-        role_id: roleId,
-      }) as unknown as Promise<InitiativeRead>;
-    },
+  const addMember = useAddInitiativeMember({
     onSuccess: () => {
       toast.success(t("settings.memberAdded"));
       setSelectedUserId("");
-      void invalidateAllInitiatives();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("settings.addMemberError");
@@ -228,16 +203,9 @@ export const InitiativeSettingsPage = () => {
     },
   });
 
-  const removeMember = useMutation({
-    mutationFn: async (userId: number) => {
-      await removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete(
-        initiativeId,
-        userId
-      );
-    },
+  const removeMember = useRemoveInitiativeMember({
     onSuccess: () => {
       toast.success(t("settings.memberRemoved"));
-      void invalidateAllInitiatives();
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : t("settings.removeMemberError");
@@ -245,18 +213,9 @@ export const InitiativeSettingsPage = () => {
     },
   });
 
-  const updateMemberRole = useMutation({
-    mutationFn: async ({ userId, roleId }: { userId: number; roleId: number }) => {
-      const payload: InitiativeMemberUpdate = { role_id: roleId };
-      return updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch(
-        initiativeId,
-        userId,
-        payload
-      ) as unknown as Promise<InitiativeRead>;
-    },
+  const updateMemberRole = useUpdateInitiativeMember({
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
-      void invalidateAllInitiatives();
     },
     onError: () => {
       toast.error(t("settings.roleUpdateError"));
@@ -271,9 +230,12 @@ export const InitiativeSettingsPage = () => {
       return;
     }
     updateInitiative.mutate({
-      name: trimmedName,
-      description: description.trim() || undefined,
-      color,
+      initiativeId,
+      data: {
+        name: trimmedName,
+        description: description.trim() || undefined,
+        color,
+      },
     });
   };
 
@@ -286,7 +248,7 @@ export const InitiativeSettingsPage = () => {
     if (!Number.isFinite(userId) || !Number.isFinite(roleId)) {
       return;
     }
-    addMember.mutate({ userId, roleId });
+    addMember.mutate({ initiativeId, data: { user_id: userId, role_id: roleId } });
   };
 
   const handleDeleteInitiative = () => {
@@ -298,7 +260,7 @@ export const InitiativeSettingsPage = () => {
   };
 
   const confirmDeleteInitiative = () => {
-    deleteInitiative.mutate();
+    deleteInitiative.mutate(initiativeId);
     setShowDeleteConfirm(false);
     setDeleteConfirmText("");
   };
@@ -509,8 +471,9 @@ export const InitiativeSettingsPage = () => {
               value={String(member.role_id || "")}
               onValueChange={(value) =>
                 updateMemberRole.mutate({
+                  initiativeId,
                   userId: member.user.id,
-                  roleId: Number(value),
+                  data: { role_id: Number(value) },
                 })
               }
               disabled={updateMemberRole.isPending}
@@ -572,6 +535,7 @@ export const InitiativeSettingsPage = () => {
     updateMemberRole,
     projectManagerLabel,
     memberLabel,
+    initiativeId,
   ]);
 
   if (!hasValidInitiativeId) {
@@ -866,12 +830,22 @@ export const InitiativeSettingsPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("settings.deleteConfirmDescription", { name: initiative?.name })}
+              <Trans
+                i18nKey="settings.deleteConfirmDescription"
+                ns="initiatives"
+                values={{ name: initiative?.name }}
+                components={{ bold: <strong /> }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="delete-confirm-input">
-              {t("settings.deleteConfirmLabel", { name: initiative?.name })}
+              <Trans
+                i18nKey="settings.deleteConfirmLabel"
+                ns="initiatives"
+                values={{ name: initiative?.name }}
+                components={{ bold: <strong /> }}
+              />
             </Label>
             <Input
               id="delete-confirm-input"
@@ -1051,9 +1025,14 @@ export const InitiativeSettingsPage = () => {
             <AlertDialogTitle>{t("settings.removeMemberTitle")}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="block">
-                {t("settings.removeMemberDescription", {
-                  name: memberToRemove?.user.full_name || memberToRemove?.user.email,
-                })}
+                <Trans
+                  i18nKey="settings.removeMemberDescription"
+                  ns="initiatives"
+                  values={{
+                    name: memberToRemove?.user.full_name || memberToRemove?.user.email,
+                  }}
+                  components={{ bold: <strong /> }}
+                />
               </span>
               <span className="text-destructive block">{t("settings.removeMemberWarning")}</span>
             </AlertDialogDescription>
@@ -1065,9 +1044,10 @@ export const InitiativeSettingsPage = () => {
             <AlertDialogAction
               onClick={() => {
                 if (memberToRemove) {
-                  removeMember.mutate(memberToRemove.user.id, {
-                    onSuccess: () => setMemberToRemove(null),
-                  });
+                  removeMember.mutate(
+                    { initiativeId, userId: memberToRemove.user.id },
+                    { onSuccess: () => setMemberToRemove(null) }
+                  );
                 }
               }}
               disabled={removeMember.isPending}
