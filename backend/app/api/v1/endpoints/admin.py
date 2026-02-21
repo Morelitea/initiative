@@ -8,7 +8,7 @@ from app.api.deps import require_roles
 from app.db.session import get_admin_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import Guild, GuildRole
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRole
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User, UserRole
 from app.models.user_token import UserTokenPurpose
 from app.schemas.user import UserRead, AccountDeletionResponse, ProjectBasic, UserPublic
@@ -397,6 +397,32 @@ async def admin_update_guild_member_role(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get("/initiatives/{initiative_id}/members", response_model=List[UserPublic])
+async def admin_get_initiative_members(
+    initiative_id: int,
+    session: AdminSessionDep,
+    _current_user: AdminUserDep,
+) -> List[User]:
+    """List members of any initiative (platform admin only).
+
+    Bypasses RLS so admins can see members across guilds,
+    e.g. when choosing a project transfer target during user deletion.
+    """
+    stmt = select(Initiative).where(Initiative.id == initiative_id)
+    result = await session.exec(stmt)
+    if not result.one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.INITIATIVE_NOT_FOUND)
+
+    stmt = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .where(InitiativeMember.initiative_id == initiative_id)
+        .order_by(User.full_name, User.email)
+    )
+    result = await session.exec(stmt)
+    return result.all()
+
+
 @router.patch(
     "/initiatives/{initiative_id}/members/{user_id}/role",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -438,8 +464,21 @@ async def admin_update_initiative_member_role(
     if target_membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_IN_INITIATIVE)
 
+    # Resolve the target role by name
+    new_role = await initiatives_service.get_role_by_name(
+        session, initiative_id=initiative_id, role_name=payload.role.value,
+    )
+    if not new_role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.ROLE_NOT_FOUND,
+        )
+
     # Check if demoting the last PM
-    if target_membership.role == InitiativeRole.project_manager and payload.role != InitiativeRole.project_manager:
+    current_role = await initiatives_service.get_role_by_id(
+        session, role_id=target_membership.role_id, initiative_id=initiative_id,
+    ) if target_membership.role_id else None
+    if current_role and current_role.is_manager and not new_role.is_manager:
         try:
             await initiatives_service.ensure_managers_remain(
                 session,
@@ -452,7 +491,7 @@ async def admin_update_initiative_member_role(
                 detail=AdminMessages.CANNOT_DEMOTE_LAST_PM,
             )
 
-    target_membership.role = payload.role
+    target_membership.role_id = new_role.id
     session.add(target_membership)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

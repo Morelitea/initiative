@@ -20,6 +20,7 @@ from app.core.security import get_password_hash, verify_password
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
+from app.models.initiative import InitiativeMember
 from app.models.user import User, UserRole
 from app.schemas.user import (
     UserCreate,
@@ -31,6 +32,7 @@ from app.schemas.user import (
     AccountDeletionResponse,
     DeletionEligibilityResponse,
     ProjectBasic,
+    UserPublic,
 )
 from app.schemas.api_key import (
     ApiKeyCreateRequest,
@@ -409,6 +411,34 @@ async def check_deletion_eligibility(
         owned_projects=project_basics,
         last_admin_guilds=last_admin_guilds,
     )
+
+
+@router.get("/me/initiative-members/{initiative_id}", response_model=List[UserPublic])
+async def get_my_initiative_members(
+    initiative_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[User]:
+    """List members of an initiative the current user belongs to.
+
+    Uses AdminSession to bypass RLS so users can see members across guilds
+    when selecting project transfer targets during account deletion.
+    """
+    # Verify the current user is a member of this initiative
+    membership = await initiatives_service.get_initiative_membership(
+        session, initiative_id=initiative_id, user_id=current_user.id,
+    )
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    stmt = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .where(InitiativeMember.initiative_id == initiative_id)
+        .order_by(User.full_name, User.email)
+    )
+    result = await session.exec(stmt)
+    return result.all()
 
 
 @router.post("/me/delete-account", response_model=AccountDeletionResponse)

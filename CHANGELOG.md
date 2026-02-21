@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Guild switching no longer shows stale sidebar data — restored query cache invalidation on guild switch that was accidentally removed during React Query migration
 - HTML `<strong>` tags rendered as literal text in delete confirmation dialogs — switched to react-i18next `Trans` component for proper bold rendering in initiative, guild, and settings dialogs (en + es locales)
 - Defensive `Array.isArray` guard in document template queries to prevent crash on non-array data
+- Admin initiative member role promotion (500 error) — endpoint referenced non-existent `.role` attribute on `InitiativeMember`; fixed to resolve roles via `role_id` FK
+- Admin delete user dialog 404s when fetching initiative members across guilds — added admin endpoint `GET /admin/initiatives/{id}/members` that bypasses RLS
+- Self-deletion dialog 404s when fetching initiative members across guilds — added user endpoint `GET /users/me/initiative-members/{id}` that bypasses RLS for owned initiatives
 
 ### Changed
 
 - Centralized settings and AI settings mutation hooks (Phase 4a) — 13 new hooks in `useSettings.ts` and `useAISettings.ts` replace inline mutations across 7 settings pages/components; added `MutationOpts` to `useUpdateRoleLabels`
+- Centralized remaining mutation hooks (Phase 4b) — 22 new hooks across `useAdmin.ts`, `useUsers.ts`, `useSecurity.ts`, and new `useImports.ts`; added `MutationOpts` to 11 existing hooks in `useComments.ts`, `useTags.ts`, `useNotifications.ts`; no `.tsx` file imports `useMutation` directly
 - Centralized inline `useMutation` hooks for tasks, subtasks, task statuses, project members, role permissions, and project documents into domain hook files (`useTasks.ts`, `useProjects.ts`) — replaces ~50 inline mutations across 15 component/page files
 - Consolidated standalone `useProjectFavoriteMutation` and `useProjectPinMutation` hooks into `useProjects.ts` as `useToggleProjectFavorite` and `useToggleProjectPin`
 - All mutation hooks now accept an optional `MutationOpts` parameter, allowing callers to provide `onSuccess`, `onError`, `onSettled`, and other mutation options

@@ -1,16 +1,15 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
+import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 
 const dataUrl = (value?: string | null) => {
   if (!value) {
@@ -53,29 +52,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     return avatarBase64 || user.avatar_base64 || "";
   }, [avatarMode, avatarUrl, avatarBase64, user.avatar_url, user.avatar_base64]);
 
-  const updateProfile = useMutation({
-    mutationFn: async () => {
-      if (password && password !== confirmPassword) {
-        throw new Error(t("profile.passwordsMismatch"));
-      }
-      const payload: Record<string, unknown> = {};
-      if (fullName !== user.full_name) {
-        payload.full_name = fullName;
-      }
-      if (password) {
-        payload.password = password;
-      }
-      if (avatarMode === "upload") {
-        payload.avatar_base64 = avatarBase64 || null;
-        payload.avatar_url = null;
-      } else {
-        payload.avatar_url = avatarUrl || null;
-        payload.avatar_base64 = null;
-      }
-      await updateUsersMeApiV1UsersMePatch(
-        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
-      );
-    },
+  const updateProfile = useUpdateCurrentUser({
     onSuccess: async () => {
       setPassword("");
       setConfirmPassword("");
@@ -133,7 +110,25 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             className="space-y-6"
             onSubmit={(event) => {
               event.preventDefault();
-              updateProfile.mutate();
+              if (password && password !== confirmPassword) {
+                setError(t("profile.passwordsMismatch"));
+                return;
+              }
+              const payload: Record<string, unknown> = {};
+              if (fullName !== user.full_name) {
+                payload.full_name = fullName;
+              }
+              if (password) {
+                payload.password = password;
+              }
+              if (avatarMode === "upload") {
+                payload.avatar_base64 = avatarBase64 || null;
+                payload.avatar_url = null;
+              } else {
+                payload.avatar_url = avatarUrl || null;
+                payload.avatar_base64 = null;
+              }
+              updateProfile.mutate(payload as UserSelfUpdate);
             }}
           >
             <div className="space-y-2">

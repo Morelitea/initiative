@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { updateUsersMeApiV1UsersMePatch } from "@/api/generated/users/users";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -12,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { getThemeList } from "@/lib/themes";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -50,12 +49,7 @@ export const UserSettingsInterfacePage = ({
     setLocale(user.locale ?? "en");
   }, [user]);
 
-  const updateInterfacePrefs = useMutation({
-    mutationFn: async (payload: Record<string, boolean | number | string>) => {
-      await updateUsersMeApiV1UsersMePatch(
-        payload as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
-      );
-    },
+  const updateInterfacePrefs = useUpdateCurrentUser({
     onSuccess: async (_, variables) => {
       if (variables.week_starts_on !== undefined) {
         setWeekStartsOn(Number(variables.week_starts_on));
