@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.5] - 2026-02-20
+
 ### Fixed
 
 - `OIDC_ENABLED` env var no longer prevents admins from disabling OIDC via the UI — env var now only seeds on first boot instead of overriding the DB value on every read
