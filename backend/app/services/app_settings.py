@@ -77,9 +77,10 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     settings_row = result.one_or_none()
     if settings_row:
         updated = False
-        if app_config.OIDC_ENABLED and not settings_row.oidc_enabled:
-            settings_row.oidc_enabled = True
-            updated = True
+        # NOTE: oidc_enabled is intentionally NOT overridden here.
+        # It is seeded from the env var on first creation only, so that
+        # admins can disable OIDC via the UI without the env var forcing
+        # it back on every read.
         if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
             settings_row.oidc_issuer = _normalize_optional_string(app_config.OIDC_ISSUER)
             updated = True
