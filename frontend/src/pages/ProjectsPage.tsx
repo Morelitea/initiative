@@ -1,12 +1,4 @@
-import {
-  FormEvent,
-  HTMLAttributes,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import {
   DndContext,
@@ -24,23 +16,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  LayoutGrid,
-  ScrollText,
-  Archive,
-  List,
-  Filter,
-  ChevronDown,
-  Plus,
-  Pin as PinIcon,
-} from "lucide-react";
+import { LayoutGrid, ScrollText, Archive, List, Plus, Pin as PinIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
   useProjects,
   useTemplateProjects,
   useArchivedProjects,
-  useCreateProject,
   useUpdateProject,
   useUnarchiveProject,
   useReorderProjects,
@@ -52,8 +34,9 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
+import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Card,
   CardContent,
@@ -62,19 +45,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { EmojiPicker } from "@/components/EmojiPicker";
-import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
@@ -82,28 +53,8 @@ import {
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
 import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { TagPicker } from "@/components/tags/TagPicker";
 import { useTags } from "@/hooks/useTags";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  CreateAccessControl,
-  type RoleGrant,
-  type UserGrant,
-} from "@/components/access/CreateAccessControl";
 
-const NO_TEMPLATE_VALUE = "template-none";
 const INITIATIVE_FILTER_ALL = "all";
 const PROJECT_SORT_KEY = "project:list:sort";
 const PROJECT_SEARCH_KEY = "project:list:search";
@@ -140,9 +91,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     [user]
   );
   const hasClaimedManagerRole = claimedManagedInitiatives.length > 0;
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [icon, setIcon] = useState("");
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const isClosingComposer = useRef(false);
@@ -163,11 +111,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       isClosingComposer.current = false;
     }
   }, [searchParams, isComposerOpen]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
-  const [isTemplateProject, setIsTemplateProject] = useState(false);
-  const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
-  const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
-  const [accessLoading, setAccessLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>(() => {
     return getItem(PROJECT_SEARCH_KEY) ?? "";
   });
@@ -373,51 +316,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const reorderProjects = useReorderProjects();
 
-  const createProjectMutation = useCreateProject();
-  const createProject = {
-    ...createProjectMutation,
-    mutate: () => {
-      const payload: Record<string, unknown> = { name, description };
-      const trimmedIcon = icon.trim();
-      if (trimmedIcon) {
-        payload.icon = trimmedIcon;
-      }
-      const selectedInitiativeId = initiativeId ? Number(initiativeId) : undefined;
-      if (!selectedInitiativeId || Number.isNaN(selectedInitiativeId)) {
-        return;
-      }
-      payload.initiative_id = selectedInitiativeId;
-      payload.is_template = isTemplateProject;
-      if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
-        payload.template_id = Number(selectedTemplateId);
-      }
-      if (roleGrants.length > 0) {
-        payload.role_permissions = roleGrants;
-      }
-      if (userGrants.length > 0) {
-        payload.user_permissions = userGrants;
-      }
-      createProjectMutation.mutate(
-        payload as unknown as Parameters<typeof createProjectMutation.mutate>[0],
-        {
-          onSuccess: () => {
-            setName("");
-            setDescription("");
-            setIcon("");
-            setInitiativeId(null);
-            setSelectedTemplateId(NO_TEMPLATE_VALUE);
-            setIsTemplateProject(false);
-            setRoleGrants([]);
-            setUserGrants([]);
-            handleComposerOpenChange(false);
-          },
-        }
-      );
-    },
-    isPending: createProjectMutation.isPending,
-    isError: createProjectMutation.isError,
-  };
-
   useEffect(() => {
     setItem(PROJECT_SEARCH_KEY, searchQuery);
   }, [searchQuery]);
@@ -434,23 +332,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (fixedTagIds) return;
     setItem(PROJECT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
   }, [tagFilters, fixedTagIds]);
-  useEffect(() => {
-    if (isTemplateProject) {
-      return;
-    }
-    if (selectedTemplateId === NO_TEMPLATE_VALUE) {
-      return;
-    }
-    const templateId = Number(selectedTemplateId);
-    if (!Number.isFinite(templateId)) {
-      return;
-    }
-    const template = templatesQuery.data?.items?.find((item) => item.id === templateId);
-    if (!template) {
-      return;
-    }
-    setDescription(template.description ?? "");
-  }, [selectedTemplateId, templatesQuery.data, isTemplateProject]);
 
   useEffect(() => {
     const projects = projectsQuery.data?.items ?? [];
@@ -471,17 +352,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     });
   }, [projectsQuery.data]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    createProject.mutate();
-  };
-
   const handleComposerOpenChange = (open: boolean) => {
     setIsComposerOpen(open);
-    // Reset grants when dialog closes so stale state doesn't persist
     if (!open) {
-      setRoleGrants([]);
-      setUserGrants([]);
       if (searchParams.create) {
         isClosingComposer.current = true;
         router.navigate({
@@ -770,148 +643,24 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                 </TabsList>
               </Tabs>
             </div>
-            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
-              <div className="flex items-center justify-between sm:hidden">
-                <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
-                  <Filter className="h-4 w-4" />
-                  {t("filters.heading")}
-                </div>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 px-3">
-                    {filtersOpen ? t("filters.hide") : t("filters.show")}
-                    <ChevronDown
-                      className={`ml-1 h-4 w-4 transition-transform ${
-                        filtersOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-              <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-                <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
-                  <div className="w-full space-y-2 lg:flex-1">
-                    <Label
-                      htmlFor="project-search"
-                      className="text-muted-foreground block text-xs font-medium"
-                    >
-                      {t("filters.filterByName")}
-                    </Label>
-                    <Input
-                      id="project-search"
-                      placeholder={t("filters.searchProjects")}
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      className="min-w-60"
-                    />
-                  </div>
-                  {lockedInitiativeId ? (
-                    <div className="w-full space-y-2 sm:w-60">
-                      <Label className="text-muted-foreground block text-xs font-medium">
-                        {t("filters.initiative")}
-                      </Label>
-                      <p className="text-sm font-medium">
-                        {lockedInitiative?.name ?? t("filters.selectedInitiative")}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="w-full space-y-2 sm:w-60">
-                      <Label
-                        htmlFor="project-initiative-filter"
-                        className="text-muted-foreground block text-xs font-medium"
-                      >
-                        {t("filters.filterByInitiative")}
-                      </Label>
-                      <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-                        <SelectTrigger id="project-initiative-filter">
-                          <SelectValue placeholder={t("filters.allInitiatives")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={INITIATIVE_FILTER_ALL}>
-                            {t("filters.allInitiatives")}
-                          </SelectItem>
-                          {viewableInitiatives.map((initiative) => (
-                            <SelectItem key={initiative.id} value={initiative.id.toString()}>
-                              {initiative.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  {!fixedTagIds && (
-                    <div className="w-full space-y-2 sm:w-48">
-                      <Label
-                        htmlFor="tag-filter"
-                        className="text-muted-foreground block text-xs font-medium"
-                      >
-                        {t("filters.filterByTag")}
-                      </Label>
-                      <TagPicker
-                        selectedTags={selectedTagsForFilter}
-                        onChange={handleTagFiltersChange}
-                        placeholder={t("filters.allTags")}
-                        variant="filter"
-                      />
-                    </div>
-                  )}
-                  <div className="w-full space-y-2 sm:w-60">
-                    <Label
-                      htmlFor="project-sort"
-                      className="text-muted-foreground block text-xs font-medium"
-                    >
-                      {t("filters.sortProjects")}
-                    </Label>
-                    <Select
-                      value={sortMode}
-                      onValueChange={(value) =>
-                        setSortMode(
-                          value as
-                            | "custom"
-                            | "updated"
-                            | "created"
-                            | "alphabetical"
-                            | "recently_viewed"
-                        )
-                      }
-                    >
-                      <SelectTrigger id="project-sort">
-                        <SelectValue placeholder={t("filters.selectSortOrder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="custom">{t("filters.sortCustom")}</SelectItem>
-                        <SelectItem value="recently_viewed">
-                          {t("filters.sortRecentlyOpened")}
-                        </SelectItem>
-                        <SelectItem value="updated">{t("filters.sortRecentlyUpdated")}</SelectItem>
-                        <SelectItem value="created">{t("filters.sortRecentlyCreated")}</SelectItem>
-                        <SelectItem value="alphabetical">
-                          {t("filters.sortAlphabetical")}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-full space-y-2 sm:w-60">
-                    <Label
-                      htmlFor="favorites-only"
-                      className="text-muted-foreground block text-xs font-medium"
-                    >
-                      {t("filters.favorites")}
-                    </Label>
-                    <div className="bg-background/60 flex h-10 items-center gap-3 rounded-md border px-3">
-                      <Switch
-                        id="favorites-only"
-                        checked={favoritesOnly}
-                        onCheckedChange={(checked) => setFavoritesOnly(Boolean(checked))}
-                        aria-label={t("filters.showOnlyFavorites")}
-                      />
-                      <span className="text-muted-foreground text-sm">
-                        {t("filters.showOnlyFavorites")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            <ProjectsFilterBar
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              initiativeFilter={initiativeFilter}
+              onInitiativeFilterChange={setInitiativeFilter}
+              lockedInitiativeId={lockedInitiativeId}
+              lockedInitiativeName={lockedInitiative?.name ?? null}
+              viewableInitiatives={viewableInitiatives}
+              filtersOpen={filtersOpen}
+              onFiltersOpenChange={setFiltersOpen}
+              sortMode={sortMode}
+              onSortModeChange={setSortMode}
+              favoritesOnly={favoritesOnly}
+              onFavoritesOnlyChange={setFavoritesOnly}
+              tagFilters={selectedTagsForFilter}
+              onTagFiltersChange={handleTagFiltersChange}
+              fixedTagIds={fixedTagIds}
+            />
 
             {!canViewProjects ? (
               <Card className="border-destructive/50 bg-destructive/5">
@@ -1072,177 +821,19 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
         )}
 
         {canCreateProjects && (
-          <Dialog open={isComposerOpen} onOpenChange={handleComposerOpenChange}>
-            <DialogContent className="bg-card max-h-screen overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{t("createDialog.title")}</DialogTitle>
-                <DialogDescription>{t("createDialog.description")}</DialogDescription>
-              </DialogHeader>
-              <form className="w-full max-w-lg" onSubmit={handleSubmit}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="project-icon">{t("createDialog.iconLabel")}</Label>
-                    <EmojiPicker
-                      id="project-icon"
-                      value={icon || undefined}
-                      onChange={(emoji) => setIcon(emoji ?? "")}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-name">{t("createDialog.nameLabel")}</Label>
-                    <Input
-                      id="project-name"
-                      placeholder={t("createDialog.namePlaceholder")}
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-description">
-                      {t("createDialog.descriptionLabel")}
-                    </Label>
-                    <Textarea
-                      id="project-description"
-                      placeholder={t("createDialog.descriptionPlaceholder")}
-                      rows={3}
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t("createDialog.initiativeLabel")}</Label>
-                    {lockedInitiativeId ? (
-                      <div className="rounded-md border px-3 py-2 text-sm">
-                        {lockedInitiative?.name ?? t("filters.selectedInitiative")}
-                      </div>
-                    ) : initiativesQuery.isLoading ? (
-                      <p className="text-muted-foreground text-sm">
-                        {t("createDialog.loadingInitiatives")}
-                      </p>
-                    ) : initiativesQuery.isError ? (
-                      <p className="text-destructive text-sm">
-                        {t("createDialog.initiativeLoadError")}
-                      </p>
-                    ) : creatableInitiatives.length > 0 ? (
-                      <Select value={initiativeId ?? ""} onValueChange={setInitiativeId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("createDialog.selectInitiative")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {creatableInitiatives.map((initiative) => (
-                            <SelectItem key={initiative.id} value={String(initiative.id)}>
-                              {initiative.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">
-                        {t("createDialog.noInitiatives")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-template">{t("createDialog.templateLabel")}</Label>
-                    {templatesQuery.isLoading ? (
-                      <p className="text-muted-foreground text-sm">
-                        {t("createDialog.loadingTemplates")}
-                      </p>
-                    ) : templatesQuery.isError ? (
-                      <p className="text-destructive text-sm">
-                        {t("createDialog.templateLoadError")}
-                      </p>
-                    ) : (
-                      <Select
-                        value={selectedTemplateId}
-                        onValueChange={setSelectedTemplateId}
-                        disabled={isTemplateProject}
-                      >
-                        <SelectTrigger id="project-template">
-                          <SelectValue placeholder={t("createDialog.noTemplate")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NO_TEMPLATE_VALUE}>
-                            {t("createDialog.noTemplate")}
-                          </SelectItem>
-                          {templatesQuery.data?.items?.map((template) => (
-                            <SelectItem key={template.id} value={String(template.id)}>
-                              {template.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {isTemplateProject ? (
-                      <p className="text-muted-foreground text-xs">
-                        {t("createDialog.disableTemplateHint")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="bg-muted/20 flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <Label htmlFor="create-as-template" className="text-base">
-                        {t("createDialog.saveAsTemplate")}
-                      </Label>
-                      <p className="text-muted-foreground text-xs">
-                        {t("createDialog.saveAsTemplateHint")}
-                      </p>
-                    </div>
-                    <Switch
-                      id="create-as-template"
-                      checked={isTemplateProject}
-                      onCheckedChange={(checked) => {
-                        const nextStatus = Boolean(checked);
-                        setIsTemplateProject(nextStatus);
-                        if (nextStatus) {
-                          setSelectedTemplateId(NO_TEMPLATE_VALUE);
-                        }
-                      }}
-                    />
-                  </div>
-                  <Accordion type="single" collapsible defaultValue="advanced">
-                    <AccordionItem value="advanced" className="border-b-0">
-                      <AccordionTrigger>
-                        {t("common:createAccess.advancedOptions")}
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <CreateAccessControl
-                          initiativeId={initiativeId ? Number(initiativeId) : null}
-                          roleGrants={roleGrants}
-                          onRoleGrantsChange={setRoleGrants}
-                          userGrants={userGrants}
-                          onUserGrantsChange={setUserGrants}
-                          addAllMembersDefault
-                          onLoadingChange={setAccessLoading}
-                        />
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {createProject.isError ? (
-                      <p className="text-destructive text-sm">{t("createDialog.createError")}</p>
-                    ) : null}
-                    <div className="ml-auto flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={createProject.isPending}
-                        onClick={() => handleComposerOpenChange(false)}
-                      >
-                        {t("common:cancel")}
-                      </Button>
-                      <Button type="submit" disabled={createProject.isPending || accessLoading}>
-                        {createProject.isPending
-                          ? t("createDialog.creating")
-                          : t("createDialog.createProject")}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <CreateProjectDialog
+            open={isComposerOpen}
+            onOpenChange={handleComposerOpenChange}
+            lockedInitiativeId={lockedInitiativeId}
+            lockedInitiativeName={lockedInitiative?.name ?? null}
+            creatableInitiatives={creatableInitiatives}
+            initiativesQuery={{
+              isLoading: initiativesQuery.isLoading,
+              isError: initiativesQuery.isError,
+            }}
+            defaultInitiativeId={initiativeId}
+            onCreated={() => handleComposerOpenChange(false)}
+          />
         )}
       </div>
     </PullToRefresh>
