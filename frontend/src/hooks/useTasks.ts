@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
@@ -38,9 +38,9 @@ import type {
   TaskListResponse,
   TaskReorderRequest,
 } from "@/api/generated/initiativeAPI.schemas";
+import { castQueryFn } from "@/lib/query-utils";
 import type { MutationOpts } from "@/types/mutation";
-
-type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
+import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ export const useTask = (taskId: number | null, options?: QueryOpts<TaskListRead>
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskListRead>({
     queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(taskId!),
-    queryFn: () => readTaskApiV1TasksTaskIdGet(taskId!) as unknown as Promise<TaskListRead>,
+    queryFn: castQueryFn<TaskListRead>(() => readTaskApiV1TasksTaskIdGet(taskId!)),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
@@ -60,7 +60,7 @@ export const useTasks = (
 ) => {
   return useQuery<TaskListResponse>({
     queryKey: getListTasksApiV1TasksGetQueryKey(params),
-    queryFn: () => listTasksApiV1TasksGet(params) as unknown as Promise<TaskListResponse>,
+    queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1TasksGet(params)),
     ...options,
   });
 };
@@ -70,7 +70,7 @@ export const usePrefetchTasks = () => {
   return (params: ListTasksApiV1TasksGetParams) => {
     return qc.prefetchQuery({
       queryKey: getListTasksApiV1TasksGetQueryKey(params),
-      queryFn: () => listTasksApiV1TasksGet(params) as unknown as Promise<TaskListResponse>,
+      queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1TasksGet(params)),
       staleTime: 30_000,
     });
   };
@@ -79,8 +79,7 @@ export const usePrefetchTasks = () => {
 export const useSubtasks = (taskId: number, options?: QueryOpts<SubtaskRead[]>) => {
   return useQuery<SubtaskRead[]>({
     queryKey: getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey(taskId),
-    queryFn: () =>
-      listSubtasksApiV1TasksTaskIdSubtasksGet(taskId) as unknown as Promise<SubtaskRead[]>,
+    queryFn: castQueryFn<SubtaskRead[]>(() => listSubtasksApiV1TasksTaskIdSubtasksGet(taskId)),
     ...options,
   });
 };

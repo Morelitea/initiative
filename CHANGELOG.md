@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Centralized `QueryOpts<T>` type into `frontend/src/types/query.ts` — removed 9 duplicate definitions across hook files
+- Added shared `DialogProps` and `DialogWithSuccessProps` interfaces (`frontend/src/types/dialog.ts`) — adopted in 10 dialog components
+- Added `castQueryFn<T>()` utility (`frontend/src/lib/query-utils.ts`) to replace scattered `as unknown as Promise<T>` casts
+- Merged duplicate `BulkEditTagsDialog` components (documents + tasks) into a generic shared component
+- Wrapped `InitiativeSection` and `TagTreeNodeComponent` in `React.memo` to prevent cascading sidebar re-renders
+- Memoized `getUserPermissions`, `canManageInitiative` (`useCallback`), and `userInitials` (`useMemo`) in AppSidebar
+- Consolidated 6 filter `useState` calls in `ProjectTasksSection` into a single `useReducer` for batched updates
+
 ## [0.31.5] - 2026-02-20
 
 ### Fixed

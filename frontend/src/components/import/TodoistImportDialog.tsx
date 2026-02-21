@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogProps } from "@/types/dialog";
 
 interface TodoistParseResult {
   sections: Array<{ name: string; task_count: number }>;
@@ -38,10 +39,7 @@ interface ImportResult {
   errors: string[];
 }
 
-interface TodoistImportDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+type TodoistImportDialogProps = DialogProps;
 
 type Step = "upload" | "configure" | "result";
 

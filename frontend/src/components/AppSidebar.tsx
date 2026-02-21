@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
@@ -151,62 +151,71 @@ export const AppSidebar = () => {
   }, [initiativesQuery.data, user, isGuildAdmin]);
 
   // Check if user can manage a specific initiative
-  const canManageInitiative = (initiative: InitiativeRead): boolean => {
-    if (isGuildAdmin) {
-      return true;
-    }
-    if (!user) {
-      return false;
-    }
-    return initiative.members.some(
-      (member) => member.user.id === user.id && member.role === "project_manager"
-    );
-  };
+  const canManageInitiative = useCallback(
+    (initiative: InitiativeRead): boolean => {
+      if (isGuildAdmin) {
+        return true;
+      }
+      if (!user) {
+        return false;
+      }
+      return initiative.members.some(
+        (member) => member.user.id === user.id && member.role === "project_manager"
+      );
+    },
+    [user, isGuildAdmin]
+  );
 
   // Get user's permissions for an initiative
-  const getUserPermissions = (initiative: InitiativeRead) => {
-    if (!user) {
+  const getUserPermissions = useCallback(
+    (initiative: InitiativeRead) => {
+      if (!user) {
+        return {
+          canViewDocs: true,
+          canViewProjects: true,
+          canCreateDocs: false,
+          canCreateProjects: false,
+        };
+      }
+      // Guild admins have all permissions
+      if (isGuildAdmin) {
+        return {
+          canViewDocs: true,
+          canViewProjects: true,
+          canCreateDocs: true,
+          canCreateProjects: true,
+        };
+      }
+      const membership = initiative.members.find((m) => m.user.id === user.id);
+      if (!membership) {
+        return {
+          canViewDocs: true,
+          canViewProjects: true,
+          canCreateDocs: false,
+          canCreateProjects: false,
+        };
+      }
       return {
-        canViewDocs: true,
-        canViewProjects: true,
-        canCreateDocs: false,
-        canCreateProjects: false,
+        canViewDocs: membership.can_view_docs ?? true,
+        canViewProjects: membership.can_view_projects ?? true,
+        canCreateDocs: membership.can_create_docs ?? false,
+        canCreateProjects: membership.can_create_projects ?? false,
       };
-    }
-    // Guild admins have all permissions
-    if (isGuildAdmin) {
-      return {
-        canViewDocs: true,
-        canViewProjects: true,
-        canCreateDocs: true,
-        canCreateProjects: true,
-      };
-    }
-    const membership = initiative.members.find((m) => m.user.id === user.id);
-    if (!membership) {
-      return {
-        canViewDocs: true,
-        canViewProjects: true,
-        canCreateDocs: false,
-        canCreateProjects: false,
-      };
-    }
-    return {
-      canViewDocs: membership.can_view_docs ?? true,
-      canViewProjects: membership.can_view_projects ?? true,
-      canCreateDocs: membership.can_create_docs ?? false,
-      canCreateProjects: membership.can_create_projects ?? false,
-    };
-  };
+    },
+    [user, isGuildAdmin]
+  );
 
   const userDisplayName = user?.full_name ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
-  const userInitials =
-    userDisplayName
-      .split(/\s+/)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("")
-      .slice(0, 2) || "U";
+  const userInitials = useMemo(
+    () =>
+      userDisplayName
+        .split(/\s+/)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join("")
+        .slice(0, 2) || "U",
+    [userDisplayName]
+  );
   const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
 
   // Fetch tags for the tag browser
@@ -533,308 +542,311 @@ interface InitiativeSectionProps {
   activeGuildId: number | null;
 }
 
-const InitiativeSection = ({
-  initiative,
-  projects,
-  documentCount,
-  canManageInitiative,
-  activeProjectId,
-  userId,
-  canViewDocs,
-  canViewProjects,
-  canCreateDocs,
-  canCreateProjects,
-  activeGuildId,
-}: InitiativeSectionProps) => {
-  const { t } = useTranslation("nav");
-  // Helper to create guild-scoped paths
-  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
-  // Pure DAC: check if user has write access to a specific project
-  const canManageProject = (project: ProjectRead): boolean => {
-    if (!userId) return false;
-    const level = project.my_permission_level;
-    return level === "owner" || level === "write";
-  };
-  // Load initial state from storage, default to true if not found
-  const [isOpen, setIsOpen] = useState(() => {
-    try {
-      const stored = getItem("initiative-collapsed-states");
-      if (stored) {
-        const states = JSON.parse(stored) as Record<number, boolean>;
-        return states[initiative.id] ?? true;
+const InitiativeSection = memo(
+  ({
+    initiative,
+    projects,
+    documentCount,
+    canManageInitiative,
+    activeProjectId,
+    userId,
+    canViewDocs,
+    canViewProjects,
+    canCreateDocs,
+    canCreateProjects,
+    activeGuildId,
+  }: InitiativeSectionProps) => {
+    const { t } = useTranslation("nav");
+    // Helper to create guild-scoped paths
+    const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+    // Pure DAC: check if user has write access to a specific project
+    const canManageProject = (project: ProjectRead): boolean => {
+      if (!userId) return false;
+      const level = project.my_permission_level;
+      return level === "owner" || level === "write";
+    };
+    // Load initial state from storage, default to true if not found
+    const [isOpen, setIsOpen] = useState(() => {
+      try {
+        const stored = getItem("initiative-collapsed-states");
+        if (stored) {
+          const states = JSON.parse(stored) as Record<number, boolean>;
+          return states[initiative.id] ?? true;
+        }
+      } catch {
+        // Ignore parsing errors
       }
-    } catch {
-      // Ignore parsing errors
-    }
-    return true;
-  });
+      return true;
+    });
 
-  // Save state to storage whenever it changes
-  useEffect(() => {
-    try {
-      const stored = getItem("initiative-collapsed-states");
-      const states = stored ? (JSON.parse(stored) as Record<number, boolean>) : {};
-      states[initiative.id] = isOpen;
-      setItem("initiative-collapsed-states", JSON.stringify(states));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [isOpen, initiative.id]);
+    // Save state to storage whenever it changes
+    useEffect(() => {
+      try {
+        const stored = getItem("initiative-collapsed-states");
+        const states = stored ? (JSON.parse(stored) as Record<number, boolean>) : {};
+        states[initiative.id] = isOpen;
+        setItem("initiative-collapsed-states", JSON.stringify(states));
+      } catch {
+        // Ignore storage errors
+      }
+    }, [isOpen, initiative.id]);
 
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="group/initiative flex min-w-0 items-center gap-1">
-        <div className="flex min-w-0 flex-1 items-center">
-          <CollapsibleTrigger asChild>
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="group/initiative flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 flex-1 items-center">
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                aria-label={isOpen ? t("collapseInitiative") : t("expandInitiative")}
+              >
+                <CircleChevronRight
+                  className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
+                  style={{ color: initiative.color || undefined }}
+                />
+              </Button>
+            </CollapsibleTrigger>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              aria-label={isOpen ? t("collapseInitiative") : t("expandInitiative")}
+              className="hover:bg-accent min-w-0 flex-1 justify-start px-0 py-1.5 text-sm font-medium"
+              asChild
             >
-              <CircleChevronRight
-                className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
-                style={{ color: initiative.color || undefined }}
-              />
+              <Link to={gp(`/initiatives/${initiative.id}`)} className="flex min-w-0 items-center">
+                <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
+              </Link>
             </Button>
-          </CollapsibleTrigger>
-          <Button
-            variant="ghost"
-            className="hover:bg-accent min-w-0 flex-1 justify-start px-0 py-1.5 text-sm font-medium"
-            asChild
-          >
-            <Link to={gp(`/initiatives/${initiative.id}`)} className="flex min-w-0 items-center">
-              <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
-            </Link>
-          </Button>
-        </div>
-        {canManageInitiative && (
-          <>
-            {/* Desktop: Show hover-reveal settings button */}
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/initiative:opacity-100 lg:flex"
-                  asChild
-                >
-                  <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
-                    <Settings className="h-3 w-3" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{t("initiativeSettings")}</p>
-              </TooltipContent>
-            </Tooltip>
+          </div>
+          {canManageInitiative && (
+            <>
+              {/* Desktop: Show hover-reveal settings button */}
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/initiative:opacity-100 lg:flex"
+                    asChild
+                  >
+                    <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
+                      <Settings className="h-3 w-3" />
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{t("initiativeSettings")}</p>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Mobile: Show three-dot menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 lg:hidden"
-                  aria-label={t("initiativeActions")}
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    {t("initiativeSettings")}
-                  </Link>
-                </DropdownMenuItem>
-                {canCreateDocs && (
+              {/* Mobile: Show three-dot menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 lg:hidden"
+                    aria-label={t("initiativeActions")}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem asChild>
+                    <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      {t("initiativeSettings")}
+                    </Link>
+                  </DropdownMenuItem>
+                  {canCreateDocs && (
+                    <DropdownMenuItem asChild>
+                      <Link
+                        to={gp("/documents")}
+                        search={{ create: "true", initiativeId: String(initiative.id) }}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        {t("createDocument")}
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {canCreateProjects && (
+                    <DropdownMenuItem asChild>
+                      <Link
+                        to={gp("/projects")}
+                        search={{ create: "true", initiativeId: String(initiative.id) }}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        {t("createProject")}
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+        </div>
+        <CollapsibleContent
+          className="ml-3 space-y-0.5 border-l"
+          style={{ borderColor: initiative.color || undefined }}
+        >
+          <SidebarMenu>
+            {/* Documents Link */}
+            {canViewDocs && (
+              <SidebarMenuItem>
+                <div className="group/documents flex w-full min-w-0 items-center gap-1">
+                  <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
                     <Link
                       to={gp("/documents")}
-                      search={{ create: "true", initiativeId: String(initiative.id) }}
+                      search={{ initiativeId: String(initiative.id) }}
+                      className="flex items-center gap-2"
                     >
-                      <Plus className="mr-2 h-4 w-4" />
-                      {t("createDocument")}
-                    </Link>
-                  </DropdownMenuItem>
-                )}
-                {canCreateProjects && (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to={gp("/projects")}
-                      search={{ create: "true", initiativeId: String(initiative.id) }}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      {t("createProject")}
-                    </Link>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        )}
-      </div>
-      <CollapsibleContent
-        className="ml-3 space-y-0.5 border-l"
-        style={{ borderColor: initiative.color || undefined }}
-      >
-        <SidebarMenu>
-          {/* Documents Link */}
-          {canViewDocs && (
-            <SidebarMenuItem>
-              <div className="group/documents flex w-full min-w-0 items-center gap-1">
-                <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                  <Link
-                    to={gp("/documents")}
-                    search={{ initiativeId: String(initiative.id) }}
-                    className="flex items-center gap-2"
-                  >
-                    <ScrollText className="h-4 w-4" />
-                    <span>{t("documents")}</span>
-                    <span className="text-muted-foreground text-xs">{documentCount}</span>
-                  </Link>
-                </SidebarMenuButton>
-                {canCreateDocs && (
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/documents:opacity-100 lg:flex"
-                        asChild
-                      >
-                        <Link
-                          to={gp("/documents")}
-                          search={{ create: "true", initiativeId: String(initiative.id) }}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p>{t("createDocument")}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            </SidebarMenuItem>
-          )}
-
-          {/* Projects Link */}
-          {canViewProjects && (
-            <SidebarMenuItem>
-              <div className="group/projects flex w-full min-w-0 items-center gap-1">
-                <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                  <Link
-                    to={gp("/projects")}
-                    search={{ initiativeId: String(initiative.id) }}
-                    className="flex items-center gap-2"
-                  >
-                    <ListTodo className="h-4 w-4" />
-                    <span>{t("projects")}</span>
-                    <span className="text-muted-foreground text-xs">{projects.length}</span>
-                  </Link>
-                </SidebarMenuButton>
-                {canCreateProjects && (
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/projects:opacity-100 lg:flex"
-                        asChild
-                      >
-                        <Link
-                          to={gp("/projects")}
-                          search={{ create: "true", initiativeId: String(initiative.id) }}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p>{t("createProject")}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            </SidebarMenuItem>
-          )}
-
-          {/* Projects List */}
-          {canViewProjects &&
-            projects.map((project) => (
-              <SidebarMenuItem key={project.id}>
-                <div className="group/project flex w-full min-w-0 items-center gap-1">
-                  <SidebarMenuButton
-                    asChild
-                    size="sm"
-                    className="min-w-0 flex-1"
-                    isActive={project.id === activeProjectId}
-                  >
-                    <Link
-                      to={gp(`/projects/${project.id}`)}
-                      className="flex min-w-0 items-center gap-2"
-                    >
-                      {project.icon ? (
-                        <span className="shrink-0 text-base">{project.icon}</span>
-                      ) : null}
-                      <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                      <ScrollText className="h-4 w-4" />
+                      <span>{t("documents")}</span>
+                      <span className="text-muted-foreground text-xs">{documentCount}</span>
                     </Link>
                   </SidebarMenuButton>
-                  {canManageProject(project) && (
-                    <>
-                      {/* Desktop: Show hover-reveal settings button */}
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
-                            asChild
+                  {canCreateDocs && (
+                    <Tooltip delayDuration={300}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/documents:opacity-100 lg:flex"
+                          asChild
+                        >
+                          <Link
+                            to={gp("/documents")}
+                            search={{ create: "true", initiativeId: String(initiative.id) }}
                           >
-                            <Link to={gp(`/projects/${project.id}/settings`)}>
-                              <Settings className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("projectSettings")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-
-                      {/* Mobile: Show three-dot menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0 lg:hidden"
-                            aria-label={t("projectActions")}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem asChild>
-                            <Link to={gp(`/projects/${project.id}/settings`)}>
-                              <Settings className="mr-2 h-4 w-4" />
-                              {t("projectSettings")}
-                            </Link>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </>
+                            <Plus className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>{t("createDocument")}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
               </SidebarMenuItem>
-            ))}
-        </SidebarMenu>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-};
+            )}
+
+            {/* Projects Link */}
+            {canViewProjects && (
+              <SidebarMenuItem>
+                <div className="group/projects flex w-full min-w-0 items-center gap-1">
+                  <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+                    <Link
+                      to={gp("/projects")}
+                      search={{ initiativeId: String(initiative.id) }}
+                      className="flex items-center gap-2"
+                    >
+                      <ListTodo className="h-4 w-4" />
+                      <span>{t("projects")}</span>
+                      <span className="text-muted-foreground text-xs">{projects.length}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {canCreateProjects && (
+                    <Tooltip delayDuration={300}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/projects:opacity-100 lg:flex"
+                          asChild
+                        >
+                          <Link
+                            to={gp("/projects")}
+                            search={{ create: "true", initiativeId: String(initiative.id) }}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>{t("createProject")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </SidebarMenuItem>
+            )}
+
+            {/* Projects List */}
+            {canViewProjects &&
+              projects.map((project) => (
+                <SidebarMenuItem key={project.id}>
+                  <div className="group/project flex w-full min-w-0 items-center gap-1">
+                    <SidebarMenuButton
+                      asChild
+                      size="sm"
+                      className="min-w-0 flex-1"
+                      isActive={project.id === activeProjectId}
+                    >
+                      <Link
+                        to={gp(`/projects/${project.id}`)}
+                        className="flex min-w-0 items-center gap-2"
+                      >
+                        {project.icon ? (
+                          <span className="shrink-0 text-base">{project.icon}</span>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {canManageProject(project) && (
+                      <>
+                        {/* Desktop: Show hover-reveal settings button */}
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/project:opacity-100 lg:flex"
+                              asChild
+                            >
+                              <Link to={gp(`/projects/${project.id}/settings`)}>
+                                <Settings className="h-3 w-3" />
+                              </Link>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>{t("projectSettings")}</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        {/* Mobile: Show three-dot menu */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0 lg:hidden"
+                              aria-label={t("projectActions")}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem asChild>
+                              <Link to={gp(`/projects/${project.id}/settings`)}>
+                                <Settings className="mr-2 h-4 w-4" />
+                                {t("projectSettings")}
+                              </Link>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </>
+                    )}
+                  </div>
+                </SidebarMenuItem>
+              ))}
+          </SidebarMenu>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  }
+);
+InitiativeSection.displayName = "InitiativeSection";
 
 // Maximum visual indentation depth (children still render, just don't indent further)
 const MAX_TAG_INDENT = 3;
@@ -883,7 +895,7 @@ interface TagTreeNodeComponentProps {
   activeGuildId: number | null;
 }
 
-const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeComponentProps) => {
+const TagTreeNodeComponent = memo(({ node, depth, activeGuildId }: TagTreeNodeComponentProps) => {
   const { t } = useTranslation("nav");
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
@@ -1011,4 +1023,5 @@ const TagTreeNodeComponent = ({ node, depth, activeGuildId }: TagTreeNodeCompone
       )}
     </Collapsible>
   );
-};
+});
+TagTreeNodeComponent.displayName = "TagTreeNodeComponent";

@@ -38,10 +38,9 @@ import {
 } from "@/components/access/CreateAccessControl";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 import type { DocumentRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogProps } from "@/types/dialog";
 
-type CreateDocumentDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+type CreateDocumentDialogProps = DialogProps & {
   /** If provided, the initiative is locked and cannot be changed */
   initiativeId?: number;
   /** If provided, pre-selects this initiative (but user can change it) */
