@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Guild switching no longer shows stale sidebar data — restored query cache invalidation on guild switch that was accidentally removed during React Query migration
+- HTML `<strong>` tags rendered as literal text in delete confirmation dialogs — switched to react-i18next `Trans` component for proper bold rendering in initiative, guild, and settings dialogs (en + es locales)
+- Defensive `Array.isArray` guard in document template queries to prevent crash on non-array data
 
 ### Changed
 
@@ -20,11 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `apiMutator` to merge request options (custom headers were silently ignored)
 - Centralized document mutations into `useDocuments.ts` — new hooks for create, upload, duplicate, copy, member CRUD (individual + bulk), role permission CRUD, and AI summary generation; replaces inline mutations across DocumentSettingsPage, DocumentDetailPage, DocumentsPage, CreateDocumentDialog, CreateWikilinkDocumentDialog, and DocumentSummary
 - Centralized initiative mutations into `useInitiatives.ts` with `MutationOpts` support — replaces inline mutations in InitiativeSettingsPage
-
-### Fixed
-
-- HTML `<strong>` tags rendered as literal text in delete confirmation dialogs — switched to react-i18next `Trans` component for proper bold rendering in initiative, guild, and settings dialogs (en + es locales)
-- Defensive `Array.isArray` guard in document template queries to prevent crash on non-array data
 
 ## [0.31.4] - 2026-02-20
 
