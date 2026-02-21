@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `OIDC_ENABLED` env var no longer prevents admins from disabling OIDC via the UI — env var now only seeds on first boot instead of overriding the DB value on every read
 - Guild switching no longer shows stale sidebar data — restored query cache invalidation on guild switch that was accidentally removed during React Query migration
 - HTML `<strong>` tags rendered as literal text in delete confirmation dialogs — switched to react-i18next `Trans` component for proper bold rendering in initiative, guild, and settings dialogs (en + es locales)
 - Defensive `Array.isArray` guard in document template queries to prevent crash on non-array data
 
 ### Changed
 
+- Centralized settings and AI settings mutation hooks (Phase 4a) — 13 new hooks in `useSettings.ts` and `useAISettings.ts` replace inline mutations across 7 settings pages/components; added `MutationOpts` to `useUpdateRoleLabels`
 - Centralized inline `useMutation` hooks for tasks, subtasks, task statuses, project members, role permissions, and project documents into domain hook files (`useTasks.ts`, `useProjects.ts`) — replaces ~50 inline mutations across 15 component/page files
 - Consolidated standalone `useProjectFavoriteMutation` and `useProjectPinMutation` hooks into `useProjects.ts` as `useToggleProjectFavorite` and `useToggleProjectPin`
 - All mutation hooks now accept an optional `MutationOpts` parameter, allowing callers to provide `onSuccess`, `onError`, `onSettled`, and other mutation options

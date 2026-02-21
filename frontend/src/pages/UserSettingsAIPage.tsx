@@ -1,13 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import {
-  updateUserAiSettingsApiV1SettingsAiUserPut,
-  testAiConnectionApiV1SettingsAiTestPost,
-  fetchAiModelsApiV1SettingsAiModelsPost,
-} from "@/api/generated/ai-settings/ai-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,15 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useUserAISettings } from "@/hooks/useAISettings";
+import {
+  useUserAISettings,
+  useUpdateUserAISettings,
+  useTestAIConnection,
+  useFetchAIModels,
+} from "@/hooks/useAISettings";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
-import type {
-  AIModelsResponse,
-  AIProvider,
-  AITestConnectionResponse,
-  UserAISettingsResponse,
-  UserAISettingsUpdate,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { AIProvider, UserAISettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
 
 interface FormState {
   enabled: boolean | null;
@@ -79,17 +72,11 @@ export const UserSettingsAIPage = () => {
     }
   }, [settingsQuery.data]);
 
-  const updateMutation = useMutation({
-    mutationFn: async (payload: UserAISettingsUpdate) => {
-      return updateUserAiSettingsApiV1SettingsAiUserPut(
-        payload as Parameters<typeof updateUserAiSettingsApiV1SettingsAiUserPut>[0]
-      ) as unknown as Promise<UserAISettingsResponse>;
-    },
+  const updateMutation = useUpdateUserAISettings({
     onSuccess: (data) => {
       toast.success(t("ai.saveSuccess"));
       setFormState((prev) => ({ ...prev, apiKey: "" }));
       setHasExistingKey(data.has_api_key);
-      void settingsQuery.refetch();
     },
     onError: (error: Error & { response?: { status?: number; data?: { detail?: string } } }) => {
       const message = error.response?.data?.detail ?? t("ai.saveError");
@@ -97,27 +84,7 @@ export const UserSettingsAIPage = () => {
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: async () => {
-      const provider = formState.useInheritedSettings
-        ? settingsQuery.data?.effective_provider
-        : formState.provider;
-      if (!provider) {
-        throw new Error("No provider selected");
-      }
-      return testAiConnectionApiV1SettingsAiTestPost({
-        provider: provider,
-        api_key: formState.apiKey || null,
-        base_url: formState.useInheritedSettings
-          ? settingsQuery.data?.effective_base_url
-          : formState.baseUrl || null,
-        model: formState.useInheritedSettings
-          ? settingsQuery.data?.effective_model
-          : formState.model || null,
-      } as Parameters<
-        typeof testAiConnectionApiV1SettingsAiTestPost
-      >[0]) as unknown as Promise<AITestConnectionResponse>;
-    },
+  const testMutation = useTestAIConnection({
     onSuccess: (data) => {
       if (data.success) {
         toast.success(data.message);
@@ -131,24 +98,7 @@ export const UserSettingsAIPage = () => {
     onError: () => toast.error(t("ai.testError")),
   });
 
-  const fetchModelsMutation = useMutation({
-    mutationFn: async () => {
-      const provider = formState.useInheritedSettings
-        ? settingsQuery.data?.effective_provider
-        : formState.provider;
-      if (!provider) {
-        throw new Error("No provider selected");
-      }
-      return fetchAiModelsApiV1SettingsAiModelsPost({
-        provider: provider,
-        api_key: formState.apiKey || null,
-        base_url: formState.useInheritedSettings
-          ? settingsQuery.data?.effective_base_url
-          : formState.baseUrl || null,
-      } as Parameters<
-        typeof fetchAiModelsApiV1SettingsAiModelsPost
-      >[0]) as unknown as Promise<AIModelsResponse>;
-    },
+  const fetchModelsMutation = useFetchAIModels({
     onSuccess: (data) => {
       if (data.models.length > 0) {
         setAvailableModels(data.models);
@@ -225,6 +175,37 @@ export const UserSettingsAIPage = () => {
       payload.api_key = formState.apiKey;
     }
     updateMutation.mutate(payload);
+  };
+
+  const handleTestConnection = () => {
+    const provider = formState.useInheritedSettings
+      ? settingsQuery.data?.effective_provider
+      : formState.provider;
+    if (!provider) return;
+    testMutation.mutate({
+      provider,
+      api_key: formState.apiKey || null,
+      base_url: formState.useInheritedSettings
+        ? settingsQuery.data?.effective_base_url
+        : formState.baseUrl || null,
+      model: formState.useInheritedSettings
+        ? settingsQuery.data?.effective_model
+        : formState.model || null,
+    });
+  };
+
+  const handleFetchModels = () => {
+    const provider = formState.useInheritedSettings
+      ? settingsQuery.data?.effective_provider
+      : formState.provider;
+    if (!provider || fetchModelsMutation.isPending) return;
+    fetchModelsMutation.mutate({
+      provider,
+      api_key: formState.apiKey || null,
+      base_url: formState.useInheritedSettings
+        ? settingsQuery.data?.effective_base_url
+        : formState.baseUrl || null,
+    });
   };
 
   const activeProvider = formState.useInheritedSettings
@@ -399,11 +380,7 @@ export const UserSettingsAIPage = () => {
                     value={formState.model}
                     onValueChange={(value) => setFormState((prev) => ({ ...prev, model: value }))}
                     placeholder={providerConfig?.modelPlaceholder ?? "Select or type a model"}
-                    onOpen={() => {
-                      if (activeProvider && !fetchModelsMutation.isPending) {
-                        fetchModelsMutation.mutate();
-                      }
-                    }}
+                    onOpen={handleFetchModels}
                     isLoading={fetchModelsMutation.isPending}
                   />
                 </div>
@@ -418,7 +395,7 @@ export const UserSettingsAIPage = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => testMutation.mutate()}
+              onClick={handleTestConnection}
               disabled={
                 testMutation.isPending || (!formState.useInheritedSettings && !activeProvider)
               }

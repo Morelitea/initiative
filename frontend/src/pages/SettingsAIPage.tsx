@@ -1,14 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import {
-  updatePlatformAiSettingsApiV1SettingsAiPlatformPut,
-  testAiConnectionApiV1SettingsAiTestPost,
-  fetchAiModelsApiV1SettingsAiModelsPost,
-} from "@/api/generated/ai-settings/ai-settings";
-import { invalidatePlatformAISettings, invalidateResolvedAISettings } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,16 +15,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { usePlatformAISettings } from "@/hooks/useAISettings";
+import {
+  usePlatformAISettings,
+  useUpdatePlatformAISettings,
+  useTestAIConnection,
+  useFetchAIModels,
+} from "@/hooks/useAISettings";
 import { useAuth } from "@/hooks/useAuth";
 import { getModelsForProvider, PROVIDER_CONFIGS } from "@/lib/ai-providers";
-import type {
-  AIModelsResponse,
-  AIProvider,
-  AITestConnectionResponse,
-  PlatformAISettingsResponse,
-  PlatformAISettingsUpdate,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { AIProvider, PlatformAISettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
 
 interface FormState {
   enabled: boolean;
@@ -79,34 +71,16 @@ export const SettingsAIPage = () => {
     }
   }, [settingsQuery.data]);
 
-  const updateMutation = useMutation({
-    mutationFn: async (payload: PlatformAISettingsUpdate) => {
-      return updatePlatformAiSettingsApiV1SettingsAiPlatformPut(
-        payload
-      ) as unknown as Promise<PlatformAISettingsResponse>;
-    },
+  const updateMutation = useUpdatePlatformAISettings({
     onSuccess: (data) => {
       toast.success(t("ai.saveSuccess"));
       setFormState((prev) => ({ ...prev, apiKey: "" }));
       setHasExistingKey(data.has_api_key);
-      void invalidatePlatformAISettings();
-      void invalidateResolvedAISettings();
     },
     onError: () => toast.error(t("ai.saveError")),
   });
 
-  const testMutation = useMutation({
-    mutationFn: async () => {
-      if (!formState.provider) {
-        throw new Error("No provider selected");
-      }
-      return testAiConnectionApiV1SettingsAiTestPost({
-        provider: formState.provider,
-        api_key: formState.apiKey || null,
-        base_url: formState.baseUrl || null,
-        model: formState.model || null,
-      }) as unknown as Promise<AITestConnectionResponse>;
-    },
+  const testMutation = useTestAIConnection({
     onSuccess: (data) => {
       if (data.success) {
         toast.success(data.message);
@@ -120,17 +94,7 @@ export const SettingsAIPage = () => {
     onError: () => toast.error(t("ai.testError")),
   });
 
-  const fetchModelsMutation = useMutation({
-    mutationFn: async () => {
-      if (!formState.provider) {
-        throw new Error("No provider selected");
-      }
-      return fetchAiModelsApiV1SettingsAiModelsPost({
-        provider: formState.provider,
-        api_key: formState.apiKey || null,
-        base_url: formState.baseUrl || null,
-      }) as unknown as Promise<AIModelsResponse>;
-    },
+  const fetchModelsMutation = useFetchAIModels({
     onSuccess: (data) => {
       if (data.models.length > 0) {
         setAvailableModels(data.models);
@@ -164,6 +128,25 @@ export const SettingsAIPage = () => {
       payload.api_key = formState.apiKey;
     }
     updateMutation.mutate(payload);
+  };
+
+  const handleTestConnection = () => {
+    if (!formState.provider) return;
+    testMutation.mutate({
+      provider: formState.provider,
+      api_key: formState.apiKey || null,
+      base_url: formState.baseUrl || null,
+      model: formState.model || null,
+    });
+  };
+
+  const handleFetchModels = () => {
+    if (!formState.provider || fetchModelsMutation.isPending) return;
+    fetchModelsMutation.mutate({
+      provider: formState.provider,
+      api_key: formState.apiKey || null,
+      base_url: formState.baseUrl || null,
+    });
   };
 
   const getModelOptions = () => getModelsForProvider(formState.provider, availableModels);
@@ -269,11 +252,7 @@ export const SettingsAIPage = () => {
                 value={formState.model}
                 onValueChange={(value) => setFormState((prev) => ({ ...prev, model: value }))}
                 placeholder={providerConfig?.modelPlaceholder ?? "Select or type a model"}
-                onOpen={() => {
-                  if (formState.provider && !fetchModelsMutation.isPending) {
-                    fetchModelsMutation.mutate();
-                  }
-                }}
+                onOpen={handleFetchModels}
                 isLoading={fetchModelsMutation.isPending}
               />
             </div>
@@ -316,7 +295,7 @@ export const SettingsAIPage = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => testMutation.mutate()}
+              onClick={handleTestConnection}
               disabled={testMutation.isPending || !formState.provider}
             >
               {testMutation.isPending ? t("ai.testing") : t("ai.testConnection")}

@@ -1,10 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { updateInterfaceSettingsApiV1SettingsInterfacePut } from "@/api/generated/settings/settings";
-import { invalidateInterfaceSettings } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,13 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_ROLE_LABELS, useRoleLabels, useUpdateRoleLabels } from "@/hooks/useRoleLabels";
 import { useAuth } from "@/hooks/useAuth";
-import { useInterfaceSettings } from "@/hooks/useSettings";
+import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
 import type { RoleLabelsResponse } from "@/api/generated/initiativeAPI.schemas";
-
-interface InterfaceSettings {
-  light_accent_color: string;
-  dark_accent_color: string;
-}
 
 const ROLE_FIELDS: { key: keyof RoleLabelsResponse; labelKey: string; helperKey: string }[] = [
   { key: "admin", labelKey: "branding.adminLabel", helperKey: "branding.adminHelper" },
@@ -48,15 +40,9 @@ export const SettingsBrandingPage = () => {
 
   const interfaceQuery = useInterfaceSettings({ enabled: isPlatformAdmin });
 
-  const updateInterface = useMutation({
-    mutationFn: async (payload: InterfaceSettings) => {
-      return updateInterfaceSettingsApiV1SettingsInterfacePut(
-        payload as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
-      ) as unknown as Promise<InterfaceSettings>;
-    },
+  const updateInterface = useUpdateInterfaceSettings({
     onSuccess: () => {
       toast.success(t("branding.interfaceSuccess"));
-      void invalidateInterfaceSettings();
     },
   });
 
