@@ -22,10 +22,10 @@
   "guildIdCopied": "ID del gremio copiado al portapapeles",
   "leave": {
     "title": "¿Salir de {{name}}?",
-    "description": "Perderás acceso a todas las iniciativas y proyectos en <strong>{{name}}</strong>. Esta acción no se puede deshacer.",
+    "description": "Perderás acceso a todas las iniciativas y proyectos en <bold>{{name}}</bold>. Esta acción no se puede deshacer.",
     "cannotLeaveTitle": "No se puede salir del gremio",
     "lastAdminWarning": "Eres el último administrador de este gremio. Primero promueve a otro miembro a administrador.",
-    "solePmWarning": "Eres el único gerente de proyecto de: <strong>{{initiatives}}</strong>. Primero promueve a otro miembro a gerente de proyecto.",
+    "solePmWarning": "Eres el único gerente de proyecto de: <bold>{{initiatives}}</bold>. Primero promueve a otro miembro a gerente de proyecto.",
     "leaving": "Saliendo...",
     "leaveButton": "Salir del gremio",
     "leftGuild": "Saliste de {{name}}",
@@ -79,8 +79,8 @@
     "deleting": "Eliminando\u2026",
     "deleteGuild": "Eliminar gremio",
     "deleteConfirmTitle": "¿Eliminar gremio?",
-    "deleteConfirmDescription": "Eliminar <strong>{{name}}</strong> eliminará permanentemente todas las iniciativas, proyectos, tareas y documentos dentro de él. Esta acción no se puede deshacer.",
-    "deleteConfirmLabel": "Escribe <strong>{{name}}</strong> para confirmar:",
+    "deleteConfirmDescription": "Eliminar <bold>{{name}}</bold> eliminará permanentemente todas las iniciativas, proyectos, tareas y documentos dentro de él. Esta acción no se puede deshacer.",
+    "deleteConfirmLabel": "Escribe <bold>{{name}}</bold> para confirmar:",
     "unableToDelete": "No se pudo eliminar el gremio."
   },
   "users": {
