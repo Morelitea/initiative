@@ -22,10 +22,10 @@
   "guildIdCopied": "Guild ID copied to clipboard",
   "leave": {
     "title": "Leave {{name}}?",
-    "description": "You will lose access to all initiatives and projects in <strong>{{name}}</strong>. This action cannot be undone.",
+    "description": "You will lose access to all initiatives and projects in <bold>{{name}}</bold>. This action cannot be undone.",
     "cannotLeaveTitle": "Cannot leave guild",
     "lastAdminWarning": "You are the last admin of this guild. Promote another member to admin first.",
-    "solePmWarning": "You are the sole project manager of: <strong>{{initiatives}}</strong>. Promote another member to project manager first.",
+    "solePmWarning": "You are the sole project manager of: <bold>{{initiatives}}</bold>. Promote another member to project manager first.",
     "leaving": "Leaving...",
     "leaveButton": "Leave Guild",
     "leftGuild": "Left {{name}}",
@@ -79,8 +79,8 @@
     "deleting": "Deleting\u2026",
     "deleteGuild": "Delete guild",
     "deleteConfirmTitle": "Delete guild?",
-    "deleteConfirmDescription": "Deleting <strong>{{name}}</strong> will permanently remove all initiatives, projects, tasks, and documents within it. This cannot be undone.",
-    "deleteConfirmLabel": "Type <strong>{{name}}</strong> to confirm:",
+    "deleteConfirmDescription": "Deleting <bold>{{name}}</bold> will permanently remove all initiatives, projects, tasks, and documents within it. This cannot be undone.",
+    "deleteConfirmLabel": "Type <bold>{{name}}</bold> to confirm:",
     "unableToDelete": "Unable to delete guild."
   },
   "users": {

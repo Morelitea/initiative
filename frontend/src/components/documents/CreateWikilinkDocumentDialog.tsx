@@ -1,15 +1,9 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import {
-  copyDocumentApiV1DocumentsDocumentIdCopyPost,
-  createDocumentApiV1DocumentsPost,
-} from "@/api/generated/documents/documents";
-import { invalidateAllDocuments } from "@/api/query-keys";
-import { useAllDocumentIds } from "@/hooks/useDocuments";
+import { useAllDocumentIds, useCreateDocument } from "@/hooks/useDocuments";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -29,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import type { DocumentRead } from "@/api/generated/initiativeAPI.schemas";
 
 interface CreateWikilinkDocumentDialogProps {
   open: boolean;
@@ -62,7 +55,8 @@ export function CreateWikilinkDocumentDialog({
 
   // Filter templates user can access
   const manageableTemplates = useMemo(() => {
-    if (!templateDocumentsQuery.data || !user) return [];
+    if (!templateDocumentsQuery.data || !Array.isArray(templateDocumentsQuery.data) || !user)
+      return [];
     return templateDocumentsQuery.data.filter((doc) => {
       if (!doc.is_template) return false;
       const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
@@ -78,33 +72,11 @@ export function CreateWikilinkDocumentDialog({
     onOpenChange(newOpen);
   };
 
-  const createDocument = useMutation({
-    mutationFn: async () => {
-      // Use template if selected and not "blank"
-      if (selectedTemplateId && selectedTemplateId !== "blank") {
-        return copyDocumentApiV1DocumentsDocumentIdCopyPost(Number(selectedTemplateId), {
-          target_initiative_id: initiativeId,
-          title: title.trim(),
-        }) as unknown as Promise<DocumentRead>;
-      } else {
-        return createDocumentApiV1DocumentsPost({
-          title: title.trim(),
-          initiative_id: initiativeId,
-        }) as unknown as Promise<DocumentRead>;
-      }
-    },
+  const createDocument = useCreateDocument({
     onSuccess: (document) => {
       toast.success(t("wikilink.created"));
       onOpenChange(false);
-      void invalidateAllDocuments();
       onCreated?.(document.id);
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("wikilink.createError");
-      // Check for axios error response
-      const axiosError = error as { response?: { data?: { detail?: string } } };
-      const detail = axiosError.response?.data?.detail;
-      toast.error(detail || message);
     },
   });
 
@@ -154,7 +126,19 @@ export function CreateWikilinkDocumentDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
           {canCreate && (
-            <Button onClick={() => createDocument.mutate()} disabled={createDocument.isPending}>
+            <Button
+              onClick={() =>
+                createDocument.mutate({
+                  title: title.trim(),
+                  initiative_id: initiativeId,
+                  template_id:
+                    selectedTemplateId && selectedTemplateId !== "blank"
+                      ? Number(selectedTemplateId)
+                      : undefined,
+                })
+              }
+              disabled={createDocument.isPending}
+            >
               {createDocument.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

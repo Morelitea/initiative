@@ -70,7 +70,7 @@
     "loggedIn": "Conectado {{date}}",
     "revoke": "Revocar",
     "revokeDialogTitle": "¿Revocar acceso del dispositivo?",
-    "revokeDialogDescription": "Esto cerrará la sesión de <strong>{{deviceName}}</strong>. Necesitará iniciar sesión de nuevo para acceder a tu cuenta.",
+    "revokeDialogDescription": "Esto cerrará la sesión de <bold>{{deviceName}}</bold>. Necesitará iniciar sesión de nuevo para acceder a tu cuenta.",
     "revokeDialogCancel": "Cancelar",
     "revokeDialogConfirm": "Revocar acceso",
     "revoking": "Revocando\u2026",
@@ -239,7 +239,7 @@
     "deactivateTitle": "Desactivar cuenta",
     "deactivateDescription": "Desactiva temporalmente tu cuenta. No podrás iniciar sesión, pero todos tus datos se conservarán. Un administrador puede reactivar tu cuenta más tarde.",
     "permanentDeleteTitle": "Eliminar cuenta permanentemente",
-    "permanentDeleteDescription": "Elimina completamente tu cuenta del sistema. Los proyectos serán transferidos a otros usuarios. Los comentarios y documentos permanecerán pero mostrarán \"[Usuario eliminado]\". <strong>Esta acción no se puede deshacer.</strong>",
+    "permanentDeleteDescription": "Elimina completamente tu cuenta del sistema. Los proyectos serán transferidos a otros usuarios. Los comentarios y documentos permanecerán pero mostrarán \"[Usuario eliminado]\". <bold>Esta acción no se puede deshacer.</bold>",
     "permanentDeleteDescriptionText": "Elimina completamente tu cuenta del sistema. Los proyectos serán transferidos a otros usuarios. Los comentarios y documentos permanecerán pero mostrarán \"[Usuario eliminado]\".",
     "cannotBeUndone": "Esta acción no se puede deshacer.",
     "deleteButton": "Eliminar cuenta"

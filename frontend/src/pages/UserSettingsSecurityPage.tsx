@@ -357,7 +357,7 @@ export const UserSettingsSecurityPage = () => {
                 i18nKey="security.revokeDialogDescription"
                 ns="settings"
                 values={{ deviceName: revokeTarget?.device_name ?? t("security.unknownDevice") }}
-                components={{ strong: <span className="font-medium" /> }}
+                components={{ bold: <span className="font-medium" /> }}
               />
             </AlertDialogDescription>
           </AlertDialogHeader>

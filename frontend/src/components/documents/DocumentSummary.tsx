@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Check, Copy, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { generateSummaryApiV1DocumentsDocumentIdAiSummaryPost } from "@/api/generated/documents/documents";
 import { Button } from "@/components/ui/button";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
-import type { GenerateDocumentSummaryResponse } from "@/api/generated/initiativeAPI.schemas";
+import { useGenerateDocumentSummary } from "@/hooks/useDocuments";
 
 interface DocumentSummaryProps {
   documentId: number;
@@ -20,12 +18,7 @@ export const DocumentSummary = ({ documentId, summary, onSummaryChange }: Docume
   const { isEnabled, isLoading: isLoadingAI } = useAIEnabled();
   const [copied, setCopied] = useState(false);
 
-  const generateSummary = useMutation({
-    mutationFn: async () => {
-      return generateSummaryApiV1DocumentsDocumentIdAiSummaryPost(
-        documentId
-      ) as unknown as Promise<GenerateDocumentSummaryResponse>;
-    },
+  const generateSummary = useGenerateDocumentSummary(documentId, {
     onSuccess: (data) => {
       onSummaryChange(data.summary);
     },
