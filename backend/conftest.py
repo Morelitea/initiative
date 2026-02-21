@@ -10,9 +10,14 @@ This module provides the core testing infrastructure including:
 
 import asyncio
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import asyncpg
 import pytest
+from alembic import command
+from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -26,17 +31,53 @@ from app.db.session import get_admin_session, get_session
 from app.main import app
 
 # Use a separate test database (replace only the database name at the end)
-TEST_DATABASE_URL = settings.DATABASE_URL.rsplit("/", 1)[0] + "/initiative_test"
+_base_url = settings.DATABASE_URL.rsplit("/", 1)[0]
+TEST_DATABASE_URL = _base_url + "/initiative_test"
+TEST_DB_NAME = "initiative_test"
+
+BACKEND_DIR = Path(__file__).resolve().parent
+
+
+async def _ensure_test_database() -> None:
+    """Create the test database if it doesn't exist."""
+    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+    conn = await asyncpg.connect(
+        user=parsed.username,
+        password=parsed.password,
+        host=parsed.hostname,
+        port=parsed.port or 5432,
+        database="postgres",
+    )
+    try:
+        exists = await conn.fetchval(
+            "SELECT 1 FROM pg_database WHERE datname = $1", TEST_DB_NAME
+        )
+        if not exists:
+            await conn.execute(f'CREATE DATABASE "{TEST_DB_NAME}"')
+    finally:
+        await conn.close()
+
+
+def _run_test_migrations() -> None:
+    """Ensure test database exists and run alembic upgrade head."""
+    asyncio.run(_ensure_test_database())
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+    config.attributes["configure_logger"] = False
+    config.attributes["url_configured"] = True
+    command.upgrade(config, "head")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _apply_migrations():
+    """Automatically create test database and run migrations once per session."""
+    _run_test_migrations()
 
 
 @pytest.fixture(scope="function")
 async def engine():
-    """
-    Create a test database engine.
-
-    Note: Tables should already exist from running ./setup_test_db.sh
-    which runs Alembic migrations on the test database.
-    """
+    """Create a test database engine."""
     test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True, pool_pre_ping=True)
     yield test_engine
     await test_engine.dispose()

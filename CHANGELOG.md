@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All mutation hooks now accept an optional `MutationOpts` parameter, allowing callers to provide `onSuccess`, `onError`, `onSettled`, and other mutation options
 - Added shared `MutationOpts` type (`frontend/src/types/mutation.ts`)
 - Fixed `apiMutator` to merge request options (custom headers were silently ignored)
+- Optimized database indexes: dropped 9 redundant indexes (PK-subsumed and unique-constraint-duplicated) and added 6 high-priority FK/reverse-lookup indexes for `task_assignees`, `initiative_members`, `project_permissions`, `document_permissions`, `initiatives`, and `projects`
+- Synced model declarations (`index=True`) with actual database indexes for maintainability
+- Test database setup is now fully automatic — `conftest.py` creates the `initiative_test` database and runs migrations on first test run, removing the need for manual `setup_test_db.sh`
 
 ## [0.31.4] - 2026-02-20
 
