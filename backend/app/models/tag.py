@@ -61,7 +61,7 @@ class TaskTag(SQLModel, table=True):
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    task_id: int = Field(foreign_key="tasks.id", primary_key=True, index=True)
+    task_id: int = Field(foreign_key="tasks.id", primary_key=True)
     tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -78,7 +78,7 @@ class ProjectTag(SQLModel, table=True):
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    project_id: int = Field(foreign_key="projects.id", primary_key=True, index=True)
+    project_id: int = Field(foreign_key="projects.id", primary_key=True)
     tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -95,7 +95,7 @@ class DocumentTag(SQLModel, table=True):
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    document_id: int = Field(foreign_key="documents.id", primary_key=True, index=True)
+    document_id: int = Field(foreign_key="documents.id", primary_key=True)
     tag_id: int = Field(foreign_key="tags.id", primary_key=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

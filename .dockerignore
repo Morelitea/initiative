@@ -4,7 +4,6 @@ backend/app/**/*_test.py
 backend/conftest.py
 backend/pytest.ini
 backend/.coveragerc
-backend/setup_test_db.sh
 
 # Python
 **/__pycache__

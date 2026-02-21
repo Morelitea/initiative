@@ -24,7 +24,7 @@ class User(SQLModel, table=True):
     __allow_unmapped__ = True
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(index=True, unique=True, nullable=False)
+    email: str = Field(unique=True, nullable=False)
     full_name: Optional[str] = Field(default=None)
     hashed_password: str
     role: UserRole = Field(
