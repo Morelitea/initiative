@@ -47,14 +47,6 @@ import { $findMatchingParent } from "@lexical/utils";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -76,48 +68,26 @@ import {
   ListOrdered,
   IndentDecrease,
   IndentIncrease,
-  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { insertImageNode } from "@/components/editor/nodes/ImageNode";
 import { insertEmbedNode } from "@/components/editor/nodes/EmbedNode";
-
-type BlockType = "paragraph" | "h1" | "h2" | "h3" | "quote" | "code";
-type Alignment = "left" | "right" | "center" | "justify";
-type ListType = "bullet" | "number" | "check" | "none";
-
-const FONT_SIZE_OPTIONS = ["14px", "16px", "18px", "20px", "24px", "32px"];
-const DEFAULT_FONT_SIZE = "16px";
-
-const extractFontSize = (style?: string | null) => {
-  if (!style) {
-    return null;
-  }
-  const match = style.match(/font-size:\s*([^;]+)/i);
-  return match ? match[1].trim() : null;
-};
-
-const replaceFontSizeInStyle = (style: string, size: string) => {
-  const declarations = style
-    .split(";")
-    .map((declaration) => declaration.trim())
-    .filter(Boolean)
-    .filter((declaration) => !declaration.toLowerCase().startsWith("font-size"));
-  declarations.push(`font-size: ${size}`);
-  return declarations.join("; ");
-};
-
-const mergeRegisters = (...fns: Array<() => void>) => {
-  return () => {
-    for (const unregister of fns) {
-      if (typeof unregister === "function") {
-        unregister();
-      }
-    }
-  };
-};
+import {
+  type BlockType,
+  type Alignment,
+  type ListType,
+  FONT_SIZE_OPTIONS,
+  DEFAULT_FONT_SIZE,
+  extractFontSize,
+  replaceFontSizeInStyle,
+  mergeRegisters,
+  extractYouTubeId,
+} from "@/components/editor/toolbar/editorToolbarUtils";
+import { EditorMobileOverflowMenu } from "@/components/editor/toolbar/EditorMobileOverflowMenu";
+import { EditorInsertMenu } from "@/components/editor/toolbar/EditorInsertMenu";
+import { EditorTableMenu } from "@/components/editor/toolbar/EditorTableMenu";
 
 export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
   const [editor] = useLexicalComposerContext();
@@ -500,509 +470,6 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
     [t, insertHorizontalRule, insertTable, insertYoutube, triggerImagePicker, isImageUploading]
   );
 
-  const mobileOverflowMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" size="icon" variant="ghost" aria-label={t("editor.moreFormatting")}>
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64 space-y-4">
-        <DropdownMenuLabel>{t("editor.formatting")}</DropdownMenuLabel>
-        <div className="space-y-1">
-          <span className="text-muted-foreground text-xs font-medium">{t("editor.fontSize")}</span>
-          <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t("editor.fontSize")} />
-            </SelectTrigger>
-            <SelectContent>
-              {FONT_SIZE_OPTIONS.map((size) => (
-                <SelectItem key={size} value={size}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="icon"
-            variant={isUnderline ? "secondary" : "ghost"}
-            aria-label={t("editor.underline")}
-            onClick={toggleUnderline}
-          >
-            <span className="font-semibold underline">U</span>
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={isCodeBlock ? "secondary" : "ghost"}
-            aria-label={t("editor.codeBlock")}
-            onClick={toggleCodeBlock}
-          >
-            <Code2 className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={listType === "bullet" ? "secondary" : "ghost"}
-            aria-label={t("editor.bulletedList")}
-            onClick={() => toggleList("bullet")}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={listType === "number" ? "secondary" : "ghost"}
-            aria-label={t("editor.numberedList")}
-            onClick={() => toggleList("number")}
-          >
-            <ListOrdered className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={listType === "check" ? "secondary" : "ghost"}
-            aria-label={t("editor.checklist")}
-            onClick={() => toggleList("check")}
-          >
-            <ListChecks className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            aria-label={t("editor.indent")}
-            onClick={indentSelection}
-          >
-            <IndentIncrease className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            aria-label={t("editor.outdent")}
-            onClick={outdentSelection}
-          >
-            <IndentDecrease className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            aria-label={t("editor.insertLink")}
-            onClick={insertLink}
-          >
-            <LinkIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="space-y-1">
-          <span className="text-muted-foreground text-xs font-medium">{t("editor.alignment")}</span>
-          <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t("editor.alignment")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="left">
-                <div className="flex items-center gap-2">
-                  <AlignLeft className="h-4 w-4" />
-                  {t("editor.alignLeft")}
-                </div>
-              </SelectItem>
-              <SelectItem value="center">
-                <div className="flex items-center gap-2">
-                  <AlignCenter className="h-4 w-4" />
-                  {t("editor.alignCenter")}
-                </div>
-              </SelectItem>
-              <SelectItem value="right">
-                <div className="flex items-center gap-2">
-                  <AlignRight className="h-4 w-4" />
-                  {t("editor.alignRight")}
-                </div>
-              </SelectItem>
-              <SelectItem value="justify">
-                <div className="flex items-center gap-2">
-                  <AlignJustify className="h-4 w-4" />
-                  {t("editor.alignJustify")}
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <span className="text-muted-foreground text-xs font-medium">{t("editor.insert")}</span>
-          <div className="grid grid-cols-2 gap-2">
-            {insertOptions.map((item) => (
-              <Button
-                key={item.label}
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={item.disabled}
-                onClick={item.action}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="text-muted-foreground flex items-center justify-between text-xs font-medium">
-            <span>{t("editor.tableActions")}</span>
-            {!isInTable ? <span className="text-[10px]">{t("editor.selectTable")}</span> : null}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!isInTable}
-              onClick={() => insertTableRow("above")}
-            >
-              {t("editor.rowAbove")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!isInTable}
-              onClick={() => insertTableRow("below")}
-            >
-              {t("editor.rowBelow")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!isInTable}
-              onClick={() => insertTableColumn("left")}
-            >
-              {t("editor.columnLeft")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!isInTable}
-              onClick={() => insertTableColumn("right")}
-            >
-              {t("editor.columnRight")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={!isInTable}
-              onClick={deleteTableRow}
-            >
-              {t("editor.deleteRow")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={!isInTable}
-              onClick={deleteTableColumn}
-            >
-              {t("editor.deleteColumn")}
-            </Button>
-          </div>
-        </div>
-        <DropdownMenuSeparator />
-        {/* eslint-disable i18next/no-literal-string */}
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            aria-label={t("editor.undo")}
-            disabled={!canUndo}
-            onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
-          >
-            ↺
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            aria-label={t("editor.redo")}
-            disabled={!canRedo}
-            onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
-          >
-            ↻
-          </Button>
-        </div>
-        {/* eslint-enable i18next/no-literal-string */}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
-  const desktopToolbar = (
-    <>
-      {/* eslint-disable i18next/no-literal-string */}
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label={t("editor.undo")}
-          disabled={!canUndo}
-          onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
-        >
-          ↺
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label={t("editor.redo")}
-          disabled={!canRedo}
-          onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
-        >
-          ↻
-        </Button>
-      </div>
-      {/* eslint-enable i18next/no-literal-string */}
-      <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
-        <SelectTrigger className="w-36">
-          <SelectValue placeholder={t("editor.textStyle")} />
-        </SelectTrigger>
-        <SelectContent>
-          {blockOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
-        <SelectTrigger className="w-28">
-          <SelectValue placeholder={t("editor.fontSize")} />
-        </SelectTrigger>
-        <SelectContent>
-          {FONT_SIZE_OPTIONS.map((size) => (
-            <SelectItem key={size} value={size}>
-              {size}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button
-        type="button"
-        size="icon"
-        variant={isBold ? "secondary" : "ghost"}
-        aria-label={t("editor.bold")}
-        onClick={toggleBold}
-      >
-        <Bold className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant={isItalic ? "secondary" : "ghost"}
-        aria-label={t("editor.italic")}
-        onClick={toggleItalic}
-      >
-        <Italic className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant={isUnderline ? "secondary" : "ghost"}
-        aria-label={t("editor.underline")}
-        onClick={toggleUnderline}
-      >
-        <span className="font-semibold underline">U</span>
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant={isCodeBlock ? "secondary" : "ghost"}
-        aria-label={t("editor.codeBlock")}
-        onClick={toggleCodeBlock}
-      >
-        <Code2 className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant={listType === "bullet" ? "secondary" : "ghost"}
-        aria-label={t("editor.bulletedList")}
-        onClick={() => toggleList("bullet")}
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant={listType === "number" ? "secondary" : "ghost"}
-        aria-label={t("editor.numberedList")}
-        onClick={() => toggleList("number")}
-      >
-        <ListOrdered className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant={listType === "check" ? "secondary" : "ghost"}
-        aria-label={t("editor.checklist")}
-        onClick={() => toggleList("check")}
-      >
-        <ListChecks className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={t("editor.indent")}
-        onClick={indentSelection}
-      >
-        <IndentIncrease className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={t("editor.outdent")}
-        onClick={outdentSelection}
-      >
-        <IndentDecrease className="h-4 w-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        aria-label={t("editor.insertLink")}
-        onClick={insertLink}
-      >
-        <LinkIcon className="h-4 w-4" />
-      </Button>
-      <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
-        <SelectTrigger className="w-32">
-          <SelectValue placeholder={t("editor.alignment")} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="left">
-            <div className="flex items-center gap-2">
-              <AlignLeft className="h-4 w-4" />
-              {t("editor.alignLeft")}
-            </div>
-          </SelectItem>
-          <SelectItem value="center">
-            <div className="flex items-center gap-2">
-              <AlignCenter className="h-4 w-4" />
-              {t("editor.alignCenter")}
-            </div>
-          </SelectItem>
-          <SelectItem value="right">
-            <div className="flex items-center gap-2">
-              <AlignRight className="h-4 w-4" />
-              {t("editor.alignRight")}
-            </div>
-          </SelectItem>
-          <SelectItem value="justify">
-            <div className="flex items-center gap-2">
-              <AlignJustify className="h-4 w-4" />
-              {t("editor.alignJustify")}
-            </div>
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost">
-            {t("editor.insert")}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-48">
-          <DropdownMenuLabel>{t("editor.insert")}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {insertOptions.map((item) => (
-            <DropdownMenuItem
-              key={item.label}
-              disabled={item.disabled}
-              onSelect={(event) => {
-                event.preventDefault();
-                item.action();
-              }}
-            >
-              {item.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" disabled={!isInTable}>
-            {t("editor.table")}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuLabel>{t("editor.tableActions")}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={!isInTable}
-            onSelect={(event) => {
-              event.preventDefault();
-              insertTableRow("above");
-            }}
-          >
-            {t("editor.insertRowAbove")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!isInTable}
-            onSelect={(event) => {
-              event.preventDefault();
-              insertTableRow("below");
-            }}
-          >
-            {t("editor.insertRowBelow")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!isInTable}
-            onSelect={(event) => {
-              event.preventDefault();
-              insertTableColumn("left");
-            }}
-          >
-            {t("editor.insertColumnLeft")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!isInTable}
-            onSelect={(event) => {
-              event.preventDefault();
-              insertTableColumn("right");
-            }}
-          >
-            {t("editor.insertColumnRight")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={!isInTable}
-            onSelect={(event) => {
-              event.preventDefault();
-              deleteTableRow();
-            }}
-          >
-            {t("editor.deleteRow")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!isInTable}
-            onSelect={(event) => {
-              event.preventDefault();
-              deleteTableColumn();
-            }}
-          >
-            {t("editor.deleteColumn")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
-  );
-
   if (readOnly) {
     return null;
   }
@@ -1050,30 +517,209 @@ export const EditorToolbar = ({ readOnly }: { readOnly?: boolean }) => {
             <Italic className="h-4 w-4" />
           </Button>
         </div>
-        {mobileOverflowMenu}
+        <EditorMobileOverflowMenu
+          fontSize={fontSize}
+          applyFontSize={applyFontSize}
+          isUnderline={isUnderline}
+          toggleUnderline={toggleUnderline}
+          isCodeBlock={isCodeBlock}
+          toggleCodeBlock={toggleCodeBlock}
+          listType={listType}
+          toggleList={toggleList}
+          indentSelection={indentSelection}
+          outdentSelection={outdentSelection}
+          insertLink={insertLink}
+          alignment={alignment}
+          applyAlignment={applyAlignment}
+          insertOptions={insertOptions}
+          isInTable={isInTable}
+          insertTableRow={insertTableRow}
+          insertTableColumn={insertTableColumn}
+          deleteTableRow={deleteTableRow}
+          deleteTableColumn={deleteTableColumn}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
       </div>
-      <div className="hidden flex-wrap items-center gap-2 lg:flex">{desktopToolbar}</div>
+      <div className="hidden flex-wrap items-center gap-2 lg:flex">
+        {/* eslint-disable i18next/no-literal-string */}
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label={t("editor.undo")}
+            disabled={!canUndo}
+            onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+          >
+            ↺
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label={t("editor.redo")}
+            disabled={!canRedo}
+            onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
+          >
+            ↻
+          </Button>
+        </div>
+        {/* eslint-enable i18next/no-literal-string */}
+        <Select value={blockType} onValueChange={(value: BlockType) => applyBlockType(value)}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder={t("editor.textStyle")} />
+          </SelectTrigger>
+          <SelectContent>
+            {blockOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={fontSize} onValueChange={(value) => applyFontSize(value)}>
+          <SelectTrigger className="w-28">
+            <SelectValue placeholder={t("editor.fontSize")} />
+          </SelectTrigger>
+          <SelectContent>
+            {FONT_SIZE_OPTIONS.map((size) => (
+              <SelectItem key={size} value={size}>
+                {size}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="icon"
+          variant={isBold ? "secondary" : "ghost"}
+          aria-label={t("editor.bold")}
+          onClick={toggleBold}
+        >
+          <Bold className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={isItalic ? "secondary" : "ghost"}
+          aria-label={t("editor.italic")}
+          onClick={toggleItalic}
+        >
+          <Italic className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={isUnderline ? "secondary" : "ghost"}
+          aria-label={t("editor.underline")}
+          onClick={toggleUnderline}
+        >
+          <span className="font-semibold underline">U</span>
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={isCodeBlock ? "secondary" : "ghost"}
+          aria-label={t("editor.codeBlock")}
+          onClick={toggleCodeBlock}
+        >
+          <Code2 className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={listType === "bullet" ? "secondary" : "ghost"}
+          aria-label={t("editor.bulletedList")}
+          onClick={() => toggleList("bullet")}
+        >
+          <List className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={listType === "number" ? "secondary" : "ghost"}
+          aria-label={t("editor.numberedList")}
+          onClick={() => toggleList("number")}
+        >
+          <ListOrdered className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant={listType === "check" ? "secondary" : "ghost"}
+          aria-label={t("editor.checklist")}
+          onClick={() => toggleList("check")}
+        >
+          <ListChecks className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={t("editor.indent")}
+          onClick={indentSelection}
+        >
+          <IndentIncrease className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={t("editor.outdent")}
+          onClick={outdentSelection}
+        >
+          <IndentDecrease className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={t("editor.insertLink")}
+          onClick={insertLink}
+        >
+          <LinkIcon className="h-4 w-4" />
+        </Button>
+        <Select value={alignment} onValueChange={(value: Alignment) => applyAlignment(value)}>
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder={t("editor.alignment")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="left">
+              <div className="flex items-center gap-2">
+                <AlignLeft className="h-4 w-4" />
+                {t("editor.alignLeft")}
+              </div>
+            </SelectItem>
+            <SelectItem value="center">
+              <div className="flex items-center gap-2">
+                <AlignCenter className="h-4 w-4" />
+                {t("editor.alignCenter")}
+              </div>
+            </SelectItem>
+            <SelectItem value="right">
+              <div className="flex items-center gap-2">
+                <AlignRight className="h-4 w-4" />
+                {t("editor.alignRight")}
+              </div>
+            </SelectItem>
+            <SelectItem value="justify">
+              <div className="flex items-center gap-2">
+                <AlignJustify className="h-4 w-4" />
+                {t("editor.alignJustify")}
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <EditorInsertMenu insertOptions={insertOptions} />
+        <EditorTableMenu
+          isInTable={isInTable}
+          insertTableRow={insertTableRow}
+          insertTableColumn={insertTableColumn}
+          deleteTableRow={deleteTableRow}
+          deleteTableColumn={deleteTableColumn}
+        />
+      </div>
     </div>
   );
-};
-
-const extractYouTubeId = (url: string) => {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "youtu.be") {
-      return parsed.pathname.slice(1);
-    }
-    if (parsed.hostname.includes("youtube.com")) {
-      if (parsed.searchParams.get("v")) {
-        return parsed.searchParams.get("v");
-      }
-      const match = parsed.pathname.match(/\/embed\/([\w-]+)/);
-      if (match) {
-        return match[1];
-      }
-    }
-  } catch {
-    return null;
-  }
-  return null;
 };
