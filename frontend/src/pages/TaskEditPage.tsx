@@ -63,6 +63,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TagPicker } from "@/components/tags";
 import { useSetTaskTags } from "@/hooks/useTags";
 import {
+  AlertCircle,
   Archive,
   ArchiveRestore,
   Save,
@@ -70,9 +71,13 @@ import {
   FolderInput,
   Copy,
   Trash2,
+  SearchX,
+  ShieldAlert,
   Sparkles,
   Loader2,
 } from "lucide-react";
+import { StatusMessage } from "@/components/StatusMessage";
+import { getHttpStatus } from "@/lib/errorMessage";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -397,25 +402,19 @@ export const TaskEditPage = () => {
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {
-    return (
-      <div className="space-y-4">
-        <p className="text-destructive">{t("edit.loadError")}</p>
-        <Button variant="link" className="px-0" onClick={handleBackClick}>
-          {t("edit.back")}
-        </Button>
-      </div>
-    );
+    const status = getHttpStatus(taskQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
+
+    if (status === 404) {
+      return <StatusMessage icon={<SearchX />} title={t("edit.notFound")} description={t("edit.notFoundDescription")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
+    }
+    if (status === 403) {
+      return <StatusMessage icon={<ShieldAlert />} title={t("edit.noAccess")} description={t("edit.noAccessDescription")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
+    }
+    return <StatusMessage icon={<AlertCircle />} title={t("edit.loadError")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
   }
 
   if (Number.isFinite(projectId) && projectQuery.isError) {
-    return (
-      <div className="space-y-4">
-        <p className="text-destructive">{t("edit.loadProjectError")}</p>
-        <Button variant="link" className="px-0" onClick={handleBackClick}>
-          {t("edit.back")}
-        </Button>
-      </div>
-    );
+    return <StatusMessage icon={<AlertCircle />} title={t("edit.loadProjectError")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
   }
 
   const taskStatuses = taskStatusesQuery.data ?? [];
