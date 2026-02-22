@@ -6,11 +6,13 @@ import {
   Loader2,
   ScrollText,
   ListTodo,
+  SearchX,
   SquareCheckBig,
   Settings,
   Trash2,
   TagIcon,
 } from "lucide-react";
+import { StatusMessage } from "@/components/StatusMessage";
 
 import { useTag, useTagEntities, useDeleteTag, useUpdateTag } from "@/hooks/useTags";
 import { Button } from "@/components/ui/button";
@@ -70,11 +72,7 @@ export const TagDetailPage = () => {
   }
 
   if (tagError || !tag) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <p className="text-muted-foreground">{t("detail.notFound")}</p>
-      </div>
-    );
+    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo="/" backLabel={t("detail.backToTags")} />;
   }
 
   const handleStartEdit = () => {

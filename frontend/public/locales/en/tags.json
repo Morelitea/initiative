@@ -1,6 +1,8 @@
 {
   "detail": {
     "notFound": "Tag not found",
+    "notFoundDescription": "This tag may have been deleted or you may have followed a broken link.",
+    "backToTags": "\u2190 Back to home",
     "taggedItems_one": "{{count}} tagged item",
     "taggedItems_other": "{{count}} tagged items",
     "edit": "Edit",

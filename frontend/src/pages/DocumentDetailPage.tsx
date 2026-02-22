@@ -11,7 +11,8 @@ import {
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
-import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
+import { ImagePlus, Loader2, PanelRight, ScrollText, SearchX, Settings, ShieldAlert, X } from "lucide-react";
+import { StatusMessage } from "@/components/StatusMessage";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -67,6 +68,7 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { getHttpStatus } from "@/lib/errorMessage";
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation("documents");
@@ -486,7 +488,14 @@ export const DocumentDetailPage = () => {
   }
 
   if (documentQuery.isError || !document) {
-    return <p className="text-destructive">{t("detail.notFound")}</p>;
+    const status = getHttpStatus(documentQuery.error);
+    const backTo = gp("/documents");
+    const backLabel = t("detail.backToDocuments");
+
+    if (status === 403) {
+      return <StatusMessage icon={<ShieldAlert />} title={t("detail.noAccess")} description={t("detail.noAccessDescription")} backTo={backTo} backLabel={backLabel} />;
+    }
+    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo={backTo} backLabel={backLabel} />;
   }
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];

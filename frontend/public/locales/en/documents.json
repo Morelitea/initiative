@@ -95,7 +95,11 @@
   "detail": {
     "invalidId": "Invalid document id.",
     "loading": "Loading document\u2026",
-    "notFound": "Document not found.",
+    "notFound": "Document not found",
+    "notFoundDescription": "This document may have been deleted or you may have followed a broken link.",
+    "noAccess": "Access denied",
+    "noAccessDescription": "You don\u2019t have permission to view this document. Ask the document owner to grant you access.",
+    "backToDocuments": "\u2190 Back to documents",
     "settings": "Document settings",
     "closePanel": "Close panel",
     "openPanel": "Open panel",

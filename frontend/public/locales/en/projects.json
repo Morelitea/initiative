@@ -137,6 +137,10 @@
     "backToProjects": "\u2190 Back to projects",
     "loading": "Loading project\u2026",
     "loadError": "Unable to load project.",
+    "notFound": "Project not found",
+    "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
+    "noAccess": "Access denied",
+    "noAccessDescription": "You don\u2019t have permission to view this project. Ask a project manager to grant you access.",
     "projectSettings": "Project Settings",
     "openProjectSettings": "Open project settings"
   },

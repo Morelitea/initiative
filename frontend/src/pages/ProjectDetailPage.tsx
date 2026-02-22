@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { AlertCircle, SearchX, Settings, ShieldAlert } from "lucide-react";
+import { StatusMessage } from "@/components/StatusMessage";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -24,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getHttpStatus } from "@/lib/errorMessage";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -132,14 +134,17 @@ export const ProjectDetailPage = () => {
   }
 
   if (projectQuery.isError || taskStatusesQuery.isError || !project) {
-    return (
-      <div className="space-y-4">
-        <p className="text-destructive">{t("detail.loadError")}</p>
-        <Button asChild variant="link" className="px-0">
-          <Link to={gp("/projects")}>{t("detail.backToProjects")}</Link>
-        </Button>
-      </div>
-    );
+    const status = getHttpStatus(projectQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
+    const backTo = gp("/projects");
+    const backLabel = t("detail.backToProjects");
+
+    if (status === 404) {
+      return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo={backTo} backLabel={backLabel} />;
+    }
+    if (status === 403) {
+      return <StatusMessage icon={<ShieldAlert />} title={t("detail.noAccess")} description={t("detail.noAccessDescription")} backTo={backTo} backLabel={backLabel} />;
+    }
+    return <StatusMessage icon={<AlertCircle />} title={t("detail.loadError")} backTo={backTo} backLabel={backLabel} />;
   }
 
   const initiativeMembership = project.initiative?.members?.find(

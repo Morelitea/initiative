@@ -130,6 +130,10 @@
     "backToProjects": "\u2190 Volver a proyectos",
     "loading": "Cargando proyecto\u2026",
     "loadError": "No se pudo cargar el proyecto.",
+    "notFound": "Proyecto no encontrado",
+    "notFoundDescription": "Este proyecto puede haber sido eliminado o el enlace está roto.",
+    "noAccess": "Acceso denegado",
+    "noAccessDescription": "No tienes permiso para ver este proyecto. Pide a un administrador del proyecto que te otorgue acceso.",
     "projectSettings": "Configuración del proyecto",
     "openProjectSettings": "Abrir configuración del proyecto"
   },
