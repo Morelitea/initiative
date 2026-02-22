@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  memo,
   type ReactNode,
   useMemo,
   useRef,
@@ -31,6 +32,7 @@ import {
   type PaginationState,
   type Table as TableType,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, MoreVertical } from "lucide-react";
 
 import {
@@ -97,11 +99,22 @@ interface DataTableProps<TData, TValue> {
   onPrefetchPage?: (pageIndex: number) => void;
   manualSorting?: boolean;
   onSortingChange?: (sorting: SortingState) => void;
+  onGroupingChange?: (grouping: GroupingState) => void;
+  enableVirtualization?: boolean;
+  virtualRowHeight?: number;
+  virtualOverscan?: number;
+  virtualContainerHeight?: string;
 }
 
 export interface DataTableRowWrapperProps<TData> {
   row: Row<TData>;
   children: ReactNode;
+  /** When virtualization is enabled, apply these to the row element for positioning. */
+  virtualStyle?: React.CSSProperties;
+  /** When virtualization is enabled, set this as data-index on the row element. */
+  virtualIndex?: number;
+  /** When virtualization is enabled, attach this ref to the row element for measurement. */
+  measureRef?: (el: HTMLElement | null) => void;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -134,6 +147,11 @@ export function DataTable<TData, TValue>({
   onPrefetchPage,
   manualSorting = false,
   onSortingChange: externalOnSortingChange,
+  onGroupingChange: externalOnGroupingChange,
+  enableVirtualization = false,
+  virtualRowHeight = 48,
+  virtualOverscan = 5,
+  virtualContainerHeight = "h-[60vh]",
 }: DataTableProps<TData, TValue>) {
   const { t } = useTranslation("common");
   const initialStateRef = useRef<Partial<TableState> | undefined>(initialState);
@@ -236,8 +254,26 @@ export function DataTable<TData, TValue>({
         externalOnSortingChange(newState);
       };
     }
+    if (externalOnSortingChange) {
+      return (updater: SortingState | ((old: SortingState) => SortingState)) => {
+        const newState = typeof updater === "function" ? updater(sorting) : updater;
+        setSorting(newState);
+        externalOnSortingChange(newState);
+      };
+    }
     return setSorting;
   }, [manualSorting, externalOnSortingChange, sorting]);
+
+  const handleGroupingChange = useCallback(
+    (updater: GroupingState | ((old: GroupingState) => GroupingState)) => {
+      setGrouping((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        externalOnGroupingChange?.(next);
+        return next;
+      });
+    },
+    [externalOnGroupingChange]
+  );
 
   const table = useReactTable({
     data,
@@ -246,7 +282,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onGroupingChange: groupingEnabled ? setGrouping : undefined,
+    onGroupingChange: groupingEnabled ? handleGroupingChange : undefined,
     onPaginationChange: handlePaginationChange,
     onRowSelectionChange: enableRowSelection ? setRowSelection : undefined,
     enableRowSelection: enableRowSelection,
@@ -397,6 +433,42 @@ export function DataTable<TData, TValue>({
       onExitSelection();
     }
   }, [onExitSelection]);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const rows = table.getRowModel().rows;
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => virtualRowHeight,
+    overscan: virtualOverscan,
+    enabled: enableVirtualization,
+  });
+
+  const visibleColCount = table.getVisibleLeafColumns().length || columns.length;
+
+  // When virtualization is enabled, pagination is disabled (mutually exclusive)
+  const showPagination = enablePagination && !enableVirtualization;
+
+  // Stable key that changes when visible columns change (selection mode toggle, column dropdown).
+  // Used by MemoizedVirtualCells to know when to re-render.
+  const visibleColumnKey = useMemo(
+    () =>
+      table
+        .getVisibleLeafColumns()
+        .map((c) => c.id)
+        .join(","),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [columnVisibility, selectionModeActive]
+  );
+
+  // Padding-based virtualization: spacer rows keep scroll height correct
+  // while visible rows render in normal table flow for proper column alignment.
+  const virtualItems = enableVirtualization ? virtualizer.getVirtualItems() : [];
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+      : 0;
 
   return (
     <div className="space-y-4">
@@ -615,8 +687,11 @@ export function DataTable<TData, TValue>({
           </div>
         ) : null}
 
-        <Table>
-          <TableHeader>
+        <Table
+          scrollContainerRef={enableVirtualization ? scrollContainerRef : undefined}
+          scrollContainerClassName={enableVirtualization ? virtualContainerHeight : undefined}
+        >
+          <TableHeader className={enableVirtualization ? "bg-card sticky top-0 z-10" : undefined}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -632,85 +707,80 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => {
-                if (groupingEnabled && row.getIsGrouped()) {
-                  const groupedCell = row
-                    .getAllCells()
-                    .find((cell) => cell.getIsGrouped && cell.getIsGrouped());
-                  const groupContent =
-                    groupedCell && groupedCell.column.columnDef.cell
-                      ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
-                      : ((groupedCell?.getValue() ?? row.id) as ReactNode);
-                  const rawGroupValue = groupedCell?.getValue();
-                  const groupLabelText =
-                    typeof rawGroupValue === "string" ? rawGroupValue : "grouped rows";
-                  const toggleExpandHandler = row.getToggleExpandedHandler?.();
-                  const canToggle = typeof toggleExpandHandler === "function";
-                  const isExpanded = row.getIsExpanded();
-                  return (
-                    <TableRow key={row.id} className="bg-muted/30" data-state="grouped">
-                      <TableCell
-                        colSpan={table.getVisibleLeafColumns().length || columns.length}
-                        className="font-medium"
-                      >
-                        <div className="flex items-center gap-2">
-                          {canToggle ? (
-                            <button
-                              type="button"
-                              onClick={toggleExpandHandler}
-                              className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md"
-                              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${groupLabelText}`}
-                            >
-                              <ChevronDown
-                                className={`h-4 w-4 transition-transform ${
-                                  isExpanded ? "" : "-rotate-90"
-                                }`}
-                              />
-                            </button>
-                          ) : null}
-                          <span>{groupContent}</span>
-                        </div>
+            {rows.length ? (
+              enableVirtualization ? (
+                <>
+                  {paddingTop > 0 && (
+                    <tr>
+                      <td
+                        style={{ height: paddingTop, padding: 0, border: "none" }}
+                        colSpan={visibleColCount}
+                      />
+                    </tr>
+                  )}
+                  {virtualItems.map((virtualRow) => {
+                    const row = rows[virtualRow.index];
+                    return (
+                      <VirtualRow
+                        key={row.id}
+                        row={row}
+                        virtualRow={virtualRow}
+                        measureElement={virtualizer.measureElement}
+                        groupingEnabled={groupingEnabled}
+                        colSpan={visibleColCount}
+                        rowWrapper={rowWrapper}
+                        visibleColumnKey={visibleColumnKey}
+                      />
+                    );
+                  })}
+                  {paddingBottom > 0 && (
+                    <tr>
+                      <td
+                        style={{ height: paddingBottom, padding: 0, border: "none" }}
+                        colSpan={visibleColCount}
+                      />
+                    </tr>
+                  )}
+                </>
+              ) : (
+                rows.map((row) => {
+                  if (groupingEnabled && row.getIsGrouped()) {
+                    return <GroupedRow key={row.id} row={row} colSpan={visibleColCount} />;
+                  }
+                  const cells = row
+                    .getVisibleCells()
+                    .map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
+                    ));
+                  if (rowWrapper) {
+                    return (
+                      <Fragment key={row.id}>
+                        {rowWrapper({
+                          row,
+                          children: cells,
+                        })}
+                      </Fragment>
+                    );
+                  }
+                  return (
+                    <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                      {cells}
                     </TableRow>
                   );
-                }
-                const cells = row
-                  .getVisibleCells()
-                  .map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ));
-                if (rowWrapper) {
-                  return (
-                    <Fragment key={row.id}>
-                      {rowWrapper({
-                        row,
-                        children: cells,
-                      })}
-                    </Fragment>
-                  );
-                }
-                return (
-                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
-                    {cells}
-                  </TableRow>
-                );
-              })
+                })
+              )
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={table.getVisibleLeafColumns().length || columns.length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={visibleColCount} className="h-24 text-center">
                   {t("noResultsDot")}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-        {enablePagination && (
+        {showPagination && (
           <div className="pp4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-sm">{t("rowsPerPage")}</span>
@@ -772,6 +842,169 @@ export function DataTable<TData, TValue>({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function GroupedRow<TData>({ row, colSpan }: { row: Row<TData>; colSpan: number }) {
+  const groupedCell = row.getAllCells().find((cell) => cell.getIsGrouped && cell.getIsGrouped());
+  const groupContent =
+    groupedCell && groupedCell.column.columnDef.cell
+      ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
+      : ((groupedCell?.getValue() ?? row.id) as ReactNode);
+  const rawGroupValue = groupedCell?.getValue();
+  const groupLabelText = typeof rawGroupValue === "string" ? rawGroupValue : "grouped rows";
+  const toggleExpandHandler = row.getToggleExpandedHandler?.();
+  const canToggle = typeof toggleExpandHandler === "function";
+  const isExpanded = row.getIsExpanded();
+  return (
+    <TableRow key={row.id} className="bg-muted/30" data-state="grouped">
+      <TableCell colSpan={colSpan} className="font-medium">
+        <div className="flex items-center gap-2">
+          {canToggle ? (
+            <button
+              type="button"
+              onClick={toggleExpandHandler}
+              className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md"
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${groupLabelText}`}
+            >
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+              />
+            </button>
+          ) : null}
+          <span>{groupContent}</span>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * Memoized cell content for virtual rows. Only re-renders when the underlying
+ * row data or selection state changes — NOT on every scroll position update.
+ * This is the key performance optimization: cell renderers (Select, Checkbox,
+ * TagBadge, etc.) are expensive and shouldn't run on every scroll frame.
+ */
+const MemoizedVirtualCells = memo(
+  function VirtualCells({
+    row,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    visibleColumnKey,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    isSelected,
+  }: {
+    row: Row<unknown>;
+    visibleColumnKey: string;
+    isSelected: boolean;
+  }) {
+    return (
+      <>
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </>
+    );
+  },
+  (prev, next) =>
+    prev.row.original === next.row.original &&
+    prev.isSelected === next.isSelected &&
+    prev.visibleColumnKey === next.visibleColumnKey
+);
+
+function VirtualRow<TData>({
+  row,
+  virtualRow,
+  measureElement,
+  groupingEnabled,
+  colSpan,
+  rowWrapper,
+  visibleColumnKey,
+}: {
+  row: Row<TData>;
+  virtualRow: { index: number; start: number; size: number };
+  measureElement: (el: HTMLElement | null) => void;
+  groupingEnabled: boolean;
+  colSpan: number;
+  rowWrapper?: (props: DataTableRowWrapperProps<TData>) => ReactNode;
+  visibleColumnKey: string;
+}) {
+  if (groupingEnabled && row.getIsGrouped()) {
+    return (
+      <TableRow
+        data-index={virtualRow.index}
+        ref={measureElement}
+        className="bg-muted/30"
+        data-state="grouped"
+      >
+        <TableCell colSpan={colSpan} className="font-medium">
+          <GroupedRowContent row={row} />
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  const cells = (
+    <MemoizedVirtualCells
+      row={row as Row<unknown>}
+      visibleColumnKey={visibleColumnKey}
+      isSelected={row.getIsSelected()}
+    />
+  );
+
+  if (rowWrapper) {
+    return (
+      <Fragment>
+        {rowWrapper({
+          row,
+          children: cells,
+          virtualIndex: virtualRow.index,
+          measureRef: measureElement,
+        })}
+      </Fragment>
+    );
+  }
+
+  return (
+    <TableRow
+      data-index={virtualRow.index}
+      ref={measureElement}
+      data-state={row.getIsSelected() && "selected"}
+    >
+      {cells}
+    </TableRow>
+  );
+}
+
+/** Renders the expand/collapse content for a grouped row. */
+function GroupedRowContent<TData>({ row }: { row: Row<TData> }) {
+  const groupedCell = row.getAllCells().find((cell) => cell.getIsGrouped && cell.getIsGrouped());
+  const groupContent =
+    groupedCell && groupedCell.column.columnDef.cell
+      ? flexRender(groupedCell.column.columnDef.cell, groupedCell.getContext())
+      : ((groupedCell?.getValue() ?? row.id) as ReactNode);
+  const rawGroupValue = groupedCell?.getValue();
+  const groupLabelText = typeof rawGroupValue === "string" ? rawGroupValue : "grouped rows";
+  const toggleExpandHandler = row.getToggleExpandedHandler?.();
+  const canToggle = typeof toggleExpandHandler === "function";
+  const isExpanded = row.getIsExpanded();
+  return (
+    <div className="flex items-center gap-2">
+      {canToggle ? (
+        <button
+          type="button"
+          onClick={toggleExpandHandler}
+          className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md"
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${groupLabelText}`}
+        >
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+          />
+        </button>
+      ) : null}
+      <span>{groupContent}</span>
     </div>
   );
 }

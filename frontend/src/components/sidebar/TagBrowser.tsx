@@ -170,10 +170,11 @@ const TagTreeNodeComponent = memo(({ node, depth, activeGuildId }: TagTreeNodeCo
           </span>
         )}
       </div>
-      {canExpand && (
+      {canExpand && isOpen && (
         <CollapsibleContent
           className={cn("space-y-0.5 border-l pl-2", depth < MAX_TAG_INDENT && "ml-3")}
           style={{ borderColor: nodeColor || undefined }}
+          forceMount
         >
           {node.children.map((child) => (
             <TagTreeNodeComponent

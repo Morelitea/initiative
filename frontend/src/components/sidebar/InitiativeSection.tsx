@@ -189,13 +189,15 @@ export const InitiativeSection = memo(
             </>
           )}
         </div>
-        <CollapsibleContent
-          className="ml-3 space-y-0.5 border-l"
-          style={{ borderColor: initiative.color || undefined }}
-        >
-          <SidebarMenu>
-            {/* Documents Link */}
-            {canViewDocs && (
+        {isOpen && (
+          <CollapsibleContent
+            className="ml-3 space-y-0.5 border-l"
+            style={{ borderColor: initiative.color || undefined }}
+            forceMount
+          >
+            <SidebarMenu>
+              {/* Documents Link */}
+              {canViewDocs && (
               <SidebarMenuItem>
                 <div className="group/documents flex w-full min-w-0 items-center gap-1">
                   <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
@@ -344,8 +346,9 @@ export const InitiativeSection = memo(
                   </div>
                 </SidebarMenuItem>
               ))}
-          </SidebarMenu>
-        </CollapsibleContent>
+            </SidebarMenu>
+          </CollapsibleContent>
+        )}
       </Collapsible>
     );
   }

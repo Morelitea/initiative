@@ -74,6 +74,7 @@
     "@tanstack/react-query": "^5.32.0",
     "@tanstack/react-router": "^1.157.16",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.18",
     "@tanstack/router-devtools": "^1.157.16",
     "axios": "^1.13.5",
     "class-variance-authority": "^0.7.0",
