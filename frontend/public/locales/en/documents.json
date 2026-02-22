@@ -113,7 +113,7 @@
     "tagsPlaceholder": "Add tags...",
     "pdfError": "Failed to load PDF. Try downloading the file instead.",
     "imageFileRequired": "Please select an image file.",
-    "imageUploaded": "Image uploaded. Save the document to apply changes.",
+    "imageUploaded": "Image uploaded.",
     "imageUploadError": "Failed to upload image.",
     "saved": "Document saved",
     "saveError": "Unable to save document.",

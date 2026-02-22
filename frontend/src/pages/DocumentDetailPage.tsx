@@ -19,8 +19,8 @@ import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
-import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
-import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
+import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
+import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
@@ -31,7 +31,7 @@ import { useSetDocumentTags } from "@/hooks/useTags";
 
 // Lazy load heavy components
 const Editor = lazy(() =>
-  import("@/components/editor-x/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
 );
 const FileDocumentViewer = lazy(() =>
   import("@/components/documents/FileDocumentViewer").then((m) => ({
@@ -435,6 +435,15 @@ export const DocumentDetailPage = () => {
     try {
       const response = await uploadAttachment(file);
       setFeaturedImageUrl(response.url);
+      isAutosaveRef.current = true;
+      saveDocument.mutate({
+        documentId: parsedId,
+        data: {
+          title: title?.trim(),
+          content: contentState as unknown as Record<string, unknown>,
+          featured_image_url: response.url,
+        },
+      });
       toast.success(t("detail.imageUploaded"));
     } catch (error) {
       console.error(error);
@@ -611,7 +620,18 @@ export const DocumentDetailPage = () => {
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() => setFeaturedImageUrl(null)}
+                          onClick={() => {
+                            setFeaturedImageUrl(null);
+                            isAutosaveRef.current = true;
+                            saveDocument.mutate({
+                              documentId: parsedId,
+                              data: {
+                                title: title?.trim(),
+                                content: contentState as unknown as Record<string, unknown>,
+                                featured_image_url: null,
+                              },
+                            });
+                          }}
                           disabled={isUploadingFeaturedImage}
                         >
                           <X className="mr-2 h-4 w-4" />

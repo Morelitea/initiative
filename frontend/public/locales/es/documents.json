@@ -113,7 +113,7 @@
     "tagsPlaceholder": "Agregar etiquetas...",
     "pdfError": "No se pudo cargar el PDF. Intenta descargar el archivo en su lugar.",
     "imageFileRequired": "Por favor selecciona un archivo de imagen.",
-    "imageUploaded": "Imagen subida. Guarda el documento para aplicar los cambios.",
+    "imageUploaded": "Imagen subida.",
     "imageUploadError": "No se pudo subir la imagen.",
     "saved": "Documento guardado",
     "saveError": "No se pudo guardar el documento.",
