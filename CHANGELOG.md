@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Row virtualization for DataTable using `@tanstack/react-virtual` — only visible rows exist in the DOM, tested with 10k tasks
+- Virtualized Gantt view with sticky day headers and pinned task name column
+- Virtualized Kanban columns (activates above 20 tasks per column) with memoized card components and DnD compatibility
+- Collapse all / expand all buttons for sidebar initiative list and tag browser
+- Memoized virtual cell rendering to prevent expensive re-renders during scroll
+
+### Changed
+
+- Sidebar collapsed sections (initiatives, tags) no longer mount child DOM nodes — lazy-render on expand
+- Skip `useSortable` hooks when drag-and-drop is disabled (sorting/grouping active) for better scroll performance
+- Keep previous React Query data as placeholder for snappier page navigation
+
 ## [0.31.5] - 2026-02-20
 
 ### Fixed

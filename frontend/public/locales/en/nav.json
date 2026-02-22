@@ -32,6 +32,8 @@
   "collapseInitiative": "Collapse initiative",
   "expandInitiative": "Expand initiative",
   "collapse": "Collapse",
+  "collapseAll": "Collapse all",
+  "expandAll": "Expand all",
   "expand": "Expand",
   "theme": "Theme",
   "toggleTheme": "Toggle theme",

@@ -44,6 +44,8 @@ export interface InitiativeSectionProps {
   canCreateDocs: boolean;
   canCreateProjects: boolean;
   activeGuildId: number | null;
+  /** Changing this value re-syncs the open/closed state from storage. */
+  collapseKey?: number;
 }
 
 export const InitiativeSection = memo(
@@ -59,6 +61,7 @@ export const InitiativeSection = memo(
     canCreateDocs,
     canCreateProjects,
     activeGuildId,
+    collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
     // Helper to create guild-scoped paths
@@ -94,6 +97,21 @@ export const InitiativeSection = memo(
         // Ignore storage errors
       }
     }, [isOpen, initiative.id]);
+
+    // Re-sync from storage when collapseKey changes (collapse/expand all)
+    useEffect(() => {
+      if (collapseKey === undefined) return;
+      try {
+        const stored = getItem("initiative-collapsed-states");
+        if (stored) {
+          const states = JSON.parse(stored) as Record<number, boolean>;
+          setIsOpen(states[initiative.id] ?? true);
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collapseKey]);
 
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -189,13 +207,15 @@ export const InitiativeSection = memo(
             </>
           )}
         </div>
-        <CollapsibleContent
-          className="ml-3 space-y-0.5 border-l"
-          style={{ borderColor: initiative.color || undefined }}
-        >
-          <SidebarMenu>
-            {/* Documents Link */}
-            {canViewDocs && (
+        {isOpen && (
+          <CollapsibleContent
+            className="ml-3 space-y-0.5 border-l"
+            style={{ borderColor: initiative.color || undefined }}
+            forceMount
+          >
+            <SidebarMenu>
+              {/* Documents Link */}
+              {canViewDocs && (
               <SidebarMenuItem>
                 <div className="group/documents flex w-full min-w-0 items-center gap-1">
                   <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
@@ -344,8 +364,9 @@ export const InitiativeSection = memo(
                   </div>
                 </SidebarMenuItem>
               ))}
-          </SidebarMenu>
-        </CollapsibleContent>
+            </SidebarMenu>
+          </CollapsibleContent>
+        )}
       </Collapsible>
     );
   }
