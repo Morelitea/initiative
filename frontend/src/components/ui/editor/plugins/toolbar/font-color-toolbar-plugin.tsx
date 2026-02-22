@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { $getSelectionStyleValueForProperty, $patchStyleText } from "@lexical/selection";
 import {
   $getSelection,
@@ -13,15 +13,8 @@ import { useToolbarContext } from "@/components/ui/editor/context/toolbar-contex
 import { useUpdateToolbarHandler } from "@/components/ui/editor/editor-hooks/use-update-toolbar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  ColorPicker,
-  ColorPickerAlpha,
-  ColorPickerEyeDropper,
-  ColorPickerFormat,
-  ColorPickerHue,
-  ColorPickerOutput,
-  ColorPickerSelection,
-} from "@/components/ui/shadcn-io/color-picker";
+
+const EditorColorPickerContent = lazy(() => import("./editor-color-picker-content"));
 
 const rgbaToHex = (rgba: number[]) => {
   const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
@@ -101,22 +94,9 @@ export function FontColorToolbarPlugin() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 space-y-3" align="start">
-        <ColorPicker defaultValue={fontColor} onChange={handleColorChange}>
-          <div className="space-y-3">
-            <ColorPickerSelection className="h-48 w-full rounded-md border" />
-            <div className="flex items-center gap-2">
-              <ColorPickerEyeDropper />
-              <div className="flex flex-1 flex-col gap-2">
-                <ColorPickerHue />
-                <ColorPickerAlpha />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ColorPickerOutput />
-              <ColorPickerFormat className="w-full" />
-            </div>
-          </div>
-        </ColorPicker>
+        <Suspense fallback={<div className="h-[280px] w-full" />}>
+          <EditorColorPickerContent defaultValue={fontColor} onChange={handleColorChange} />
+        </Suspense>
       </PopoverContent>
     </Popover>
   );

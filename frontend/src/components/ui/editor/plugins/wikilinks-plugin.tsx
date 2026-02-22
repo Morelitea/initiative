@@ -1,6 +1,10 @@
-import { JSX, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { JSX, useCallback, useEffect, useMemo, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { MenuOption, MenuTextMatch } from "@lexical/react/LexicalTypeaheadMenuPlugin";
+import {
+  LexicalTypeaheadMenuPlugin,
+  MenuOption,
+  MenuTextMatch,
+} from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import {
   $getNodeByKey,
   $getNearestNodeFromDOMNode,
@@ -18,12 +22,6 @@ import { FileText, Plus } from "lucide-react";
 import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
-
-const LexicalTypeaheadMenuPlugin = lazy(() =>
-  import("@lexical/react/LexicalTypeaheadMenuPlugin").then((mod) => ({
-    default: mod.LexicalTypeaheadMenuPlugin<WikilinkTypeaheadOption>,
-  }))
-);
 
 // Regex to match [[ followed by any characters (for partial wikilinks)
 const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
@@ -286,13 +284,12 @@ export function WikilinksPlugin({
   }
 
   return (
-    <Suspense fallback={null}>
-      <LexicalTypeaheadMenuPlugin
-        onQueryChange={setQueryString}
-        onSelectOption={onSelectOption}
-        triggerFn={checkForTriggerMatch}
-        options={options}
-        menuRenderFn={(
+    <LexicalTypeaheadMenuPlugin<WikilinkTypeaheadOption>
+      onQueryChange={setQueryString}
+      onSelectOption={onSelectOption}
+      triggerFn={checkForTriggerMatch}
+      options={options}
+      menuRenderFn={(
           anchorElementRef,
           { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
         ) => {
@@ -378,7 +375,6 @@ export function WikilinksPlugin({
             anchorElementRef.current
           );
         }}
-      />
-    </Suspense>
+    />
   );
 }
