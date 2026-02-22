@@ -43,7 +43,7 @@ async def upload_attachment(
         )
 
     # SVG is XML-based so imghdr can't detect it; check content type and magic bytes
-    is_svg = file.content_type == "image/svg+xml" or contents.lstrip()[:5] in (b"<?xml", b"<svg ")
+    is_svg = file.content_type == "image/svg+xml" or contents.lstrip()[:4] in (b"<?xm", b"<svg")
     detected_format = "svg" if is_svg else imghdr.what(None, contents)
     if detected_format is None:
         raise HTTPException(
