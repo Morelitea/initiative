@@ -1600,6 +1600,7 @@ export interface TaskListResponse {
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
   sort_by: string | null;
   sort_dir: string | null;
 }
@@ -2043,6 +2044,100 @@ export interface VikunjaParseResult {
   total_tasks?: number;
 }
 
+/**
+ * Comparison operators for filter conditions.
+
+Negation is handled by the ``negate`` flag on FilterCondition,
+not by separate operators.
+ */
+export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
+
+export const FilterOp = {
+  eq: "eq",
+  lt: "lt",
+  lte: "lte",
+  gt: "gt",
+  gte: "gte",
+  in_: "in_",
+  ilike: "ilike",
+  is_null: "is_null",
+} as const;
+
+/**
+ * A single field comparison.
+
+Set ``negate=True`` to invert the result::
+
+    # name != 'bob'
+    FilterCondition(field="name", value="bob", negate=True)
+
+    # priority NOT IN ('low', 'medium')
+    FilterCondition(field="priority", op=FilterOp.in_, value=["low", "medium"], negate=True)
+ */
+export interface FilterCondition {
+  field: string;
+  op?: FilterOp;
+  value?: unknown;
+  negate?: boolean;
+}
+
+export type FilterGroupLogic = (typeof FilterGroupLogic)[keyof typeof FilterGroupLogic];
+
+export const FilterGroupLogic = {
+  and: "and",
+  or: "or",
+} as const;
+
+/**
+ * Group of conditions combined with AND or OR logic.
+
+Set ``negate=True`` to invert the entire group::
+
+    # NOT (status = 'archived' OR status = 'deleted')
+    FilterGroup(
+        logic="or",
+        negate=True,
+        conditions=[
+            FilterCondition(field="status", value="archived"),
+            FilterCondition(field="status", value="deleted"),
+        ],
+    )
+
+Groups can be nested::
+
+    # is_active = true AND (role = 'admin' OR role = 'owner')
+    FilterGroup(
+        logic="and",
+        conditions=[
+            FilterCondition(field="is_active", value=True),
+            FilterGroup(
+                logic="or",
+                conditions=[
+                    FilterCondition(field="role", value="admin"),
+                    FilterCondition(field="role", value="owner"),
+                ],
+            ),
+        ],
+    )
+ */
+export interface FilterGroup {
+  logic?: FilterGroupLogic;
+  negate?: boolean;
+  conditions: (FilterCondition | FilterGroup)[];
+}
+
+export type SortDir = (typeof SortDir)[keyof typeof SortDir];
+
+export const SortDir = {
+  asc: "asc",
+  desc: "desc",
+} as const;
+
+export interface SortField {
+  field: string;
+  dir?: SortDir;
+}
+
 export type GetVersionApiV1VersionGet200 = { [key: string]: string };
 
 export type GetLatestDockerhubVersionApiV1VersionLatestGet200 = { [key: string]: string | null };
@@ -2130,18 +2225,11 @@ export type ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams = {
 };
 
 export type ListTasksApiV1TasksGetParams = {
-  project_id?: number | null;
   scope?: "global" | "global_created" | null;
-  assignee_ids?: string[] | null;
-  task_status_ids?: number[] | null;
-  priorities?: TaskPriority[] | null;
-  status_category?: TaskStatusCategory[] | null;
-  initiative_ids?: number[] | null;
-  guild_ids?: number[] | null;
   /**
-   * Filter by tag IDs
+   * JSON list of filter conditions. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids.
    */
-  tag_ids?: number[] | null;
+  conditions?: FilterCondition[];
   /**
    * Include archived tasks
    */
@@ -2156,11 +2244,11 @@ export type ListTasksApiV1TasksGetParams = {
    */
   page_size?: number;
   /**
-   * Sort field(s), comma-separated: sort_order, title, due_date, start_date, priority, created_at, updated_at, date_group
+   * Field to sort by (e.g. due_date, priority, date_group)
    */
   sort_by?: string | null;
   /**
-   * Sort direction(s), comma-separated: asc or desc (one per sort field)
+   * Sort direction: asc or desc
    */
   sort_dir?: string | null;
 };

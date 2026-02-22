@@ -93,10 +93,16 @@ export const apiClient = axios.create({
   paramsSerializer: (params) => {
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
+      if (value === null || value === undefined) continue;
       if (Array.isArray(value)) {
-        // For arrays, add each value with the same key (repeat format)
-        value.forEach((v) => searchParams.append(key, String(v)));
-      } else if (value !== null && value !== undefined) {
+        if (value.length > 0 && typeof value[0] === "object") {
+          // Arrays of objects (e.g. FilterCondition[]) → JSON string
+          searchParams.append(key, JSON.stringify(value));
+        } else {
+          // Primitive arrays → repeated key format (key=1&key=2)
+          value.forEach((v) => searchParams.append(key, String(v)));
+        }
+      } else {
         searchParams.append(key, String(value));
       }
     }

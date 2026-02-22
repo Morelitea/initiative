@@ -180,5 +180,7 @@
   "IMPORT_INSUFFICIENT_PERMISSION": "Insufficient permissions for this project",
   "IMPORT_INVALID_STATUS_ID": "Invalid status ID for mapping",
   "NOTIFICATION_NOT_FOUND": "Notification not found",
+  "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
+  "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",
   "fallback": "Something went wrong. Please try again."
 }

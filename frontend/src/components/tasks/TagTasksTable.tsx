@@ -22,6 +22,8 @@ import type {
   TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
+  FilterCondition,
+  ListTasksApiV1TasksGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SortIcon } from "@/components/SortIcon";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
@@ -80,8 +82,8 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string | undefined>("due_date");
-  const [sortDir, setSortDir] = useState<string | undefined>("asc");
+  const [sortBy, setSortBy] = useState<string>("due_date");
+  const [sortDir, setSortDir] = useState<string>("asc");
 
   const statusOptions = useMemo(
     () => [
@@ -112,20 +114,20 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   );
 
   const handleSortingChange = useCallback(
-    (sorting: SortingState) => {
-      if (sorting.length > 0) {
-        const col = sorting[0];
+    (tableSorting: SortingState) => {
+      if (tableSorting.length > 0) {
+        const col = tableSorting[0];
         const field = SORT_FIELD_MAP[col.id];
         if (field) {
           setSortBy(field);
           setSortDir(col.desc ? "desc" : "asc");
         } else {
-          setSortBy(undefined);
-          setSortDir(undefined);
+          setSortBy("");
+          setSortDir("asc");
         }
       } else {
-        setSortBy(undefined);
-        setSortDir(undefined);
+        setSortBy("");
+        setSortDir("asc");
       }
       setPage(1);
     },
@@ -137,30 +139,44 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     setPage(1);
   }, [statusFilters, priorityFilters, setPage]);
 
-  const taskParams = {
-    tag_ids: [tagId],
-    ...(statusFilters.length > 0 && { status_category: statusFilters }),
-    ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+  const taskConditions: FilterCondition[] = [
+    { field: "tag_ids", op: "in_", value: [tagId] },
+    ...(statusFilters.length > 0
+      ? [{ field: "status_category", op: "in_" as const, value: statusFilters }]
+      : []),
+    ...(priorityFilters.length > 0
+      ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
+      : []),
+  ];
+  const taskParams: ListTasksApiV1TasksGetParams = {
+    conditions: taskConditions,
     page,
     page_size: pageSize,
-    ...(sortBy && { sort_by: sortBy }),
-    ...(sortDir && { sort_dir: sortDir }),
-  } as Parameters<typeof useTasks>[0];
+    sort_by: sortBy || undefined,
+    sort_dir: sortDir || undefined,
+  };
 
   const tasksQuery = useTasks(taskParams, { placeholderData: keepPreviousData });
 
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const params = {
-        tag_ids: [tagId],
-        ...(statusFilters.length > 0 && { status_category: statusFilters }),
-        ...(priorityFilters.length > 0 && { priorities: priorityFilters }),
+      const conditions: FilterCondition[] = [
+        { field: "tag_ids", op: "in_", value: [tagId] },
+        ...(statusFilters.length > 0
+          ? [{ field: "status_category", op: "in_" as const, value: statusFilters }]
+          : []),
+        ...(priorityFilters.length > 0
+          ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
+          : []),
+      ];
+      const params: ListTasksApiV1TasksGetParams = {
+        conditions,
         page: targetPage,
         page_size: pageSize,
-        ...(sortBy && { sort_by: sortBy }),
-        ...(sortDir && { sort_dir: sortDir }),
-      } as Parameters<typeof useTasks>[0];
+        sort_by: sortBy || undefined,
+        sort_dir: sortDir || undefined,
+      };
       void prefetchTasks(params);
     },
     [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, prefetchTasks]

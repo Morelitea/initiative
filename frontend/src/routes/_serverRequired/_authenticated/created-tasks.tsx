@@ -37,16 +37,22 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
     const { queryClient } = context;
     const { statusFilters, priorityFilters, guildFilters } = readStoredFilters();
 
-    const params: Record<string, string | string[] | number | number[]> = {
+    const conditions: Array<{ field: string; op: string; value: unknown }> = [];
+    if (statusFilters.length > 0)
+      conditions.push({ field: "status_category", op: "in_", value: statusFilters });
+    if (priorityFilters.length > 0)
+      conditions.push({ field: "priority", op: "in_", value: priorityFilters });
+    if (guildFilters.length > 0)
+      conditions.push({ field: "guild_id", op: "in_", value: guildFilters });
+
+    const params: Record<string, string | number> = {
       scope: "global_created",
       page: 1,
       page_size: PAGE_SIZE,
-      sort_by: "date_group,due_date",
-      sort_dir: "asc,asc",
+      sort_by: "date_group",
+      sort_dir: "asc",
     };
-    if (statusFilters.length > 0) params.status_category = statusFilters;
-    if (priorityFilters.length > 0) params.priorities = priorityFilters;
-    if (guildFilters.length > 0) params.guild_ids = guildFilters;
+    if (conditions.length > 0) params.conditions = JSON.stringify(conditions);
 
     try {
       await queryClient.ensureQueryData({
@@ -59,8 +65,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
           guildFilters,
           1,
           PAGE_SIZE,
-          "date_group,due_date",
-          "asc,asc",
+          "date_group",
+          "asc",
         ],
         queryFn: () => apiClient.get("/tasks/", { params }).then((r) => r.data),
         staleTime: 30_000,

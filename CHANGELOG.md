@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced JSON-encoded `sorting` query parameter on the tasks list endpoint with simple `sort_by` and `sort_dir` string parameters — the UI only sorts by one column at a time, so structured JSON was unnecessary
+- Backend automatically expands `sort_by=date_group` to include `due_date` as a secondary sort for meaningful ordering
+- Added `parse_sort_fields` utility to `app/db/query` for future use with structured sort payloads
+
 ## [0.31.5] - 2026-02-20
 
 ### Fixed

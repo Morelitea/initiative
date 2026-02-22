@@ -20,6 +20,7 @@ import type {
   TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
+  FilterCondition,
 } from "@/api/generated/initiativeAPI.schemas";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -115,8 +116,8 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string | undefined>("date_group,due_date");
-  const [sortDir, setSortDir] = useState<string | undefined>("asc,asc");
+  const [sortBy, setSortBy] = useState<string>("date_group");
+  const [sortDir, setSortDir] = useState<string>("asc");
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -137,22 +138,20 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   );
 
   const handleSortingChange = useCallback(
-    (sorting: SortingState) => {
-      if (sorting.length > 0) {
-        const fields = sorting.map((s) => SORT_FIELD_MAP[s.id]).filter(Boolean);
-        const dirs = sorting
-          .filter((s) => SORT_FIELD_MAP[s.id])
-          .map((s) => (s.desc ? "desc" : "asc"));
-        if (fields.length > 0) {
-          setSortBy(fields.join(","));
-          setSortDir(dirs.join(","));
+    (tableSorting: SortingState) => {
+      if (tableSorting.length > 0) {
+        const col = tableSorting[0];
+        const field = SORT_FIELD_MAP[col.id];
+        if (field) {
+          setSortBy(field);
+          setSortDir(col.desc ? "desc" : "asc");
         } else {
-          setSortBy(undefined);
-          setSortDir(undefined);
+          setSortBy("");
+          setSortDir("asc");
         }
       } else {
-        setSortBy(undefined);
-        setSortDir(undefined);
+        setSortBy("");
+        setSortDir("asc");
       }
       setPage(1);
     },
@@ -165,18 +164,26 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   }, [statusFilters, priorityFilters, guildFilters, setPage]);
 
   // --- Tasks query ---
-  const tasksParams = useMemo(() => {
-    const params: ListTasksApiV1TasksGetParams = {
+  const tasksParams = useMemo((): ListTasksApiV1TasksGetParams => {
+    const conditions: FilterCondition[] = [
+      ...(statusFilters.length > 0
+        ? [{ field: "status_category", op: "in_" as const, value: statusFilters }]
+        : []),
+      ...(priorityFilters.length > 0
+        ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
+        : []),
+      ...(guildFilters.length > 0
+        ? [{ field: "guild_id", op: "in_" as const, value: guildFilters }]
+        : []),
+    ];
+    return {
       scope: scope as ListTasksApiV1TasksGetParams["scope"],
+      conditions: conditions.length > 0 ? conditions : undefined,
       page,
       page_size: pageSize,
-      sort_by: sortBy ?? undefined,
-      sort_dir: sortDir ?? undefined,
+      sort_by: sortBy || undefined,
+      sort_dir: sortDir || undefined,
     };
-    if (statusFilters.length > 0) params.status_category = statusFilters;
-    if (priorityFilters.length > 0) params.priorities = priorityFilters;
-    if (guildFilters.length > 0) params.guild_ids = guildFilters;
-    return params;
   }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sortBy, sortDir]);
 
   const tasksQuery = useQuery<TaskListResponse>({
@@ -188,10 +195,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListTasksApiV1TasksGetParams = {
-        ...tasksParams,
-        page: targetPage,
-      };
+      const prefetchParams: ListTasksApiV1TasksGetParams = { ...tasksParams, page: targetPage };
 
       void localQueryClient.prefetchQuery({
         queryKey: getListTasksApiV1TasksGetQueryKey(prefetchParams),

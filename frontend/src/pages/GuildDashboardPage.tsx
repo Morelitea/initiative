@@ -29,14 +29,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
-import type { ListTasksApiV1TasksGetParams } from "@/api/generated/initiativeAPI.schemas";
-import { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import {
+  TaskStatusCategory,
+  ListTasksApiV1TasksGetParams,
+} from "@/api/generated/initiativeAPI.schemas";
 
 const DASHBOARD_TASK_PARAMS: ListTasksApiV1TasksGetParams = {
-  status_category: [
-    TaskStatusCategory.backlog,
-    TaskStatusCategory.todo,
-    TaskStatusCategory.in_progress,
+  conditions: [
+    {
+      field: "status_category",
+      op: "in_",
+      value: [TaskStatusCategory.backlog, TaskStatusCategory.todo, TaskStatusCategory.in_progress],
+    },
   ],
   sort_by: "due_date",
   sort_dir: "asc",
