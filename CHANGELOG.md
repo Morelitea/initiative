@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Vendored editor color picker (~1,800 lines) — replaced with existing shadcn-io color picker + Popover in font color and background color toolbar plugins
+- Lazy-load editor color picker content so the `color` npm package is only fetched when a user opens the font/background color popover
+- Lazy-load 4 profile settings pages (profile, notifications, interface, danger zone) — reduces index bundle by ~75 kB
+- Replace pointless `React.lazy()` with static imports for `LexicalTypeaheadMenuPlugin` and `emoji-list` — both were already pinned to the editor chunk by co-located static imports, eliminating Vite "dynamically and statically imported" warnings
 - Sidebar collapsed sections (initiatives, tags) no longer mount child DOM nodes — lazy-render on expand
 - Skip `useSortable` hooks when drag-and-drop is disabled (sorting/grouping active) for better scroll performance
 - Keep previous React Query data as placeholder for snappier page navigation

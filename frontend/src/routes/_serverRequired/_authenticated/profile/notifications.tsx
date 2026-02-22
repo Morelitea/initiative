@@ -1,6 +1,12 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { UserSettingsNotificationsPage } from "@/pages/UserSettingsNotificationsPage";
+
+const UserSettingsNotificationsPage = lazy(() =>
+  import("@/pages/UserSettingsNotificationsPage").then((m) => ({
+    default: m.UserSettingsNotificationsPage,
+  }))
+);
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/profile/notifications")({
   component: NotificationsPage,
@@ -9,5 +15,9 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/profile/no
 function NotificationsPage() {
   const { user, refreshUser } = useAuth();
   if (!user) return null;
-  return <UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />;
+  return (
+    <Suspense fallback={null}>
+      <UserSettingsNotificationsPage user={user} refreshUser={refreshUser} />
+    </Suspense>
+  );
 }

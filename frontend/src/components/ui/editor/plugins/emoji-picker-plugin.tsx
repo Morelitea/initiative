@@ -1,6 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  LexicalTypeaheadMenuPlugin,
   MenuOption,
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
@@ -8,12 +9,7 @@ import { $createTextNode, $getSelection, $isRangeSelection, TextNode } from "lex
 import { createPortal } from "react-dom";
 
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-
-const LexicalTypeaheadMenuPlugin = lazy(() =>
-  import("@lexical/react/LexicalTypeaheadMenuPlugin").then((mod) => ({
-    default: mod.LexicalTypeaheadMenuPlugin<EmojiOption>,
-  }))
-);
+import emojiList from "../utils/emoji-list";
 
 class EmojiOption extends MenuOption {
   title: string;
@@ -34,39 +30,24 @@ class EmojiOption extends MenuOption {
   }
 }
 
-type Emoji = {
-  emoji: string;
-  description: string;
-  category: string;
-  aliases: Array<string>;
-  tags: Array<string>;
-  unicode_version: string;
-  ios_version: string;
-  skin_tones?: boolean;
-};
-
 const MAX_EMOJI_SUGGESTION_COUNT = 10;
 
 export function EmojiPickerPlugin() {
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
-  const [emojis, setEmojis] = useState<Array<Emoji>>([]);
   const [, setIsOpen] = useState(false);
-  useEffect(() => {
-    import("../utils/emoji-list").then((file) => setEmojis(file.default));
-  }, []);
 
   const emojiOptions = useMemo(
     () =>
-      emojis != null
-        ? emojis.map(
+      emojiList != null
+        ? emojiList.map(
             ({ emoji, aliases, tags }) =>
               new EmojiOption(aliases[0], emoji, {
                 keywords: [...aliases, ...tags],
               })
           )
         : [],
-    [emojis]
+    []
   );
 
   const checkForTriggerMatch = useBasicTypeaheadTriggerMatch(":", {
@@ -107,68 +88,66 @@ export function EmojiPickerPlugin() {
   );
 
   return (
-    <Suspense fallback={null}>
-      <LexicalTypeaheadMenuPlugin
-        onQueryChange={setQueryString}
-        onSelectOption={onSelectOption}
-        triggerFn={checkForTriggerMatch}
-        options={options}
-        onOpen={() => {
-          setIsOpen(true);
-        }}
-        onClose={() => {
-          setIsOpen(false);
-        }}
-        menuRenderFn={(
-          anchorElementRef: { current: Element | DocumentFragment | null },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }: any
-        ) => {
-          return anchorElementRef.current && options.length
-            ? createPortal(
-                <div className="absolute z-10 w-[200px] rounded-md shadow-md">
-                  <Command
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowUp") {
-                        e.preventDefault();
-                        setHighlightedIndex(
-                          selectedIndex !== null
-                            ? (selectedIndex - 1 + options.length) % options.length
-                            : options.length - 1
-                        );
-                      } else if (e.key === "ArrowDown") {
-                        e.preventDefault();
-                        setHighlightedIndex(
-                          selectedIndex !== null ? (selectedIndex + 1) % options.length : 0
-                        );
-                      }
-                    }}
-                  >
-                    <CommandList>
-                      <CommandGroup>
-                        {options.map((option, index) => (
-                          <CommandItem
-                            key={option.key}
-                            value={option.title}
-                            onSelect={() => {
-                              selectOptionAndCleanUp(option);
-                            }}
-                            className={`flex items-center gap-2 ${
-                              selectedIndex === index ? "bg-accent" : "bg-transparent!"
-                            }`}
-                          >
-                            {option.emoji} {option.title}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </div>,
-                anchorElementRef.current
-              )
-            : null;
-        }}
-      />
-    </Suspense>
+    <LexicalTypeaheadMenuPlugin<EmojiOption>
+      onQueryChange={setQueryString}
+      onSelectOption={onSelectOption}
+      triggerFn={checkForTriggerMatch}
+      options={options}
+      onOpen={() => {
+        setIsOpen(true);
+      }}
+      onClose={() => {
+        setIsOpen(false);
+      }}
+      menuRenderFn={(
+        anchorElementRef: { current: Element | DocumentFragment | null },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }: any
+      ) => {
+        return anchorElementRef.current && options.length
+          ? createPortal(
+              <div className="absolute z-10 w-[200px] rounded-md shadow-md">
+                <Command
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setHighlightedIndex(
+                        selectedIndex !== null
+                          ? (selectedIndex - 1 + options.length) % options.length
+                          : options.length - 1
+                      );
+                    } else if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setHighlightedIndex(
+                        selectedIndex !== null ? (selectedIndex + 1) % options.length : 0
+                      );
+                    }
+                  }}
+                >
+                  <CommandList>
+                    <CommandGroup>
+                      {options.map((option, index) => (
+                        <CommandItem
+                          key={option.key}
+                          value={option.title}
+                          onSelect={() => {
+                            selectOptionAndCleanUp(option);
+                          }}
+                          className={`flex items-center gap-2 ${
+                            selectedIndex === index ? "bg-accent" : "bg-transparent!"
+                          }`}
+                        >
+                          {option.emoji} {option.title}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </div>,
+              anchorElementRef.current
+            )
+          : null;
+      }}
+    />
   );
 }

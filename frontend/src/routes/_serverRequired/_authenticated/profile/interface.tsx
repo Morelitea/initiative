@@ -1,6 +1,12 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { UserSettingsInterfacePage } from "@/pages/UserSettingsInterfacePage";
+
+const UserSettingsInterfacePage = lazy(() =>
+  import("@/pages/UserSettingsInterfacePage").then((m) => ({
+    default: m.UserSettingsInterfacePage,
+  }))
+);
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/profile/interface")({
   component: InterfacePage,
@@ -9,5 +15,9 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/profile/in
 function InterfacePage() {
   const { user, refreshUser } = useAuth();
   if (!user) return null;
-  return <UserSettingsInterfacePage user={user} refreshUser={refreshUser} />;
+  return (
+    <Suspense fallback={null}>
+      <UserSettingsInterfacePage user={user} refreshUser={refreshUser} />
+    </Suspense>
+  );
 }
