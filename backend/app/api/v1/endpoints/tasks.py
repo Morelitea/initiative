@@ -294,6 +294,17 @@ def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
     return now
 
 
+async def _touch_project(session: SessionDep, project_id: int, *, timestamp: datetime | None = None) -> datetime:
+    """Bump a project's updated_at so task activity surfaces in 'sort by updated'."""
+    now = timestamp or datetime.now(timezone.utc)
+    result = await session.exec(select(Project).where(Project.id == project_id))
+    project = result.one_or_none()
+    if project is not None:
+        project.updated_at = now
+        session.add(project)
+    return now
+
+
 async def _broadcast_task_refresh(session: SessionDep, task_id: int, guild_id: int) -> None:
     task = await _fetch_task(session, task_id, guild_id)
     if task is None:
@@ -945,6 +956,7 @@ async def create_task(
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
             )
+    await _touch_project(session, task_in.project_id)
     await session.commit()
     await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
@@ -1053,6 +1065,7 @@ async def update_task(
                 project_name=project.name,
                 guild_id=guild_context.guild_id,
             )
+    await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
     await reapply_rls_context(session)
@@ -1097,12 +1110,15 @@ async def move_task(
 
     default_status = await task_statuses_service.get_default_status(session, target_project.id)
     now = datetime.now(timezone.utc)
+    source_project_id = task.project_id
     task.project_id = target_project.id
     task.task_status_id = default_status.id
     task.task_status = default_status
     task.sort_order = 0
     task.updated_at = now
     session.add(task)
+    await _touch_project(session, source_project_id, timestamp=now)
+    await _touch_project(session, target_project.id, timestamp=now)
     await session.commit()
     await reapply_rls_context(session)
 
@@ -1192,6 +1208,7 @@ async def duplicate_task(
             for link in original_task.tag_links
         ])
 
+    await _touch_project(session, original_task.project_id)
     await session.commit()
     await reapply_rls_context(session)
 
@@ -1231,9 +1248,11 @@ async def delete_task(
         guild_id=guild_context.guild_id,
     )
 
+    project_id = task.project_id
     await session.delete(task)
+    await _touch_project(session, project_id)
     await session.commit()
-    await broadcast_event("task", "deleted", {"id": task_id, "project_id": task.project_id})
+    await broadcast_event("task", "deleted", {"id": task_id, "project_id": project_id})
 
 
 @router.post("/reorder", response_model=List[TaskRead])
@@ -1307,6 +1326,7 @@ async def reorder_tasks(
             now=now,
         )
 
+    await _touch_project(session, reorder_in.project_id, timestamp=now)
     await session.commit()
     await reapply_rls_context(session)
 
@@ -1377,6 +1397,7 @@ async def archive_done_tasks(
         task.updated_at = now
         session.add(task)
 
+    await _touch_project(session, project_id, timestamp=now)
     await session.commit()
     await broadcast_event("task", "archived", {"project_id": project_id, "count": len(tasks)})
     return ArchiveDoneResponse(archived_count=len(tasks))
@@ -1435,6 +1456,7 @@ async def create_subtask(
     now = datetime.now(timezone.utc)
     subtask.updated_at = now
     _touch_task(task, timestamp=now)
+    await _touch_project(session, task.project_id, timestamp=now)
     session.add(subtask)
     session.add(task)
     await session.commit()
@@ -1488,6 +1510,7 @@ async def create_subtasks_batch(
 
     if created_subtasks:
         _touch_task(task, timestamp=now)
+        await _touch_project(session, task.project_id, timestamp=now)
         session.add(task)
         await session.commit()
         await reapply_rls_context(session)
@@ -1538,6 +1561,7 @@ async def reorder_subtasks(
         subtask.updated_at = now
         session.add(subtask)
     _touch_task(task, timestamp=now)
+    await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
     await reapply_rls_context(session)
@@ -1584,6 +1608,7 @@ async def update_subtask(
     now = datetime.now(timezone.utc)
     subtask.updated_at = now
     _touch_task(task, timestamp=now)
+    await _touch_project(session, task.project_id, timestamp=now)
     session.add(subtask)
     session.add(task)
     await session.commit()
@@ -1616,7 +1641,8 @@ async def delete_subtask(
     )
 
     await session.delete(subtask)
-    _touch_task(task)
+    now = _touch_task(task)
+    await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
     await reapply_rls_context(session)
@@ -1746,7 +1772,9 @@ async def set_task_tags(
     ts_stmt = select(Task).where(Task.id == task_id_to_update)
     ts_result = await session.exec(ts_stmt)
     ts_task = ts_result.one()
-    ts_task.updated_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    ts_task.updated_at = now
+    await _touch_project(session, ts_task.project_id, timestamp=now)
     await session.commit()
     await reapply_rls_context(session)
 
