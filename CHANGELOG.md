@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Vendored editor color picker (~1,800 lines) — replaced with existing shadcn-io color picker + Popover in font color and background color toolbar plugins
 - Sidebar collapsed sections (initiatives, tags) no longer mount child DOM nodes — lazy-render on expand
 - Skip `useSortable` hooks when drag-and-drop is disabled (sorting/grouping active) for better scroll performance
 - Keep previous React Query data as placeholder for snappier page navigation
