@@ -1,9 +1,11 @@
+import { memo, useCallback, useRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare, Archive } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,10 @@ import { cn } from "@/lib/utils";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags";
 import { useGuildPath } from "@/lib/guildUrl";
+
+const VIRTUALIZE_THRESHOLD = 20;
+const CARD_ESTIMATE_HEIGHT = 140;
+const VIRTUALIZER_OVERSCAN = 3;
 
 interface KanbanColumnProps {
   status: TaskStatusRead;
@@ -52,10 +58,38 @@ export const KanbanColumn = ({
   isArchiving,
 }: KanbanColumnProps) => {
   const { t } = useTranslation("projects");
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `column-${status.id}`,
     data: { type: "column", statusId: status.id },
   });
+
+  const enableVirtualization = tasks.length > VIRTUALIZE_THRESHOLD;
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const mergedRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      setDroppableRef(el);
+      scrollContainerRef.current = el;
+    },
+    [setDroppableRef]
+  );
+
+  const virtualizer = useVirtualizer({
+    count: tasks.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => CARD_ESTIMATE_HEIGHT,
+    overscan: VIRTUALIZER_OVERSCAN,
+    enabled: enableVirtualization,
+  });
+
+  const virtualItems = enableVirtualization ? virtualizer.getVirtualItems() : [];
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+      : 0;
+
+  const taskIds = tasks.map((task) => task.id.toString());
 
   return (
     <div
@@ -75,7 +109,7 @@ export const KanbanColumn = ({
         <ExpandedHeader status={status} taskCount={taskCount} onToggleCollapse={onToggleCollapse} />
       )}
       <div
-        ref={setNodeRef}
+        ref={mergedRef}
         className={cn(
           "h-full w-full transition-colors",
           collapsed
@@ -90,19 +124,50 @@ export const KanbanColumn = ({
           <p className="text-muted-foreground text-sm">{t("kanban.noTasks")}</p>
         ) : (
           <SortableContext
-            items={tasks.map((task) => task.id.toString())}
+            items={taskIds}
             strategy={verticalListSortingStrategy}
           >
-            {tasks.map((task) => (
-              <KanbanTaskCard
-                key={task.id}
-                task={task}
-                canWrite={canWrite}
-                priorityVariant={priorityVariant}
-                onTaskClick={onTaskClick}
-                canOpenTask={canOpenTask}
-              />
-            ))}
+            {enableVirtualization ? (
+              <>
+                {paddingTop > 0 && <div style={{ height: paddingTop }} />}
+                {virtualItems.map((virtualRow) => {
+                  const task = tasks[virtualRow.index];
+                  return canWrite ? (
+                    <KanbanTaskCardSortable
+                      key={task.id}
+                      data-index={virtualRow.index}
+                      ref={virtualizer.measureElement}
+                      task={task}
+                      priorityVariant={priorityVariant}
+                      onTaskClick={onTaskClick}
+                      canOpenTask={canOpenTask}
+                    />
+                  ) : (
+                    <KanbanTaskCardPlain
+                      key={task.id}
+                      data-index={virtualRow.index}
+                      ref={virtualizer.measureElement}
+                      task={task}
+                      priorityVariant={priorityVariant}
+                      onTaskClick={onTaskClick}
+                      canOpenTask={canOpenTask}
+                    />
+                  );
+                })}
+                {paddingBottom > 0 && <div style={{ height: paddingBottom }} />}
+              </>
+            ) : (
+              tasks.map((task) => (
+                <KanbanTaskCard
+                  key={task.id}
+                  task={task}
+                  canWrite={canWrite}
+                  priorityVariant={priorityVariant}
+                  onTaskClick={onTaskClick}
+                  canOpenTask={canOpenTask}
+                />
+              ))
+            )}
           </SortableContext>
         )}
       </div>
@@ -193,6 +258,195 @@ const CollapsedHeader = ({
     </div>
   );
 };
+
+// --- Card content (pure display, memoized) ---
+
+interface KanbanCardContentProps {
+  task: TaskListRead;
+  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  onTaskClick: (taskId: number) => void;
+  canOpenTask: boolean;
+}
+
+const KanbanCardContent = memo(
+  function KanbanCardContent({ task, priorityVariant, onTaskClick, canOpenTask }: KanbanCardContentProps) {
+    const { t } = useTranslation(["projects", "dates"]);
+    const router = useRouter();
+    const gp = useGuildPath();
+
+    const handlePrefetch = () => {
+      if (canOpenTask) {
+        router.preloadRoute({ to: "/tasks/$taskId", params: { taskId: String(task.id) } });
+      }
+    };
+
+    const recurrenceSummary = task.recurrence
+      ? summarizeRecurrence(
+          task.recurrence,
+          {
+            referenceDate: task.start_date || task.due_date,
+            strategy: task.recurrence_strategy,
+          },
+          t as TranslateFn
+        )
+      : null;
+    const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
+    const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
+    const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
+    const commentCount = task.comment_count ?? 0;
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!canOpenTask) {
+              return;
+            }
+            onTaskClick(task.id);
+          }}
+          onMouseEnter={handlePrefetch}
+          disabled={!canOpenTask}
+          className={`flex w-full flex-col items-start gap-1 text-left ${
+            canOpenTask ? "" : "cursor-not-allowed opacity-70"
+          }`}
+        >
+          <p className="font-medium">{task.title}</p>
+          {task.description ? <Markdown content={task.description} className="line-clamp-2" /> : null}
+          <div className="text-muted-foreground space-y-1 text-xs">
+            {task.assignees.length > 0 ? (
+              <TaskAssigneeList assignees={task.assignees} className="text-xs" />
+            ) : null}
+            {formattedStart ? <p>{t("kanban.starts", { date: formattedStart })}</p> : null}
+            {formattedDue ? <p>{t("kanban.due", { date: formattedDue })}</p> : null}
+            {recurrenceText ? <p>{recurrenceText}</p> : null}
+          </div>
+          <TaskChecklistProgress progress={task.subtask_progress} className="w-full pt-1" />
+        </button>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant={priorityVariant[task.priority]}>
+            {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
+          </Badge>
+          {commentCount > 0 ? (
+            <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">
+              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+              {commentCount}
+            </Badge>
+          ) : null}
+          {task.tags &&
+            task.tags.length > 0 &&
+            task.tags.map((tag) => (
+              <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+            ))}
+        </div>
+      </>
+    );
+  },
+  (prev, next) => prev.task === next.task && prev.canOpenTask === next.canOpenTask
+);
+
+// --- Sortable card (with DnD, used in virtualized mode) ---
+
+interface KanbanTaskCardVirtualProps {
+  task: TaskListRead;
+  priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive">;
+  onTaskClick: (taskId: number) => void;
+  canOpenTask: boolean;
+  "data-index": number;
+}
+
+const KanbanTaskCardSortable = memo(
+  function KanbanTaskCardSortable({
+    task,
+    priorityVariant,
+    onTaskClick,
+    canOpenTask,
+    "data-index": dataIndex,
+    ref,
+  }: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: task.id.toString(),
+      data: { type: "task", statusId: task.task_status_id },
+    });
+
+    const mergedRef = useCallback(
+      (el: HTMLDivElement | null) => {
+        setNodeRef(el);
+        if (typeof ref === "function") {
+          ref(el);
+        } else if (ref && typeof ref === "object") {
+          (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        }
+      },
+      [setNodeRef, ref]
+    );
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.25 : undefined,
+    };
+
+    return (
+      <div
+        ref={mergedRef}
+        data-index={dataIndex}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={cn(
+          "bg-card space-y-3 rounded-lg border p-3 shadow-sm",
+          task.is_archived && "opacity-50"
+        )}
+        data-kanban-scroll-lock="true"
+      >
+        <KanbanCardContent
+          task={task}
+          priorityVariant={priorityVariant}
+          onTaskClick={onTaskClick}
+          canOpenTask={canOpenTask}
+        />
+      </div>
+    );
+  },
+  (prev, next) => prev.task === next.task && prev.canOpenTask === next.canOpenTask
+);
+
+// --- Plain card (no DnD hooks, used in virtualized mode when !canWrite) ---
+
+const KanbanTaskCardPlain = memo(
+  function KanbanTaskCardPlain({
+    task,
+    priorityVariant,
+    onTaskClick,
+    canOpenTask,
+    "data-index": dataIndex,
+    ref,
+  }: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
+    return (
+      <div
+        ref={ref}
+        data-index={dataIndex}
+        className={cn(
+          "bg-card space-y-3 rounded-lg border p-3 shadow-sm",
+          task.is_archived && "opacity-50"
+        )}
+        data-kanban-scroll-lock="true"
+      >
+        <KanbanCardContent
+          task={task}
+          priorityVariant={priorityVariant}
+          onTaskClick={onTaskClick}
+          canOpenTask={canOpenTask}
+        />
+      </div>
+    );
+  },
+  (prev, next) => prev.task === next.task && prev.canOpenTask === next.canOpenTask
+);
+
+// --- Original non-virtualized card (used for small lists) ---
 
 interface KanbanTaskCardProps {
   task: TaskListRead;

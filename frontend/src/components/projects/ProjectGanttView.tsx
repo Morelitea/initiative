@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { addDays, differenceInCalendarDays, parseISO, startOfWeek } from "date-fns";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ type NormalizedRange = {
 const WINDOW_OPTIONS = [7, 14, 21, 28];
 const DAY_COLUMN_WIDTH = 90;
 const NAME_COLUMN_WIDTH = 180;
+const ROW_ESTIMATE_HEIGHT = 64;
+const VIRTUALIZER_OVERSCAN = 5;
 
 const parseDate = (value?: string | null): Date | null => {
   if (!value) {
@@ -70,6 +73,21 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
     [visibleStart, daysVisible]
   );
   const timelineWidth = daysVisible * DAY_COLUMN_WIDTH;
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ROW_ESTIMATE_HEIGHT,
+    overscan: VIRTUALIZER_OVERSCAN,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+      : 0;
 
   useEffect(() => {
     setVisibleStart((current) => startOfWeek(current, { weekStartsOn }));
@@ -126,18 +144,21 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
           </Button>
         </div>
       </div>
-      <div className="space-y-2 overflow-visible overflow-x-auto">
+      <div
+        ref={scrollContainerRef}
+        className="max-h-[70vh] overflow-auto"
+      >
         <div
           className="min-w-[720px] sm:min-w-0"
           style={{ minWidth: NAME_COLUMN_WIDTH + timelineWidth }}
         >
           <div
-            className="text-muted-foreground grid text-[11px] font-semibold uppercase sm:text-xs"
+            className="bg-card text-muted-foreground sticky top-0 z-10 grid text-[11px] font-semibold uppercase sm:text-xs"
             style={{
               gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
             }}
           >
-            <div className="border-border bg-card border-r px-3 py-2">
+            <div className="border-border bg-card sticky left-0 z-[5] border-r px-3 py-2">
               {t("ganttView.taskColumn")}
             </div>
             <div
@@ -161,88 +182,33 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
               ))}
             </div>
           </div>
-          <div className="divide-y border-t text-xs sm:text-sm">
+          <div className="border-t text-xs sm:text-sm">
             {rows.length === 0 ? (
               <p className="text-muted-foreground px-3 py-6 text-sm">{t("ganttView.noTasks")}</p>
             ) : (
-              rows.map(({ task, start, end }) => {
-                const startOffset = differenceInCalendarDays(start, visibleStart);
-                const endOffset = differenceInCalendarDays(end, visibleStart) + 1;
-                const clampedStart = Math.max(0, startOffset);
-                const clampedEnd = Math.min(daysVisible, endOffset);
-                const isOutOfRange = clampedEnd <= 0 || clampedStart >= daysVisible;
-                const barWidth = Math.max(clampedEnd - clampedStart, 0);
-                const category = task.task_status.category;
-                const isDone = category === "done";
-                const isInProgress = category === "in_progress";
-                return (
-                  <div
-                    key={task.id}
-                    className="grid min-h-16"
-                    style={{
-                      gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
-                    }}
-                  >
-                    <div className="border-border bg-card flex flex-col justify-center border-r px-3 py-3">
-                      <p className="font-medium">{task.title}</p>
-                      <p className="text-muted-foreground text-[11px] sm:text-xs">
-                        {start.toLocaleDateString(i18n.language)} →{" "}
-                        {end.toLocaleDateString(i18n.language)}
-                      </p>
-                    </div>
-                    <div
-                      className="grid border-l"
-                      style={{
-                        gridTemplateColumns: `repeat(${daysVisible}, minmax(${DAY_COLUMN_WIDTH}px, 1fr))`,
-                      }}
-                    >
-                      {!isOutOfRange && barWidth > 0 ? (
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                className={cn(
-                                  "my-2 flex h-12 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
-                                  isDone
-                                    ? "bg-muted text-muted-foreground"
-                                    : isInProgress
-                                      ? canOpenTask
-                                        ? "bg-emerald-600 hover:bg-emerald-500"
-                                        : "bg-emerald-600/70 text-emerald-50"
-                                      : canOpenTask
-                                        ? "bg-primary hover:bg-primary/90"
-                                        : "bg-muted opacity-70"
-                                )}
-                                style={{
-                                  gridColumn: `${clampedStart + 1} / ${clampedEnd + 1}`,
-                                }}
-                                onClick={() => {
-                                  if (!canOpenTask) {
-                                    return;
-                                  }
-                                  onTaskClick(task.id);
-                                }}
-                                disabled={!canOpenTask}
-                              >
-                                <span className="truncate">{task.title}</span>
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">{task.title}</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : (
-                        <p
-                          className="text-muted-foreground px-3 py-3 text-xs"
-                          style={{ gridColumn: `1 / ${daysVisible + 1}` }}
-                        >
-                          {t("ganttView.outsideRange")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              <>
+                {paddingTop > 0 && <div style={{ height: paddingTop }} />}
+                {virtualItems.map((virtualRow) => {
+                  const { task, start, end } = rows[virtualRow.index];
+                  return (
+                    <MemoizedGanttRow
+                      key={task.id}
+                      data-index={virtualRow.index}
+                      ref={virtualizer.measureElement}
+                      task={task}
+                      start={start}
+                      end={end}
+                      visibleStart={visibleStart}
+                      daysVisible={daysVisible}
+                      timelineWidth={timelineWidth}
+                      canOpenTask={canOpenTask}
+                      onTaskClick={onTaskClick}
+                      language={i18n.language}
+                    />
+                  );
+                })}
+                {paddingBottom > 0 && <div style={{ height: paddingBottom }} />}
+              </>
             )}
           </div>
         </div>
@@ -250,3 +216,119 @@ export const ProjectGanttView = ({ tasks, canOpenTask, onTaskClick }: ProjectGan
     </div>
   );
 };
+
+type GanttRowProps = {
+  task: TaskListRead;
+  start: Date;
+  end: Date;
+  visibleStart: Date;
+  daysVisible: number;
+  timelineWidth: number;
+  canOpenTask: boolean;
+  onTaskClick: (taskId: number) => void;
+  language: string;
+  "data-index": number;
+};
+
+const GanttRow = memo(
+  function GanttRow({
+    task,
+    start,
+    end,
+    visibleStart,
+    daysVisible,
+    timelineWidth,
+    canOpenTask,
+    onTaskClick,
+    language,
+    "data-index": dataIndex,
+    ref,
+  }: GanttRowProps & { ref?: React.Ref<HTMLDivElement> }) {
+    const { t } = useTranslation("projects");
+    const startOffset = differenceInCalendarDays(start, visibleStart);
+    const endOffset = differenceInCalendarDays(end, visibleStart) + 1;
+    const clampedStart = Math.max(0, startOffset);
+    const clampedEnd = Math.min(daysVisible, endOffset);
+    const isOutOfRange = clampedEnd <= 0 || clampedStart >= daysVisible;
+    const barWidth = Math.max(clampedEnd - clampedStart, 0);
+    const category = task.task_status.category;
+    const isDone = category === "done";
+    const isInProgress = category === "in_progress";
+
+    return (
+      <div
+        ref={ref}
+        data-index={dataIndex}
+        className="grid min-h-16 border-b"
+        style={{
+          gridTemplateColumns: `${NAME_COLUMN_WIDTH}px minmax(${timelineWidth}px, 1fr)`,
+        }}
+      >
+        <div className="border-border bg-card sticky left-0 z-[5] flex flex-col justify-center border-r px-3 py-3">
+          <p className="font-medium">{task.title}</p>
+          <p className="text-muted-foreground text-[11px] sm:text-xs">
+            {start.toLocaleDateString(language)} →{" "}
+            {end.toLocaleDateString(language)}
+          </p>
+        </div>
+        <div
+          className="grid border-l"
+          style={{
+            gridTemplateColumns: `repeat(${daysVisible}, minmax(${DAY_COLUMN_WIDTH}px, 1fr))`,
+          }}
+        >
+          {!isOutOfRange && barWidth > 0 ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "my-2 flex h-12 items-center gap-2 rounded-full px-3 text-xs font-medium text-white shadow-sm",
+                      isDone
+                        ? "bg-muted text-muted-foreground"
+                        : isInProgress
+                          ? canOpenTask
+                            ? "bg-emerald-600 hover:bg-emerald-500"
+                            : "bg-emerald-600/70 text-emerald-50"
+                          : canOpenTask
+                            ? "bg-primary hover:bg-primary/90"
+                            : "bg-muted opacity-70"
+                    )}
+                    style={{
+                      gridColumn: `${clampedStart + 1} / ${clampedEnd + 1}`,
+                    }}
+                    onClick={() => {
+                      if (!canOpenTask) {
+                        return;
+                      }
+                      onTaskClick(task.id);
+                    }}
+                    disabled={!canOpenTask}
+                  >
+                    <span className="truncate">{task.title}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{task.title}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <p
+              className="text-muted-foreground px-3 py-3 text-xs"
+              style={{ gridColumn: `1 / ${daysVisible + 1}` }}
+            >
+              {t("ganttView.outsideRange")}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.task === next.task &&
+    prev.visibleStart === next.visibleStart &&
+    prev.daysVisible === next.daysVisible &&
+    prev.canOpenTask === next.canOpenTask
+);
+
+const MemoizedGanttRow = GanttRow;
