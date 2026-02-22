@@ -8,7 +8,6 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { Klass, LexicalNode, LexicalNodeReplacement, ParagraphNode, TextNode } from "lexical";
 
-import { AutocompleteNode } from "@/components/ui/editor/nodes/autocomplete-node";
 import { EmbedNode } from "@/components/ui/editor/nodes/embed-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
@@ -45,7 +44,6 @@ export const nodes: ReadonlyArray<Klass<LexicalNode> | LexicalNodeReplacement> =
   AutoLinkNode,
   TweetNode,
   YouTubeNode,
-  AutocompleteNode,
   EmbedNode,
   WikilinkNode,
 ];

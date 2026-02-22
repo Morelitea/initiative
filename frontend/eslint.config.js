@@ -76,7 +76,6 @@ export default defineConfig([
       "src/main.tsx",
       "src/router.tsx",
       "src/__tests__/**",
-      "src/components/ui/editor/plugins/autocomplete-plugin.tsx",
     ],
     rules: {
       "no-restricted-imports": [
