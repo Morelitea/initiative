@@ -247,13 +247,6 @@ export function DataTable<TData, TValue>({
   }, [enablePagination, manualPagination, externalOnPaginationChange, pagination]);
 
   const handleSortingChange = useMemo(() => {
-    if (manualSorting && externalOnSortingChange) {
-      return (updater: SortingState | ((old: SortingState) => SortingState)) => {
-        const newState = typeof updater === "function" ? updater(sorting) : updater;
-        setSorting(newState);
-        externalOnSortingChange(newState);
-      };
-    }
     if (externalOnSortingChange) {
       return (updater: SortingState | ((old: SortingState) => SortingState)) => {
         const newState = typeof updater === "function" ? updater(sorting) : updater;
@@ -262,7 +255,7 @@ export function DataTable<TData, TValue>({
       };
     }
     return setSorting;
-  }, [manualSorting, externalOnSortingChange, sorting]);
+  }, [externalOnSortingChange, sorting]);
 
   const handleGroupingChange = useCallback(
     (updater: GroupingState | ((old: GroupingState) => GroupingState)) => {
