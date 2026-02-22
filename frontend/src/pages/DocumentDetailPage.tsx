@@ -435,6 +435,15 @@ export const DocumentDetailPage = () => {
     try {
       const response = await uploadAttachment(file);
       setFeaturedImageUrl(response.url);
+      isAutosaveRef.current = true;
+      saveDocument.mutate({
+        documentId: parsedId,
+        data: {
+          title: title?.trim(),
+          content: contentState as unknown as Record<string, unknown>,
+          featured_image_url: response.url,
+        },
+      });
       toast.success(t("detail.imageUploaded"));
     } catch (error) {
       console.error(error);
@@ -611,7 +620,18 @@ export const DocumentDetailPage = () => {
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() => setFeaturedImageUrl(null)}
+                          onClick={() => {
+                            setFeaturedImageUrl(null);
+                            isAutosaveRef.current = true;
+                            saveDocument.mutate({
+                              documentId: parsedId,
+                              data: {
+                                title: title?.trim(),
+                                content: contentState as unknown as Record<string, unknown>,
+                                featured_image_url: null,
+                              },
+                            });
+                          }}
                           disabled={isUploadingFeaturedImage}
                         >
                           <X className="mr-2 h-4 w-4" />
