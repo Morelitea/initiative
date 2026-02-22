@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Reusable `StatusMessage` component for consistent error states across detail pages
+- Distinct 404/403 error messages on Project, Document, Tag, and Initiative detail pages using `Empty` card layout with contextual icons
+- "Guild not available" page when navigating to a guild the user isn't a member of (replaces silent redirect)
+- Rate-limit error message ("Too many requests") instead of misleading "Check your credentials" on login/register
 - Row virtualization for DataTable using `@tanstack/react-virtual` — only visible rows exist in the DOM, tested with 10k tasks
 - Virtualized Gantt view with sticky day headers and pinned task name column
 - Virtualized Kanban columns (activates above 20 tasks per column) with memoized card components and DnD compatibility
 - Collapse all / expand all buttons for sidebar initiative list and tag browser
 - Memoized virtual cell rendering to prevent expensive re-renders during scroll
+
+### Fixed
+
+- Navigating to an inaccessible guild no longer poisons the active guild state, which previously caused "Unable to load" errors on the home page after redirect
 
 ### Changed
 

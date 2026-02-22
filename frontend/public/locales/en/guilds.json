@@ -121,6 +121,11 @@
     "removeConfirmLabel": "Remove",
     "failedToUpdateRole": "Failed to update role"
   },
+  "notMember": {
+    "title": "Guild not available",
+    "description": "You\u2019re not a member of this guild. Ask a guild admin for an invite link to join.",
+    "backToHome": "\u2190 Back to home"
+  },
   "noGuild": {
     "title": "No guild membership",
     "description": "You are not a member of any guild yet. Ask a guild admin for an invite link, or create a new guild to get started.",

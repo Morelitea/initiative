@@ -121,6 +121,11 @@
     "removeConfirmLabel": "Eliminar",
     "failedToUpdateRole": "No se pudo actualizar el rol"
   },
+  "notMember": {
+    "title": "Gremio no disponible",
+    "description": "No eres miembro de este gremio. Pide a un administrador del gremio un enlace de invitación para unirte.",
+    "backToHome": "\u2190 Volver al inicio"
+  },
   "noGuild": {
     "title": "Sin membresía de gremio",
     "description": "Aún no eres miembro de ningún gremio. Pide a un administrador de gremio un enlace de invitación o crea un nuevo gremio para comenzar.",
