@@ -44,6 +44,8 @@ export interface InitiativeSectionProps {
   canCreateDocs: boolean;
   canCreateProjects: boolean;
   activeGuildId: number | null;
+  /** Changing this value re-syncs the open/closed state from storage. */
+  collapseKey?: number;
 }
 
 export const InitiativeSection = memo(
@@ -59,6 +61,7 @@ export const InitiativeSection = memo(
     canCreateDocs,
     canCreateProjects,
     activeGuildId,
+    collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
     // Helper to create guild-scoped paths
@@ -94,6 +97,21 @@ export const InitiativeSection = memo(
         // Ignore storage errors
       }
     }, [isOpen, initiative.id]);
+
+    // Re-sync from storage when collapseKey changes (collapse/expand all)
+    useEffect(() => {
+      if (collapseKey === undefined) return;
+      try {
+        const stored = getItem("initiative-collapsed-states");
+        if (stored) {
+          const states = JSON.parse(stored) as Record<number, boolean>;
+          setIsOpen(states[initiative.id] ?? true);
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collapseKey]);
 
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>

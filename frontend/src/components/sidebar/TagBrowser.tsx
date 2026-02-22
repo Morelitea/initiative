@@ -19,9 +19,11 @@ export interface TagBrowserProps {
   tags: TagType[];
   isLoading: boolean;
   activeGuildId: number | null;
+  /** Changing this value re-syncs the open/closed state from storage. */
+  collapseKey?: number;
 }
 
-export const TagBrowser = ({ tags, isLoading, activeGuildId }: TagBrowserProps) => {
+export const TagBrowser = ({ tags, isLoading, activeGuildId, collapseKey }: TagBrowserProps) => {
   const { t } = useTranslation("nav");
   const tagTree = useMemo(() => buildTagTree(tags), [tags]);
 
@@ -47,6 +49,7 @@ export const TagBrowser = ({ tags, isLoading, activeGuildId }: TagBrowserProps) 
           node={node}
           depth={0}
           activeGuildId={activeGuildId}
+          collapseKey={collapseKey}
         />
       ))}
     </div>
@@ -57,9 +60,10 @@ interface TagTreeNodeComponentProps {
   node: TagTreeNode;
   depth: number;
   activeGuildId: number | null;
+  collapseKey?: number;
 }
 
-const TagTreeNodeComponent = memo(({ node, depth, activeGuildId }: TagTreeNodeComponentProps) => {
+const TagTreeNodeComponent = memo(({ node, depth, activeGuildId, collapseKey }: TagTreeNodeComponentProps) => {
   const { t } = useTranslation("nav");
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
@@ -86,6 +90,23 @@ const TagTreeNodeComponent = memo(({ node, depth, activeGuildId }: TagTreeNodeCo
       // Ignore storage errors
     }
   }, [isOpen, node.fullPath]);
+
+  // Re-sync from storage when collapseKey changes (collapse/expand all)
+  useEffect(() => {
+    if (collapseKey === undefined) return;
+    try {
+      const stored = getItem("tag-group-collapsed-states");
+      if (stored) {
+        const states = JSON.parse(stored) as Record<string, boolean>;
+        setIsOpen(states[node.fullPath] ?? false);
+      } else {
+        setIsOpen(false);
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapseKey]);
 
   const hasChildren = node.children.length > 0;
   const canExpand = hasChildren;
@@ -182,6 +203,7 @@ const TagTreeNodeComponent = memo(({ node, depth, activeGuildId }: TagTreeNodeCo
               node={child}
               depth={depth + 1}
               activeGuildId={activeGuildId}
+              collapseKey={collapseKey}
             />
           ))}
         </CollapsibleContent>

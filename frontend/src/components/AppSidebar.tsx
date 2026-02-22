@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +11,8 @@ import {
   Users,
   ListTodo,
   Tag,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { HomeSidebarContent } from "@/components/HomeSidebarContent";
@@ -40,6 +43,7 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects, useFavoriteProjects } from "@/hooks/useProjects";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { useTags } from "@/hooks/useTags";
+import { getItem, setItem } from "@/lib/storage";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { guildPath } from "@/lib/guildUrl";
@@ -198,6 +202,60 @@ export const AppSidebar = () => {
   // Fetch tags for the tag browser
   const tagsQuery = useTags();
 
+  // Collapse/expand all for initiatives
+  const [initiativeCollapseKey, setInitiativeCollapseKey] = useState(0);
+  const collapseAllInitiatives = useCallback(() => {
+    const states: Record<number, boolean> = {};
+    for (const init of visibleInitiatives) {
+      states[init.id] = false;
+    }
+    setItem("initiative-collapsed-states", JSON.stringify(states));
+    setInitiativeCollapseKey((k) => k + 1);
+  }, [visibleInitiatives]);
+  const expandAllInitiatives = useCallback(() => {
+    const states: Record<number, boolean> = {};
+    for (const init of visibleInitiatives) {
+      states[init.id] = true;
+    }
+    setItem("initiative-collapsed-states", JSON.stringify(states));
+    setInitiativeCollapseKey((k) => k + 1);
+  }, [visibleInitiatives]);
+  const allInitiativesCollapsed = useMemo(() => {
+    try {
+      const stored = getItem("initiative-collapsed-states");
+      if (!stored) return false;
+      const states = JSON.parse(stored) as Record<number, boolean>;
+      return visibleInitiatives.length > 0 && visibleInitiatives.every((i) => states[i.id] === false);
+    } catch {
+      return false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleInitiatives, initiativeCollapseKey]);
+
+  // Collapse/expand all for tags
+  const [tagCollapseKey, setTagCollapseKey] = useState(0);
+  const collapseAllTags = useCallback(() => {
+    setItem("tag-group-collapsed-states", JSON.stringify({}));
+    setTagCollapseKey((k) => k + 1);
+  }, []);
+  const expandAllTags = useCallback(() => {
+    const tags = tagsQuery.data ?? [];
+    const states: Record<string, boolean> = {};
+    for (const tag of tags) {
+      if (tag.name.includes("/")) {
+        // Expand all parent segments
+        const parts = tag.name.split("/");
+        let path = "";
+        for (const part of parts.slice(0, -1)) {
+          path = path ? `${path}/${part}` : part;
+          states[path] = true;
+        }
+      }
+    }
+    setItem("tag-group-collapsed-states", JSON.stringify(states));
+    setTagCollapseKey((k) => k + 1);
+  }, [tagsQuery.data]);
+
   // Fetch latest DockerHub version
   const { data: latestVersion, isLoading: isLoadingVersion } = useDockerHubVersion();
   const currentVersion = __APP_VERSION__;
@@ -318,7 +376,30 @@ export const AppSidebar = () => {
                       {/* Initiatives Section */}
                       <SidebarGroup>
                         <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                          <Users className="h-4 w-4" /> {t("initiatives")}
+                          <Users className="h-4 w-4" />
+                          <span className="flex-1">{t("initiatives")}</span>
+                          {visibleInitiatives.length > 0 && (
+                            <Tooltip delayDuration={300}>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 shrink-0"
+                                  onClick={allInitiativesCollapsed ? expandAllInitiatives : collapseAllInitiatives}
+                                  aria-label={allInitiativesCollapsed ? t("expandAll") : t("collapseAll")}
+                                >
+                                  {allInitiativesCollapsed ? (
+                                    <ChevronsUpDown className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronsDownUp className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                <p>{allInitiativesCollapsed ? t("expandAll") : t("collapseAll")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </SidebarGroupLabel>
                         <SidebarGroupContent>
                           {initiativesQuery.isLoading ? (
@@ -351,6 +432,7 @@ export const AppSidebar = () => {
                                     canCreateDocs={permissions.canCreateDocs}
                                     canCreateProjects={permissions.canCreateProjects}
                                     activeGuildId={activeGuildId}
+                                    collapseKey={initiativeCollapseKey}
                                   />
                                 );
                               })}
@@ -378,13 +460,51 @@ export const AppSidebar = () => {
                     <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
                       <SidebarGroup>
                         <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                          <Tag className="h-4 w-4" /> {t("tags")}
+                          <Tag className="h-4 w-4" />
+                          <span className="flex-1">{t("tags")}</span>
+                          {(tagsQuery.data ?? []).length > 0 && (
+                            <Tooltip delayDuration={300}>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 shrink-0"
+                                  onClick={expandAllTags}
+                                  aria-label={t("expandAll")}
+                                >
+                                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                <p>{t("expandAll")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {(tagsQuery.data ?? []).length > 0 && (
+                            <Tooltip delayDuration={300}>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 shrink-0"
+                                  onClick={collapseAllTags}
+                                  aria-label={t("collapseAll")}
+                                >
+                                  <ChevronsDownUp className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                <p>{t("collapseAll")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </SidebarGroupLabel>
                         <SidebarGroupContent>
                           <TagBrowser
                             tags={tagsQuery.data ?? []}
                             isLoading={tagsQuery.isLoading}
                             activeGuildId={activeGuildId}
+                            collapseKey={tagCollapseKey}
                           />
                         </SidebarGroupContent>
                       </SidebarGroup>
