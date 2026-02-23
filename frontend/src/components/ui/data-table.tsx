@@ -282,7 +282,7 @@ export function DataTable<TData, TValue>({
     getRowId: getRowId,
     getPaginationRowModel:
       enablePagination && !manualPagination ? getPaginationRowModel() : undefined,
-    getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
+    getSortedRowModel: manualSorting && !groupingEnabled ? undefined : getSortedRowModel(),
     manualSorting: manualSorting,
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: groupingEnabled ? getGroupedRowModel() : undefined,
