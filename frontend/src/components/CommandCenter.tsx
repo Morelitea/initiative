@@ -67,11 +67,10 @@ export function CommandCenter() {
   useEffect(() => {
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 3) {
-        e.preventDefault();
         setOpen(true);
       }
     };
-    document.addEventListener("touchstart", handleTouchStart, { passive: false });
+    document.addEventListener("touchstart", handleTouchStart);
     return () => document.removeEventListener("touchstart", handleTouchStart);
   }, []);
 
