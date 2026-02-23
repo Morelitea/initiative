@@ -788,7 +788,7 @@ async def list_tasks(
         )
 
     try:
-        sort_fields = parse_sort_fields(sorting)
+        sort_fields = parse_sort_fields(sorting) or None
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

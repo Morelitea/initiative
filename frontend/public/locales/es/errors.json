@@ -180,6 +180,8 @@
   "IMPORT_INSUFFICIENT_PERMISSION": "Permisos insuficientes para este proyecto",
   "IMPORT_INVALID_STATUS_ID": "ID de estado no válido para el mapeo",
   "NOTIFICATION_NOT_FOUND": "Notificación no encontrada",
+  "QUERY_INVALID_CONDITIONS": "Condiciones de filtro no válidas",
+  "QUERY_INVALID_SORT_FIELDS": "Campos de ordenamiento no válidos",
   "RATE_LIMITED": "Demasiadas solicitudes. Por favor espera un momento e intenta de nuevo.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo."
 }
