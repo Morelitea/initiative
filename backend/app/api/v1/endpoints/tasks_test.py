@@ -12,6 +12,8 @@ Tests the task API endpoints at /api/v1/tasks including:
 - Task reordering
 """
 
+import json
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -95,8 +97,9 @@ async def test_list_tasks_in_project(client: AsyncClient, session: AsyncSession)
     task2 = await _create_task(session, project, "Task 2")
 
     headers = get_guild_headers(guild, user)
+    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
     response = await client.get(
-        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+        f"/api/v1/tasks/?conditions={conditions}", headers=headers
     )
 
     assert response.status_code == 200
@@ -555,7 +558,8 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
     await session.commit()
 
     headers = get_guild_headers(guild, user)
-    response = await client.get("/api/v1/tasks/?assignee_ids=me", headers=headers)
+    conditions = json.dumps([{"field": "assignee_ids", "op": "in_", "value": ["me"]}])
+    response = await client.get(f"/api/v1/tasks/?conditions={conditions}", headers=headers)
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -595,8 +599,12 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
     await session.commit()
 
     headers = get_guild_headers(guild, user)
+    conditions = json.dumps([
+        {"field": "project_id", "op": "eq", "value": project.id},
+        {"field": "task_status_id", "op": "in_", "value": [todo_status.id]},
+    ])
     response = await client.get(
-        f"/api/v1/tasks/?project_id={project.id}&task_status_ids={todo_status.id}",
+        f"/api/v1/tasks/?conditions={conditions}",
         headers=headers,
     )
 
@@ -661,8 +669,9 @@ async def test_rolling_recurrence_preserves_due_time(
     assert response.status_code == 200
 
     # Fetch all tasks to find the newly created recurring task
+    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
     response = await client.get(
-        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+        f"/api/v1/tasks/?conditions={conditions}", headers=headers
     )
     assert response.status_code == 200
     tasks = response.json()["items"]
@@ -736,8 +745,9 @@ async def test_fixed_recurrence_uses_original_due_date(
     assert response.status_code == 200
 
     # Fetch all tasks
+    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
     response = await client.get(
-        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+        f"/api/v1/tasks/?conditions={conditions}", headers=headers
     )
     assert response.status_code == 200
     tasks = response.json()["items"]
@@ -810,8 +820,9 @@ async def test_rolling_recurrence_with_midnight_time(
     assert response.status_code == 200
 
     # Fetch all tasks
+    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
     response = await client.get(
-        f"/api/v1/tasks/?project_id={project.id}", headers=headers
+        f"/api/v1/tasks/?conditions={conditions}", headers=headers
     )
     assert response.status_code == 200
     tasks = response.json()["items"]

@@ -6,6 +6,17 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import case, func, text
 from sqlmodel import select, delete
 
+from app.db.query import (
+    apply_filters,
+    apply_sorting,
+    build_paginated_response,
+    extract_condition_value,
+    paginated_query,
+    parse_conditions,
+    parse_sort_fields,
+)
+from app.schemas.query import FilterOp
+
 from app.api.deps import (
     RLSSessionDep,
     SessionDep,
@@ -40,7 +51,7 @@ from app.services import permissions as permissions_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
-from app.core.messages import ProjectMessages, TaskMessages, SubtaskMessages
+from app.core.messages import ProjectMessages, QueryMessages, TaskMessages, SubtaskMessages
 
 router = APIRouter()
 
@@ -91,33 +102,88 @@ TASK_SORT_FIELDS: dict[str, object] = {
 }
 
 
-def _apply_task_sort(statement, sort_by: Optional[str], sort_dir: Optional[str]):
-    """Apply ORDER BY clause based on sort_by/sort_dir params, with fallback.
+TASK_DEFAULT_SORT = [(Task.sort_order, "asc"), (Task.id, "asc")]
 
-    Supports multi-sort via comma-separated values:
-      sort_by=date_group,due_date  sort_dir=asc,asc
+
+def _build_task_filter_fields(*, guild_id: int, current_user_id: int) -> dict:
+    """Build allowed_fields dict from Task model columns plus callable overrides.
+
+    Every column on the Task table is automatically available as a filter
+    field (e.g. ``project_id``, ``priority``, ``due_date``, ``title``).
+    Virtual fields that require subqueries (``status_category``,
+    ``assignee_ids``, ``tag_ids``, ``initiative_ids``) are added as
+    callable handlers that receive ``(op, value)`` and return a SA clause.
     """
-    if not sort_by:
-        return statement.order_by(Task.sort_order.asc(), Task.id.asc())
+    # Auto-populate from model columns
+    fields: dict = {
+        col.name: getattr(Task, col.name)
+        for col in Task.__table__.columns
+    }
 
-    fields = [f.strip() for f in sort_by.split(",") if f.strip()]
-    dirs = [d.strip() for d in (sort_dir or "").split(",")]
+    # Callable overrides for virtual / cross-table fields
+    def _status_category_handler(op: FilterOp, value):
+        if not value:
+            return None
+        subq = select(TaskStatus.id).where(
+            TaskStatus.category.in_(tuple(value))
+        )
+        return Task.task_status_id.in_(subq)
 
-    has_valid = False
-    for i, field_name in enumerate(fields):
-        col = TASK_SORT_FIELDS.get(field_name)
-        if col is None:
-            continue
-        direction = dirs[i] if i < len(dirs) else "asc"
-        order = col.desc() if direction == "desc" else col.asc()
-        statement = statement.order_by(order.nulls_last())
-        has_valid = True
+    def _assignee_ids_handler(op: FilterOp, value):
+        if not value:
+            return None
+        user_ids = []
+        for aid in value:
+            if aid == "me":
+                user_ids.append(current_user_id)
+            else:
+                try:
+                    user_ids.append(int(aid))
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=TaskMessages.INVALID_ASSIGNEE_ID,
+                    )
+        if not user_ids:
+            return None
+        subq = (
+            select(TaskAssignee.task_id)
+            .where(TaskAssignee.user_id.in_(tuple(user_ids)))
+        )
+        return Task.id.in_(subq)
 
-    if not has_valid:
-        return statement.order_by(Task.sort_order.asc(), Task.id.asc())
+    def _tag_ids_handler(op: FilterOp, value):
+        if not value:
+            return None
+        subq = (
+            select(TaskTag.task_id)
+            .join(Tag, Tag.id == TaskTag.tag_id)
+            .where(
+                TaskTag.tag_id.in_(tuple(value)),
+                Tag.guild_id == guild_id,
+            )
+            .distinct()
+        )
+        return Task.id.in_(subq)
 
-    # tiebreaker
-    return statement.order_by(Task.id.asc())
+    def _initiative_ids_handler(op: FilterOp, value):
+        if not value:
+            return None
+        subq = select(Project.id).where(
+            Project.initiative_id.in_(tuple(value))
+        )
+        return Task.project_id.in_(subq)
+
+    fields["status_category"] = _status_category_handler
+    fields["assignee_ids"] = _assignee_ids_handler
+    fields["tag_ids"] = _tag_ids_handler
+    fields["initiative_ids"] = _initiative_ids_handler
+
+    return fields
+
+
+
+
 
 subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -577,10 +643,8 @@ async def _list_global_tasks(
     include_archived: bool = False,
     page: int = 1,
     page_size: int = 20,
-    sort_by: Optional[str] = None,
-    sort_dir: Optional[str] = None,
-) -> tuple[list[Task], int]:
-    # Base conditions shared by count and data queries
+    sort_fields: list | None = None,
+) -> tuple[list[Task], int, int]:
     conditions = [
         TaskAssignee.user_id == current_user.id,
         GuildMembership.user_id == current_user.id,
@@ -614,12 +678,9 @@ async def _list_global_tasks(
             )
         return stmt.where(*conditions)
 
-    # Count query
     count_subq = _base_query(select(Task.id)).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
 
-    # Data query
     statement = _base_query(select(Task)).options(
         selectinload(Task.project)
         .selectinload(Project.initiative)
@@ -628,13 +689,9 @@ async def _list_global_tasks(
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
-    statement = _apply_task_sort(statement, sort_by, sort_dir)
+    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=TASK_SORT_FIELDS, default_sort=TASK_DEFAULT_SORT)
 
-    if page_size > 0:
-        statement = statement.offset((page - 1) * page_size).limit(page_size)
-
-    result = await session.exec(statement)
-    return result.all(), total_count
+    return await paginated_query(session, statement, count_stmt, page, page_size)
 
 
 async def _list_global_created_tasks(
@@ -649,11 +706,9 @@ async def _list_global_created_tasks(
     include_archived: bool = False,
     page: int = 1,
     page_size: int = 20,
-    sort_by: Optional[str] = None,
-    sort_dir: Optional[str] = None,
-) -> tuple[list[Task], int]:
+    sort_fields: list | None = None,
+) -> tuple[list[Task], int, int]:
     """List tasks created by the current user across all guilds they belong to."""
-    # Base conditions shared by count and data queries
     conditions = [
         Task.created_by_id == current_user.id,
         GuildMembership.user_id == current_user.id,
@@ -671,7 +726,6 @@ async def _list_global_created_tasks(
     if guild_ids:
         conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
 
-    # Build base join chain (no TaskAssignee join needed)
     def _base_query(stmt):
         stmt = (
             stmt
@@ -686,12 +740,9 @@ async def _list_global_created_tasks(
             )
         return stmt.where(*conditions)
 
-    # Count query
     count_subq = _base_query(select(Task.id)).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
 
-    # Data query
     statement = _base_query(select(Task)).options(
         selectinload(Task.project)
         .selectinload(Project.initiative)
@@ -700,13 +751,9 @@ async def _list_global_created_tasks(
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
-    statement = _apply_task_sort(statement, sort_by, sort_dir)
+    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=TASK_SORT_FIELDS, default_sort=TASK_DEFAULT_SORT)
 
-    if page_size > 0:
-        statement = statement.offset((page - 1) * page_size).limit(page_size)
-
-    result = await session.exec(statement)
-    return result.all(), total_count
+    return await paginated_query(session, statement, count_stmt, page, page_size)
 
 
 @router.get("/", response_model=TaskListResponse)
@@ -714,23 +761,49 @@ async def list_tasks(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    project_id: Optional[int] = Query(default=None),
     scope: Annotated[Literal["global", "global_created"] | None, Query()] = None,
-    assignee_ids: Optional[List[str]] = Query(default=None),
-    task_status_ids: Optional[List[int]] = Query(default=None),
-    priorities: Optional[List[TaskPriority]] = Query(default=None),
-    status_category: Optional[List[TaskStatusCategory]] = Query(default=None),
-    initiative_ids: Optional[List[int]] = Query(default=None),
-    guild_ids: Optional[List[int]] = Query(default=None),
-    tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
+    conditions: Optional[str] = Query(
+        default=None,
+        description=(
+            'JSON list of filter conditions. Each object: '
+            '{"field": "<column>", "op": "<operator>", "value": <val>}. '
+            "Any Task column is valid plus virtual fields: "
+            "status_category, assignee_ids, tag_ids, initiative_ids."
+        ),
+    ),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
-    sort_by: Optional[str] = Query(default=None, description="Sort field(s), comma-separated: sort_order, title, due_date, start_date, priority, created_at, updated_at, date_group"),
-    sort_dir: Optional[str] = Query(default=None, description="Sort direction(s), comma-separated: asc or desc (one per sort field)"),
+    sorting: Optional[str] = Query(
+        default=None,
+        description='JSON list of sort fields: [{"field": "due_date", "dir": "desc"}]',
+    ),
 ) -> TaskListResponse:
+    try:
+        user_conditions = parse_conditions(conditions)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+
+    try:
+        sort_fields = parse_sort_fields(sorting) or None
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_SORT_FIELDS,
+        )
+
+    # Extract values needed by global paths and access control
+    project_id = extract_condition_value(user_conditions, "project_id")
+    priorities = extract_condition_value(user_conditions, "priority")
+    status_category = extract_condition_value(user_conditions, "status_category")
+    initiative_ids = extract_condition_value(user_conditions, "initiative_ids")
+    guild_ids = extract_condition_value(user_conditions, "guild_ids")
+
     if scope == "global":
-        tasks, total_count = await _list_global_tasks(
+        tasks, total_count, actual_page = await _list_global_tasks(
             session,
             current_user,
             project_id=project_id,
@@ -741,30 +814,18 @@ async def list_tasks(
             include_archived=include_archived,
             page=page,
             page_size=page_size,
-            sort_by=sort_by,
-            sort_dir=sort_dir,
+            sort_fields=sort_fields,
         )
         await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
         items = [_task_to_list_read(task) for task in tasks]
-        if page_size > 0:
-            has_next = page * page_size < total_count
-        else:
-            # page_size=0 means "all rows, no pagination"
-            has_next = False
-            page = 1
-        return TaskListResponse(
-            items=items,
-            total_count=total_count,
-            page=page,
-            page_size=page_size,
-            has_next=has_next,
-            sort_by=sort_by,
-            sort_dir=sort_dir,
-        )
+        return TaskListResponse(**build_paginated_response(
+            items=items, total_count=total_count, page=actual_page,
+            page_size=page_size, sorting=sorting,
+        ))
 
     elif scope == "global_created":
-        tasks, total_count = await _list_global_created_tasks(
+        tasks, total_count, actual_page = await _list_global_created_tasks(
             session,
             current_user,
             project_id=project_id,
@@ -775,47 +836,21 @@ async def list_tasks(
             include_archived=include_archived,
             page=page,
             page_size=page_size,
-            sort_by=sort_by,
-            sort_dir=sort_dir,
+            sort_fields=sort_fields,
         )
         await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
         items = [_task_to_list_read(task) for task in tasks]
-        if page_size > 0:
-            has_next = page * page_size < total_count
-        else:
-            has_next = False
-            page = 1
-        return TaskListResponse(
-            items=items,
-            total_count=total_count,
-            page=page,
-            page_size=page_size,
-            has_next=has_next,
-            sort_by=sort_by,
-            sort_dir=sort_dir,
-        )
+        return TaskListResponse(**build_paginated_response(
+            items=items, total_count=total_count, page=actual_page,
+            page_size=page_size, sorting=sorting,
+        ))
 
     # Non-global (guild-scoped) path
-    conditions = [Initiative.guild_id == guild_context.guild_id]
+    access_conditions = [Initiative.guild_id == guild_context.guild_id]
 
     if not include_archived:
-        conditions.append(Task.is_archived.is_(False))
-
-    if project_id is not None:
-        conditions.append(Task.project_id == project_id)
-
-    if task_status_ids:
-        conditions.append(Task.task_status_id.in_(tuple(task_status_ids)))
-
-    if priorities:
-        conditions.append(Task.priority.in_(tuple(priorities)))
-
-    if initiative_ids:
-        conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
-
-    if guild_ids:
-        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+        access_conditions.append(Task.is_archived.is_(False))
 
     allowed_ids = await _allowed_project_ids(
         session,
@@ -825,48 +860,26 @@ async def list_tasks(
     )
     if allowed_ids is not None:
         if not allowed_ids:
-            return TaskListResponse(items=[], total_count=0, page=page, page_size=page_size, has_next=False, sort_by=sort_by, sort_dir=sort_dir)
-        conditions.append(Task.project_id.in_(tuple(allowed_ids)))
+            return TaskListResponse(**build_paginated_response(
+                items=[], total_count=0, page=1,
+                page_size=page_size, sorting=sorting,
+            ))
+        access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
+
+    filter_fields = _build_task_filter_fields(
+        guild_id=guild_context.guild_id,
+        current_user_id=current_user.id,
+    )
 
     def _build_non_global_query(stmt):
         stmt = stmt.join(Task.project).join(Project.initiative)
-        if assignee_ids:
-            user_ids = []
-            for assignee_id in assignee_ids:
-                if assignee_id == "me":
-                    user_ids.append(current_user.id)
-                else:
-                    try:
-                        user_ids.append(int(assignee_id))
-                    except ValueError:
-                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.INVALID_ASSIGNEE_ID)
-            if user_ids:
-                stmt = stmt.join(TaskAssignee, TaskAssignee.task_id == Task.id).where(
-                    TaskAssignee.user_id.in_(tuple(user_ids))
-                )
-        if status_category:
-            stmt = stmt.join(TaskStatus, Task.task_status_id == TaskStatus.id).where(
-                TaskStatus.category.in_(tuple(status_category))
-            )
-        if tag_ids:
-            tag_subquery = (
-                select(TaskTag.task_id)
-                .join(Tag, Tag.id == TaskTag.tag_id)
-                .where(
-                    TaskTag.tag_id.in_(tuple(tag_ids)),
-                    Tag.guild_id == guild_context.guild_id,
-                )
-                .distinct()
-            )
-            stmt = stmt.where(Task.id.in_(tag_subquery))
-        return stmt.where(*conditions)
+        stmt = stmt.where(*access_conditions)
+        stmt = apply_filters(stmt, Task, user_conditions, allowed_fields=filter_fields)
+        return stmt
 
-    # Count query
     count_subq = _build_non_global_query(select(Task.id)).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
 
-    # Data query
     statement = _build_non_global_query(select(Task)).options(
         selectinload(Task.project)
         .selectinload(Project.initiative)
@@ -875,31 +888,16 @@ async def list_tasks(
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
-    statement = _apply_task_sort(statement, sort_by, sort_dir)
+    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=TASK_SORT_FIELDS, default_sort=TASK_DEFAULT_SORT)
 
-    if page_size > 0:
-        statement = statement.offset((page - 1) * page_size).limit(page_size)
-
-    result = await session.exec(statement)
-    tasks = result.all()
+    tasks, total_count, actual_page = await paginated_query(session, statement, count_stmt, page, page_size)
     await _annotate_tasks(session, tasks)
     _annotate_task_tags(tasks)
     items = [_task_to_list_read(task) for task in tasks]
-    if page_size > 0:
-        has_next = page * page_size < total_count
-    else:
-        # page_size=0 means "all rows, no pagination"
-        has_next = False
-        page = 1
-    return TaskListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-    )
+    return TaskListResponse(**build_paginated_response(
+        items=items, total_count=total_count, page=actual_page,
+        page_size=page_size, sorting=sorting,
+    ))
 
 
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)

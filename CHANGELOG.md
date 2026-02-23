@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sidebar collapsed sections (initiatives, tags) no longer mount child DOM nodes — lazy-render on expand
 - Skip `useSortable` hooks when drag-and-drop is disabled (sorting/grouping active) for better scroll performance
 - Keep previous React Query data as placeholder for snappier page navigation
+- - Replaced `sort_by`/`sort_dir` string parameters on the tasks list endpoint with a structured `sorting` JSON parameter (`SortField[]`) — enables multi-column sorting (e.g. date group then due date) using the same pattern as `conditions` uses `FilterCondition[]`
+- Frontend task tables (`useGlobalTasksTable`, `TagTasksTable`, dashboard, route loaders) now pass `SortField[]` arrays instead of individual sort strings
 
 ## [0.31.5] - 2026-02-20
 

@@ -96,6 +96,64 @@ async def serve_spa(full_path: str) -> FileResponse:
     raise HTTPException(status_code=404, detail="SPA bundle not found")
 
 
+def _inject_query_schemas(openapi_schema: dict) -> None:
+    """Inject shared query filter/sort schemas into OpenAPI components.
+
+    These schemas (FilterCondition, FilterOp, FilterGroup, SortField, SortDir)
+    are defined in ``app.schemas.query`` and used by list endpoints that accept
+    a ``conditions`` JSON query parameter.  Injecting them here lets Orval
+    auto-generate TypeScript types so the frontend never hand-defines them.
+    """
+    from app.schemas.query import (
+        FilterCondition,
+        FilterGroup,
+        FilterOp,
+        SortDir,
+        SortField,
+    )
+
+    schemas = openapi_schema.setdefault("components", {}).setdefault("schemas", {})
+
+    for model in (FilterCondition, FilterGroup, SortField):
+        full = model.model_json_schema(
+            ref_template="#/components/schemas/{model}",
+        )
+        defs = full.pop("$defs", {})
+        # For self-referencing models (e.g. FilterGroup) the top level is
+        # just {"$ref": "..."} and the real schema lives in $defs.
+        if "$ref" in full and not full.get("properties"):
+            real = defs.pop(model.__name__, full)
+            schemas[model.__name__] = real
+        else:
+            schemas[model.__name__] = full
+        for name, sub_schema in defs.items():
+            schemas.setdefault(name, sub_schema)
+
+    # Enums as standalone schemas (may already be added via $defs above)
+    for enum_cls in (FilterOp, SortDir):
+        schemas.setdefault(
+            enum_cls.__name__,
+            {"title": enum_cls.__name__, "type": "string", "enum": [e.value for e in enum_cls]},
+        )
+
+    # Override query parameters to expose their real types instead of the raw
+    # ``string`` that FastAPI infers from the endpoint signature.  The Axios
+    # paramsSerializer on the frontend JSON-encodes arrays of objects automatically.
+    fc_ref = {"$ref": "#/components/schemas/FilterCondition"}
+    sf_ref = {"$ref": "#/components/schemas/SortField"}
+    for path_item in openapi_schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for param in operation.get("parameters", []):
+                if param.get("name") == "conditions" and param.get("in") == "query":
+                    param["schema"] = {"type": "array", "items": fc_ref}
+                    param.pop("anyOf", None)
+                if param.get("name") == "sorting" and param.get("in") == "query":
+                    param["schema"] = {"type": "array", "items": sf_ref}
+                    param.pop("anyOf", None)
+
+
 def custom_openapi() -> dict:
     if app.openapi_schema:
         return app.openapi_schema
@@ -117,6 +175,8 @@ def custom_openapi() -> dict:
             "description": "Paste an admin API key issued from Settings → API Keys.",
         },
     )
+
+    _inject_query_schemas(openapi_schema)
 
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():

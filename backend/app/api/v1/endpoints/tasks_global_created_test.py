@@ -5,6 +5,8 @@ Tests the GET /api/v1/tasks/?scope=global_created endpoint which returns
 tasks created by the current user across all guilds they belong to.
 """
 
+import json
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -181,8 +183,9 @@ async def test_list_global_created_tasks_priority_filter(
     await session.commit()
 
     headers = get_guild_headers(guild, user)
+    conditions = json.dumps([{"field": "priority", "op": "in_", "value": ["high"]}])
     response = await client.get(
-        "/api/v1/tasks/?scope=global_created&priorities=high", headers=headers
+        f"/api/v1/tasks/?scope=global_created&conditions={conditions}", headers=headers
     )
 
     assert response.status_code == 200
@@ -213,8 +216,9 @@ async def test_list_global_created_tasks_guild_filter(
 
     # Filter to guild1 only
     headers = get_guild_headers(guild1, user)
+    conditions = json.dumps([{"field": "guild_ids", "op": "in_", "value": [guild1.id]}])
     response = await client.get(
-        f"/api/v1/tasks/?scope=global_created&guild_ids={guild1.id}",
+        f"/api/v1/tasks/?scope=global_created&conditions={conditions}",
         headers=headers,
     )
 

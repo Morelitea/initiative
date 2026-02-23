@@ -207,8 +207,8 @@ class TaskListResponse(BaseModel):
     page: int
     page_size: int
     has_next: bool
-    sort_by: Optional[str] = None
-    sort_dir: Optional[str] = None
+    has_prev: bool
+    sorting: Optional[str] = None
 
 
 class TaskReorderItem(BaseModel):

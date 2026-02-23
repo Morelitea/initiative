@@ -24,6 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import type {
+  FilterCondition,
   ListTasksApiV1TasksGetParams,
   TaskListRead,
   TaskListReadRecurrenceStrategy,
@@ -197,12 +198,19 @@ export const ProjectTasksSection = ({
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
 
   // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
+  const conditions: FilterCondition[] = [
+    { field: "project_id", op: "eq", value: projectId },
+    ...(assigneeFilters.length > 0
+      ? [{ field: "assignee_ids", op: "in_" as const, value: assigneeFilters }]
+      : []),
+    ...(statusFilters.length > 0
+      ? [{ field: "task_status_id", op: "in_" as const, value: statusFilters }]
+      : []),
+    ...(tagFilters.length > 0 ? [{ field: "tag_ids", op: "in_" as const, value: tagFilters }] : []),
+  ];
   const taskListParams: ListTasksApiV1TasksGetParams = {
-    project_id: projectId,
+    conditions,
     page_size: 0,
-    ...(assigneeFilters.length > 0 && { assignee_ids: assigneeFilters }),
-    ...(statusFilters.length > 0 && { task_status_ids: statusFilters }),
-    ...(tagFilters.length > 0 && { tag_ids: tagFilters }),
     ...(showArchived && { include_archived: true }),
   };
 

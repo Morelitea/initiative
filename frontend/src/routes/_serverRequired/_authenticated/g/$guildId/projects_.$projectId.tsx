@@ -61,12 +61,18 @@ export const Route = createFileRoute(
     const { assigneeFilters, statusFilters, showArchived } = getStoredFilters(projectId);
 
     // Build task query params (page_size=0 fetches all for drag-and-drop)
-    const taskParams: Record<string, number | string[] | number[] | boolean> = {
-      project_id: projectId,
+    const conditions: Array<{ field: string; op: string; value: unknown }> = [
+      { field: "project_id", op: "eq", value: projectId },
+    ];
+    if (assigneeFilters.length > 0)
+      conditions.push({ field: "assignee_ids", op: "in_", value: assigneeFilters });
+    if (statusFilters.length > 0)
+      conditions.push({ field: "task_status_id", op: "in_", value: statusFilters });
+
+    const taskParams: Record<string, number | string | boolean> = {
       page_size: 0,
+      conditions: JSON.stringify(conditions),
     };
-    if (assigneeFilters.length > 0) taskParams.assignee_ids = assigneeFilters;
-    if (statusFilters.length > 0) taskParams.task_status_ids = statusFilters;
     if (showArchived) taskParams.include_archived = true;
 
     // Prefetch in background - don't block navigation on failure
