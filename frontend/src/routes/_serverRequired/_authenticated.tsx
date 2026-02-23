@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { CommandCenter } from "@/components/CommandCenter";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { VersionDialog } from "@/components/VersionDialog";
@@ -121,6 +122,8 @@ function AppLayout() {
   const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
 
   return (
+    <>
+    <CommandCenter />
     <div className="bg-background flex min-h-screen flex-col">
       <PushPermissionPrompt />
       <div className="flex flex-1">
@@ -168,6 +171,7 @@ function AppLayout() {
         onClose={closeDialog}
       />
     </div>
+    </>
   );
 }
 

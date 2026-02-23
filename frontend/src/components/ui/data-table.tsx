@@ -67,6 +67,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { commandFilter } from "@/lib/fuzzyMatch";
 
 interface GroupingOption {
   id: string;
@@ -272,6 +273,12 @@ export function DataTable<TData, TValue>({
     data,
     columns: columnsWithSelection,
     getCoreRowModel: getCoreRowModel(),
+    defaultColumn: {
+      filterFn: (row, columnId, filterValue: string) => {
+        const cellValue = String(row.getValue(columnId) ?? "");
+        return commandFilter(cellValue, filterValue) > 0;
+      },
+    },
     onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,

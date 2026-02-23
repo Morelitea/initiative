@@ -1,16 +1,13 @@
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import {
-  Settings,
-  ChartColumn,
-  SquareCheckBig,
-  UserCog,
-} from "lucide-react";
+import { Settings, ChartColumn, SquareCheckBig, UserCog, Search } from "lucide-react";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { VersionDialog } from "@/components/VersionDialog";
 import { ModeToggle } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { getOpenCommandCenter } from "@/components/CommandCenter";
 import { guildPath } from "@/lib/guildUrl";
 
 export interface SidebarUserFooterProps {
@@ -57,8 +55,18 @@ export const SidebarUserFooter = ({
   isLoadingVersion,
   onLogout,
 }: SidebarUserFooterProps) => {
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation(["nav", "command"]);
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+
+  const isMac = useMemo(
+    () => typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent),
+    []
+  );
+  const shortcutLabel = isMac ? "\u2318K" : "Ctrl+K";
+  const isTouchDevice = useMemo(
+    () => typeof window !== "undefined" && "ontouchstart" in window,
+    []
+  );
 
   return (
     <SidebarFooter className="border-t border-r">
@@ -76,9 +84,7 @@ export const SidebarUserFooter = ({
                 </Avatar>
                 <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left">
                   <span className="w-full truncate text-sm font-medium">{userDisplayName}</span>
-                  <span className="text-muted-foreground w-full truncate text-xs">
-                    {userEmail}
-                  </span>
+                  <span className="text-muted-foreground w-full truncate text-xs">{userEmail}</span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -144,6 +150,21 @@ export const SidebarUserFooter = ({
                 )}
               </button>
             </VersionDialog>
+
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => getOpenCommandCenter()?.()}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  aria-label={t("command:shortcutHint")}
+                >
+                  {isTouchDevice ? <Search className="h-4 w-4" /> : <Kbd>{shortcutLabel}</Kbd>}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>{t("command:shortcutTooltip", { shortcut: shortcutLabel })}</p>
+              </TooltipContent>
+            </Tooltip>
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
