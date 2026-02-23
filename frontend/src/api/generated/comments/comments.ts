@@ -259,6 +259,11 @@ export function useListCommentsApiV1CommentsGet<
 
 /**
  * Return the most recent comments across the guild.
+
+Only returns comments on tasks/documents the current user has
+DAC permission to view (direct user permission or role-based).
+Initiative-level filtering is handled by RLS on the joined
+Task/Project/Document tables.
  * @summary Recent Comments
  */
 export const recentCommentsApiV1CommentsRecentGet = (
