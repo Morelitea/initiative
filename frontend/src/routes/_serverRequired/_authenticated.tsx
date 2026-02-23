@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { CommandCenter } from "@/components/CommandCenter";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { VersionDialog } from "@/components/VersionDialog";
@@ -121,53 +122,56 @@ function AppLayout() {
   const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
 
   return (
-    <div className="bg-background flex min-h-screen flex-col">
-      <PushPermissionPrompt />
-      <div className="flex flex-1">
-        <SidebarProvider
-          defaultOpen={true}
-          style={
-            {
-              "--sidebar-width": "20rem",
-              "--sidebar-width-mobile": "90vw",
-            } as React.CSSProperties
-          }
-        >
-          <AppSidebar />
-          <div className="bg-muted/50 min-w-0 flex-1 md:pl-0">
-            <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 flex border-b backdrop-blur">
-              <SidebarTrigger
-                icon={<Menu />}
-                className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
-              />
-              <div className="min-w-0 flex-1">
-                <ProjectTabsBar
-                  projects={recentQuery.data as ProjectRead[] | undefined}
-                  loading={recentQuery.isLoading}
-                  activeProjectId={activeProjectId}
-                  onClose={handleClearRecent}
+    <>
+      <CommandCenter />
+      <div className="bg-background flex min-h-screen flex-col">
+        <PushPermissionPrompt />
+        <div className="flex flex-1">
+          <SidebarProvider
+            defaultOpen={true}
+            style={
+              {
+                "--sidebar-width": "20rem",
+                "--sidebar-width-mobile": "90vw",
+              } as React.CSSProperties
+            }
+          >
+            <AppSidebar />
+            <div className="bg-muted/50 min-w-0 flex-1 md:pl-0">
+              <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 flex border-b backdrop-blur">
+                <SidebarTrigger
+                  icon={<Menu />}
+                  className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
                 />
+                <div className="min-w-0 flex-1">
+                  <ProjectTabsBar
+                    projects={recentQuery.data as ProjectRead[] | undefined}
+                    loading={recentQuery.isLoading}
+                    activeProjectId={activeProjectId}
+                    onClose={handleClearRecent}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
+                  <Suspense fallback={<PageLoader />}>
+                    <Outlet />
+                  </Suspense>
+                </main>
               </div>
             </div>
-            <div className="flex justify-between">
-              <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
-                <Suspense fallback={<PageLoader />}>
-                  <Outlet />
-                </Suspense>
-              </main>
-            </div>
-          </div>
-          <ProjectActivitySidebar projectId={activeProjectId} />
-        </SidebarProvider>
+            <ProjectActivitySidebar projectId={activeProjectId} />
+          </SidebarProvider>
+        </div>
+        <VersionDialog
+          mode="update"
+          open={updateAvailable.show}
+          currentVersion={updateAvailable.version}
+          newVersion={updateAvailable.version}
+          onClose={closeDialog}
+        />
       </div>
-      <VersionDialog
-        mode="update"
-        open={updateAvailable.show}
-        currentVersion={updateAvailable.version}
-        newVersion={updateAvailable.version}
-        onClose={closeDialog}
-      />
-    </div>
+    </>
   );
 }
 

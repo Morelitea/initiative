@@ -1,0 +1,31 @@
+{
+  "placeholder": "Buscar proyectos, tareas, documentos...",
+  "noResults": "No se encontraron resultados.",
+  "groups": {
+    "suggested": "Sugeridos",
+    "pages": "Páginas",
+    "projects": "Proyectos",
+    "tasks": "Tareas",
+    "documents": "Documentos"
+  },
+  "pages": {
+    "myTasks": "Mis Tareas",
+    "tasksICreated": "Tareas que creé",
+    "myProjects": "Mis Proyectos",
+    "myDocuments": "Mis Documentos",
+    "myStats": "Mis Estadísticas",
+    "userSettings": "Configuración de usuario",
+    "guildSettings": "Configuración del gremio",
+    "allProjects": "Todos los Proyectos",
+    "allDocuments": "Todos los Documentos",
+    "allInitiatives": "Todas las Iniciativas",
+    "platformSettings": "Configuración de la plataforma"
+  },
+  "shortcutHint": "Buscar",
+  "shortcutTooltip": "Búsqueda rápida ({{shortcut}})",
+  "types": {
+    "project": "Proyecto",
+    "task": "Tarea",
+    "document": "Documento"
+  }
+}

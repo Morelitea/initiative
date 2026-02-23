@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Command Center (`⌘K` / `Ctrl+K`) for quick navigation to projects, tasks, documents, and pages with fuzzy search — accessible via sidebar shortcut badge or 3-finger tap on mobile
 - Reusable `StatusMessage` component for consistent error states across detail pages
 - Distinct 404/403 error messages on Project, Document, Tag, and Initiative detail pages using `Empty` card layout with contextual icons
 - "Guild not available" page when navigating to a guild the user isn't a member of (replaces silent redirect)
