@@ -1,6 +1,7 @@
-import { JSX, lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { JSX, useCallback, useMemo, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  LexicalTypeaheadMenuPlugin,
   MenuOption,
   MenuTextMatch,
   useBasicTypeaheadTriggerMatch,
@@ -13,12 +14,6 @@ import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
-
-const LexicalTypeaheadMenuPlugin = lazy(() =>
-  import("@lexical/react/LexicalTypeaheadMenuPlugin").then((mod) => ({
-    default: mod.LexicalTypeaheadMenuPlugin<MentionTypeaheadOption>,
-  }))
-);
 
 const PUNCTUATION = "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;";
 const NAME = "\\b[A-Z][^\\s" + PUNCTUATION + "]";
@@ -218,62 +213,60 @@ export function MentionsPlugin({ mentionableUsers = [] }: MentionsPluginProps): 
   }
 
   return (
-    <Suspense fallback={null}>
-      <LexicalTypeaheadMenuPlugin
-        onQueryChange={setQueryString}
-        onSelectOption={onSelectOption}
-        triggerFn={checkForMentionMatch}
-        options={options}
-        menuRenderFn={(
-          anchorElementRef,
-          { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
-        ) => {
-          return anchorElementRef.current && options.length
-            ? createPortal(
-                <div className="absolute z-10 w-[250px] rounded-md shadow-md">
-                  <Command
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowUp") {
-                        e.preventDefault();
-                        setHighlightedIndex(
-                          selectedIndex !== null
-                            ? (selectedIndex - 1 + options.length) % options.length
-                            : options.length - 1
-                        );
-                      } else if (e.key === "ArrowDown") {
-                        e.preventDefault();
-                        setHighlightedIndex(
-                          selectedIndex !== null ? (selectedIndex + 1) % options.length : 0
-                        );
-                      }
-                    }}
-                  >
-                    <CommandList>
-                      <CommandGroup>
-                        {options.map((option, index) => (
-                          <CommandItem
-                            key={option.key}
-                            value={option.name}
-                            onSelect={() => {
-                              selectOptionAndCleanUp(option);
-                            }}
-                            className={`flex items-center gap-2 ${
-                              selectedIndex === index ? "bg-accent" : "bg-transparent!"
-                            }`}
-                          >
-                            {option.picture}
-                            <span className="truncate">{option.name}</span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </div>,
-                anchorElementRef.current
-              )
-            : null;
-        }}
-      />
-    </Suspense>
+    <LexicalTypeaheadMenuPlugin<MentionTypeaheadOption>
+      onQueryChange={setQueryString}
+      onSelectOption={onSelectOption}
+      triggerFn={checkForMentionMatch}
+      options={options}
+      menuRenderFn={(
+        anchorElementRef,
+        { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
+      ) => {
+        return anchorElementRef.current && options.length
+          ? createPortal(
+              <div className="absolute z-10 w-[250px] rounded-md shadow-md">
+                <Command
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setHighlightedIndex(
+                        selectedIndex !== null
+                          ? (selectedIndex - 1 + options.length) % options.length
+                          : options.length - 1
+                      );
+                    } else if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setHighlightedIndex(
+                        selectedIndex !== null ? (selectedIndex + 1) % options.length : 0
+                      );
+                    }
+                  }}
+                >
+                  <CommandList>
+                    <CommandGroup>
+                      {options.map((option, index) => (
+                        <CommandItem
+                          key={option.key}
+                          value={option.name}
+                          onSelect={() => {
+                            selectOptionAndCleanUp(option);
+                          }}
+                          className={`flex items-center gap-2 ${
+                            selectedIndex === index ? "bg-accent" : "bg-transparent!"
+                          }`}
+                        >
+                          {option.picture}
+                          <span className="truncate">{option.name}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </div>,
+              anchorElementRef.current
+            )
+          : null;
+      }}
+    />
   );
 }

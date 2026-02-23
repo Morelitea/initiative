@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogProps } from "@/types/dialog";
 
 interface TickTickColumn {
   name: string;
@@ -48,10 +49,7 @@ interface ImportResult {
   errors: string[];
 }
 
-interface TickTickImportDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+type TickTickImportDialogProps = DialogProps;
 
 type Step = "upload" | "select-list" | "configure" | "result";
 

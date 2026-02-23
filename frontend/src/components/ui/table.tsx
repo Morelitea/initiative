@@ -2,9 +2,14 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  scrollContainerRef?: React.Ref<HTMLDivElement>;
+  scrollContainerClassName?: string;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, scrollContainerRef, scrollContainerClassName, ...props }, ref) => (
+    <div ref={scrollContainerRef} className={cn("relative w-full overflow-auto", scrollContainerClassName)}>
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   )
@@ -19,12 +24,20 @@ const TableHeader = React.forwardRef<
 ));
 TableHeader.displayName = "TableHeader";
 
-const TableBody = React.forwardRef<
-  HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <tbody ref={ref} className={cn("[&_tr:last-child]:border-0", className)} {...props} />
-));
+interface TableBodyProps extends React.HTMLAttributes<HTMLTableSectionElement> {
+  virtualHeight?: number;
+}
+
+const TableBody = React.forwardRef<HTMLTableSectionElement, TableBodyProps>(
+  ({ className, virtualHeight, style, ...props }, ref) => (
+    <tbody
+      ref={ref}
+      className={cn("[&_tr:last-child]:border-0", className)}
+      style={virtualHeight != null ? { height: virtualHeight, position: "relative", ...style } : style}
+      {...props}
+    />
+  )
+);
 TableBody.displayName = "TableBody";
 
 const TableFooter = React.forwardRef<

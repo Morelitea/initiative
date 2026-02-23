@@ -1,4 +1,5 @@
 import type { AxiosError } from "axios";
+import { isAxiosError } from "axios";
 import i18n from "@/i18n";
 
 /** Loose translation function that accepts dynamic keys without strict type checking. */
@@ -13,6 +14,12 @@ const translate = i18n.t.bind(i18n) as (key: string, options?: Record<string, un
  */
 export function getErrorMessage(error: unknown, fallbackKey?: string): string {
   const axiosError = error as AxiosError<{ detail?: string }>;
+
+  // slowapi returns 429 with {"error": "..."} instead of {"detail": "..."}
+  if (axiosError?.response?.status === 429) {
+    return translate("RATE_LIMITED", { ns: "errors" });
+  }
+
   const detail = axiosError?.response?.data?.detail;
 
   if (detail) {
@@ -30,4 +37,14 @@ export function getErrorMessage(error: unknown, fallbackKey?: string): string {
   }
 
   return translate("fallback", { ns: "errors" });
+}
+
+/**
+ * Extract the HTTP status code from an error, if available.
+ */
+export function getHttpStatus(error: unknown): number | null {
+  if (isAxiosError(error)) {
+    return error.response?.status ?? null;
+  }
+  return null;
 }

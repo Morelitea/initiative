@@ -77,8 +77,8 @@ export function buildTaskListResponse(
       page: 1,
       page_size: 50,
       has_next: false,
-      sort_by: null,
-      sort_dir: null,
+      has_prev: false,
+      sorting: null,
     };
   }
   return {
@@ -87,8 +87,8 @@ export function buildTaskListResponse(
     page: 1,
     page_size: 50,
     has_next: false,
-    sort_by: null,
-    sort_dir: null,
+    has_prev: false,
+    sorting: null,
     ...itemsOrOverrides,
   };
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Loader2, Settings } from "lucide-react";
+import { Loader2, SearchX, Settings } from "lucide-react";
+import { StatusMessage } from "@/components/StatusMessage";
 
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { DocumentsView } from "./DocumentsPage";
@@ -101,17 +102,7 @@ export const InitiativeDetailPage = () => {
   }
 
   if (!initiative) {
-    return (
-      <div className="space-y-4">
-        <Button variant="link" size="sm" asChild className="px-0">
-          <Link to="/initiatives">{t("detail.backToInitiatives")}</Link>
-        </Button>
-        <div className="rounded-lg border p-6">
-          <h1 className="text-3xl font-semibold tracking-tight">{t("detail.notFound")}</h1>
-          <p className="text-muted-foreground">{t("detail.notFoundDescription")}</p>
-        </div>
-      </div>
-    );
+    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo="/initiatives" backLabel={t("detail.backToInitiatives")} />;
   }
 
   // If user has no access to any features, show a message

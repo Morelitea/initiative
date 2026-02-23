@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   DragEndEvent,
@@ -24,6 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import type {
+  FilterCondition,
   ListTasksApiV1TasksGetParams,
   TaskListRead,
   TaskListReadRecurrenceStrategy,
@@ -84,6 +85,46 @@ type StoredFilters = {
   showArchived: boolean;
 };
 
+const DEFAULT_FILTERS: StoredFilters = {
+  viewMode: "table",
+  assigneeFilters: [],
+  dueFilter: "all",
+  statusFilters: [],
+  tagFilters: [],
+  showArchived: false,
+};
+
+type FilterAction =
+  | { type: "RESET_ALL" }
+  | { type: "LOAD"; payload: Partial<StoredFilters> }
+  | { type: "SET_VIEW_MODE"; payload: ViewMode }
+  | { type: "SET_ASSIGNEE_FILTERS"; payload: string[] }
+  | { type: "SET_DUE_FILTER"; payload: DueFilterOption }
+  | { type: "SET_STATUS_FILTERS"; payload: number[] }
+  | { type: "SET_TAG_FILTERS"; payload: number[] }
+  | { type: "SET_SHOW_ARCHIVED"; payload: boolean };
+
+function filterReducer(state: StoredFilters, action: FilterAction): StoredFilters {
+  switch (action.type) {
+    case "RESET_ALL":
+      return DEFAULT_FILTERS;
+    case "LOAD":
+      return { ...state, ...action.payload };
+    case "SET_VIEW_MODE":
+      return { ...state, viewMode: action.payload };
+    case "SET_ASSIGNEE_FILTERS":
+      return { ...state, assigneeFilters: action.payload };
+    case "SET_DUE_FILTER":
+      return { ...state, dueFilter: action.payload };
+    case "SET_STATUS_FILTERS":
+      return { ...state, statusFilters: action.payload };
+    case "SET_TAG_FILTERS":
+      return { ...state, tagFilters: action.payload };
+    case "SET_SHOW_ARCHIVED":
+      return { ...state, showArchived: action.payload };
+  }
+}
+
 type TaskViewOption = { value: ViewMode; labelKey: string; icon: LucideIcon };
 
 const TASK_VIEW_OPTIONS: TaskViewOption[] = [
@@ -139,12 +180,8 @@ export const ProjectTasksSection = ({
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
-  const [dueFilter, setDueFilter] = useState<DueFilterOption>("all");
-  const [statusFilters, setStatusFilters] = useState<number[]>([]);
-  const [tagFilters, setTagFilters] = useState<number[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
+  const [filters, dispatchFilters] = useReducer(filterReducer, DEFAULT_FILTERS);
+  const { viewMode, assigneeFilters, dueFilter, statusFilters, tagFilters, showArchived } = filters;
 
   // Fetch guild tags for filtering
   const { data: tags = [] } = useTags();
@@ -161,12 +198,19 @@ export const ProjectTasksSection = ({
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
 
   // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
+  const conditions: FilterCondition[] = [
+    { field: "project_id", op: "eq", value: projectId },
+    ...(assigneeFilters.length > 0
+      ? [{ field: "assignee_ids", op: "in_" as const, value: assigneeFilters }]
+      : []),
+    ...(statusFilters.length > 0
+      ? [{ field: "task_status_id", op: "in_" as const, value: statusFilters }]
+      : []),
+    ...(tagFilters.length > 0 ? [{ field: "tag_ids", op: "in_" as const, value: tagFilters }] : []),
+  ];
   const taskListParams: ListTasksApiV1TasksGetParams = {
-    project_id: projectId,
+    conditions,
     page_size: 0,
-    ...(assigneeFilters.length > 0 && { assignee_ids: assigneeFilters }),
-    ...(statusFilters.length > 0 && { task_status_ids: statusFilters }),
-    ...(tagFilters.length > 0 && { tag_ids: tagFilters }),
     ...(showArchived && { include_archived: true }),
   };
 
@@ -204,9 +248,29 @@ export const ProjectTasksSection = ({
 
   const handleViewModeChange = (value: string) => {
     if (value === "table" || value === "kanban" || value === "calendar" || value === "gantt") {
-      setViewMode(value);
+      dispatchFilters({ type: "SET_VIEW_MODE", payload: value });
     }
   };
+  const handleAssigneeFiltersChange = useCallback(
+    (v: string[]) => dispatchFilters({ type: "SET_ASSIGNEE_FILTERS", payload: v }),
+    []
+  );
+  const handleDueFilterChange = useCallback(
+    (v: DueFilterOption) => dispatchFilters({ type: "SET_DUE_FILTER", payload: v }),
+    []
+  );
+  const handleStatusFiltersChange = useCallback(
+    (v: number[]) => dispatchFilters({ type: "SET_STATUS_FILTERS", payload: v }),
+    []
+  );
+  const handleTagFiltersChange = useCallback(
+    (v: number[]) => dispatchFilters({ type: "SET_TAG_FILTERS", payload: v }),
+    []
+  );
+  const handleShowArchivedChange = useCallback(
+    (v: boolean) => dispatchFilters({ type: "SET_SHOW_ARCHIVED", payload: v }),
+    []
+  );
 
   useEffect(() => {
     setLocalOverride(null);
@@ -233,40 +297,39 @@ export const ProjectTasksSection = ({
     if (!filterStorageKey || filtersLoadedForProject === projectId) {
       return;
     }
-    // Reset to defaults first, then load saved values
-    setViewMode("table");
-    setAssigneeFilters([]);
-    setDueFilter("all");
-    setStatusFilters([]);
-    setTagFilters([]);
-    setShowArchived(false);
+    // Reset to defaults first
+    dispatchFilters({ type: "RESET_ALL" });
 
     try {
       const raw = getItem(filterStorageKey);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<StoredFilters>;
+        const loaded: Partial<StoredFilters> = {};
         if (
           parsed.viewMode === "table" ||
           parsed.viewMode === "kanban" ||
           parsed.viewMode === "calendar" ||
           parsed.viewMode === "gantt"
         ) {
-          setViewMode(parsed.viewMode);
+          loaded.viewMode = parsed.viewMode;
         }
         if (Array.isArray(parsed.assigneeFilters)) {
-          setAssigneeFilters(parsed.assigneeFilters);
+          loaded.assigneeFilters = parsed.assigneeFilters;
         }
         if (parsed.dueFilter) {
-          setDueFilter(parsed.dueFilter);
+          loaded.dueFilter = parsed.dueFilter;
         }
         if (Array.isArray(parsed.statusFilters)) {
-          setStatusFilters(parsed.statusFilters);
+          loaded.statusFilters = parsed.statusFilters;
         }
         if (Array.isArray(parsed.tagFilters)) {
-          setTagFilters(parsed.tagFilters);
+          loaded.tagFilters = parsed.tagFilters;
         }
         if (typeof parsed.showArchived === "boolean") {
-          setShowArchived(parsed.showArchived);
+          loaded.showArchived = parsed.showArchived;
+        }
+        if (Object.keys(loaded).length > 0) {
+          dispatchFilters({ type: "LOAD", payload: loaded });
         }
       }
     } catch {
@@ -280,26 +343,8 @@ export const ProjectTasksSection = ({
     if (!filterStorageKey || filtersLoadedForProject !== projectId) {
       return;
     }
-    const payload: StoredFilters = {
-      viewMode,
-      assigneeFilters,
-      dueFilter,
-      statusFilters,
-      tagFilters,
-      showArchived,
-    };
-    setItem(filterStorageKey, JSON.stringify(payload));
-  }, [
-    filterStorageKey,
-    filtersLoadedForProject,
-    projectId,
-    viewMode,
-    assigneeFilters,
-    dueFilter,
-    statusFilters,
-    tagFilters,
-    showArchived,
-  ]);
+    setItem(filterStorageKey, JSON.stringify(filters));
+  }, [filterStorageKey, filtersLoadedForProject, projectId, filters]);
 
   useEffect(() => {
     if (!collapsedStorageKey) {
@@ -794,11 +839,11 @@ export const ProjectTasksSection = ({
               statusFilters={statusFilters}
               tagFilters={tagFilters}
               showArchived={showArchived}
-              onAssigneeFiltersChange={setAssigneeFilters}
-              onDueFilterChange={setDueFilter}
-              onStatusFiltersChange={setStatusFilters}
-              onTagFiltersChange={setTagFilters}
-              onShowArchivedChange={setShowArchived}
+              onAssigneeFiltersChange={handleAssigneeFiltersChange}
+              onDueFilterChange={handleDueFilterChange}
+              onStatusFiltersChange={handleStatusFiltersChange}
+              onTagFiltersChange={handleTagFiltersChange}
+              onShowArchivedChange={handleShowArchivedChange}
             />
           </CollapsibleContent>
         </Collapsible>

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, type UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   listUsersApiV1UsersGet,
@@ -11,6 +11,7 @@ import {
 import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
 import { invalidateUsersList, invalidateCurrentUser } from "@/api/query-keys";
 import type { MutationOpts } from "@/types/mutation";
+import type { QueryOpts } from "@/types/query";
 import type {
   UserGuildMember,
   GuildRole,
@@ -18,8 +19,6 @@ import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
 } from "@/api/generated/initiativeAPI.schemas";
-
-type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 

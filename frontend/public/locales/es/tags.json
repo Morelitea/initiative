@@ -1,6 +1,8 @@
 {
   "detail": {
     "notFound": "Etiqueta no encontrada",
+    "notFoundDescription": "Esta etiqueta puede haber sido eliminada o el enlace está roto.",
+    "backToTags": "\u2190 Volver al inicio",
     "taggedItems_one": "{{count}} elemento etiquetado",
     "taggedItems_other": "{{count}} elementos etiquetados",
     "edit": "Editar",

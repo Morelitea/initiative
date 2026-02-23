@@ -23,11 +23,10 @@ import type {
   LeaveGuildEligibilityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useGuilds } from "@/hooks/useGuilds";
+import type { DialogProps } from "@/types/dialog";
 
-interface LeaveGuildDialogProps {
+interface LeaveGuildDialogProps extends DialogProps {
   guild: GuildRead;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
 }
 
 export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialogProps) => {

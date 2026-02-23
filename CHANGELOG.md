@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-02-23
+
+### Added
+
+- Command Center (`⌘K` / `Ctrl+K`) for quick navigation to projects, tasks, documents, and pages with fuzzy search — accessible via sidebar shortcut badge or 3-finger tap on mobile
+- Reusable `StatusMessage` component for consistent error states across detail pages
+- Distinct 404/403 error messages on Project, Document, Tag, and Initiative detail pages using `Empty` card layout with contextual icons
+- "Guild not available" page when navigating to a guild the user isn't a member of (replaces silent redirect)
+- Rate-limit error message ("Too many requests") instead of misleading "Check your credentials" on login/register
+- Row virtualization for DataTable using `@tanstack/react-virtual` — only visible rows exist in the DOM, tested with 10k tasks
+- Virtualized Gantt view with sticky day headers and pinned task name column
+- Virtualized Kanban columns (activates above 20 tasks per column) with memoized card components and DnD compatibility
+- Collapse all / expand all buttons for sidebar initiative list and tag browser
+- Memoized virtual cell rendering to prevent expensive re-renders during scroll
+
+### Fixed
+
+- Navigating to an inaccessible guild no longer poisons the active guild state, which previously caused "Unable to load" errors on the home page after redirect
+- Dashboard "Recent Comments" no longer leaks comments from projects/documents the user lacks access to — filters by DAC permissions (direct + role-based)
+
+### Security
+
+- Add initiative-scoped RESTRICTIVE RLS policies to `tasks`, `task_statuses`, `subtasks`, and `task_assignees` — previously only had guild-level isolation
+
+### Changed
+
+- Vendored editor color picker (~1,800 lines) — replaced with existing shadcn-io color picker + Popover in font color and background color toolbar plugins
+- Lazy-load editor color picker content so the `color` npm package is only fetched when a user opens the font/background color popover
+- Lazy-load 4 profile settings pages (profile, notifications, interface, danger zone) — reduces index bundle by ~75 kB
+- Replace pointless `React.lazy()` with static imports for `LexicalTypeaheadMenuPlugin` and `emoji-list` — both were already pinned to the editor chunk by co-located static imports, eliminating Vite "dynamically and statically imported" warnings
+- Sidebar collapsed sections (initiatives, tags) no longer mount child DOM nodes — lazy-render on expand
+- Skip `useSortable` hooks when drag-and-drop is disabled (sorting/grouping active) for better scroll performance
+- Keep previous React Query data as placeholder for snappier page navigation
+- - Replaced `sort_by`/`sort_dir` string parameters on the tasks list endpoint with a structured `sorting` JSON parameter (`SortField[]`) — enables multi-column sorting (e.g. date group then due date) using the same pattern as `conditions` uses `FilterCondition[]`
+- Frontend task tables (`useGlobalTasksTable`, `TagTasksTable`, dashboard, route loaders) now pass `SortField[]` arrays instead of individual sort strings
+
 ## [0.31.5] - 2026-02-20
 
 ### Fixed

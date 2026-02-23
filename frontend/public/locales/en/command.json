@@ -1,0 +1,31 @@
+{
+  "placeholder": "Search projects, tasks, documents...",
+  "noResults": "No results found.",
+  "groups": {
+    "suggested": "Suggested",
+    "pages": "Pages",
+    "projects": "Projects",
+    "tasks": "Tasks",
+    "documents": "Documents"
+  },
+  "pages": {
+    "myTasks": "My Tasks",
+    "tasksICreated": "Tasks I Created",
+    "myProjects": "My Projects",
+    "myDocuments": "My Documents",
+    "myStats": "My Stats",
+    "userSettings": "User Settings",
+    "guildSettings": "Guild Settings",
+    "allProjects": "All Projects",
+    "allDocuments": "All Documents",
+    "allInitiatives": "All Initiatives",
+    "platformSettings": "Platform Settings"
+  },
+  "shortcutHint": "Search",
+  "shortcutTooltip": "Quick search ({{shortcut}})",
+  "types": {
+    "project": "Project",
+    "task": "Task",
+    "document": "Document"
+  }
+}
