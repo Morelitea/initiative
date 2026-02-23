@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Navigating to an inaccessible guild no longer poisons the active guild state, which previously caused "Unable to load" errors on the home page after redirect
+- Dashboard "Recent Comments" no longer leaks comments from projects/documents the user lacks access to — filters by DAC permissions (direct + role-based)
+
+### Security
+
+- Add initiative-scoped RESTRICTIVE RLS policies to `tasks`, `task_statuses`, `subtasks`, and `task_assignees` — previously only had guild-level isolation
 
 ### Changed
 

@@ -1,16 +1,19 @@
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
 from app.db.session import reapply_rls_context
+from app.models.comment import Comment
 from app.models.document import Document
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
-from app.models.comment import Comment
+from app.services.permissions import visible_document_ids_subquery, visible_project_ids_subquery
 from app.schemas.comment import (
     CommentAuthor,
     CommentCreate,
@@ -20,7 +23,6 @@ from app.schemas.comment import (
     MentionSuggestion,
     RecentActivityEntry,
 )
-from sqlalchemy.orm import selectinload
 from app.services import comments as comments_service
 from app.services.realtime import broadcast_event
 
@@ -68,12 +70,37 @@ async def recent_comments(
     guild_context: GuildContextDep,
     limit: int = Query(default=10, ge=1, le=50),
 ) -> List[RecentActivityEntry]:
-    """Return the most recent comments across the guild."""
+    """Return the most recent comments across the guild.
+
+    Only returns comments on tasks/documents the current user has
+    DAC permission to view (direct user permission or role-based).
+    Initiative-level filtering is handled by RLS on the joined
+    Task/Project/Document tables.
+    """
+    user_id = current_user.id
+
+    # Reuse DAC visibility subqueries from permissions service
+    visible_projects = visible_project_ids_subquery(user_id).subquery()
+    visible_documents = visible_document_ids_subquery(user_id).subquery()
+
     stmt = (
         select(Comment)
+        .outerjoin(Task, Task.id == Comment.task_id)
+        .outerjoin(Project, Project.id == Task.project_id)
+        .outerjoin(Document, Document.id == Comment.document_id)
         .where(
             Comment.parent_comment_id.is_(None),
             Comment.guild_id == guild_context.guild_id,
+            or_(
+                and_(
+                    Project.id.isnot(None),
+                    Project.id.in_(select(visible_projects)),
+                ),
+                and_(
+                    Document.id.isnot(None),
+                    Document.id.in_(select(visible_documents)),
+                ),
+            ),
         )
         .options(selectinload(Comment.author))
         .order_by(Comment.created_at.desc(), Comment.id.desc())
