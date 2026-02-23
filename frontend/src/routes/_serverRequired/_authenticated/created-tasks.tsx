@@ -45,12 +45,15 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
     if (guildFilters.length > 0)
       conditions.push({ field: "guild_id", op: "in_", value: guildFilters });
 
+    const defaultSorting = [
+      { field: "date_group", dir: "asc" },
+      { field: "due_date", dir: "asc" },
+    ];
     const params: Record<string, string | number> = {
       scope: "global_created",
       page: 1,
       page_size: PAGE_SIZE,
-      sort_by: "date_group",
-      sort_dir: "asc",
+      sorting: JSON.stringify(defaultSorting),
     };
     if (conditions.length > 0) params.conditions = JSON.stringify(conditions);
 
@@ -65,8 +68,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
           guildFilters,
           1,
           PAGE_SIZE,
-          "date_group",
-          "asc",
+          "date_group+due_date",
         ],
         queryFn: () => apiClient.get("/tasks/", { params }).then((r) => r.data),
         staleTime: 30_000,

@@ -42,8 +42,7 @@ const DASHBOARD_TASK_PARAMS: ListTasksApiV1TasksGetParams = {
       value: [TaskStatusCategory.backlog, TaskStatusCategory.todo, TaskStatusCategory.in_progress],
     },
   ],
-  sort_by: "due_date",
-  sort_dir: "asc",
+  sorting: [{ field: "due_date", dir: "asc" }],
   page_size: 10,
 };
 

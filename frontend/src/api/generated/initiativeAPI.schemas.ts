@@ -1601,8 +1601,7 @@ export interface TaskListResponse {
   page_size: number;
   has_next: boolean;
   has_prev: boolean;
-  sort_by: string | null;
-  sort_dir: string | null;
+  sorting: string | null;
 }
 
 export interface TaskMoveRequest {
@@ -2244,13 +2243,9 @@ export type ListTasksApiV1TasksGetParams = {
    */
   page_size?: number;
   /**
-   * Field to sort by (e.g. due_date, priority, date_group)
+   * JSON list of sort fields: [{"field": "due_date", "dir": "desc"}]
    */
-  sort_by?: string | null;
-  /**
-   * Sort direction: asc or desc
-   */
-  sort_dir?: string | null;
+  sorting?: SortField[];
 };
 
 export type ArchiveDoneTasksApiV1TasksArchiveDonePostParams = {

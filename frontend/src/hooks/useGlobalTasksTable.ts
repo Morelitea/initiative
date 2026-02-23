@@ -15,6 +15,7 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import type {
   ListTasksApiV1TasksGetParams,
   ProjectRead,
+  SortField,
   TaskListRead,
   TaskListResponse,
   TaskPriority,
@@ -116,8 +117,10 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string>("date_group");
-  const [sortDir, setSortDir] = useState<string>("asc");
+  const [sorting, setSorting] = useState<SortField[]>([
+    { field: "date_group", dir: "asc" },
+    { field: "due_date", dir: "asc" },
+  ]);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -140,18 +143,20 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   const handleSortingChange = useCallback(
     (tableSorting: SortingState) => {
       if (tableSorting.length > 0) {
-        const col = tableSorting[0];
-        const field = SORT_FIELD_MAP[col.id];
-        if (field) {
-          setSortBy(field);
-          setSortDir(col.desc ? "desc" : "asc");
-        } else {
-          setSortBy("");
-          setSortDir("asc");
+        const fields: SortField[] = tableSorting
+          .map((col) => {
+            const field = SORT_FIELD_MAP[col.id];
+            if (!field) return null;
+            return { field, dir: col.desc ? "desc" : "asc" } as SortField;
+          })
+          .filter((f): f is SortField => f !== null);
+        // date_group needs due_date as secondary sort for meaningful ordering
+        if (fields.length === 1 && fields[0].field === "date_group") {
+          fields.push({ field: "due_date", dir: fields[0].dir ?? "asc" });
         }
+        setSorting(fields);
       } else {
-        setSortBy("");
-        setSortDir("asc");
+        setSorting([]);
       }
       setPage(1);
     },
@@ -181,10 +186,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       conditions: conditions.length > 0 ? conditions : undefined,
       page,
       page_size: pageSize,
-      sort_by: sortBy || undefined,
-      sort_dir: sortDir || undefined,
+      sorting: sorting.length > 0 ? sorting : undefined,
     };
-  }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sortBy, sortDir]);
+  }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sorting]);
 
   const tasksQuery = useQuery<TaskListResponse>({
     queryKey: getListTasksApiV1TasksGetQueryKey(tasksParams),

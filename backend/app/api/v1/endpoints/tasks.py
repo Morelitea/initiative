@@ -13,8 +13,9 @@ from app.db.query import (
     extract_condition_value,
     paginated_query,
     parse_conditions,
+    parse_sort_fields,
 )
-from app.schemas.query import FilterOp, SortDir, SortField
+from app.schemas.query import FilterOp
 
 from app.api.deps import (
     RLSSessionDep,
@@ -762,8 +763,10 @@ async def list_tasks(
     include_archived: bool = Query(default=False, description="Include archived tasks"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
-    sort_by: Optional[str] = Query(default=None, description="Field to sort by (e.g. due_date, priority, date_group)"),
-    sort_dir: Optional[str] = Query(default=None, description="Sort direction: asc or desc"),
+    sorting: Optional[str] = Query(
+        default=None,
+        description='JSON list of sort fields: [{"field": "due_date", "dir": "desc"}]',
+    ),
 ) -> TaskListResponse:
     try:
         user_conditions = parse_conditions(conditions)
@@ -773,14 +776,13 @@ async def list_tasks(
             detail=QueryMessages.INVALID_CONDITIONS,
         )
 
-    # Convert simple sort params to structured SortField list
-    sort_fields: list[SortField] | None = None
-    if sort_by:
-        dir_val = SortDir(sort_dir) if sort_dir in ("asc", "desc") else SortDir.asc
-        sort_fields = [SortField(field=sort_by, dir=dir_val)]
-        # date_group needs due_date as secondary sort for meaningful ordering
-        if sort_by == "date_group":
-            sort_fields.append(SortField(field="due_date", dir=dir_val))
+    try:
+        sort_fields = parse_sort_fields(sorting)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_SORT_FIELDS,
+        )
 
     # Extract values needed by global paths and access control
     project_id = extract_condition_value(user_conditions, "project_id")
@@ -808,7 +810,7 @@ async def list_tasks(
         items = [_task_to_list_read(task) for task in tasks]
         return TaskListResponse(**build_paginated_response(
             items=items, total_count=total_count, page=actual_page,
-            page_size=page_size, sort_by=sort_by, sort_dir=sort_dir,
+            page_size=page_size, sorting=sorting,
         ))
 
     elif scope == "global_created":
@@ -830,7 +832,7 @@ async def list_tasks(
         items = [_task_to_list_read(task) for task in tasks]
         return TaskListResponse(**build_paginated_response(
             items=items, total_count=total_count, page=actual_page,
-            page_size=page_size, sort_by=sort_by, sort_dir=sort_dir,
+            page_size=page_size, sorting=sorting,
         ))
 
     # Non-global (guild-scoped) path
@@ -849,7 +851,7 @@ async def list_tasks(
         if not allowed_ids:
             return TaskListResponse(**build_paginated_response(
                 items=[], total_count=0, page=1,
-                page_size=page_size, sort_by=sort_by, sort_dir=sort_dir,
+                page_size=page_size, sorting=sorting,
             ))
         access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
 
@@ -883,7 +885,7 @@ async def list_tasks(
     items = [_task_to_list_read(task) for task in tasks]
     return TaskListResponse(**build_paginated_response(
         items=items, total_count=total_count, page=actual_page,
-        page_size=page_size, sort_by=sort_by, sort_dir=sort_dir,
+        page_size=page_size, sorting=sorting,
     ))
 
 

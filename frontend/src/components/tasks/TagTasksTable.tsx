@@ -18,6 +18,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { useGuilds } from "@/hooks/useGuilds";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import type {
+  SortField,
   TaskListRead,
   TaskPriority,
   TaskStatusCategory,
@@ -82,8 +83,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(TAG_TASKS_PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string>("due_date");
-  const [sortDir, setSortDir] = useState<string>("asc");
+  const [sorting, setSorting] = useState<SortField[]>([{ field: "due_date", dir: "asc" }]);
 
   const statusOptions = useMemo(
     () => [
@@ -116,18 +116,16 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
   const handleSortingChange = useCallback(
     (tableSorting: SortingState) => {
       if (tableSorting.length > 0) {
-        const col = tableSorting[0];
-        const field = SORT_FIELD_MAP[col.id];
-        if (field) {
-          setSortBy(field);
-          setSortDir(col.desc ? "desc" : "asc");
-        } else {
-          setSortBy("");
-          setSortDir("asc");
-        }
+        const fields: SortField[] = tableSorting
+          .map((col) => {
+            const field = SORT_FIELD_MAP[col.id];
+            if (!field) return null;
+            return { field, dir: col.desc ? "desc" : "asc" } as SortField;
+          })
+          .filter((f): f is SortField => f !== null);
+        setSorting(fields);
       } else {
-        setSortBy("");
-        setSortDir("asc");
+        setSorting([]);
       }
       setPage(1);
     },
@@ -152,8 +150,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     conditions: taskConditions,
     page,
     page_size: pageSize,
-    sort_by: sortBy || undefined,
-    sort_dir: sortDir || undefined,
+    sorting: sorting.length > 0 ? sorting : undefined,
   };
 
   const tasksQuery = useTasks(taskParams, { placeholderData: keepPreviousData });
@@ -174,12 +171,11 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         conditions,
         page: targetPage,
         page_size: pageSize,
-        sort_by: sortBy || undefined,
-        sort_dir: sortDir || undefined,
+        sorting: sorting.length > 0 ? sorting : undefined,
       };
       void prefetchTasks(params);
     },
-    [tagId, statusFilters, priorityFilters, pageSize, sortBy, sortDir, prefetchTasks]
+    [tagId, statusFilters, priorityFilters, pageSize, sorting, prefetchTasks]
   );
 
   const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useUpdateTask({
