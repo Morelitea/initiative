@@ -94,6 +94,87 @@ def _doc(paragraphs: list[str]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Mega-dungeon task generator (10 000 tasks for virtualization testing)
+# ---------------------------------------------------------------------------
+
+_DUNGEON_AREAS = [
+    "Entrance Hall", "Crypt of Whispers", "The Bone Gallery", "Flooded Caverns",
+    "Shadow Forge", "Hall of Mirrors", "Spider Nest", "Collapsed Library",
+    "Throne of Ashes", "Ritual Chamber", "Fungal Grotto", "Iron Cage Arena",
+    "Ember Vaults", "Wailing Cells", "Clockwork Passage", "Dread Pantry",
+    "Ossuary", "Sunken Chapel", "Alchemist Lab", "Guard Barracks",
+]
+
+_DUNGEON_VERBS = [
+    "Clear", "Explore", "Map", "Loot", "Secure", "Investigate",
+    "Disarm traps in", "Search for secrets in", "Barricade", "Purify",
+]
+
+_DUNGEON_USERS = [
+    "Dungeon Master", "Thorn Ironforge", "Elara Moonwhisper",
+    "Vex Shadowstep", "Admin User",
+]
+
+
+def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
+    """Generate 10 000 TTRPG-themed task defs for the mega dungeon project."""
+    import random as _rng
+    _rng.seed(42)  # deterministic for reproducible seeds
+
+    priorities = [TaskPriority.low, TaskPriority.medium, TaskPriority.high, TaskPriority.urgent]
+    categories = [
+        TaskStatusCategory.backlog, TaskStatusCategory.todo,
+        TaskStatusCategory.in_progress, TaskStatusCategory.done,
+    ]
+
+    _adjectives = [
+        "Cursed", "Hidden", "Burning", "Frozen", "Ancient", "Ruined",
+        "Enchanted", "Haunted", "Gilded", "Shattered", "Verdant", "Infernal",
+    ]
+
+    tasks: list[dict] = []
+    for i in range(1, 10_001):
+        area = _DUNGEON_AREAS[i % len(_DUNGEON_AREAS)]
+        verb = _DUNGEON_VERBS[i % len(_DUNGEON_VERBS)]
+        adj = _adjectives[i % len(_adjectives)]
+        floor = (i - 1) // 20 + 1
+        room = (i - 1) % 20 + 1
+
+        td: dict = {
+            "project_id": project_id,
+            "title": f"Floor {floor}, Room {room}: {verb} the {adj} {area}",
+            "description": f"Level {floor} exploration — {verb.lower()} the {adj.lower()} {area} "
+                           f"and report findings to the party.",
+            "priority": _rng.choice(priorities),
+            "category": _rng.choice(categories),
+        }
+
+        # ~20% of tasks have assignees (reduced from 40% for speed)
+        if _rng.random() < 0.2:
+            td["assignees"] = _rng.sample(_DUNGEON_USERS, k=_rng.randint(1, 2))
+
+        # ~10% have due dates
+        if _rng.random() < 0.1:
+            td["due_days"] = _rng.randint(-5, 30)
+
+        # ~8% have start dates
+        if _rng.random() < 0.08:
+            td["start_days"] = _rng.randint(-10, 5)
+
+        # ~5% have subtasks
+        if _rng.random() < 0.05:
+            td["subtasks"] = [
+                f"Check {area} entrance",
+                f"Search {area} for treasure",
+                f"Neutralize {area} hazards",
+            ]
+
+        tasks.append(td)
+
+    return tasks
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -907,9 +988,21 @@ async def seed() -> None:
                 write_users=[admin_user, thorn],
             )
 
+            g1_mega_dungeon = await _create_project(
+                session, ids,
+                guild=g1, initiative=g1_strahd,
+                name="Mega Dungeon: Halls of the Dread Lord",
+                icon="\U0001F3F0",
+                description="A sprawling 200-room dungeon crawl beneath Castle Ravenloft. "
+                            "Used to stress-test large task lists.",
+                owner=dm,
+                write_users=[admin_user, thorn, elara],
+                read_users=[vex, sera],
+            )
+
             # Task statuses
             print("  Creating Guild 1 task statuses...")
-            g1_projects = [g1_barovia, g1_ravenloft, g1_phandalin, g1_wave_echo, g1_session_zero, g1_homebrew]
+            g1_projects = [g1_barovia, g1_ravenloft, g1_phandalin, g1_wave_echo, g1_session_zero, g1_homebrew, g1_mega_dungeon]
             g1_status_maps: dict[int, dict[str, TaskStatus]] = {}
             for proj in g1_projects:
                 statuses = await ensure_default_statuses(session, proj.id)
@@ -1039,6 +1132,8 @@ async def seed() -> None:
                  "description": "Current rules are too restrictive — allow crafting during short rests.",
                  "priority": TaskPriority.medium, "category": TaskStatusCategory.done,
                  "assignees": ["Admin User"]},
+                # Mega Dungeon — 200 rooms generated programmatically
+                *_generate_mega_dungeon_tasks(g1_mega_dungeon.id),
             ]
 
             g1_tasks: dict[str, Task] = {}

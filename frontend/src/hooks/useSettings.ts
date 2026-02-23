@@ -1,4 +1,4 @@
-import { useMutation, useQuery, type UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   getOidcSettingsApiV1SettingsAuthGet,
@@ -48,6 +48,7 @@ import type {
   GetChangelogApiV1ChangelogGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { MutationOpts } from "@/types/mutation";
+import type { QueryOpts } from "@/types/query";
 
 // ── Local types for untyped or loosely-typed generated responses ─────────
 
@@ -77,8 +78,6 @@ export interface ChangelogEntry {
   date: string;
   changes: string;
 }
-
-type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 

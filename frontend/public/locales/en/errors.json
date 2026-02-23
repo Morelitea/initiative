@@ -182,5 +182,6 @@
   "NOTIFICATION_NOT_FOUND": "Notification not found",
   "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
   "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",
+  "RATE_LIMITED": "Too many requests. Please wait a moment and try again.",
   "fallback": "Something went wrong. Please try again."
 }

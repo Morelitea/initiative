@@ -11,7 +11,8 @@ import {
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
-import { ImagePlus, Loader2, PanelRight, ScrollText, Settings, X } from "lucide-react";
+import { ImagePlus, Loader2, PanelRight, ScrollText, SearchX, Settings, ShieldAlert, X } from "lucide-react";
+import { StatusMessage } from "@/components/StatusMessage";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -19,8 +20,8 @@ import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
-import { createEmptyEditorState, normalizeEditorState } from "@/components/editor/DocumentEditor";
-import { CollaborationStatusBadge } from "@/components/editor-x/CollaborationStatusBadge";
+import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
+import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
@@ -31,7 +32,7 @@ import { useSetDocumentTags } from "@/hooks/useTags";
 
 // Lazy load heavy components
 const Editor = lazy(() =>
-  import("@/components/editor-x/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
 );
 const FileDocumentViewer = lazy(() =>
   import("@/components/documents/FileDocumentViewer").then((m) => ({
@@ -67,6 +68,7 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { getHttpStatus } from "@/lib/errorMessage";
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation("documents");
@@ -435,6 +437,15 @@ export const DocumentDetailPage = () => {
     try {
       const response = await uploadAttachment(file);
       setFeaturedImageUrl(response.url);
+      isAutosaveRef.current = true;
+      saveDocument.mutate({
+        documentId: parsedId,
+        data: {
+          title: title?.trim(),
+          content: contentState as unknown as Record<string, unknown>,
+          featured_image_url: response.url,
+        },
+      });
       toast.success(t("detail.imageUploaded"));
     } catch (error) {
       console.error(error);
@@ -477,7 +488,14 @@ export const DocumentDetailPage = () => {
   }
 
   if (documentQuery.isError || !document) {
-    return <p className="text-destructive">{t("detail.notFound")}</p>;
+    const status = getHttpStatus(documentQuery.error);
+    const backTo = gp("/documents");
+    const backLabel = t("detail.backToDocuments");
+
+    if (status === 403) {
+      return <StatusMessage icon={<ShieldAlert />} title={t("detail.noAccess")} description={t("detail.noAccessDescription")} backTo={backTo} backLabel={backLabel} />;
+    }
+    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo={backTo} backLabel={backLabel} />;
   }
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
@@ -611,7 +629,18 @@ export const DocumentDetailPage = () => {
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() => setFeaturedImageUrl(null)}
+                          onClick={() => {
+                            setFeaturedImageUrl(null);
+                            isAutosaveRef.current = true;
+                            saveDocument.mutate({
+                              documentId: parsedId,
+                              data: {
+                                title: title?.trim(),
+                                content: contentState as unknown as Record<string, unknown>,
+                                featured_image_url: null,
+                              },
+                            });
+                          }}
                           disabled={isUploadingFeaturedImage}
                         >
                           <X className="mr-2 h-4 w-4" />

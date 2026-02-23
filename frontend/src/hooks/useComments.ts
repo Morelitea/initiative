@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -22,9 +22,9 @@ import type {
   RecentActivityEntry,
   RecentCommentsApiV1CommentsRecentGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
+import { castQueryFn } from "@/lib/query-utils";
 import type { MutationOpts } from "@/types/mutation";
-
-type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
+import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ export const useComments = (
 ) => {
   return useQuery<CommentRead[]>({
     queryKey: getListCommentsApiV1CommentsGetQueryKey(params),
-    queryFn: () => listCommentsApiV1CommentsGet(params) as unknown as Promise<CommentRead[]>,
+    queryFn: castQueryFn<CommentRead[]>(() => listCommentsApiV1CommentsGet(params)),
     ...options,
   });
 };
@@ -45,8 +45,7 @@ export const useRecentComments = (
 ) => {
   return useQuery<RecentActivityEntry[]>({
     queryKey: getRecentCommentsApiV1CommentsRecentGetQueryKey(params),
-    queryFn: () =>
-      recentCommentsApiV1CommentsRecentGet(params) as unknown as Promise<RecentActivityEntry[]>,
+    queryFn: castQueryFn<RecentActivityEntry[]>(() => recentCommentsApiV1CommentsRecentGet(params)),
     staleTime: 30 * 1000,
     ...options,
   });
@@ -64,12 +63,13 @@ export const useMentionSuggestions = (
       initiative_id: initiativeId,
       q: query,
     }),
-    queryFn: () =>
+    queryFn: castQueryFn<MentionSuggestion[]>(() =>
       searchMentionablesApiV1CommentsMentionsSearchGet({
         entity_type: type,
         initiative_id: initiativeId,
         q: query,
-      }) as unknown as Promise<MentionSuggestion[]>,
+      })
+    ),
     staleTime: 30_000,
     enabled: initiativeId > 0,
     ...options,

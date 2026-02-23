@@ -33,6 +33,7 @@ import type {
   InitiativeBlockerInfo,
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { DialogWithSuccessProps } from "@/types/dialog";
 
 type DeletionType = "soft" | "hard";
 type DeletionStep =
@@ -42,10 +43,7 @@ type DeletionStep =
   | "transfer-projects"
   | "confirm";
 
-interface AdminDeleteUserDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+interface AdminDeleteUserDialogProps extends DialogWithSuccessProps {
   targetUser: UserRead;
 }
 

@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { createFileRoute, Navigate, Outlet, redirect, useParams } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { createFileRoute, Outlet, redirect, useParams } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { setCurrentGuildId } from "@/api/client";
+import { StatusMessage } from "@/components/StatusMessage";
 import { useGuilds } from "@/hooks/useGuilds";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId")({
@@ -16,8 +18,9 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
 
     // Skip membership validation while guilds are still loading
     // The component will handle validation once data is available
+    // Don't set the guild ID yet — it may be invalid and would poison
+    // the API client header if the user isn't a member.
     if (guilds?.loading) {
-      setCurrentGuildId(guildId);
       return { urlGuildId: guildId, urlGuild: null };
     }
 
@@ -25,8 +28,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
     const guildList = guilds?.guilds ?? [];
     const guild = guildList.find((g) => g.id === guildId);
     if (!guild) {
-      // User is not a member of this guild - redirect to home
-      throw redirect({ to: "/" });
+      // Let the component render a "not a member" message
+      return { urlGuildId: guildId, urlGuild: null };
     }
 
     // Sync API client header to ensure requests go to correct guild
@@ -39,20 +42,24 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
 });
 
 function GuildLayout() {
+  const { t } = useTranslation("guilds");
   const params = useParams({ from: "/_serverRequired/_authenticated/g/$guildId" });
   const guildId = Number(params.guildId);
   const { guilds, loading, syncGuildFromUrl } = useGuilds();
 
-  // Sync guild context when URL guild ID changes.
-  // syncGuildFromUrl is stable (no deps) and checks the ref internally,
-  // so we only need guildId here to fire when the URL changes.
+  // Verify membership — must happen before syncing guild context
+  const guild = !loading ? guilds.find((g) => g.id === guildId) : undefined;
+  const isMember = Boolean(guild);
+
+  // Sync guild context only after membership is confirmed.
+  // This prevents setting an invalid guild ID on the API client,
+  // which would cause "unable to load" errors on the redirect target.
   useEffect(() => {
-    if (Number.isFinite(guildId)) {
+    if (isMember && Number.isFinite(guildId)) {
       void syncGuildFromUrl(guildId);
     }
-  }, [guildId, syncGuildFromUrl]);
+  }, [guildId, isMember, syncGuildFromUrl]);
 
-  // Show loading state while guilds are loading
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -61,10 +68,18 @@ function GuildLayout() {
     );
   }
 
-  // Verify membership synchronously before rendering children
-  const guild = guilds.find((g) => g.id === guildId);
   if (!guild) {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <StatusMessage
+          icon={<ShieldAlert />}
+          title={t("notMember.title")}
+          description={t("notMember.description")}
+          backTo="/"
+          backLabel={t("notMember.backToHome")}
+        />
+      </div>
+    );
   }
 
   return <Outlet />;

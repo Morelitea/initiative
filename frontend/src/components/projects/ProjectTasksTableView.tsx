@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, memo } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState, memo } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
@@ -69,11 +69,41 @@ const SortableRowContext = createContext<SortableRowContextValue | null>(null);
 
 const useSortableRowContext = () => useContext(SortableRowContext);
 
-const SortableRowWrapper = ({
+/**
+ * Plain row wrapper — no useSortable hook overhead.
+ * Used when DnD is disabled (sorting/grouping active, or no reorder permission).
+ */
+const PlainRowWrapper = ({
   row,
   children,
-  dragDisabled,
-}: DataTableRowWrapperProps<TaskListRead> & { dragDisabled: boolean }) => {
+  virtualStyle,
+  virtualIndex,
+  measureRef,
+}: DataTableRowWrapperProps<TaskListRead>) => {
+  return (
+    <TableRow
+      ref={measureRef}
+      style={virtualStyle}
+      className={cn(row.original.is_archived && "opacity-50")}
+      data-state={row.getIsSelected() && "selected"}
+      data-index={virtualIndex}
+    >
+      {children}
+    </TableRow>
+  );
+};
+
+/**
+ * Sortable row wrapper — calls useSortable hook for DnD support.
+ * Only used when DnD is actually possible (no sorting/grouping, has reorder permission).
+ */
+const SortableRowWrapperInner = ({
+  row,
+  children,
+  virtualStyle,
+  virtualIndex,
+  measureRef,
+}: DataTableRowWrapperProps<TaskListRead>) => {
   const {
     attributes,
     listeners,
@@ -85,11 +115,11 @@ const SortableRowWrapper = ({
   } = useSortable({
     id: row.original.id.toString(),
     data: { type: "list-task" },
-    disabled: dragDisabled,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  const style: React.CSSProperties = {
+    ...virtualStyle,
+    transform: CSS.Transform.toString(transform) || virtualStyle?.transform,
     transition,
   };
 
@@ -98,18 +128,30 @@ const SortableRowWrapper = ({
       attributes,
       listeners,
       setActivatorNodeRef,
-      dragDisabled,
+      dragDisabled: false,
     }),
-    [attributes, listeners, setActivatorNodeRef, dragDisabled]
+    [attributes, listeners, setActivatorNodeRef]
+  );
+
+  const setRefs = useCallback(
+    (el: HTMLElement | null) => {
+      setNodeRef(el);
+      measureRef?.(el);
+    },
+    [setNodeRef, measureRef]
   );
 
   return (
     <SortableRowContext.Provider value={contextValue}>
       <TableRow
-        ref={setNodeRef}
+        ref={setRefs}
         style={style}
-        className={cn(isDragging && "bg-muted/60", row.original.is_archived && "opacity-50")}
+        className={cn(
+          isDragging && "bg-muted/60",
+          row.original.is_archived && "opacity-50"
+        )}
         data-state={row.getIsSelected() && "selected"}
+        data-index={virtualIndex}
       >
         {children}
       </TableRow>
@@ -380,6 +422,36 @@ const ProjectTasksTableViewComponent = ({
   );
   const groupingOptions = useMemo(() => [{ id: "date group", label: t("table.dateWindow") }], [t]);
 
+  const sortableItems = useMemo(
+    () => tasks.map((task) => task.id.toString()),
+    [tasks]
+  );
+
+  // Track sorting/grouping state to know when DnD is possible.
+  // When either is active, we skip useSortable hooks entirely for performance.
+  const [hasSorting, setHasSorting] = useState(false);
+  const [hasGrouping, setHasGrouping] = useState(false);
+  const dndEnabled = canReorderTasks && !hasSorting && !hasGrouping;
+
+  const handleSortingChange = useCallback(
+    (sorting: { id: string; desc: boolean }[]) => setHasSorting(sorting.length > 0),
+    []
+  );
+  const handleGroupingChange = useCallback(
+    (grouping: string[]) => setHasGrouping(grouping.length > 0),
+    []
+  );
+
+  const rowWrapper = useCallback(
+    (props: DataTableRowWrapperProps<TaskListRead>) => {
+      if (!dndEnabled) {
+        return <PlainRowWrapper {...props} />;
+      }
+      return <SortableRowWrapperInner {...props} />;
+    },
+    [dndEnabled]
+  );
+
   return (
     <DndContext
       sensors={sensors}
@@ -389,13 +461,18 @@ const ProjectTasksTableViewComponent = ({
       onDragCancel={onDragCancel}
     >
       <SortableContext
-        items={tasks.map((task) => task.id.toString())}
+        items={dndEnabled ? sortableItems : []}
         strategy={verticalListSortingStrategy}
       >
         <DataTable
           columns={columns}
           data={tasks}
+          enableVirtualization
+          virtualContainerHeight="h-[calc(100vh-20rem)]"
+          virtualRowHeight={52}
           groupingOptions={groupingOptions}
+          onSortingChange={handleSortingChange}
+          onGroupingChange={handleGroupingChange}
           helpText={(table) => {
             const sorting = table.getState().sorting;
             const grouping = table.getState().grouping;
@@ -426,11 +503,7 @@ const ProjectTasksTableViewComponent = ({
             expanded: true,
             columnVisibility: { "date group": false },
           }}
-          rowWrapper={({ row, children }) => (
-            <SortableRowWrapper row={row} dragDisabled={!canReorderTasks}>
-              {children}
-            </SortableRowWrapper>
-          )}
+          rowWrapper={rowWrapper}
           enableFilterInput
           filterInputColumnKey="title"
           filterInputPlaceholder={t("table.filterPlaceholder")}

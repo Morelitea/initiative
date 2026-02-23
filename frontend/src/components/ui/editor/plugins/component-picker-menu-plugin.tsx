@@ -1,6 +1,9 @@
-import { JSX, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { JSX, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useBasicTypeaheadTriggerMatch } from "@lexical/react/LexicalTypeaheadMenuPlugin";
+import {
+  LexicalTypeaheadMenuPlugin,
+  useBasicTypeaheadTriggerMatch,
+} from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import { TextNode } from "lexical";
 import { createPortal } from "react-dom";
 
@@ -8,12 +11,6 @@ import { useEditorModal } from "@/components/ui/editor/editor-hooks/use-modal";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 
 import { ComponentPickerOption } from "./picker/component-picker-option";
-
-const LexicalTypeaheadMenuPlugin = lazy(() =>
-  import("@lexical/react/LexicalTypeaheadMenuPlugin").then((mod) => ({
-    default: mod.LexicalTypeaheadMenuPlugin<ComponentPickerOption>,
-  }))
-);
 
 function ComponentPickerMenu({
   options,
@@ -131,30 +128,28 @@ export function ComponentPickerMenuPlugin({
   return (
     <>
       {modal}
-      <Suspense fallback={null}>
-        <LexicalTypeaheadMenuPlugin
-          onQueryChange={setQueryString}
-          onSelectOption={onSelectOption}
-          triggerFn={checkForTriggerMatch}
-          options={options}
-          menuRenderFn={(
-            anchorElementRef,
-            { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
-          ) => {
-            return anchorElementRef.current && options.length
-              ? createPortal(
-                  <ComponentPickerMenu
-                    options={options}
-                    selectedIndex={selectedIndex}
-                    selectOptionAndCleanUp={selectOptionAndCleanUp}
-                    setHighlightedIndex={setHighlightedIndex}
-                  />,
-                  anchorElementRef.current
-                )
-              : null;
-          }}
-        />
-      </Suspense>
+      <LexicalTypeaheadMenuPlugin<ComponentPickerOption>
+        onQueryChange={setQueryString}
+        onSelectOption={onSelectOption}
+        triggerFn={checkForTriggerMatch}
+        options={options}
+        menuRenderFn={(
+          anchorElementRef,
+          { selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }
+        ) => {
+          return anchorElementRef.current && options.length
+            ? createPortal(
+                <ComponentPickerMenu
+                  options={options}
+                  selectedIndex={selectedIndex}
+                  selectOptionAndCleanUp={selectOptionAndCleanUp}
+                  setHighlightedIndex={setHighlightedIndex}
+                />,
+                anchorElementRef.current
+              )
+            : null;
+        }}
+      />
     </>
   );
 }

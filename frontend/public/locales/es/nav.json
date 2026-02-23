@@ -32,6 +32,8 @@
   "collapseInitiative": "Contraer iniciativa",
   "expandInitiative": "Expandir iniciativa",
   "collapse": "Contraer",
+  "collapseAll": "Contraer todo",
+  "expandAll": "Expandir todo",
   "expand": "Expandir",
   "theme": "Tema",
   "toggleTheme": "Cambiar tema",

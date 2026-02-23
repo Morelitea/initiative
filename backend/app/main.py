@@ -50,6 +50,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def svg_security_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/uploads/") and request.url.path.lower().endswith(".svg"):
+        response.headers["Content-Disposition"] = "attachment"
+        response.headers["Content-Security-Policy"] = "script-src 'none'"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
 app.mount("/uploads", StaticFiles(directory=str(uploads_path), check_dir=False), name="uploads")
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

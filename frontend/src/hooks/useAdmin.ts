@@ -1,4 +1,4 @@
-import { useMutation, useQuery, type UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   listAllUsersApiV1AdminUsersGet,
@@ -30,9 +30,8 @@ import type {
   VerificationSendResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { MutationOpts } from "@/types/mutation";
+import type { QueryOpts } from "@/types/query";
 import { invalidateAdminUsers, invalidateAllGuilds } from "@/api/query-keys";
-
-type QueryOpts<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
