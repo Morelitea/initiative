@@ -2246,6 +2246,10 @@ export type ListTasksApiV1TasksGetParams = {
    * JSON list of sort fields: [{"field": "due_date", "dir": "desc"}]
    */
   sorting?: SortField[];
+  /**
+   * IANA timezone name (e.g. America/Los_Angeles) for date_group calculation
+   */
+  tz?: string | null;
 };
 
 export type ArchiveDoneTasksApiV1TasksArchiveDonePostParams = {

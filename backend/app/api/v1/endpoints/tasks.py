@@ -3,7 +3,9 @@ from typing import Annotated, List, Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
-from sqlalchemy import case, func, text
+from zoneinfo import available_timezones
+
+from sqlalchemy import case, func, literal, text
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -56,7 +58,14 @@ from app.core.messages import ProjectMessages, QueryMessages, TaskMessages, Subt
 router = APIRouter()
 
 
-def _date_group_expression():
+def _validate_tz(tz: str | None) -> str | None:
+    """Return *tz* if it is a recognised IANA timezone, else ``None``."""
+    if tz and tz in available_timezones():
+        return tz
+    return None
+
+
+def _date_group_expression(tz: str | None = None):
     """SQL CASE mirroring frontend getTaskDateStatus() logic.
 
     Returns a numeric group:
@@ -65,32 +74,45 @@ def _date_group_expression():
       2 = this week (start or due within 7 days)
       3 = this month (start or due within 30 days)
       4 = later (everything else)
+
+    When *tz* is a valid IANA timezone the expression converts both
+    ``now()`` and the task columns to that timezone so that "today"
+    matches the **user's** local day, not the database server's UTC day.
     """
-    now = func.now()
+    if tz:
+        tz_sql = literal(tz)
+        now = func.now().op("AT TIME ZONE")(tz_sql)
+        start = Task.start_date.op("AT TIME ZONE")(tz_sql)
+        due = Task.due_date.op("AT TIME ZONE")(tz_sql)
+    else:
+        now = func.now()
+        start = Task.start_date
+        due = Task.due_date
+
     today = func.date_trunc("day", now)
     week_later = now + text("interval '7 days'")
     month_later = now + text("interval '30 days'")
 
     return case(
         # 0: overdue — due_date is in the past
-        (Task.due_date < now, 0),
+        (due < now, 0),
         # 1: today — start_date before today, or start/due is today
-        (Task.start_date < today, 1),
-        (func.date_trunc("day", Task.start_date) == today, 1),
-        (func.date_trunc("day", Task.due_date) == today, 1),
+        (start < today, 1),
+        (func.date_trunc("day", start) == today, 1),
+        (func.date_trunc("day", due) == today, 1),
         # 2: this week — start or due within 7 days
-        (Task.start_date <= week_later, 2),
-        (Task.due_date <= week_later, 2),
+        (start <= week_later, 2),
+        (due <= week_later, 2),
         # 3: this month — start or due within 30 days
-        (Task.start_date <= month_later, 3),
-        (Task.due_date <= month_later, 3),
+        (start <= month_later, 3),
+        (due <= month_later, 3),
         # 4: later — everything else
         else_=4,
     )
 
 
-# Allowed sort fields for the list endpoint
-TASK_SORT_FIELDS: dict[str, object] = {
+# Static sort fields (everything except date_group which is timezone-dependent)
+_TASK_SORT_FIELDS_STATIC: dict[str, object] = {
     "sort_order": Task.sort_order,
     "title": Task.title,
     "due_date": Task.due_date,
@@ -98,8 +120,16 @@ TASK_SORT_FIELDS: dict[str, object] = {
     "priority": Task.priority,
     "created_at": Task.created_at,
     "updated_at": Task.updated_at,
-    "date_group": _date_group_expression(),
 }
+
+
+def _task_sort_fields(tz: str | None = None) -> dict[str, object]:
+    """Allowed sort fields for the list endpoint.
+
+    ``date_group`` is rebuilt on every call so it can incorporate the
+    caller's timezone.
+    """
+    return {**_TASK_SORT_FIELDS_STATIC, "date_group": _date_group_expression(tz)}
 
 
 TASK_DEFAULT_SORT = [(Task.sort_order, "asc"), (Task.id, "asc")]
@@ -644,6 +674,7 @@ async def _list_global_tasks(
     page: int = 1,
     page_size: int = 20,
     sort_fields: list | None = None,
+    tz: str | None = None,
 ) -> tuple[list[Task], int, int]:
     conditions = [
         TaskAssignee.user_id == current_user.id,
@@ -689,7 +720,7 @@ async def _list_global_tasks(
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
-    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=TASK_SORT_FIELDS, default_sort=TASK_DEFAULT_SORT)
+    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
 
     return await paginated_query(session, statement, count_stmt, page, page_size)
 
@@ -707,6 +738,7 @@ async def _list_global_created_tasks(
     page: int = 1,
     page_size: int = 20,
     sort_fields: list | None = None,
+    tz: str | None = None,
 ) -> tuple[list[Task], int, int]:
     """List tasks created by the current user across all guilds they belong to."""
     conditions = [
@@ -751,7 +783,7 @@ async def _list_global_created_tasks(
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
-    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=TASK_SORT_FIELDS, default_sort=TASK_DEFAULT_SORT)
+    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
 
     return await paginated_query(session, statement, count_stmt, page, page_size)
 
@@ -778,6 +810,10 @@ async def list_tasks(
         default=None,
         description='JSON list of sort fields: [{"field": "due_date", "dir": "desc"}]',
     ),
+    tz: Optional[str] = Query(
+        default=None,
+        description="IANA timezone name (e.g. America/Los_Angeles) for date_group calculation",
+    ),
 ) -> TaskListResponse:
     try:
         user_conditions = parse_conditions(conditions)
@@ -794,6 +830,8 @@ async def list_tasks(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=QueryMessages.INVALID_SORT_FIELDS,
         )
+
+    tz = _validate_tz(tz)
 
     # Extract values needed by global paths and access control
     project_id = extract_condition_value(user_conditions, "project_id")
@@ -815,6 +853,7 @@ async def list_tasks(
             page=page,
             page_size=page_size,
             sort_fields=sort_fields,
+            tz=tz,
         )
         await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
@@ -837,6 +876,7 @@ async def list_tasks(
             page=page,
             page_size=page_size,
             sort_fields=sort_fields,
+            tz=tz,
         )
         await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
@@ -888,7 +928,7 @@ async def list_tasks(
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
     )
-    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=TASK_SORT_FIELDS, default_sort=TASK_DEFAULT_SORT)
+    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
 
     tasks, total_count, actual_page = await paginated_query(session, statement, count_stmt, page, page_size)
     await _annotate_tasks(session, tasks)
