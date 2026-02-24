@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- My Tasks date groups (Overdue, Today, This Week, etc.) now respect the user's timezone — backend uses `AT TIME ZONE` with a `tz` query parameter instead of UTC `now()`
+- `useAllDocumentIds` cache corruption after visiting the Initiatives page — fixed React Query key collision with `useDocumentsList`
+
+### Changed
+
+- Command Center shows project emoji icons and file-type-specific document icons (PDF, Word, Excel, PowerPoint) with color coding
+- Extract shared `getDocumentIcon` / `getDocumentIconColor` helpers in `fileUtils.ts` — used by both Command Center and DocumentCard
+
 ## [0.32.0] - 2026-02-23
 
 ### Added

@@ -168,6 +168,12 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     setPage(1);
   }, [statusFilters, priorityFilters, guildFilters, setPage]);
 
+  // --- User timezone for server-side date_group calculation ---
+  const userTimezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    []
+  );
+
   // --- Tasks query ---
   const tasksParams = useMemo((): ListTasksApiV1TasksGetParams => {
     const conditions: FilterCondition[] = [
@@ -187,8 +193,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       page,
       page_size: pageSize,
       sorting: sorting.length > 0 ? sorting : undefined,
+      tz: userTimezone,
     };
-  }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sorting]);
+  }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sorting, userTimezone]);
 
   const tasksQuery = useQuery<TaskListResponse>({
     queryKey: getListTasksApiV1TasksGetQueryKey(tasksParams),
