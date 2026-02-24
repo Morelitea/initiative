@@ -90,7 +90,9 @@ export const useDocumentCounts = (
 
 export const useAllDocumentIds = (options?: QueryOpts<DocumentSummary[]>) => {
   return useQuery<DocumentSummary[]>({
-    queryKey: getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }),
+    // Distinct key from useDocumentsList({ page_size: 0 }) — the extra
+    // "items" segment prevents cache collisions with the paginated variant.
+    queryKey: [...getListDocumentsApiV1DocumentsGetQueryKey({ page_size: 0 }), "items"],
     queryFn: async () => {
       const response = await (listDocumentsApiV1DocumentsGet({
         page_size: 0,

@@ -3,9 +3,9 @@ import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   CheckSquare,
-  ScrollText,
   ListTodo,
   PenLine,
+  ScrollText,
   Users,
   Settings,
   BarChart3,
@@ -21,6 +21,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { commandFilter } from "@/lib/fuzzyMatch";
+import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { useRecentProjects, useProjects } from "@/hooks/useProjects";
 import { useAllDocumentIds } from "@/hooks/useDocuments";
@@ -166,7 +167,11 @@ export function CommandCenter() {
                   )
                 }
               >
-                <ListTodo className="text-muted-foreground" />
+                {project.icon ? (
+                  <span className="text-base leading-none">{project.icon}</span>
+                ) : (
+                  <ListTodo className="text-muted-foreground" />
+                )}
                 <span>{project.name}</span>
               </CommandItem>
             ))}
@@ -206,7 +211,11 @@ export function CommandCenter() {
                 )
               }
             >
-              <ListTodo className="text-muted-foreground" />
+              {project.icon ? (
+                <span className="text-base leading-none">{project.icon}</span>
+              ) : (
+                <ListTodo className="text-muted-foreground" />
+              )}
               <span>{project.name}</span>
             </CommandItem>
           ))}
@@ -214,23 +223,27 @@ export function CommandCenter() {
 
         {/* Documents */}
         <CommandGroup heading={t("groups.documents")}>
-          {documents.map((doc) => (
-            <CommandItem
-              key={`document-${doc.id}`}
-              value={`document-${doc.id}-${doc.title}`}
-              keywords={[doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])]}
-              onSelect={() =>
-                handleSelect(
-                  activeGuildId
-                    ? guildPath(activeGuildId, `/documents/${doc.id}`)
-                    : `/documents/${doc.id}`
-                )
-              }
-            >
-              <ScrollText className="text-muted-foreground" />
-              <span>{doc.title}</span>
-            </CommandItem>
-          ))}
+          {documents.map((doc) => {
+            const DocIcon = getDocumentIcon(doc.document_type, doc.file_content_type, doc.original_filename);
+            const docIconColor = getDocumentIconColor(doc.document_type, doc.file_content_type, doc.original_filename);
+            return (
+              <CommandItem
+                key={`document-${doc.id}`}
+                value={`document-${doc.id}-${doc.title}`}
+                keywords={[doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])]}
+                onSelect={() =>
+                  handleSelect(
+                    activeGuildId
+                      ? guildPath(activeGuildId, `/documents/${doc.id}`)
+                      : `/documents/${doc.id}`
+                  )
+                }
+              >
+                <DocIcon className={docIconColor} />
+                <span>{doc.title}</span>
+              </CommandItem>
+            );
+          })}
         </CommandGroup>
 
         {/* Tasks */}

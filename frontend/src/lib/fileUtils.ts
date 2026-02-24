@@ -1,3 +1,6 @@
+import type { LucideIcon } from "lucide-react";
+import { FileSpreadsheet, FileText, Presentation, ScrollText } from "lucide-react";
+
 /**
  * Format bytes to a human-readable string.
  * @param bytes - Number of bytes
@@ -72,6 +75,52 @@ export function getFileTypeLabel(
   }
 
   return "File";
+}
+
+/**
+ * Return the color class for a document icon based on its type.
+ * For file documents, the color depends on the file format; native docs
+ * get the default muted foreground.
+ */
+export function getDocumentIconColor(
+  documentType: string | null | undefined,
+  mimeType: string | null | undefined,
+  filename: string | null | undefined
+): string {
+  if (documentType !== "file") return "text-muted-foreground";
+  const label = getFileTypeLabel(mimeType, filename);
+  switch (label) {
+    case "PDF":
+      return "text-red-500";
+    case "Word":
+      return "text-blue-600";
+    case "Excel":
+      return "text-green-600";
+    case "PowerPoint":
+      return "text-orange-500";
+    case "Text":
+      return "text-gray-500";
+    case "HTML":
+      return "text-purple-500";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+/**
+ * Return the Lucide icon component for a document.
+ * Native documents get ScrollText; file documents get a format-specific icon.
+ */
+export function getDocumentIcon(
+  documentType: string | null | undefined,
+  mimeType: string | null | undefined,
+  filename: string | null | undefined
+): LucideIcon {
+  if (documentType !== "file") return ScrollText;
+  const label = getFileTypeLabel(mimeType, filename);
+  if (label === "Excel") return FileSpreadsheet;
+  if (label === "PowerPoint") return Presentation;
+  return FileText;
 }
 
 /**

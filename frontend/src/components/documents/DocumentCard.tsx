@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { FileSpreadsheet, FileText, Presentation, ScrollText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,7 @@ import { TagBadge } from "@/components/tags/TagBadge";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getFileTypeLabel } from "@/lib/fileUtils";
+import { getFileTypeLabel, getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -31,13 +30,16 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
     ? getFileTypeLabel(document.file_content_type, document.original_filename)
     : null;
 
-  // Get the appropriate icon for file documents
-  const FileIcon =
-    fileTypeLabel === "Excel"
-      ? FileSpreadsheet
-      : fileTypeLabel === "PowerPoint"
-        ? Presentation
-        : FileText;
+  const FileIcon = getDocumentIcon(
+    document.document_type,
+    document.file_content_type,
+    document.original_filename
+  );
+  const fileIconColor = getDocumentIconColor(
+    document.document_type,
+    document.file_content_type,
+    document.original_filename
+  );
 
   return (
     <Link
@@ -56,23 +58,14 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             loading="lazy"
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
-        ) : isFileDocument ? (
+        ) : (
           <div className="flex h-full items-center justify-center">
             <FileIcon
               className={cn(
-                "h-10 w-10 md:h-20 md:w-20",
-                fileTypeLabel === "PDF" && "text-red-500",
-                fileTypeLabel === "Word" && "text-blue-600",
-                fileTypeLabel === "Excel" && "text-green-600",
-                fileTypeLabel === "PowerPoint" && "text-orange-500",
-                fileTypeLabel === "Text" && "text-gray-500",
-                fileTypeLabel === "HTML" && "text-purple-500"
+                "h-10 w-10 md:h-20 md:w-20 lg:h-24 lg:w-24 xl:h-28 xl:w-28",
+                fileIconColor
               )}
             />
-          </div>
-        ) : (
-          <div className="text-muted-foreground flex h-full items-center justify-center">
-            <ScrollText className="h-10 w-10 md:h-20 md:w-20" />
           </div>
         )}
         <div className="text-muted-foreground absolute right-2 bottom-2 flex flex-col items-end gap-1 text-xs">
