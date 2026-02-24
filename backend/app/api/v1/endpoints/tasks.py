@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
 from zoneinfo import available_timezones
 
-from sqlalchemy import case, func, literal_column, text
+from sqlalchemy import case, func, literal, text
 from sqlmodel import select, delete
 
 from app.db.query import (
@@ -80,7 +80,7 @@ def _date_group_expression(tz: str | None = None):
     matches the **user's** local day, not the database server's UTC day.
     """
     if tz:
-        tz_sql = literal_column(f"'{tz}'")
+        tz_sql = literal(tz)
         now = func.now().op("AT TIME ZONE")(tz_sql)
         start = Task.start_date.op("AT TIME ZONE")(tz_sql)
         due = Task.due_date.op("AT TIME ZONE")(tz_sql)
