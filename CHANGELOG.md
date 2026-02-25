@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Sensitive database fields are now encrypted at rest using Fernet (AES-128-CBC): AI API keys at platform, guild, and user levels; OIDC client secret; SMTP password. Existing data is migrated automatically via Alembic. The encryption key is derived from `SECRET_KEY`.
+- User email addresses are now encrypted at rest. The `users` table stores an HMAC-SHA256 hash (`email_hash`) for fast indexed lookups and a Fernet ciphertext (`email_encrypted`) for display/sending; the plaintext `email` column is removed. Guild invite email addresses are also encrypted. Existing data is migrated automatically.
 
 ### Changed
 

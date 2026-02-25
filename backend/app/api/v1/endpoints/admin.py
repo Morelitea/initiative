@@ -23,6 +23,7 @@ from app.schemas.admin import (
     GuildBlockerInfo,
     InitiativeBlockerInfo,
 )
+from app.core.encryption import hash_email
 from app.core.messages import AdminMessages, SettingsMessages
 from app.services import user_tokens
 from app.services import email as email_service
@@ -44,7 +45,7 @@ async def list_all_users(
     """List all users in the platform (admin only)."""
     from app.services.users import SYSTEM_USER_EMAIL
 
-    stmt = select(User).where(User.email != SYSTEM_USER_EMAIL).order_by(User.created_at.asc())
+    stmt = select(User).where(User.email_hash != hash_email(SYSTEM_USER_EMAIL)).order_by(User.created_at.asc())
     result = await session.exec(stmt)
     users = result.all()
     await initiatives_service.load_user_initiative_roles(session, users)
@@ -417,7 +418,7 @@ async def admin_get_initiative_members(
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
         .where(InitiativeMember.initiative_id == initiative_id)
-        .order_by(User.full_name, User.email)
+        .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)
     return result.all()

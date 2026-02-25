@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.guild import Guild, GuildInvite, GuildMembership, GuildRole
 from app.models.guild_setting import GuildSetting
@@ -300,7 +301,7 @@ async def create_guild_invite(
         created_by_user_id=created_by_user_id,
         expires_at=expiry,
         max_uses=max_uses,
-        invitee_email=invitee_email,
+        invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL) if invitee_email else None,
     )
     session.add(invite)
     await session.flush()

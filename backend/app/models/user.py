@@ -24,7 +24,8 @@ class User(SQLModel, table=True):
     __allow_unmapped__ = True
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(unique=True, nullable=False)
+    email_hash: str = Field(sa_column=Column(String(64), unique=True, nullable=False))
+    email_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
     full_name: Optional[str] = Field(default=None)
     hashed_password: str
     role: UserRole = Field(
@@ -144,6 +145,12 @@ class User(SQLModel, table=True):
         default="kobold",
         sa_column=Column(String(50), nullable=False, server_default="kobold"),
     )
+
+    @property
+    def email(self) -> str:
+        """Return the decrypted email address. Used by schema serialization."""
+        from app.core.encryption import decrypt_field, SALT_EMAIL
+        return decrypt_field(self.email_encrypted, SALT_EMAIL)
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")
     tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)

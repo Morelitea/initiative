@@ -513,7 +513,7 @@ async def get_initiative_members(
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
         .where(InitiativeMember.initiative_id == initiative_id)
-        .order_by(User.full_name, User.email)
+        .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)
     return result.all()

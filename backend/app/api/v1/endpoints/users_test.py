@@ -12,6 +12,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.models.guild import GuildRole
 
 from app.testing.factories import (
@@ -266,7 +267,8 @@ async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, sessio
 
     # Create inactive user
     user = User(
-        email="inactive@example.com",
+        email_hash=hash_email("inactive@example.com"),
+        email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
         hashed_password="dummy",
         is_active=False,

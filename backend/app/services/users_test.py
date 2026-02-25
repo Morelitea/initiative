@@ -42,7 +42,8 @@ async def test_get_or_create_system_user(session: AsyncSession):
     assert system_user2.email == system_user1.email
 
     # Verify only one system user exists
-    stmt = select(User).where(User.email == user_service.SYSTEM_USER_EMAIL)
+    from app.core.encryption import hash_email
+    stmt = select(User).where(User.email_hash == hash_email(user_service.SYSTEM_USER_EMAIL))
     result = await session.exec(stmt)
     all_system_users = result.all()
     assert len(all_system_users) == 1

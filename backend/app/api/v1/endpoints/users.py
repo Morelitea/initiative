@@ -4,7 +4,6 @@ import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
@@ -16,6 +15,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash, verify_password
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -167,7 +167,7 @@ async def create_user(
     )
 
     normalized_email = user_in.email.lower().strip()
-    statement = select(User).where(func.lower(User.email) == normalized_email)
+    statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     if result.one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.EMAIL_ALREADY_REGISTERED)
@@ -175,7 +175,8 @@ async def create_user(
     guild_id = guild_context.guild_id
 
     user = User(
-        email=normalized_email,
+        email_hash=hash_email(normalized_email),
+        email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
         role=user_in.role,
@@ -435,7 +436,7 @@ async def get_my_initiative_members(
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
         .where(InitiativeMember.initiative_id == initiative_id)
-        .order_by(User.full_name, User.email)
+        .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)
     return result.all()
