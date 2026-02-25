@@ -31,6 +31,7 @@ from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.db.session import AdminSessionLocal  # noqa: E402
 from app.models.comment import Comment  # noqa: E402
@@ -196,7 +197,7 @@ async def _find_superuser(session: AsyncSession) -> User:
     if not email:
         print("ERROR: FIRST_SUPERUSER_EMAIL is not set in .env or environment.")
         sys.exit(1)
-    result = await session.exec(select(User).where(User.email == email))
+    result = await session.exec(select(User).where(User.email_hash == hash_email(email)))
     user = result.one_or_none()
     if user is None:
         print(f"ERROR: Superuser {email} not found.")
@@ -261,7 +262,8 @@ async def _create_users(
     users: dict[str, User] = {}
     for ud in user_defs:
         user = User(
-            email=ud["email"],
+            email_hash=hash_email(ud["email"]),
+            email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
             full_name=ud["full_name"],
             hashed_password=get_password_hash("changeme"),
             role=UserRole.member,
