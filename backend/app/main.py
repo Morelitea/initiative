@@ -2,19 +2,22 @@ import asyncio
 from contextlib import suppress
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.api.deps import get_upload_user
 from app.api.v1.api import api_router
 from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
 from app.db.session import AdminSessionLocal, run_migrations
+from app.models.user import User
 from app.services import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
 
@@ -26,7 +29,7 @@ static_index_path = static_path / "index.html"
 static_root = static_path.resolve()
 reserved_prefixes = [
     prefix.strip("/")
-    for prefix in {settings.API_V1_STR, "/uploads"}
+    for prefix in {settings.API_V1_STR}
     if prefix and prefix.strip("/")
 ]
 
@@ -50,16 +53,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def svg_security_headers(request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith("/uploads/") and request.url.path.lower().endswith(".svg"):
-        response.headers["Content-Disposition"] = "attachment"
-        response.headers["Content-Security-Policy"] = "script-src 'none'"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+@app.get("/uploads/{filename:path}", include_in_schema=False)
+async def serve_upload_file(
+    filename: str,
+    current_user: Annotated[User, Depends(get_upload_user)],
+) -> FileResponse:
+    """Serve an uploaded file — requires authentication."""
+    try:
+        file_path = (uploads_path / filename).resolve()
+        file_path.relative_to(uploads_path.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404)
+    if not file_path.is_file():
+        raise HTTPException(status_code=404)
+    headers: dict[str, str] = {}
+    if filename.lower().endswith(".svg"):
+        headers["Content-Disposition"] = "attachment"
+        headers["Content-Security-Policy"] = "script-src 'none'"
+        headers["X-Content-Type-Options"] = "nosniff"
+    return FileResponse(file_path, headers=headers)
 
-app.mount("/uploads", StaticFiles(directory=str(uploads_path), check_dir=False), name="uploads")
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 

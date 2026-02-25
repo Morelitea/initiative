@@ -206,7 +206,7 @@ export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryKey
 
 export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryOptions = <
   TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
@@ -237,11 +237,12 @@ export const getUnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryOpt
 export type UnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryResult = NonNullable<
   Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>
 >;
-export type UnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryError = ErrorType<unknown>;
+export type UnreadNotificationsCountApiV1NotificationsUnreadCountGetQueryError =
+  ErrorType<HTTPValidationError>;
 
 export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
@@ -265,7 +266,7 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -289,7 +290,7 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -309,7 +310,7 @@ export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
 
 export function useUnreadNotificationsCountApiV1NotificationsUnreadCountGet<
   TData = Awaited<ReturnType<typeof unreadNotificationsCountApiV1NotificationsUnreadCountGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -436,7 +437,7 @@ export const markAllNotificationsReadApiV1NotificationsReadAllPost = (
 };
 
 export const getMarkAllNotificationsReadApiV1NotificationsReadAllPostMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -473,13 +474,14 @@ export type MarkAllNotificationsReadApiV1NotificationsReadAllPostMutationResult 
   Awaited<ReturnType<typeof markAllNotificationsReadApiV1NotificationsReadAllPost>>
 >;
 
-export type MarkAllNotificationsReadApiV1NotificationsReadAllPostMutationError = ErrorType<unknown>;
+export type MarkAllNotificationsReadApiV1NotificationsReadAllPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Mark All Notifications Read
  */
 export const useMarkAllNotificationsReadApiV1NotificationsReadAllPost = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {

@@ -387,6 +387,78 @@ export const useLoginAccessTokenApiV1AuthTokenPost = <
   return useMutation(getLoginAccessTokenApiV1AuthTokenPostMutationOptions(options), queryClient);
 };
 /**
+ * @summary Logout
+ */
+export const logoutApiV1AuthLogoutPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>({ url: `/api/v1/auth/logout`, method: "POST", signal }, options);
+};
+
+export const getLogoutApiV1AuthLogoutPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["logoutApiV1AuthLogoutPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
+    void
+  > = () => {
+    return logoutApiV1AuthLogoutPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogoutApiV1AuthLogoutPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>
+>;
+
+export type LogoutApiV1AuthLogoutPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Logout
+ */
+export const useLogoutApiV1AuthLogoutPost = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getLogoutApiV1AuthLogoutPostMutationOptions(options), queryClient);
+};
+/**
  * Create a long-lived device token for mobile app authentication.
 Device tokens do not expire and can be used instead of JWT tokens.
  * @summary Create Device Token
@@ -498,7 +570,7 @@ export const getListDeviceTokensApiV1AuthDeviceTokensGetQueryKey = () => {
 
 export const getListDeviceTokensApiV1AuthDeviceTokensGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
@@ -527,11 +599,11 @@ export const getListDeviceTokensApiV1AuthDeviceTokensGetQueryOptions = <
 export type ListDeviceTokensApiV1AuthDeviceTokensGetQueryResult = NonNullable<
   Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>
 >;
-export type ListDeviceTokensApiV1AuthDeviceTokensGetQueryError = ErrorType<unknown>;
+export type ListDeviceTokensApiV1AuthDeviceTokensGetQueryError = ErrorType<HTTPValidationError>;
 
 export function useListDeviceTokensApiV1AuthDeviceTokensGet<
   TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
@@ -555,7 +627,7 @@ export function useListDeviceTokensApiV1AuthDeviceTokensGet<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListDeviceTokensApiV1AuthDeviceTokensGet<
   TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -579,7 +651,7 @@ export function useListDeviceTokensApiV1AuthDeviceTokensGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListDeviceTokensApiV1AuthDeviceTokensGet<
   TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -599,7 +671,7 @@ export function useListDeviceTokensApiV1AuthDeviceTokensGet<
 
 export function useListDeviceTokensApiV1AuthDeviceTokensGet<
   TData = Awaited<ReturnType<typeof listDeviceTokensApiV1AuthDeviceTokensGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -1132,7 +1204,7 @@ export const resendVerificationEmailApiV1AuthVerificationSendPost = (
 };
 
 export const getResendVerificationEmailApiV1AuthVerificationSendPostMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1169,13 +1241,14 @@ export type ResendVerificationEmailApiV1AuthVerificationSendPostMutationResult =
   Awaited<ReturnType<typeof resendVerificationEmailApiV1AuthVerificationSendPost>>
 >;
 
-export type ResendVerificationEmailApiV1AuthVerificationSendPostMutationError = ErrorType<unknown>;
+export type ResendVerificationEmailApiV1AuthVerificationSendPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Resend Verification Email
  */
 export const useResendVerificationEmailApiV1AuthVerificationSendPost = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {

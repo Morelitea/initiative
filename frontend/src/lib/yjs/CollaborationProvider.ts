@@ -37,7 +37,7 @@ export interface CollaborationProviderOptions {
   connect?: boolean;
   /** Auth params sent via MSG_AUTH message after connection (not in URL for security) */
   auth?: {
-    token: string;
+    token: string | null;
     guildId: number;
   };
 }
@@ -116,7 +116,7 @@ export class CollaborationProvider implements Provider {
   private _status: string = "disconnected";
   private shouldConnect: boolean;
   private connectionId: string;
-  private authParams: { token: string; guildId: number } | null = null;
+  private authParams: { token: string | null; guildId: number } | null = null;
 
   // Typed event handlers
   private syncHandlers: Set<SyncCallback> = new Set();

@@ -177,6 +177,9 @@ async def websocket_collaborate(
             auth_payload = json.loads(auth_data[1:].decode())
             token = auth_payload.get("token")
             guild_id = auth_payload.get("guild_id")
+            if not token:
+                # Fall back to session cookie (web sessions after page refresh)
+                token = websocket.cookies.get(settings.COOKIE_NAME)
             if not token or guild_id is None:
                 raise ValueError("Missing token or guild_id")
             guild_id = int(guild_id)

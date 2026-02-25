@@ -60,7 +60,7 @@ export const getGetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryKey = () => 
 
 export const getGetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryOptions = <
   TData = Awaited<ReturnType<typeof getPlatformAiSettingsApiV1SettingsAiPlatformGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
@@ -90,11 +90,12 @@ export const getGetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryOptions = <
 export type GetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryResult = NonNullable<
   Awaited<ReturnType<typeof getPlatformAiSettingsApiV1SettingsAiPlatformGet>>
 >;
-export type GetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryError = ErrorType<unknown>;
+export type GetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryError =
+  ErrorType<HTTPValidationError>;
 
 export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
   TData = Awaited<ReturnType<typeof getPlatformAiSettingsApiV1SettingsAiPlatformGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options: {
     query: Partial<
@@ -118,7 +119,7 @@ export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
   TData = Awaited<ReturnType<typeof getPlatformAiSettingsApiV1SettingsAiPlatformGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -142,7 +143,7 @@ export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
   TData = Awaited<ReturnType<typeof getPlatformAiSettingsApiV1SettingsAiPlatformGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
@@ -162,7 +163,7 @@ export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
 
 export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
   TData = Awaited<ReturnType<typeof getPlatformAiSettingsApiV1SettingsAiPlatformGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
   options?: {
     query?: Partial<
