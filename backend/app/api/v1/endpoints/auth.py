@@ -204,6 +204,7 @@ async def logout(response: Response) -> None:
     response.delete_cookie(
         key=settings.COOKIE_NAME,
         path="/",
+        httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",
     )
