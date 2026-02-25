@@ -38,7 +38,7 @@ export function getOpenCommandCenter() {
 
 export function CommandCenter() {
   const [open, setOpen] = useState(false);
-  const { t } = useTranslation("command");
+  const { t } = useTranslation(["command", "common"]);
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
@@ -147,7 +147,11 @@ export function CommandCenter() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} filter={commandFilter}>
-      <CommandInput placeholder={t("placeholder", { activeGuildName: activeGuild?.name })} />
+      <CommandInput
+        placeholder={t("placeholder", {
+          activeGuildName: activeGuild?.name ?? t("common:appName"),
+        })}
+      />
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
 
@@ -224,8 +228,16 @@ export function CommandCenter() {
         {/* Documents */}
         <CommandGroup heading={t("groups.documents")}>
           {documents.map((doc) => {
-            const DocIcon = getDocumentIcon(doc.document_type, doc.file_content_type, doc.original_filename);
-            const docIconColor = getDocumentIconColor(doc.document_type, doc.file_content_type, doc.original_filename);
+            const DocIcon = getDocumentIcon(
+              doc.document_type,
+              doc.file_content_type,
+              doc.original_filename
+            );
+            const docIconColor = getDocumentIconColor(
+              doc.document_type,
+              doc.file_content_type,
+              doc.original_filename
+            );
             return (
               <CommandItem
                 key={`document-${doc.id}`}
