@@ -1,5 +1,5 @@
 {
-  "placeholder": "Search projects, tasks, documents...",
+  "placeholder": "Search in {{activeGuildName}}...",
   "noResults": "No results found.",
   "groups": {
     "suggested": "Suggested",

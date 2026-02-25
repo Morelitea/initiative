@@ -7,7 +7,7 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import decrypt_token, encrypt_token
+from app.core.encryption import decrypt_field, decrypt_token, encrypt_token, SALT_OIDC_CLIENT_SECRET
 from app.db.session import AdminSessionLocal
 from app.models.user import User
 from app.services import app_settings as app_settings_service
@@ -148,7 +148,7 @@ async def process_oidc_refresh_sync() -> None:
         claim_path = getattr(app_settings, "oidc_role_claim_path", None)
         if not claim_path:
             return
-        if not (app_settings.oidc_issuer and app_settings.oidc_client_id and app_settings.oidc_client_secret):
+        if not (app_settings.oidc_issuer and app_settings.oidc_client_id and app_settings.oidc_client_secret_encrypted):
             return
 
         try:
@@ -184,7 +184,7 @@ async def process_oidc_refresh_sync() -> None:
                 token_endpoint=token_endpoint,
                 userinfo_endpoint=userinfo_endpoint,
                 client_id=app_settings.oidc_client_id,
-                client_secret=app_settings.oidc_client_secret,
+                client_secret=decrypt_field(app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET),
                 claim_path=claim_path,
             )
             if ok:
