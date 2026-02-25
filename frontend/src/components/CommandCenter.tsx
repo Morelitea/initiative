@@ -147,7 +147,7 @@ export function CommandCenter() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} filter={commandFilter}>
-      <CommandInput placeholder={t("placeholder")} />
+      <CommandInput placeholder={t("placeholder", { activeGuildName: activeGuild?.name })} />
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
 

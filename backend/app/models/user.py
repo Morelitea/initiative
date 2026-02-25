@@ -114,7 +114,7 @@ class User(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=True),
     )
     ai_provider: Optional[str] = Field(default=None, sa_column=Column(String(50), nullable=True))
-    ai_api_key: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
+    ai_api_key_encrypted: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
     ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(1000), nullable=True))
     ai_model: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
 

@@ -62,7 +62,7 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
         secure=settings_obj.smtp_secure,
         reject_unauthorized=settings_obj.smtp_reject_unauthorized,
         username=settings_obj.smtp_username,
-        has_password=bool(settings_obj.smtp_password),
+        has_password=bool(settings_obj.smtp_password_encrypted),
         from_address=settings_obj.smtp_from_address,
         test_recipient=settings_obj.smtp_test_recipient,
     )

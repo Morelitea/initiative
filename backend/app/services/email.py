@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
 from app.core.email_i18n import email_t
+from app.core.encryption import decrypt_token
 from app.models.app_setting import AppSetting
 from app.models.user import User
 from app.services import app_settings as app_settings_service
@@ -125,7 +126,7 @@ def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
         secure=bool(settings_obj.smtp_secure),
         reject_unauthorized=bool(settings_obj.smtp_reject_unauthorized),
         username=settings_obj.smtp_username,
-        password=settings_obj.smtp_password,
+        password=decrypt_token(settings_obj.smtp_password_encrypted) if settings_obj.smtp_password_encrypted else None,
         from_address=from_address,
     )
 
