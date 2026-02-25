@@ -9,7 +9,7 @@ from typing import Any, Annotated
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
@@ -170,6 +170,7 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 @limiter.limit("5/15minutes")
 async def login_access_token(
     request: Request,
+    response: Response,
     session: SessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
@@ -186,7 +187,21 @@ async def login_access_token(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
 
     access_token = create_access_token(subject=str(user.id))
+    response.set_cookie(
+        key=settings.COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
     return Token(access_token=access_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response) -> None:
+    response.delete_cookie(key=settings.COOKIE_NAME, path="/")
 
 
 @router.post("/device-token", response_model=DeviceTokenResponse)
@@ -575,11 +590,20 @@ async def oidc_callback(
         )
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
+        return RedirectResponse(redirect_url)
     else:
         app_token = create_access_token(subject=str(user.id))
-        redirect_params = {"token": app_token}
-        redirect_url = f"{_frontend_redirect_uri()}?{urlencode(redirect_params)}"
-    return RedirectResponse(redirect_url)
+        oidc_response = RedirectResponse(_frontend_redirect_uri())
+        oidc_response.set_cookie(
+            key=settings.COOKIE_NAME,
+            value=app_token,
+            httponly=True,
+            samesite="lax",
+            secure=settings.cookie_secure,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+        )
+        return oidc_response
 
 
 @router.post("/verification/send", response_model=VerificationSendResponse)

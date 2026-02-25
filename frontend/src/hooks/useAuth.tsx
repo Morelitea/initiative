@@ -27,7 +27,7 @@ interface AuthContextValue {
   isDeviceToken: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
-  completeOidcLogin: (token: string, isDevice?: boolean) => Promise<void>;
+  completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -45,11 +45,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserRead | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Load token on mount (storage is pre-hydrated by initStorage)
+  // Load token on mount for native only (web uses HttpOnly cookie — no localStorage read needed)
   useEffect(() => {
+    if (!isNative) return;
     try {
       const storedToken = getItem(TOKEN_STORAGE_KEY);
-      const isDevice = isNative || getItem(DEVICE_TOKEN_KEY) === "true";
+      const isDevice = getItem(DEVICE_TOKEN_KEY) === "true";
       if (storedToken) {
         setTokenState(storedToken);
         setIsDeviceToken(isDevice);
@@ -61,40 +62,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    if (!token) {
-      setUser(null);
-      return;
-    }
     const response = await apiClient.get<UserRead>("/users/me");
     setUser(response.data);
-  }, [token]);
+  }, []);
 
-  // Bootstrap user after token is loaded
+  // Bootstrap user on mount — always attempt /users/me.
+  // Web: cookie is sent automatically (withCredentials). Native: token was loaded by the effect above.
   useEffect(() => {
     const bootstrap = async () => {
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
       setLoading(true);
       try {
-        await refreshUser();
-      } catch (error) {
-        console.error("Failed to restore session", error);
-        // Clear invalid token
-        setTokenState(null);
-        setIsDeviceToken(false);
-        removeItem(TOKEN_STORAGE_KEY);
-        removeItem(DEVICE_TOKEN_KEY);
+        const response = await apiClient.get<UserRead>("/users/me");
+        setUser(response.data);
+      } catch {
         setUser(null);
-        setAuthToken(null);
+        if (isNative) {
+          // Clear stale native token
+          setTokenState(null);
+          setIsDeviceToken(false);
+          removeItem(TOKEN_STORAGE_KEY);
+          removeItem(DEVICE_TOKEN_KEY);
+          setAuthToken(null);
+        }
       } finally {
         setLoading(false);
       }
     };
     void bootstrap();
-  }, [token, refreshUser]);
+  }, []);
 
   const login = async ({ email, password, deviceName }: LoginPayload) => {
     try {
@@ -126,8 +121,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
         });
         const newToken = response.data.access_token;
+        // Keep token in memory for this session only — backend also set an HttpOnly cookie
         setAuthToken(newToken, false);
-        setItem(TOKEN_STORAGE_KEY, newToken);
+        removeItem(TOKEN_STORAGE_KEY);
         removeItem(DEVICE_TOKEN_KEY);
         setTokenState(newToken);
         setIsDeviceToken(false);
@@ -151,21 +147,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return response.data;
   };
 
-  const completeOidcLogin = async (accessToken: string, isDevice = false) => {
-    setAuthToken(accessToken, isDevice);
-    setItem(TOKEN_STORAGE_KEY, accessToken);
-    if (isDevice) {
+  const completeOidcLogin = async (accessToken?: string, isDevice = false) => {
+    if (isDevice && accessToken) {
+      // Native: store device token in persistent storage
+      setAuthToken(accessToken, true);
+      setItem(TOKEN_STORAGE_KEY, accessToken);
       setItem(DEVICE_TOKEN_KEY, "true");
-    } else {
-      removeItem(DEVICE_TOKEN_KEY);
+      setTokenState(accessToken);
+      setIsDeviceToken(true);
     }
-    setTokenState(accessToken);
-    setIsDeviceToken(isDevice);
+    // Web: cookie was already set by the backend redirect — just fetch the user
     const me = await apiClient.get<UserRead>("/users/me");
     setUser(me.data);
   };
 
   const logout = useCallback(async () => {
+    try {
+      await apiClient.post("/auth/logout");
+    } catch {
+      // Ignore errors — proceed with local cleanup regardless
+    }
     setTokenState(null);
     setIsDeviceToken(false);
     setUser(null);

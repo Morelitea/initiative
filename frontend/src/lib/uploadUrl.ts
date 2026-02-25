@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { apiClient } from "@/api/client";
+import { apiClient, getAuthToken } from "@/api/client";
 
 /**
  * Resolve an upload path to a full URL.
@@ -24,6 +24,8 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
   // Ensure path starts with /
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 
+  let resolved: string;
+
   // On native platforms, prepend the API server origin (no Vite proxy)
   if (Capacitor.isNativePlatform()) {
     const baseUrl = apiClient.defaults.baseURL;
@@ -31,17 +33,30 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
       try {
         // Extract origin from the API base URL (e.g., "http://10.0.2.2:8000/api/v1" -> "http://10.0.2.2:8000")
         const url = new URL(baseUrl);
-        return `${url.origin}${normalizedPath}`;
+        resolved = `${url.origin}${normalizedPath}`;
       } catch {
         // If URL parsing fails, try stripping /api/v1 suffix
         const origin = baseUrl.replace(/\/api\/v1\/?$/, "");
-        if (origin) {
-          return `${origin}${normalizedPath}`;
-        }
+        resolved = origin ? `${origin}${normalizedPath}` : normalizedPath;
       }
+    } else {
+      resolved = normalizedPath;
+    }
+  } else {
+    // On web, return path as-is - Vite proxies /uploads in dev, same-origin in prod
+    resolved = normalizedPath;
+  }
+
+  // On native: append auth token for /uploads/ paths so <img> src attributes work
+  // (native WebViews can't send Authorization headers or rely on HttpOnly cookies for media)
+  // On web: the HttpOnly session cookie is sent automatically by the browser — no token needed
+  if (normalizedPath.startsWith("/uploads/") && Capacitor.isNativePlatform()) {
+    const token = getAuthToken();
+    if (token) {
+      const sep = resolved.includes("?") ? "&" : "?";
+      return `${resolved}${sep}token=${encodeURIComponent(token)}`;
     }
   }
 
-  // On web, return path as-is - Vite proxies /uploads in dev, same-origin in prod
-  return path;
+  return resolved;
 }

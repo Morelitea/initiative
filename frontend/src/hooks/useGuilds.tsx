@@ -64,7 +64,7 @@ const sortGuilds = (guildList: GuildRead[]): GuildRead[] => {
 };
 
 export const GuildProvider = ({ children }: { children: ReactNode }) => {
-  const { user, token, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [guilds, setGuilds] = useState<GuildRead[]>([]);
   const [activeGuildId, setActiveGuildId] = useState<number | null>(readStoredGuildId);
   // Start as true - we're loading until first fetch completes (or until we know we shouldn't fetch)
@@ -107,7 +107,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshGuilds = useCallback(async () => {
-    if (!token || !user) {
+    if (!user) {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
@@ -131,7 +131,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [token, user, applyGuildState]);
+  }, [user, applyGuildState]);
 
   const flushPendingOrder = useCallback(async () => {
     if (!pendingOrderRef.current) {
@@ -181,7 +181,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   }, [flushPendingOrder]);
 
   useEffect(() => {
-    if (!user || !token) {
+    if (!user) {
       setGuilds([]);
       setActiveGuildId(null);
       setError(null);
@@ -190,7 +190,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     void refreshGuilds();
-  }, [user, token, refreshGuilds]);
+  }, [user, refreshGuilds]);
 
   const switchGuild = useCallback(
     async (guildId: number) => {

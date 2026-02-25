@@ -70,6 +70,9 @@ async def websocket_updates(websocket: WebSocket, session: SessionDep):
             auth_payload = json.loads(auth_data[1:].decode())
             token = auth_payload.get("token")
             if not token:
+                # Fall back to session cookie (web sessions after page refresh)
+                token = websocket.cookies.get(settings.COOKIE_NAME)
+            if not token:
                 raise ValueError("Missing token")
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Events WebSocket: Invalid auth payload: {e}")

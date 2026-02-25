@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Cookie, Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import select
@@ -37,6 +37,7 @@ async def get_current_user(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
 ) -> User:
     # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
@@ -49,8 +50,8 @@ async def get_current_user(
             return user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_DEVICE_TOKEN)
 
-    # Use the bearer token from OAuth2 scheme
-    token = bearer_token
+    # Use the bearer token from OAuth2 scheme, fall back to HttpOnly cookie (web sessions)
+    token = bearer_token or session_cookie
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -204,3 +205,74 @@ async def get_user_session(
 
 # Dependency for routes that need user-level RLS without guild context
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
+
+
+async def get_upload_user(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    token_param: Annotated[Optional[str], Query(alias="token")] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+) -> User:
+    """Auth dependency for /uploads/* — accepts token from Authorization header OR ?token= query param.
+
+    Supports all three auth schemes so that <img> and <iframe> tags (which can't
+    send Authorization headers) work by appending ?token=<jwt> to the URL.
+    """
+    auth_header = request.headers.get("Authorization", "")
+
+    # 1. DeviceToken scheme (Authorization header only — device tokens aren't safe in URLs)
+    if auth_header.startswith("DeviceToken "):
+        device_token = auth_header[12:]  # len("DeviceToken ") = 12
+        user = await _authenticate_device_token(session, device_token)
+        if user:
+            if not user.is_active:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_DEVICE_TOKEN)
+
+    # 2. Bearer token (Authorization header), ?token= query param, or HttpOnly cookie (web sessions)
+    token = bearer_token or token_param or session_cookie
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Try API key authentication first
+    user = await api_keys_service.authenticate_api_key(session, token)
+    if user:
+        if not user.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        return user
+
+    # Try JWT authentication
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_data = TokenPayload(**payload)
+    except JWTError:
+        # JWT decode failed — if token came from query param, also try as device token
+        # (native app users may pass their device token as a query param)
+        if token_param and not bearer_token:
+            user = await _authenticate_device_token(session, token_param)
+            if user:
+                if not user.is_active:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+                return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS)
+
+    if not token_data.sub:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_TOKEN_PAYLOAD)
+
+    statement = select(User).where(User.id == int(token_data.sub))
+    result = await session.exec(statement)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+    return user
+
+
+UploadUserDep = Annotated[User, Depends(get_upload_user)]

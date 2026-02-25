@@ -56,7 +56,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
     // If auth state is already determined and user is not authenticated,
     // redirect immediately (this handles direct navigation when auth is cached)
     // Skip if we just authenticated (search param indicates state is updating)
-    if (!justAuthenticated && !auth?.loading && !auth?.token) {
+    if (!justAuthenticated && !auth?.loading && !auth?.user) {
       const redirectTo = server?.isNativePlatform ? "/login" : "/welcome";
       throw redirect({ to: redirectTo });
     }
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
 
 function AppLayout() {
   // ALL hooks must be called before any conditional returns
-  const { token, loading, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const { isNativePlatform } = useServer();
   const {
     activeGuildId,
@@ -86,7 +86,7 @@ function AppLayout() {
   useBackButton();
 
   const recentQuery = useRecentProjects({
-    enabled: activeGuildId !== null && !loading && !!token,
+    enabled: activeGuildId !== null && !loading && !!user,
     staleTime: 30_000,
   });
 
@@ -99,13 +99,13 @@ function AppLayout() {
   }
 
   // Redirect to login/welcome if not authenticated (and we didn't just authenticate)
-  if (!token && !justAuthenticated) {
+  if (!user && !justAuthenticated) {
     const redirectTo = isNativePlatform ? "/login" : "/welcome";
     return <Navigate to={redirectTo} replace />;
   }
 
   // Show no-guild empty state if user has no guild memberships
-  if (guilds.length === 0 && token) {
+  if (guilds.length === 0 && user) {
     return (
       <NoGuildState canCreateGuilds={canCreateGuilds} createGuild={createGuild} logout={logout} />
     );
