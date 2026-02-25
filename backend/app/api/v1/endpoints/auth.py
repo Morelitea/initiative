@@ -201,7 +201,12 @@ async def login_access_token(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(response: Response) -> None:
-    response.delete_cookie(key=settings.COOKIE_NAME, path="/")
+    response.delete_cookie(
+        key=settings.COOKIE_NAME,
+        path="/",
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
 
 
 @router.post("/device-token", response_model=DeviceTokenResponse)
