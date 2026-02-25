@@ -5,6 +5,7 @@ import asyncpg
 from sqlmodel import select
 
 from app.core.config import settings
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
 from app.db.session import AdminSessionLocal, run_migrations
 from app.models.user import User, UserRole
@@ -27,7 +28,7 @@ async def init_superuser() -> None:
     async with AdminSessionLocal() as session:
         async with session.begin():
             primary_guild = await guilds_service.get_primary_guild(session)
-            result = await session.exec(select(User).where(User.email == settings.FIRST_SUPERUSER_EMAIL))
+            result = await session.exec(select(User).where(User.email_hash == hash_email(settings.FIRST_SUPERUSER_EMAIL)))
             user = result.one_or_none()
             if user:
                 await guilds_service.ensure_membership(
@@ -40,7 +41,8 @@ async def init_superuser() -> None:
                 return
 
             superuser = User(
-                email=settings.FIRST_SUPERUSER_EMAIL,
+                email_hash=hash_email(settings.FIRST_SUPERUSER_EMAIL),
+                email_encrypted=encrypt_field(settings.FIRST_SUPERUSER_EMAIL, SALT_EMAIL),
                 full_name=settings.FIRST_SUPERUSER_FULL_NAME,
                 hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
                 role=UserRole.admin,

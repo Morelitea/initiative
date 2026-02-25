@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import create_access_token, get_password_hash
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
@@ -41,8 +42,10 @@ async def create_user(
             role=UserRole.admin
         )
     """
+    email_raw = overrides.pop("email", f"user-{datetime.now(timezone.utc).timestamp()}@example.com").lower().strip()
     defaults = {
-        "email": f"user-{datetime.now(timezone.utc).timestamp()}@example.com",
+        "email_hash": hash_email(email_raw),
+        "email_encrypted": encrypt_field(email_raw, SALT_EMAIL),
         "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,

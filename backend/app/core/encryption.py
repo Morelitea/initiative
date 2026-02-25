@@ -1,4 +1,6 @@
 import base64
+import hmac as _hmac
+import hashlib as _hashlib
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -17,6 +19,7 @@ SALT_OIDC_REFRESH_TOKEN = b"oidc-refresh-token"   # legacy name, do not rename
 SALT_OIDC_CLIENT_SECRET = b"oidc-client-secret"
 SALT_SMTP_PASSWORD      = b"smtp-password"
 SALT_AI_API_KEY         = b"ai-api-key"
+SALT_EMAIL              = b"email"
 
 
 def _derive_fernet_key(salt: bytes) -> bytes:
@@ -37,6 +40,18 @@ def _get_fernet(salt: bytes) -> Fernet:
     if salt not in _fernets:
         _fernets[salt] = Fernet(_derive_fernet_key(salt))
     return _fernets[salt]
+
+
+def hash_email(email: str) -> str:
+    """Deterministic HMAC-SHA256 of normalized email, keyed with SECRET_KEY.
+
+    Used for equality lookups (WHERE email_hash = ?) and unique constraints.
+    Never changes the derived key — adding a new salt would invalidate all hashes.
+    """
+    normalized = email.lower().strip()
+    return _hmac.new(
+        settings.SECRET_KEY.encode(), normalized.encode(), _hashlib.sha256
+    ).hexdigest()
 
 
 def encrypt_field(plaintext: str, salt: bytes) -> str:
