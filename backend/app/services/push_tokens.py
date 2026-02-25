@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,40 +19,34 @@ async def register_push_token(
 ) -> PushToken:
     """Register or update a push notification token for a user.
 
-    Uses upsert logic on (user_id, push_token) to handle token refresh/rotation.
-    If the token already exists, update the updated_at timestamp.
+    Uses a PostgreSQL upsert on (user_id, push_token) to atomically handle
+    token refresh/rotation without a race-condition between SELECT and INSERT.
     """
-    # Check if token already exists for this user
-    stmt = select(PushToken).where(
-        PushToken.user_id == user_id,
-        PushToken.push_token == push_token,
-    )
-    result = await session.exec(stmt)
-    existing_token = result.one_or_none()
-
-    if existing_token:
-        # Update existing token
-        existing_token.platform = platform
-        existing_token.device_token_id = device_token_id
-        existing_token.updated_at = datetime.now(timezone.utc)
-        session.add(existing_token)
-        await session.commit()
-        await reapply_rls_context(session)
-        await session.refresh(existing_token)
-        return existing_token
-    else:
-        # Create new token
-        new_token = PushToken(
+    now = datetime.now(timezone.utc)
+    stmt = (
+        pg_insert(PushToken)
+        .values(
             user_id=user_id,
             push_token=push_token,
             platform=platform,
             device_token_id=device_token_id,
+            created_at=now,
+            updated_at=now,
         )
-        session.add(new_token)
-        await session.commit()
-        await reapply_rls_context(session)
-        await session.refresh(new_token)
-        return new_token
+        .on_conflict_do_update(
+            index_elements=["user_id", "push_token"],
+            set_=dict(
+                platform=platform,
+                device_token_id=device_token_id,
+                updated_at=now,
+            ),
+        )
+        .returning(PushToken)
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+    await reapply_rls_context(session)
+    return result.scalars().one()
 
 
 async def get_push_tokens_for_user(
