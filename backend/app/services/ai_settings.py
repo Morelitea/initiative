@@ -13,7 +13,7 @@ from __future__ import annotations
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import decrypt_token, encrypt_token
+from app.core.encryption import decrypt_field, encrypt_field, SALT_AI_API_KEY
 from app.db.session import reapply_rls_context
 
 from app.models.user import User
@@ -73,7 +73,7 @@ async def update_platform_ai_settings(
 
     if api_key_provided:
         normalized = _normalize_optional_string(payload.api_key)
-        settings.ai_api_key_encrypted = encrypt_token(normalized) if normalized else None
+        settings.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
 
     session.add(settings)
     await session.commit()
@@ -180,7 +180,7 @@ async def update_guild_ai_settings(
 
         if api_key_provided:
             normalized = _normalize_optional_string(payload.api_key)
-            guild_settings.ai_api_key_encrypted = encrypt_token(normalized) if normalized else None
+            guild_settings.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
 
     session.add(guild_settings)
     await session.commit()
@@ -309,7 +309,7 @@ async def update_user_ai_settings(
 
         if api_key_provided:
             normalized = _normalize_optional_string(payload.api_key)
-            user.ai_api_key_encrypted = encrypt_token(normalized) if normalized else None
+            user.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
 
     session.add(user)
     await session.commit()
@@ -330,7 +330,7 @@ async def resolve_ai_settings(
 
     # Start with platform settings
     _platform_key = (
-        decrypt_token(platform_settings.ai_api_key_encrypted)
+        decrypt_field(platform_settings.ai_api_key_encrypted, SALT_AI_API_KEY)
         if platform_settings.ai_api_key_encrypted
         else None
     )
@@ -353,7 +353,7 @@ async def resolve_ai_settings(
             result.provider = AIProvider(guild_settings.ai_provider)
             result.source = "guild"
         if guild_settings.ai_api_key_encrypted is not None:
-            result.api_key = decrypt_token(guild_settings.ai_api_key_encrypted)
+            result.api_key = decrypt_field(guild_settings.ai_api_key_encrypted, SALT_AI_API_KEY)
             result.source = "guild"
         if guild_settings.ai_base_url is not None:
             result.base_url = guild_settings.ai_base_url
@@ -378,7 +378,7 @@ async def resolve_ai_settings(
             result.provider = AIProvider(user.ai_provider)
             result.source = "user"
         if user.ai_api_key_encrypted is not None:
-            result.api_key = decrypt_token(user.ai_api_key_encrypted)
+            result.api_key = decrypt_field(user.ai_api_key_encrypted, SALT_AI_API_KEY)
             result.source = "user"
         if user.ai_base_url is not None:
             result.base_url = user.ai_base_url

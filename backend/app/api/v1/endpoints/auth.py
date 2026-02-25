@@ -21,7 +21,7 @@ from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
-from app.core.encryption import decrypt_token, encrypt_token
+from app.core.encryption import decrypt_field, decrypt_token, encrypt_token, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
@@ -421,7 +421,7 @@ async def oidc_callback(
         "code": code,
         "redirect_uri": _backend_redirect_uri(),
         "client_id": app_settings.oidc_client_id,
-        "client_secret": decrypt_token(app_settings.oidc_client_secret_encrypted) if app_settings.oidc_client_secret_encrypted else None,
+        "client_secret": decrypt_field(app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET) if app_settings.oidc_client_secret_encrypted else None,
         "code_verifier": code_verifier,
     }
     async with httpx.AsyncClient(timeout=10) as client:
