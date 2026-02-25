@@ -164,7 +164,7 @@ async def update_oidc_settings(
     settings_row.oidc_client_id = _normalize_optional_string(client_id)
     if client_secret is not None:
         normalized = _normalize_optional_string(client_secret)
-        settings_row.oidc_client_secret_encrypted = encrypt_token(normalized) if normalized else None
+        settings_row.oidc_client_secret_encrypted = encrypt_field(normalized, SALT_OIDC_CLIENT_SECRET) if normalized else None
     settings_row.oidc_provider_name = _normalize_optional_string(provider_name)
     settings_row.oidc_scopes = _normalize_scopes(scopes)
     session.add(settings_row)

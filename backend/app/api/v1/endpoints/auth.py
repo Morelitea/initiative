@@ -21,7 +21,7 @@ from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
-from app.core.encryption import decrypt_field, decrypt_token, encrypt_token, SALT_OIDC_CLIENT_SECRET
+from app.core.encryption import decrypt_field, encrypt_token, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
