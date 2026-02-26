@@ -12,3 +12,4 @@ class TokenPayload(BaseModel):
     sub: Optional[str] = None
     exp: Optional[int] = None
     iat: Optional[int] = None
+    ver: Optional[int] = None

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.4] - 2026-02-26
+
+### Security
+
+- HTML and HTM files served via `/uploads/*` now force `Content-Disposition: attachment` and `Content-Security-Policy: script-src 'none'`, preventing stored XSS via uploaded HTML documents (GHSA-v38c-x27x-p584, reported by G3XAR).
+- JWT tokens are now invalidated on logout and password change via server-side token versioning, preventing continued access with a captured token (GHSA-hww6-3fww-xw3h, reported by G3XAR). All active sessions will be signed out on first deployment of this update.
+
 ## [0.32.3] - 2026-02-26
 
 ### Added

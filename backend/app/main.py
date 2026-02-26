@@ -98,7 +98,7 @@ async def serve_upload_file(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     headers: dict[str, str] = {}
-    if filename.lower().endswith(".svg"):
+    if filename.lower().endswith((".svg", ".html", ".htm")):
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"
         headers["X-Content-Type-Options"] = "nosniff"

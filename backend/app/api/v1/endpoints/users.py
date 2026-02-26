@@ -4,7 +4,7 @@ import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import select
+from sqlmodel import select, update as sql_update
 
 from app.api.deps import (
     RLSSessionDep,
@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
 from app.models.initiative import InitiativeMember
 from app.models.user import User, UserRole
+from app.models.user_token import UserToken, UserTokenPurpose
 from app.schemas.user import (
     UserCreate,
     UserGuildMember,
@@ -215,6 +216,17 @@ async def update_users_me(
     password = update_data.get("password")
     if password:
         current_user.hashed_password = get_password_hash(password)
+        current_user.token_version += 1
+        # Bulk-revoke all active device tokens
+        await session.exec(
+            sql_update(UserToken)
+            .where(
+                UserToken.user_id == current_user.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+                UserToken.consumed_at.is_(None),
+            )
+            .values(consumed_at=datetime.now(timezone.utc))
+        )
 
     if "avatar_base64" in update_data:
         avatar_value = update_data["avatar_base64"]

@@ -187,7 +187,7 @@ def get_auth_token(user: User) -> str:
         headers = {"Authorization": f"Bearer {token}"}
         response = await client.get("/api/v1/users/me", headers=headers)
     """
-    return create_access_token(subject=str(user.id))
+    return create_access_token(subject=str(user.id), token_version=user.token_version)
 
 
 def get_auth_headers(user: User) -> dict[str, str]:
