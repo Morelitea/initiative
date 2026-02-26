@@ -326,6 +326,8 @@ export const THEMES: Record<string, ThemeDefinition> = {
       sidebarAccentForeground: "0.72 0.30 340", // neon hot pink
       sidebarBorder: "0.85 0.30 145", // neon green border
       sidebarRing: "0.65 0.30 25", // neon red
+    },
+  },
   darkKnight: {
     id: "darkKnight",
     name: "Dark Knight",
