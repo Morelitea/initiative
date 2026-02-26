@@ -1,10 +1,11 @@
 import asyncio
+import logging
 from contextlib import suppress
 from pathlib import Path
 
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
@@ -22,6 +23,8 @@ from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.user import User
 from app.services import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
+
+logger = logging.getLogger(__name__)
 
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
@@ -56,7 +59,9 @@ app.add_middleware(
 )
 
 @app.get("/uploads/{filename:path}", include_in_schema=False)
+@limiter.limit("60/minute")
 async def serve_upload_file(
+    request: Request,
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
     session: Annotated[AsyncSession, Depends(get_admin_session)],
@@ -97,6 +102,7 @@ async def serve_upload_file(
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"
         headers["X-Content-Type-Options"] = "nosniff"
+    logger.info("upload_served filename=%s user=%d", filename, current_user.id)
     return FileResponse(file_path, headers=headers)
 
 

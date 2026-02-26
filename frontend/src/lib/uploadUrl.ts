@@ -2,6 +2,41 @@ import { Capacitor } from "@capacitor/core";
 import { apiClient, getAuthToken } from "@/api/client";
 
 /**
+ * Resolve a document ID to its authorized download URL.
+ * On native platforms, prepends the API server URL and appends ?token= for auth.
+ * On web, returns the API path as-is (same-origin, session cookie handles auth).
+ */
+export function resolveDocumentDownloadUrl(documentId: number, inline = false): string | null {
+  if (!documentId) {
+    return null;
+  }
+
+  const base = `/api/v1/documents/${documentId}/download`;
+  const apiPath = inline ? `${base}?inline=1` : base;
+
+  if (Capacitor.isNativePlatform()) {
+    const baseUrl = apiClient.defaults.baseURL;
+    let origin = "";
+    if (baseUrl) {
+      try {
+        origin = new URL(baseUrl).origin;
+      } catch {
+        origin = baseUrl.replace(/\/api\/v1\/?$/, "");
+      }
+    }
+    const resolved = origin ? `${origin}${apiPath}` : apiPath;
+    const token = getAuthToken();
+    if (token) {
+      const sep = resolved.includes("?") ? "&" : "?";
+      return `${resolved}${sep}token=${encodeURIComponent(token)}`;
+    }
+    return resolved;
+  }
+
+  return apiPath;
+}
+
+/**
  * Resolve an upload path to a full URL.
  * On native platforms, prepends the API server URL (no proxy available).
  * On web, returns the path as-is (Vite proxies /uploads in dev, same-origin in prod).
