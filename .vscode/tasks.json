@@ -85,6 +85,16 @@
       "args": ["scripts/dev-cleanup.sh"],
       "options": { "cwd": "${workspaceFolder}" },
       "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "generate:api",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/regen-api.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
     }
   ]
 }
