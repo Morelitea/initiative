@@ -397,7 +397,7 @@ export const logoutApiV1AuthLogoutPost = (
 };
 
 export const getLogoutApiV1AuthLogoutPostMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -434,12 +434,15 @@ export type LogoutApiV1AuthLogoutPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>
 >;
 
-export type LogoutApiV1AuthLogoutPostMutationError = ErrorType<unknown>;
+export type LogoutApiV1AuthLogoutPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Logout
  */
-export const useLogoutApiV1AuthLogoutPost = <TError = ErrorType<unknown>, TContext = unknown>(
+export const useLogoutApiV1AuthLogoutPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,

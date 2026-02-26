@@ -79,7 +79,21 @@ async def get_current_user(
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+    if token_data.ver is None or token_data.ver != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
     return user
+
+
+async def get_current_user_optional(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+) -> User | None:
+    try:
+        return await get_current_user(request, session, bearer_token, session_cookie)
+    except HTTPException:
+        return None
 
 
 async def get_current_active_user(
@@ -270,6 +284,8 @@ async def get_upload_user(
     user = result.one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+    if token_data.ver is None or token_data.ver != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     return user

@@ -45,6 +45,10 @@ class User(SQLModel, table=True):
         sa_column=Column(Text, nullable=True),
     )
     avatar_url: Optional[str] = Field(default=None, nullable=True)
+    token_version: int = Field(
+        default=1,
+        sa_column=Column(Integer, nullable=False, server_default="1"),
+    )
     week_starts_on: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),

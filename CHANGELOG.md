@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- JWT tokens are now invalidated on logout and password change via server-side token versioning, preventing continued access with a captured token (GHSA-hww6-3fww-xw3h, reported by G3XAR). All active sessions will be signed out on first deployment of this update.
+
 ## [0.32.3] - 2026-02-26
 
 ### Added
