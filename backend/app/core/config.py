@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     ALGORITHM: str = "HS256"
+    COOKIE_NAME: str = "session_token"
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.APP_URL.startswith("https")
 
     AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly

@@ -15,7 +15,7 @@ from typing import Optional
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect, status
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -59,7 +59,7 @@ async def _get_user_from_token(token: str, session) -> Optional[User]:
             user = result.one_or_none()
             if user and user.is_active:
                 return user
-    except JWTError:
+    except jwt.PyJWTError:
         pass
 
     # Fall back to device token validation
@@ -177,6 +177,9 @@ async def websocket_collaborate(
             auth_payload = json.loads(auth_data[1:].decode())
             token = auth_payload.get("token")
             guild_id = auth_payload.get("guild_id")
+            if not token:
+                # Fall back to session cookie (web sessions after page refresh)
+                token = websocket.cookies.get(settings.COOKIE_NAME)
             if not token or guild_id is None:
                 raise ValueError("Missing token or guild_id")
             guild_id = int(guild_id)

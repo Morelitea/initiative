@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
-from jose import JWTError, jwt
+import jwt
 from sqlmodel import select
 
 from app.api.deps import SessionDep
@@ -32,7 +32,7 @@ async def _user_from_token(token: str, session: SessionDep) -> Optional[User]:
             user = result.one_or_none()
             if user and user.is_active:
                 return user
-    except JWTError:
+    except jwt.PyJWTError:
         pass
 
     # Fall back to device token validation
@@ -69,6 +69,9 @@ async def websocket_updates(websocket: WebSocket, session: SessionDep):
         try:
             auth_payload = json.loads(auth_data[1:].decode())
             token = auth_payload.get("token")
+            if not token:
+                # Fall back to session cookie (web sessions after page refresh)
+                token = websocket.cookies.get(settings.COOKIE_NAME)
             if not token:
                 raise ValueError("Missing token")
         except (json.JSONDecodeError, ValueError) as e:

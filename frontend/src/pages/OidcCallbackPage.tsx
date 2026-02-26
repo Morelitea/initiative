@@ -20,19 +20,15 @@ export const OidcCallbackPage = () => {
   const [status, setStatus] = useState(t("oidcCallback.finishing"));
 
   useEffect(() => {
-    const token = searchParams.token;
     const error = searchParams.error;
     if (error) {
       setStatus(t("oidcCallback.failedWithError", { error }));
       return;
     }
-    if (!token) {
-      setStatus(t("oidcCallback.failedMissingToken"));
-      return;
-    }
     const run = async () => {
       try {
-        await completeOidcLogin(token, searchParams.token_type === "device_token");
+        // token is present for native (device_token); undefined for web (cookie was set by backend)
+        await completeOidcLogin(searchParams.token, searchParams.token_type === "device_token");
         // Close the browser on mobile before navigating
         if (isNativePlatform) {
           try {

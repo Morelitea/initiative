@@ -13,6 +13,7 @@ from __future__ import annotations
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import decrypt_field, encrypt_field, SALT_AI_API_KEY
 from app.db.session import reapply_rls_context
 
 from app.models.user import User
@@ -46,7 +47,7 @@ async def get_platform_ai_settings(session: AsyncSession) -> PlatformAISettingsR
     return PlatformAISettingsResponse(
         enabled=settings.ai_enabled,
         provider=AIProvider(settings.ai_provider) if settings.ai_provider else None,
-        has_api_key=bool(settings.ai_api_key),
+        has_api_key=bool(settings.ai_api_key_encrypted),
         base_url=settings.ai_base_url,
         model=settings.ai_model,
         allow_guild_override=settings.ai_allow_guild_override,
@@ -71,7 +72,8 @@ async def update_platform_ai_settings(
     settings.ai_allow_user_override = payload.allow_user_override
 
     if api_key_provided:
-        settings.ai_api_key = _normalize_optional_string(payload.api_key)
+        normalized = _normalize_optional_string(payload.api_key)
+        settings.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
 
     session.add(settings)
     await session.commit()
@@ -81,7 +83,7 @@ async def update_platform_ai_settings(
     return PlatformAISettingsResponse(
         enabled=settings.ai_enabled,
         provider=AIProvider(settings.ai_provider) if settings.ai_provider else None,
-        has_api_key=bool(settings.ai_api_key),
+        has_api_key=bool(settings.ai_api_key_encrypted),
         base_url=settings.ai_base_url,
         model=settings.ai_model,
         allow_guild_override=settings.ai_allow_guild_override,
@@ -133,7 +135,7 @@ async def get_guild_ai_settings(
     return GuildAISettingsResponse(
         enabled=guild_settings.ai_enabled,
         provider=AIProvider(guild_settings.ai_provider) if guild_settings.ai_provider else None,
-        has_api_key=bool(guild_settings.ai_api_key),
+        has_api_key=bool(guild_settings.ai_api_key_encrypted),
         base_url=guild_settings.ai_base_url,
         model=guild_settings.ai_model,
         allow_user_override=guild_settings.ai_allow_user_override,
@@ -165,7 +167,7 @@ async def update_guild_ai_settings(
         # Clear all AI settings to inherit from platform
         guild_settings.ai_enabled = None
         guild_settings.ai_provider = None
-        guild_settings.ai_api_key = None
+        guild_settings.ai_api_key_encrypted = None
         guild_settings.ai_base_url = None
         guild_settings.ai_model = None
         guild_settings.ai_allow_user_override = None
@@ -177,7 +179,8 @@ async def update_guild_ai_settings(
         guild_settings.ai_allow_user_override = payload.allow_user_override
 
         if api_key_provided:
-            guild_settings.ai_api_key = _normalize_optional_string(payload.api_key)
+            normalized = _normalize_optional_string(payload.api_key)
+            guild_settings.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
 
     session.add(guild_settings)
     await session.commit()
@@ -258,7 +261,7 @@ async def get_user_ai_settings(
     return UserAISettingsResponse(
         enabled=user.ai_enabled,
         provider=AIProvider(user.ai_provider) if user.ai_provider else None,
-        has_api_key=bool(user.ai_api_key),
+        has_api_key=bool(user.ai_api_key_encrypted),
         base_url=user.ai_base_url,
         model=user.ai_model,
         effective_enabled=effective_enabled,
@@ -295,7 +298,7 @@ async def update_user_ai_settings(
         # Clear all AI settings to inherit from guild/platform
         user.ai_enabled = None
         user.ai_provider = None
-        user.ai_api_key = None
+        user.ai_api_key_encrypted = None
         user.ai_base_url = None
         user.ai_model = None
     else:
@@ -305,7 +308,8 @@ async def update_user_ai_settings(
         user.ai_model = _normalize_optional_string(payload.model)
 
         if api_key_provided:
-            user.ai_api_key = _normalize_optional_string(payload.api_key)
+            normalized = _normalize_optional_string(payload.api_key)
+            user.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
 
     session.add(user)
     await session.commit()
@@ -325,10 +329,15 @@ async def resolve_ai_settings(
     platform_settings = await get_app_settings(session)
 
     # Start with platform settings
+    _platform_key = (
+        decrypt_field(platform_settings.ai_api_key_encrypted, SALT_AI_API_KEY)
+        if platform_settings.ai_api_key_encrypted
+        else None
+    )
     result = ResolvedAISettings(
         enabled=platform_settings.ai_enabled,
         provider=AIProvider(platform_settings.ai_provider) if platform_settings.ai_provider else None,
-        api_key=platform_settings.ai_api_key,
+        api_key=_platform_key,
         base_url=platform_settings.ai_base_url,
         model=platform_settings.ai_model,
         source="platform",
@@ -343,8 +352,8 @@ async def resolve_ai_settings(
         if guild_settings.ai_provider is not None:
             result.provider = AIProvider(guild_settings.ai_provider)
             result.source = "guild"
-        if guild_settings.ai_api_key is not None:
-            result.api_key = guild_settings.ai_api_key
+        if guild_settings.ai_api_key_encrypted is not None:
+            result.api_key = decrypt_field(guild_settings.ai_api_key_encrypted, SALT_AI_API_KEY)
             result.source = "guild"
         if guild_settings.ai_base_url is not None:
             result.base_url = guild_settings.ai_base_url
@@ -368,8 +377,8 @@ async def resolve_ai_settings(
         if user.ai_provider is not None:
             result.provider = AIProvider(user.ai_provider)
             result.source = "user"
-        if user.ai_api_key is not None:
-            result.api_key = user.ai_api_key
+        if user.ai_api_key_encrypted is not None:
+            result.api_key = decrypt_field(user.ai_api_key_encrypted, SALT_AI_API_KEY)
             result.source = "user"
         if user.ai_base_url is not None:
             result.base_url = user.ai_base_url

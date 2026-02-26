@@ -2,11 +2,15 @@
 Integration tests for document endpoints — create with permissions.
 """
 
+from pathlib import Path
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
+from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentType
 from app.models.guild import GuildRole
 from app.models.initiative import InitiativeRoleModel
 from app.testing.factories import (
@@ -15,8 +19,53 @@ from app.testing.factories import (
     create_initiative,
     create_initiative_member,
     create_user,
+    get_auth_headers,
+    get_auth_token,
     get_guild_headers,
 )
+
+
+def _uploads_dir() -> Path:
+    path = Path(settings.UPLOADS_DIR)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+async def _create_file_document(
+    session: AsyncSession,
+    *,
+    initiative,
+    owner,
+    filename: str,
+) -> Document:
+    """Create a file-type Document with a dummy file on disk and owner permission."""
+    file_path = _uploads_dir() / filename
+    file_path.write_bytes(b"%PDF-1.4 test")
+
+    doc = Document(
+        title="Test File Doc",
+        initiative_id=initiative.id,
+        guild_id=initiative.guild_id,
+        created_by_id=owner.id,
+        updated_by_id=owner.id,
+        document_type=DocumentType.file,
+        file_url=f"/uploads/{filename}",
+        original_filename=filename,
+        file_content_type="application/pdf",
+        file_size=13,
+    )
+    session.add(doc)
+    await session.flush()
+
+    perm = DocumentPermission(
+        document_id=doc.id,
+        user_id=owner.id,
+        level=DocumentPermissionLevel.owner,
+        guild_id=initiative.guild_id,
+    )
+    session.add(perm)
+    await session.commit()
+    return doc
 
 
 @pytest.mark.integration
@@ -166,3 +215,181 @@ async def test_create_document_skips_owner_level_grants(
     assert response.status_code == 201
     member_perms = [p for p in response.json()["permissions"] if p["user_id"] == member.id]
     assert len(member_perms) == 0
+
+
+# ---------------------------------------------------------------------------
+# Download endpoint tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+async def test_download_owner_can_download(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Document owner can download their file document."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_owner.pdf")
+    try:
+        headers = get_auth_headers(owner)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download", headers=headers)
+        assert response.status_code == 200
+        assert "attachment" in response.headers.get("content-disposition", "")
+        assert response.headers.get("x-content-type-options") == "nosniff"
+    finally:
+        (_uploads_dir() / "dl_owner.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_unauthenticated_returns_401(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Unauthenticated request returns 401."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_unauth.pdf")
+    try:
+        response = await client.get(f"/api/v1/documents/{doc.id}/download")
+        assert response.status_code == 401
+    finally:
+        (_uploads_dir() / "dl_unauth.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_guild_member_without_permission_returns_403(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Guild member with no document permission gets 403."""
+    owner = await create_user(session)
+    other = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(session, user=other, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+    await create_initiative_member(session, initiative, other)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_no_perm.pdf")
+    try:
+        headers = get_auth_headers(other)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download", headers=headers)
+        assert response.status_code == 403
+    finally:
+        (_uploads_dir() / "dl_no_perm.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_non_guild_member_returns_404(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """User from a different guild gets 404 (document not visible)."""
+    owner = await create_user(session)
+    outsider = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_outsider.pdf")
+    try:
+        headers = get_auth_headers(outsider)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download", headers=headers)
+        assert response.status_code == 404
+    finally:
+        (_uploads_dir() / "dl_outsider.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_read_permission_grants_access(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """User with explicit read permission can download."""
+    owner = await create_user(session)
+    reader = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(session, user=reader, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+    await create_initiative_member(session, initiative, reader)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_reader.pdf")
+    read_perm = DocumentPermission(
+        document_id=doc.id,
+        user_id=reader.id,
+        level=DocumentPermissionLevel.read,
+        guild_id=guild.id,
+    )
+    session.add(read_perm)
+    await session.commit()
+
+    try:
+        headers = get_auth_headers(reader)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download", headers=headers)
+        assert response.status_code == 200
+    finally:
+        (_uploads_dir() / "dl_reader.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_inline_returns_no_attachment_header(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """?inline=1 serves the file without Content-Disposition: attachment."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_inline.pdf")
+    try:
+        headers = get_auth_headers(owner)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download?inline=1", headers=headers)
+        assert response.status_code == 200
+        assert "attachment" not in response.headers.get("content-disposition", "")
+    finally:
+        (_uploads_dir() / "dl_inline.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_query_token_auth(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """?token= query param auth works (for native WebViews)."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_token.pdf")
+    try:
+        token = get_auth_token(owner)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download?token={token}")
+        assert response.status_code == 200
+    finally:
+        (_uploads_dir() / "dl_token.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_native_document_returns_404(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Native (non-file) document returns 404 from the download endpoint."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    headers = get_guild_headers(guild, owner)
+    response = await client.post(
+        "/api/v1/documents/",
+        headers=headers,
+        json={"title": "Native Doc", "initiative_id": initiative.id},
+    )
+    assert response.status_code == 201
+    doc_id = response.json()["id"]
+
+    response = await client.get(f"/api/v1/documents/{doc_id}/download", headers=get_auth_headers(owner))
+    assert response.status_code == 404

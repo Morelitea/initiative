@@ -291,7 +291,7 @@ async def search_mentionables(
         )
         if query:
             stmt = stmt.where(
-                (User.full_name.ilike(f"%{query}%")) | (User.email.ilike(f"%{query}%"))
+                User.full_name.ilike(f"%{query}%")
             )
         stmt = stmt.limit(limit)
         result = await session.exec(stmt)

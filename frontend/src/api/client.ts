@@ -82,6 +82,8 @@ export const setAuthToken = (token: string | null, deviceToken = false) => {
   isDeviceToken = deviceToken;
 };
 
+export const getAuthToken = (): string | null => authToken;
+
 export const setCurrentGuildId = (guildId: number | null) => {
   activeGuildId = guildId;
 };
@@ -90,6 +92,11 @@ export const getCurrentGuildId = () => activeGuildId;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  // Send cookies for web sessions (HttpOnly cookie auth).
+  // Disabled on native: Capacitor uses Bearer/DeviceToken headers and the
+  // backend returns Access-Control-Allow-Origin: * which is incompatible
+  // with credentialed requests per the CORS spec.
+  withCredentials: !Capacitor.isNativePlatform(),
   paramsSerializer: (params) => {
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {

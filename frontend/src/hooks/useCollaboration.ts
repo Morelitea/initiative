@@ -60,7 +60,7 @@ export function useCollaboration({
   onSynced,
   onError,
 }: UseCollaborationOptions): UseCollaborationResult {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { activeGuildId } = useGuilds();
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -83,12 +83,12 @@ export function useCollaboration({
   }, [onSynced, onError]);
 
   // Check if we have all required values
-  const isReady = Boolean(enabled && token && activeGuildId && documentId);
+  const isReady = Boolean(enabled && user && activeGuildId && documentId);
 
   // Build the WebSocket URL (memoized to detect changes)
   // Token is NOT included in URL for security - sent via MSG_AUTH message instead
   const wsUrl = useMemo(() => {
-    if (!isReady || !token || !activeGuildId) {
+    if (!isReady || !activeGuildId) {
       return null;
     }
     // Build WebSocket URL - use Vite's proxy in development
@@ -101,12 +101,13 @@ export function useCollaboration({
     url.pathname = `${normalizedPath}/collaboration/documents/${documentId}/collaborate`;
     // Note: token and guild_id are sent via MSG_AUTH message, not URL params
     return url.toString();
-  }, [isReady, token, activeGuildId, documentId]);
+  }, [isReady, activeGuildId, documentId]);
 
   // Auth params to pass to the provider (sent via MSG_AUTH message)
+  // token may be null for web cookie sessions; backend falls back to session cookie
   const authParams = useMemo(() => {
-    if (!token || !activeGuildId) return null;
-    return { token, guildId: activeGuildId };
+    if (!activeGuildId) return null;
+    return { token: token ?? null, guildId: activeGuildId };
   }, [token, activeGuildId]);
 
   // Clean up provider when URL changes (token refresh, guild change, document change, etc.)

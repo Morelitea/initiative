@@ -46,7 +46,7 @@ const buildWebsocketUrl = () => {
  * Send authentication message over WebSocket.
  * Must be sent immediately after connection opens.
  */
-const sendAuthMessage = (websocket: WebSocket, token: string) => {
+const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
   const payload = JSON.stringify({ token });
   const payloadBytes = new TextEncoder().encode(payload);
   const message = new Uint8Array(1 + payloadBytes.length);
@@ -87,13 +87,13 @@ const handleCommentEvent = (data?: Record<string, unknown>) => {
 };
 
 export const useRealtimeUpdates = () => {
-  const { token, logout } = useAuth();
+  const { token, user, logout } = useAuth();
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const authFailureCountRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!token) {
+    if (!user) {
       if (websocketRef.current) {
         websocketRef.current.close();
         websocketRef.current = null;
@@ -200,5 +200,5 @@ export const useRealtimeUpdates = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, logout]);
+  }, [token, user, logout]);
 };

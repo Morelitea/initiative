@@ -7,6 +7,7 @@ from sqlalchemy import func, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
 from app.models.user import User
 from app.models.guild import GuildMembership, GuildRole
@@ -36,7 +37,7 @@ class DeletionBlocker(Exception):
 
 async def get_or_create_system_user(session: AsyncSession) -> User:
     """Get or create the system user for deleted user content."""
-    stmt = select(User).where(func.lower(User.email) == SYSTEM_USER_EMAIL.lower())
+    stmt = select(User).where(User.email_hash == hash_email(SYSTEM_USER_EMAIL))
     result = await session.exec(stmt)
     system_user = result.one_or_none()
 
@@ -46,7 +47,8 @@ async def get_or_create_system_user(session: AsyncSession) -> User:
     # Create system user
     now = datetime.now(timezone.utc)
     system_user = User(
-        email=SYSTEM_USER_EMAIL,
+        email_hash=hash_email(SYSTEM_USER_EMAIL),
+        email_encrypted=encrypt_field(SYSTEM_USER_EMAIL, SALT_EMAIL),
         full_name=SYSTEM_USER_FULL_NAME,
         hashed_password=get_password_hash("SYSTEM_USER_NO_LOGIN"),
         is_active=False,

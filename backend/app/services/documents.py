@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import func
@@ -13,9 +14,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
 from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, ProjectDocument
+from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.tag import DocumentTag
 from app.models.project import Project
+from app.core.config import settings
 from app.services import attachments as attachments_service
 from app.services.collaboration import collaboration_manager
 
@@ -155,6 +158,27 @@ async def duplicate_document(
         content_copy = attachments_service.replace_upload_urls(content_copy, replacements)
 
     featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
+
+    # Track any newly created files in the uploads table for guild-scoped access control
+    effective_guild_id = guild_id or source.guild_id
+    if effective_guild_id is not None:
+        upload_dir = Path(settings.UPLOADS_DIR)
+        new_upload_records: list[Upload] = []
+        new_urls = list(replacements.values())
+        if featured_image_url and featured_image_url != source.featured_image_url:
+            new_urls.append(featured_image_url)
+        for new_url in new_urls:
+            fname = new_url.split("/")[-1]
+            if fname:
+                fpath = upload_dir / fname
+                new_upload_records.append(Upload(
+                    filename=fname,
+                    guild_id=effective_guild_id,
+                    uploader_user_id=user_id,
+                    size_bytes=fpath.stat().st_size if fpath.exists() else 0,
+                ))
+        if new_upload_records:
+            session.add_all(new_upload_records)
 
     duplicated = Document(
         title=title,

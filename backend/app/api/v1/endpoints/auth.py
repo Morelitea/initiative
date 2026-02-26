@@ -9,7 +9,7 @@ from typing import Any, Annotated
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
@@ -21,7 +21,7 @@ from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
-from app.core.encryption import encrypt_token
+from app.core.encryption import decrypt_field, encrypt_field, encrypt_token, hash_email, SALT_EMAIL, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User, UserRole
@@ -70,7 +70,7 @@ async def register_user(
         smtp_configured = bool(app_settings.smtp_host and app_settings.smtp_from_address)
 
         normalized_email = user_in.email.lower().strip()
-        statement = select(User).where(func.lower(User.email) == normalized_email)
+        statement = select(User).where(User.email_hash == hash_email(normalized_email))
         existing = await session.exec(statement)
         if existing.one_or_none():
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_ALREADY_REGISTERED)
@@ -92,7 +92,8 @@ async def register_user(
             user_role = UserRole.admin if is_first_user else UserRole.member
 
         user = User(
-            email=normalized_email,
+            email_hash=hash_email(normalized_email),
+            email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             full_name=user_in.full_name,
             hashed_password=get_password_hash(user_in.password),
             role=user_role,
@@ -132,7 +133,7 @@ async def register_user(
         await session.commit()
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
-        logger.exception("Failed to register %s due to integrity error", user_in.email)
+        logger.exception("Failed to register user due to integrity error")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.UNABLE_TO_CREATE_USER) from exc
 
     await session.refresh(user)
@@ -149,7 +150,7 @@ async def register_user(
             )
             await email_service.send_verification_email(session, user, token)
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping verification email for %s", user.email)
+            logger.warning("SMTP not configured; skipping verification email for user %s", user.id)
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send verification email: %s", exc)
     return user
@@ -169,11 +170,12 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 @limiter.limit("5/15minutes")
 async def login_access_token(
     request: Request,
+    response: Response,
     session: SessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
     normalized_email = form_data.username.lower().strip()
-    statement = select(User).where(func.lower(User.email) == normalized_email)
+    statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -185,7 +187,27 @@ async def login_access_token(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
 
     access_token = create_access_token(subject=str(user.id))
+    response.set_cookie(
+        key=settings.COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
     return Token(access_token=access_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
 
 
 @router.post("/device-token", response_model=DeviceTokenResponse)
@@ -200,7 +222,7 @@ async def create_device_token(
     Device tokens do not expire and can be used instead of JWT tokens.
     """
     normalized_email = payload.email.lower().strip()
-    statement = select(User).where(func.lower(User.email) == normalized_email)
+    statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
@@ -327,7 +349,7 @@ async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, 
         app_settings.oidc_enabled
         and app_settings.oidc_issuer
         and app_settings.oidc_client_id
-        and app_settings.oidc_client_secret
+        and app_settings.oidc_client_secret_encrypted
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED)
 
@@ -346,7 +368,7 @@ async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
         app_settings.oidc_enabled
         and app_settings.oidc_issuer
         and app_settings.oidc_client_id
-        and app_settings.oidc_client_secret
+        and app_settings.oidc_client_secret_encrypted
     )
     login_url = None
     provider_name = None
@@ -421,7 +443,7 @@ async def oidc_callback(
         "code": code,
         "redirect_uri": _backend_redirect_uri(),
         "client_id": app_settings.oidc_client_id,
-        "client_secret": app_settings.oidc_client_secret,
+        "client_secret": decrypt_field(app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET) if app_settings.oidc_client_secret_encrypted else None,
         "code_verifier": code_verifier,
     }
     async with httpx.AsyncClient(timeout=10) as client:
@@ -471,7 +493,7 @@ async def oidc_callback(
     full_name = profile.get("name") or profile.get("preferred_username") or normalized_email
     avatar_url = profile.get("picture")
 
-    statement = select(User).where(func.lower(User.email) == normalized_email)
+    statement = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(statement)
     user = result.one_or_none()
     # Extract OIDC refresh token + sub for background sync
@@ -483,7 +505,8 @@ async def oidc_callback(
     if not user:
         random_password = secrets.token_urlsafe(32)
         user = User(
-            email=normalized_email,
+            email_hash=hash_email(normalized_email),
+            email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             full_name=full_name,
             hashed_password=get_password_hash(random_password),
             role=UserRole.member,
@@ -553,8 +576,8 @@ async def oidc_callback(
                     claim_values=claim_values,
                 )
                 logger.info(
-                    "OIDC sync for %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
-                    user.email,
+                    "OIDC sync for user %s: +%d/~%d/-%d guilds, +%d/~%d/-%d initiatives",
+                    user.id,
                     len(sync_result.guilds_added),
                     len(sync_result.guilds_updated),
                     len(sync_result.guilds_removed),
@@ -563,7 +586,7 @@ async def oidc_callback(
                     len(sync_result.initiatives_removed),
                 )
     except Exception:
-        logger.exception("OIDC claim sync failed for user %s", user.email)
+        logger.exception("OIDC claim sync failed for user %s", user.id)
 
     if is_mobile:
         device_token = await user_tokens.create_device_token(
@@ -573,11 +596,20 @@ async def oidc_callback(
         )
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
+        return RedirectResponse(redirect_url)
     else:
         app_token = create_access_token(subject=str(user.id))
-        redirect_params = {"token": app_token}
-        redirect_url = f"{_frontend_redirect_uri()}?{urlencode(redirect_params)}"
-    return RedirectResponse(redirect_url)
+        oidc_response = RedirectResponse(_frontend_redirect_uri())
+        oidc_response.set_cookie(
+            key=settings.COOKIE_NAME,
+            value=app_token,
+            httponly=True,
+            samesite="lax",
+            secure=settings.cookie_secure,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+        )
+        return oidc_response
 
 
 @router.post("/verification/send", response_model=VerificationSendResponse)
@@ -632,7 +664,7 @@ async def confirm_verification(request: Request, session: SessionDep, payload: V
 @limiter.limit("5/15minutes")
 async def request_password_reset(request: Request, payload: PasswordResetRequest, session: SessionDep) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
-    stmt = select(User).where(func.lower(User.email) == normalized_email)
+    stmt = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user or not user.is_active:

@@ -155,9 +155,9 @@ const notificationText = (
 export const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { t } = useTranslation("guilds");
-  const isEnabled = Boolean(user && token);
+  const isEnabled = Boolean(user);
 
   const notificationsQuery = useNotifications({
     refetchInterval: 30_000,
@@ -168,7 +168,7 @@ export const NotificationBell = () => {
 
   const markAllMutation = useMarkAllNotificationsRead();
 
-  if (!user || !token) {
+  if (!user) {
     return null;
   }
 

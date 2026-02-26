@@ -1,22 +1,30 @@
 import asyncio
+import logging
 from contextlib import suppress
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.api.deps import get_upload_user
 from app.api.v1.api import api_router
 from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
-from app.db.session import AdminSessionLocal, run_migrations
+from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
+from app.models.user import User
 from app.services import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
+
+logger = logging.getLogger(__name__)
 
 uploads_path = Path(settings.UPLOADS_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
@@ -26,7 +34,7 @@ static_index_path = static_path / "index.html"
 static_root = static_path.resolve()
 reserved_prefixes = [
     prefix.strip("/")
-    for prefix in {settings.API_V1_STR, "/uploads"}
+    for prefix in {settings.API_V1_STR}
     if prefix and prefix.strip("/")
 ]
 
@@ -50,16 +58,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def svg_security_headers(request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith("/uploads/") and request.url.path.lower().endswith(".svg"):
-        response.headers["Content-Disposition"] = "attachment"
-        response.headers["Content-Security-Policy"] = "script-src 'none'"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+@app.get("/uploads/{filename:path}", include_in_schema=False)
+@limiter.limit("600/minute")
+async def serve_upload_file(
+    request: Request,
+    filename: str,
+    current_user: Annotated[User, Depends(get_upload_user)],
+    session: Annotated[AsyncSession, Depends(get_admin_session)],
+) -> FileResponse:
+    """Serve an uploaded file — requires authentication and guild membership."""
+    from pathlib import Path as FilePath
 
-app.mount("/uploads", StaticFiles(directory=str(uploads_path), check_dir=False), name="uploads")
+    from sqlmodel import select
+
+    from app.models.guild import GuildMembership
+    from app.models.upload import Upload
+
+    try:
+        file_path = (uploads_path / filename).resolve()
+        file_path.relative_to(uploads_path.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404)
+    if not file_path.is_file():
+        raise HTTPException(status_code=404)
+
+    # Guild authorization: look up upload record and verify membership
+    record_result = await session.exec(
+        select(Upload).where(Upload.filename == FilePath(filename).name)
+    )
+    record = record_result.one_or_none()
+    if record is not None:
+        membership_result = await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == record.guild_id,
+                GuildMembership.user_id == current_user.id,
+            )
+        )
+        if membership_result.one_or_none() is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    headers: dict[str, str] = {}
+    if filename.lower().endswith(".svg"):
+        headers["Content-Disposition"] = "attachment"
+        headers["Content-Security-Policy"] = "script-src 'none'"
+        headers["X-Content-Type-Options"] = "nosniff"
+    logger.info("upload_served filename=%s user=%d", filename, current_user.id)
+    return FileResponse(file_path, headers=headers)
+
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 

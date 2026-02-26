@@ -1,5 +1,5 @@
 {
-  "placeholder": "Buscar proyectos, tareas, documentos...",
+  "placeholder": "Buscar en {{activeGuildName}}...",
   "noResults": "No se encontraron resultados.",
   "groups": {
     "suggested": "Sugeridos",

@@ -22,7 +22,7 @@ class AppSetting(SQLModel, table=True):
     oidc_enabled: bool = Field(default=False, nullable=False)
     oidc_issuer: Optional[str] = None
     oidc_client_id: Optional[str] = None
-    oidc_client_secret: Optional[str] = None
+    oidc_client_secret_encrypted: Optional[str] = None
     oidc_provider_name: Optional[str] = None
     oidc_scopes: list[str] = Field(
         default_factory=lambda: ["openid", "profile", "email", "offline_access"],
@@ -57,7 +57,7 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
     smtp_username: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
-    smtp_password: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
+    smtp_password_encrypted: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
     smtp_from_address: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
     smtp_test_recipient: Optional[str] = Field(default=None, sa_column=Column(String(255), nullable=True))
 
@@ -67,7 +67,7 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     ai_provider: Optional[str] = Field(default=None, sa_column=Column(String(50), nullable=True))
-    ai_api_key: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
+    ai_api_key_encrypted: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
     ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(1000), nullable=True))
     ai_model: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
     ai_allow_guild_override: bool = Field(
