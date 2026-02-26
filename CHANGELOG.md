@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.3] - 2026-02-26
+
+### Added
+
+- Dark Knight color theme: AMOLED true-black dark mode with dark maroon and bat-signal yellow accents
+- ORC color theme: earthy green theme with vivid orc-skin green accents and cave/swamp dark mode
+- Aboleth color theme: Monokai-inspired dark lair with vivid bioluminescent accent colors (lime, cyan, purple, orange, hot pink)
+- Unicorn color theme: Bold and bright rainbow colors
+
 ## [0.32.2] - 2026-02-25
 
 ### Security

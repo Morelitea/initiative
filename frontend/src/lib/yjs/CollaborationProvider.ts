@@ -148,7 +148,11 @@ export class CollaborationProvider implements Provider {
     this.awareness = {
       getLocalState: () => this._awareness.getLocalState() as UserState | null,
       getStates: () => this._awareness.getStates() as Map<number, UserState>,
-      setLocalState: (state: UserState) => {
+      setLocalState: (state: UserState | null) => {
+        if (state === null) {
+          this._awareness.setLocalState(null);
+          return;
+        }
         // Set each field individually
         Object.entries(state).forEach(([key, value]) => {
           this._awareness.setLocalStateField(key, value);

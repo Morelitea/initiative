@@ -187,7 +187,10 @@
     "language": "Language",
     "languageDescription": "Choose your preferred language for the interface.",
     "updateSuccess": "Interface preferences updated",
-    "updateError": "Unable to update interface preferences"
+    "updateError": "Unable to update interface preferences",
+    "themePreview": "Theme preview",
+    "lightMode": "Light",
+    "darkMode": "Dark"
   },
   "notifications": {
     "title": "Notification settings",
