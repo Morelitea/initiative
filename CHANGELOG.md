@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.4] - 2026-02-26
+
 ### Security
 
 - HTML and HTM files served via `/uploads/*` now force `Content-Disposition: attachment` and `Content-Security-Policy: script-src 'none'`, preventing stored XSS via uploaded HTML documents (GHSA-v38c-x27x-p584, reported by G3XAR).
