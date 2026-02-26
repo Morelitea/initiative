@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
-from jose import JWTError, jwt
+import jwt
 from sqlmodel import select
 
 from app.api.deps import SessionDep
@@ -32,7 +32,7 @@ async def _user_from_token(token: str, session: SessionDep) -> Optional[User]:
             user = result.one_or_none()
             if user and user.is_active:
                 return user
-    except JWTError:
+    except jwt.PyJWTError:
         pass
 
     # Fall back to device token validation

@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 
 from fastapi import Cookie, Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -68,7 +68,7 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
-    except JWTError as exc:  # pragma: no cover - FastAPI handles formatting
+    except jwt.PyJWTError as exc:  # pragma: no cover - FastAPI handles formatting
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS) from exc
 
     if not token_data.sub:
@@ -251,7 +251,7 @@ async def get_upload_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
-    except JWTError:
+    except jwt.PyJWTError:
         # JWT decode failed — if token came from query param, also try as device token
         # (native app users may pass their device token as a query param)
         if token_param and not bearer_token:
