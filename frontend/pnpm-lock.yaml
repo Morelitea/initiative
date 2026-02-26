@@ -33,8 +33,8 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
       '@capacitor/push-notifications':
-        specifier: ^8.0.0
-        version: 8.0.0(@capacitor/core@8.0.1)
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.0.1)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -561,8 +561,8 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
-  '@capacitor/push-notifications@8.0.0':
-    resolution: {integrity: sha512-xJWQLqAfC8b2ETqAPmwDnkKB4t/lVrbYc2D8VpA2fSu10JFSL/R722Vk0Lfl9Lo9WusmyIiQbVfILNQ3iFNGKw==}
+  '@capacitor/push-notifications@8.0.1':
+    resolution: {integrity: sha512-CDY6syMxdG81Epn+V4fCYRR4L9tVS72F1kVrTY2ka6umWy4BmwXOXPsxGxlE5PmHLOhmBwKpy3uOiIJtSpMhOw==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -5287,6 +5287,7 @@ packages:
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
     engines: {node: '>=10'}
+    deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
   prelude-ls@1.2.1:
@@ -6961,7 +6962,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.0.1
 
-  '@capacitor/push-notifications@8.0.0(@capacitor/core@8.0.1)':
+  '@capacitor/push-notifications@8.0.1(@capacitor/core@8.0.1)':
     dependencies:
       '@capacitor/core': 8.0.1
 
