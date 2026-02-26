@@ -101,9 +101,9 @@ function MiniMockup({ colors }: { colors: ThemeColors }) {
         {/* Chart color swatches */}
         <div className="flex gap-0.5">
           {[colors.chart1, colors.chart2, colors.chart3, colors.chart4, colors.chart5].map(
-            (color, i) => (
+            (color) => (
               <div
-                key={i}
+                key={color}
                 className="flex-1 rounded-sm"
                 style={{ height: 6, backgroundColor: c(color) }}
               />
