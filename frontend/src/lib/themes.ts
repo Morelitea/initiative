@@ -261,6 +261,71 @@ export const THEMES: Record<string, ThemeDefinition> = {
       sidebarRing: "0.65 0.07 260", // Comment #6272a4 (lightened)
     },
   },
+  unicorn: {
+    id: "unicorn",
+    name: "Unicorn",
+    description: "Full-spectrum neon rainbow — loud and proud.",
+    light: {
+      background: "1 0 0", // pure white
+      foreground: "0.15 0.04 290", // near-black
+      card: "1 0 0", // pure white
+      cardForeground: "0.15 0.04 290", // near-black
+      popover: "1 0 0", // pure white
+      popoverForeground: "0.15 0.04 290", // near-black
+      secondary: "0.97 0.005 0", // white
+      secondaryForeground: "0.55 0.30 340", // hot pink
+      muted: "0.97 0.005 0", // white
+      mutedForeground: "0.45 0.18 180", // teal
+      accent: "0.97 0.005 0", // white
+      accentForeground: "0.55 0.28 25", // red
+      destructive: "0.55 0.28 25", // red
+      border: "0.55 0.30 340", // hot pink border
+      input: "0.62 0.24 55", // orange input
+      ring: "0.50 0.24 145", // green
+      chart1: "0.55 0.30 15", // bold red
+      chart2: "0.75 0.18 65", // warm orange
+      chart3: "0.45 0.22 155", // deep green
+      chart4: "0.65 0.12 230", // soft blue
+      chart5: "0.40 0.28 310", // dark violet
+      sidebar: "1 0 0", // pure white
+      sidebarForeground: "0.15 0.04 290", // near-black
+      sidebarPrimary: "0.50 0.30 300", // violet
+      sidebarPrimaryForeground: "1 0 0", // pure white
+      sidebarAccent: "0.97 0.005 0", // white
+      sidebarAccentForeground: "0.50 0.24 145", // green
+      sidebarBorder: "0.48 0.22 270", // indigo border
+      sidebarRing: "0.62 0.24 55", // orange
+    },
+    dark: {
+      background: "0.1353 0.0444 314.47", // dark purple-black
+      foreground: "1 0 0", // pure white
+      card: "0.18 0.05 300", // slightly lifted
+      cardForeground: "1 0 0", // pure white
+      popover: "0.18 0.05 300", // slightly lifted
+      popoverForeground: "1 0 0", // pure white
+      secondary: "0.16 0.04 300", // dark
+      secondaryForeground: "0.85 0.30 145", // neon green
+      muted: "0.16 0.04 300", // dark
+      mutedForeground: "0.78 0.28 55", // neon orange
+      accent: "0.16 0.04 300", // dark
+      accentForeground: "0.72 0.30 340", // neon hot pink
+      destructive: "0.65 0.30 25", // neon red
+      border: "0.90 0.22 90", // neon yellow border
+      input: "0.60 0.18 180", // neon teal input
+      ring: "0.60 0.28 300", // neon violet
+      chart1: "0.65 0.30 15", // neon red
+      chart2: "0.82 0.16 65", // bright orange
+      chart3: "0.55 0.24 155", // vivid green
+      chart4: "0.78 0.10 230", // light blue
+      chart5: "0.50 0.30 310", // deep violet
+      sidebar: "0.12 0.04 300", // dark
+      sidebarForeground: "1 0 0", // pure white
+      sidebarPrimary: "0.78 0.28 55", // neon orange
+      sidebarPrimaryForeground: "0.10 0.03 300", // near-black
+      sidebarAccent: "0.16 0.04 300", // dark
+      sidebarAccentForeground: "0.72 0.30 340", // neon hot pink
+      sidebarBorder: "0.85 0.30 145", // neon green border
+      sidebarRing: "0.65 0.30 25", // neon red
   darkKnight: {
     id: "darkKnight",
     name: "Dark Knight",
