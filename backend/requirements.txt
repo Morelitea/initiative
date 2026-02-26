@@ -12,7 +12,7 @@ email-validator==2.1.1
 httpx==0.27.0
 google-auth>=2.23.0
 requests>=2.31.0  # Required by google-auth for requests transport
-alembic==1.14.0
+alembic==1.18.4
 slowapi==0.1.9
 tzdata>=2024.1  # Required on Windows for timezone support
 python-magic>=0.4.27  # MIME type detection for file uploads
