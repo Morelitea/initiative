@@ -59,7 +59,7 @@ app.add_middleware(
 )
 
 @app.get("/uploads/{filename:path}", include_in_schema=False)
-@limiter.limit("60/minute")
+@limiter.limit("600/minute")
 async def serve_upload_file(
     request: Request,
     filename: str,
