@@ -1,0 +1,38 @@
+version: 2
+updates:
+  # Backend (pip)
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    target-branch: "dev"
+
+  # Frontend (npm/pnpm)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    target-branch: "dev"
+    # Dev-only build tools — vulnerabilities in these don't affect production.
+    # Security alerts for these are dismissed via auto-triage rules in
+    # Settings > Advanced Security > Dependabot rules.
+    ignore:
+      - dependency-name: "minimatch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tar"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "esbuild"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    target-branch: "dev"
