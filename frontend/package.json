@@ -36,7 +36,7 @@
     "@lexical/file": "^0.39.0",
     "@lexical/hashtag": "^0.39.0",
     "@lexical/html": "^0.39.0",
-    "@lexical/link": "^0.39.0",
+    "@lexical/link": "^0.41.0",
     "@lexical/list": "^0.39.0",
     "@lexical/markdown": "^0.39.0",
     "@lexical/overflow": "^0.39.0",
