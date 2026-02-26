@@ -1518,7 +1518,13 @@ async def download_document_file(
     if not file_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+    headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
+    ext = (document.original_filename or filename).rsplit(".", 1)[-1].lower()
+    content_type = (document.file_content_type or "").lower()
+    if ext in ("svg", "html", "htm") or "svg" in content_type or "html" in content_type:
+        headers["Content-Security-Policy"] = "script-src 'none'"
+
     logger.info("document_download document_id=%d user=%d inline=%s", document_id, current_user.id, inline)
     if inline:
-        return FileResponse(file_path, media_type=document.file_content_type or None)
-    return FileResponse(file_path, filename=document.original_filename or filename)
+        return FileResponse(file_path, media_type=document.file_content_type or None, headers=headers)
+    return FileResponse(file_path, filename=document.original_filename or filename, headers=headers)
