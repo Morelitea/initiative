@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.3] - 2026-02-26
+
 ### Added
 
 - Dark Knight color theme: AMOLED true-black dark mode with dark maroon and bat-signal yellow accents
