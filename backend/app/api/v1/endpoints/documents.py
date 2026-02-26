@@ -1484,6 +1484,12 @@ async def download_document_file(
     stmt = (
         select(Document)
         .where(Document.id == document_id)
+        .join(Document.initiative)
+        .where(
+            Initiative.guild_id.in_(
+                select(GuildMembership.guild_id).where(GuildMembership.user_id == current_user.id)
+            )
+        )
         .options(
             selectinload(Document.initiative)
             .selectinload(Initiative.memberships)
