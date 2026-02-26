@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
 from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, ProjectDocument
+from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.tag import DocumentTag
 from app.models.project import Project
@@ -155,6 +156,31 @@ async def duplicate_document(
         content_copy = attachments_service.replace_upload_urls(content_copy, replacements)
 
     featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
+
+    # Track any newly created files in the uploads table for guild-scoped access control
+    effective_guild_id = guild_id or source.guild_id
+    if effective_guild_id is not None:
+        new_upload_records: list[Upload] = []
+        for new_url in replacements.values():
+            fname = new_url.split("/")[-1]
+            if fname:
+                new_upload_records.append(Upload(
+                    filename=fname,
+                    guild_id=effective_guild_id,
+                    uploader_user_id=user_id,
+                    size_bytes=0,
+                ))
+        if featured_image_url and featured_image_url != source.featured_image_url:
+            fname = featured_image_url.split("/")[-1]
+            if fname:
+                new_upload_records.append(Upload(
+                    filename=fname,
+                    guild_id=effective_guild_id,
+                    uploader_user_id=user_id,
+                    size_bytes=0,
+                ))
+        if new_upload_records:
+            session.add_all(new_upload_records)
 
     duplicated = Document(
         title=title,

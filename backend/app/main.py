@@ -4,19 +4,21 @@ from pathlib import Path
 
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.api.deps import get_upload_user
 from app.api.v1.api import api_router
 from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
-from app.db.session import AdminSessionLocal, run_migrations
+from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.user import User
 from app.services import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
@@ -57,8 +59,16 @@ app.add_middleware(
 async def serve_upload_file(
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
+    session: Annotated[AsyncSession, Depends(get_admin_session)],
 ) -> FileResponse:
-    """Serve an uploaded file — requires authentication."""
+    """Serve an uploaded file — requires authentication and guild membership."""
+    from pathlib import Path as FilePath
+
+    from sqlmodel import select
+
+    from app.models.guild import GuildMembership
+    from app.models.upload import Upload
+
     try:
         file_path = (uploads_path / filename).resolve()
         file_path.relative_to(uploads_path.resolve())
@@ -66,6 +76,22 @@ async def serve_upload_file(
         raise HTTPException(status_code=404)
     if not file_path.is_file():
         raise HTTPException(status_code=404)
+
+    # Guild authorization: look up upload record and verify membership
+    record_result = await session.exec(
+        select(Upload).where(Upload.filename == FilePath(filename).name)
+    )
+    record = record_result.one_or_none()
+    if record is not None:
+        membership_result = await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == record.guild_id,
+                GuildMembership.user_id == current_user.id,
+            )
+        )
+        if membership_result.one_or_none() is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
     headers: dict[str, str] = {}
     if filename.lower().endswith(".svg"):
         headers["Content-Disposition"] = "attachment"

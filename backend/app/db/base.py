@@ -14,6 +14,7 @@ from app.models.document import Document, DocumentPermission, DocumentRolePermis
 from app.models.notification import Notification
 from app.models.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
+from app.models.upload import Upload
 
 __all__ = [
     "User",
@@ -46,4 +47,5 @@ __all__ = [
     "TaskTag",
     "ProjectTag",
     "DocumentTag",
+    "Upload",
 ]
