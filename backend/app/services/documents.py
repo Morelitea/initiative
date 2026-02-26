@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import func
@@ -17,6 +18,7 @@ from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.tag import DocumentTag
 from app.models.project import Project
+from app.core.config import settings
 from app.services import attachments as attachments_service
 from app.services.collaboration import collaboration_manager
 
@@ -160,24 +162,20 @@ async def duplicate_document(
     # Track any newly created files in the uploads table for guild-scoped access control
     effective_guild_id = guild_id or source.guild_id
     if effective_guild_id is not None:
+        upload_dir = Path(settings.UPLOADS_DIR)
         new_upload_records: list[Upload] = []
-        for new_url in replacements.values():
+        new_urls = list(replacements.values())
+        if featured_image_url and featured_image_url != source.featured_image_url:
+            new_urls.append(featured_image_url)
+        for new_url in new_urls:
             fname = new_url.split("/")[-1]
             if fname:
+                fpath = upload_dir / fname
                 new_upload_records.append(Upload(
                     filename=fname,
                     guild_id=effective_guild_id,
                     uploader_user_id=user_id,
-                    size_bytes=0,
-                ))
-        if featured_image_url and featured_image_url != source.featured_image_url:
-            fname = featured_image_url.split("/")[-1]
-            if fname:
-                new_upload_records.append(Upload(
-                    filename=fname,
-                    guild_id=effective_guild_id,
-                    uploader_user_id=user_id,
-                    size_bytes=0,
+                    size_bytes=fpath.stat().st_size if fpath.exists() else 0,
                 ))
         if new_upload_records:
             session.add_all(new_upload_records)
