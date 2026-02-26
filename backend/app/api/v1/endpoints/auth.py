@@ -14,9 +14,9 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import select, update as sql_update
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import SessionDep, get_current_active_user, get_current_user_optional
 from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -44,7 +44,7 @@ from app.services import user_tokens
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
-from app.models.user_token import UserTokenPurpose
+from app.models.user_token import UserToken, UserTokenPurpose
 
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -186,7 +186,7 @@ async def login_access_token(
     if not user.email_verified:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
 
-    access_token = create_access_token(subject=str(user.id))
+    access_token = create_access_token(subject=str(user.id), token_version=user.token_version)
     response.set_cookie(
         key=settings.COOKIE_NAME,
         value=access_token,
@@ -200,7 +200,23 @@ async def login_access_token(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> None:
+async def logout(
+    request: Request,
+    response: Response,
+    session: AdminSessionDep,
+    current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
+) -> None:
+    if current_user is not None:
+        current_user.token_version += 1
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("DeviceToken "):
+            device_token_str = auth_header[12:]
+            device_token = await user_tokens.get_device_token(session, token=device_token_str)
+            if device_token:
+                device_token.consumed_at = datetime.now(timezone.utc)
+                session.add(device_token)
+        session.add(current_user)
+        await session.commit()
     response.delete_cookie(
         key=settings.COOKIE_NAME,
         path="/",
@@ -598,7 +614,7 @@ async def oidc_callback(
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
     else:
-        app_token = create_access_token(subject=str(user.id))
+        app_token = create_access_token(subject=str(user.id), token_version=user.token_version)
         oidc_response = RedirectResponse(_frontend_redirect_uri())
         oidc_response.set_cookie(
             key=settings.COOKIE_NAME,
@@ -700,10 +716,21 @@ async def reset_password(request: Request, payload: PasswordResetSubmit, session
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
     user.hashed_password = get_password_hash(payload.password)
+    user.token_version += 1
     if not user.email_verified:
         user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    # Bulk-revoke all active device tokens
+    await session.exec(
+        sql_update(UserToken)
+        .where(
+            UserToken.user_id == user.id,
+            UserToken.purpose == UserTokenPurpose.device_auth,
+            UserToken.consumed_at.is_(None),
+        )
+        .values(consumed_at=datetime.now(timezone.utc))
+    )
     await session.commit()
     await session.refresh(user)
     return VerificationSendResponse(status="reset")
