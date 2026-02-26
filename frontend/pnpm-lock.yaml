@@ -87,8 +87,8 @@ importers:
         specifier: ^0.39.0
         version: 0.39.0
       '@lexical/utils':
-        specifier: ^0.39.0
-        version: 0.39.0
+        specifier: ^0.41.0
+        version: 0.41.0
       '@lexical/yjs':
         specifier: ^0.39.0
         version: 0.39.0(yjs@13.6.27)
