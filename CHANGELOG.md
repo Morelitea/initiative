@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File-type documents (PDFs, DOCX, etc.) now enforce document-level read permission on download. A new `GET /api/v1/documents/{id}/download` endpoint replaces direct `/uploads/*` access for file documents; guild membership alone is no longer sufficient — the requester must have explicit read, write, or owner permission on the document. Inline viewing (`?inline=1`) and attachment download use the same permission check.
 - Web sessions now use HttpOnly `SameSite=Lax` cookies instead of `localStorage` for JWT storage, eliminating XSS token theft risk and removing the JWT from browser history/server logs. The cookie is sent automatically for all requests including media (`<img>`, `<iframe>`); native (Capacitor) is unchanged and continues to use DeviceToken headers stored in Capacitor Preferences.
 - Replaced `python-jose` with `PyJWT` for JWT handling. `python-jose` (through 3.3.0) has an algorithm confusion vulnerability with OpenSSH ECDSA keys and other key formats (similar to CVE-2022-29217) and is no longer maintained.
-- Rate limiting added to `/uploads/*` (60 req/min) and `GET /documents/{id}/download` (30 req/min); file download access is now logged.
+- Rate limiting added to `/uploads/*` (600 req/min) and `GET /documents/{id}/download` (30 req/min); file download access is now logged.
 - Upgraded `python-multipart` from 0.0.9 to 0.0.22, fixing a DoS via malformed `multipart/form-data` boundary and an arbitrary file write via non-default configuration.
 - Added Dependabot configuration (`.github/dependabot.yml`) for automated dependency update PRs on backend, frontend, and GitHub Actions.
 
