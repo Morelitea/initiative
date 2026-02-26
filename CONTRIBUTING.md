@@ -31,7 +31,57 @@ The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and us
 
 ### Manual Setup
 
-Alternatively, follow the [Manual Development Setup](./README.md#manual-development-setup) in the README to start each service by hand. The [Key Environment Variables](./README.md#key-environment-variables) section covers configuration.
+If you prefer not to use VS Code tasks, you can start each service by hand.
+
+#### Prerequisites
+
+- Python 3.11+
+- Node.js 18+ with pnpm
+- PostgreSQL 17
+
+#### Backend
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and set DATABASE_URL, SECRET_KEY, and other variables
+
+# Run migrations and seed defaults
+alembic upgrade head
+# Or use: python -m app.db.init_db
+
+# Start the API server
+uvicorn app.main:app --reload
+# API available at http://localhost:8000
+# API docs at http://localhost:8000/api/v1/docs
+```
+
+#### Frontend
+
+```bash
+cd frontend
+
+# Install dependencies
+pnpm install
+
+# Configure API URL (optional, defaults to http://localhost:8000/api/v1)
+echo "VITE_API_URL=http://localhost:8000/api/v1" > .env
+
+# Start development server
+pnpm dev
+# Frontend available at http://localhost:5173
+```
+
+See the [Key Environment Variables](./README.md#key-environment-variables) section in the README for full configuration options.
 
 ## Running Tests
 
@@ -151,6 +201,47 @@ When a `release/v*` PR merges to `main`:
 
 No manual tagging is required.
 
+## Database Migrations
+
+When modifying SQLModel classes:
+
+```bash
+cd backend
+
+# Generate migration from model changes
+alembic revision --autogenerate -m "Description of changes"
+
+# Apply pending migrations
+alembic upgrade head
+```
+
+## Mobile App Development
+
+The frontend includes Capacitor for native iOS and Android apps:
+
+```bash
+# Start the backend so Capacitor apps can connect
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Build the web app and sync to native projects
+cd frontend
+pnpm build:capacitor
+npx cap sync
+
+# Open in Android Studio
+npx cap open android
+
+# Open in Xcode (macOS only)
+npx cap open ios
+```
+
+**Requirements:**
+- Android: Android Studio with SDK installed
+- iOS: Xcode on macOS
+
+In the Android emulator the local backend is available at `http://10.0.0.2:8000`.
+
 ## Reporting Issues
 
 Use the [issue templates](https://github.com/Morelitea/initiative/issues/new/choose) to file bug reports or feature requests.
@@ -161,4 +252,6 @@ Please **do not** open a public issue for security vulnerabilities. See [SECURIT
 
 ## License
 
-By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md).
+This project is copyright its maintainers, who retain full commercial rights. The source code is available under the [AGPL-3.0](LICENSE).
+
+By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md), which grants the maintainers the right to relicense contributions.
