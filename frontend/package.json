@@ -108,7 +108,7 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.0.1",
+    "@capacitor/cli": "^8.1.0",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/postcss": "^4.1.17",
