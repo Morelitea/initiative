@@ -141,7 +141,7 @@
     "orval": "^8.4.0",
     "postcss": "^8.4.38",
     "prettier": "^3.6.2",
-    "prettier-plugin-tailwindcss": "^0.7.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5",
     "vite": "^7.3.1",
