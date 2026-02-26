@@ -59,7 +59,7 @@ export const THEMES: Record<string, ThemeDefinition> = {
   kobold: {
     id: "kobold",
     name: "Kobold",
-    description: "The classic Initiative theme with deep indigo tones",
+    description: "The classic Initiative theme with deep indigo tones.",
     light: {
       background: "1 0 0",
       foreground: "0.129 0.042 264.695",
@@ -126,7 +126,7 @@ export const THEMES: Record<string, ThemeDefinition> = {
   displacer: {
     id: "displacer",
     name: "Displacer",
-    description: "Soothing pastel theme (Latte/Macchiato)",
+    description: "Catppuccin-inspired soothing pastel theme (Latte/Macchiato).",
     light: {
       // Latte flavor
       background: "0.959 0.009 255", // Base #eff1f5
@@ -195,7 +195,7 @@ export const THEMES: Record<string, ThemeDefinition> = {
   strahd: {
     id: "strahd",
     name: "Strahd",
-    description: "Dark gothic theme with purple accents (Dracula/Alucard)",
+    description: "Dark gothic theme with purple accents (Dracula/Alucard).",
     light: {
       // Alucard variant
       background: "0.99 0.02 95", // #fffbeb
@@ -259,6 +259,207 @@ export const THEMES: Record<string, ThemeDefinition> = {
       sidebarAccentForeground: "0.97 0.01 105", // Foreground #f8f8f2
       sidebarBorder: "0.42 0.03 275", // border
       sidebarRing: "0.65 0.07 260", // Comment #6272a4 (lightened)
+    },
+  },
+  darkKnight: {
+    id: "darkKnight",
+    name: "Dark Knight",
+    description: "AMOLED black theme with dark red and yellow accents.",
+    light: {
+      background: "0.78 0 0", // medium grey
+      foreground: "0.12 0 0", // near-black
+      card: "0.82 0 0", // slightly lighter surface
+      cardForeground: "0.12 0 0",
+      popover: "0.82 0 0",
+      popoverForeground: "0.12 0 0",
+      secondary: "0.72 0 0", // slightly darker surface
+      secondaryForeground: "0.12 0 0",
+      muted: "0.72 0 0",
+      mutedForeground: "0.38 0 0", // dark grey muted text
+      accent: "0.70 0 0",
+      accentForeground: "0.12 0 0",
+      destructive: "0.55 0.24 27",
+      border: "0.64 0 0",
+      input: "0.72 0 0",
+      ring: "0.30 0.15 10", // dark maroon focus ring
+      chart1: "0.36 0.17 10", // dark maroon
+      chart2: "0.72 0.16 85", // golden yellow
+      chart3: "0.58 0.19 45", // dark orange
+      chart4: "0.25 0.12 8", // deep burgundy
+      chart5: "0.62 0.14 70", // amber
+      sidebar: "0.74 0 0", // slightly darker than background
+      sidebarForeground: "0.12 0 0",
+      sidebarPrimary: "0.30 0.15 10", // dark maroon
+      sidebarPrimaryForeground: "0.95 0 0",
+      sidebarAccent: "0.70 0 0",
+      sidebarAccentForeground: "0.12 0 0",
+      sidebarBorder: "0.64 0 0",
+      sidebarRing: "0.52 0.10 40",
+    },
+    dark: {
+      background: "0 0 0", // true black — AMOLED
+      foreground: "0.98 0 0", // near-white
+      card: "0.1 0 0", // very dark grey
+      cardForeground: "0.98 0 0",
+      popover: "0.1 0 0",
+      popoverForeground: "0.98 0 0",
+      secondary: "0.14 0 0", // slightly elevated surface
+      secondaryForeground: "0.98 0 0",
+      muted: "0.14 0 0",
+      mutedForeground: "0.55 0 0",
+      accent: "0.18 0 0",
+      accentForeground: "0.98 0 0",
+      destructive: "0.68 0.24 25",
+      border: "0.18 0 0",
+      input: "0.14 0 0",
+      ring: "0.85 0.18 90", // bat-signal yellow focus ring
+      chart1: "0.40 0.18 10", // dark maroon
+      chart2: "0.85 0.18 90", // bat-signal yellow
+      chart3: "0.70 0.20 45", // dark orange
+      chart4: "0.30 0.14 8", // deep burgundy
+      chart5: "0.78 0.15 75", // amber gold
+      sidebar: "0 0 0", // true black sidebar
+      sidebarForeground: "0.98 0 0",
+      sidebarPrimary: "0.85 0.18 90", // bat-signal yellow
+      sidebarPrimaryForeground: "0.08 0 0",
+      sidebarAccent: "0.14 0 0",
+      sidebarAccentForeground: "0.98 0 0",
+      sidebarBorder: "0.18 0 0",
+      sidebarRing: "0.55 0.12 40",
+    },
+  },
+  orc: {
+    id: "orc",
+    name: "ORC",
+    description: "Earthy green theme with vivid orc-skin green accents. ORC ORC ORC!",
+    light: {
+      background: "0.93 0.02 115", // light earthy field
+      foreground: "0.18 0.05 135", // dark forest green text
+      card: "0.96 0.01 110", // off-white card
+      cardForeground: "0.18 0.05 135",
+      popover: "0.96 0.01 110",
+      popoverForeground: "0.18 0.05 135",
+      secondary: "0.86 0.03 120", // mossy surface
+      secondaryForeground: "0.18 0.05 135",
+      muted: "0.86 0.03 120",
+      mutedForeground: "0.45 0.05 135", // medium forest muted
+      accent: "0.84 0.04 120",
+      accentForeground: "0.18 0.05 135",
+      destructive: "0.55 0.24 27",
+      border: "0.80 0.04 125",
+      input: "0.86 0.03 120",
+      ring: "0.42 0.20 140", // forest green focus ring
+      chart1: "0.42 0.20 140", // forest green
+      chart2: "0.60 0.18 115", // yellow-green
+      chart3: "0.52 0.16 160", // teal-green
+      chart4: "0.55 0.15 80", // olive
+      chart5: "0.48 0.14 50", // earthy brown
+      sidebar: "0.88 0.03 120", // mossy sidebar
+      sidebarForeground: "0.18 0.05 135",
+      sidebarPrimary: "0.42 0.20 140", // forest green
+      sidebarPrimaryForeground: "0.96 0.01 110",
+      sidebarAccent: "0.84 0.04 120",
+      sidebarAccentForeground: "0.18 0.05 135",
+      sidebarBorder: "0.80 0.04 125",
+      sidebarRing: "0.52 0.08 135",
+    },
+    dark: {
+      background: "0.12 0.03 140", // dark cave/swamp
+      foreground: "0.90 0.05 105", // warm bone-ivory text
+      card: "0.17 0.04 135", // slightly lighter surface
+      cardForeground: "0.90 0.05 105",
+      popover: "0.17 0.04 135",
+      popoverForeground: "0.90 0.05 105",
+      secondary: "0.22 0.04 135", // elevated surface
+      secondaryForeground: "0.90 0.05 105",
+      muted: "0.22 0.04 135",
+      mutedForeground: "0.60 0.05 130", // muted green-grey
+      accent: "0.26 0.05 135",
+      accentForeground: "0.90 0.05 105",
+      destructive: "0.68 0.24 25",
+      border: "0.26 0.05 135",
+      input: "0.22 0.04 135",
+      ring: "0.72 0.25 140", // vivid orc-skin green
+      chart1: "0.75 0.20 140", // vivid sage/orc green
+      chart2: "0.80 0.18 75", // bright amber/honey
+      chart3: "0.68 0.22 30", // warm rust/terracotta
+      chart4: "0.72 0.16 170", // warm sage teal
+      chart5: "0.85 0.15 95", // bright warm yellow
+      sidebar: "0.10 0.025 140", // darker cave sidebar
+      sidebarForeground: "0.90 0.05 105",
+      sidebarPrimary: "0.72 0.25 140", // vivid orc green
+      sidebarPrimaryForeground: "0.08 0 0",
+      sidebarAccent: "0.22 0.04 135",
+      sidebarAccentForeground: "0.90 0.05 105",
+      sidebarBorder: "0.26 0.05 135",
+      sidebarRing: "0.45 0.10 140",
+    },
+  },
+  aboleth: {
+    id: "aboleth",
+    name: "Aboleth",
+    description: "Monokai-inspired dark lair with vivid bioluminescent accent colors.",
+    light: {
+      background: "0.97 0.01 95", // warm parchment
+      foreground: "0.20 0.02 95", // dark olive text
+      card: "0.99 0 0", // near-white card
+      cardForeground: "0.20 0.02 95",
+      popover: "0.99 0 0",
+      popoverForeground: "0.20 0.02 95",
+      secondary: "0.91 0.01 95", // slightly tinted surface
+      secondaryForeground: "0.20 0.02 95",
+      muted: "0.91 0.01 95",
+      mutedForeground: "0.52 0.03 95", // olive-grey muted text
+      accent: "0.88 0.01 95",
+      accentForeground: "0.20 0.02 95",
+      destructive: "0.52 0.28 355", // hot pink-red (Monokai red, darkened)
+      border: "0.84 0.02 95",
+      input: "0.91 0.01 95",
+      ring: "0.52 0.18 290", // deep purple focus ring
+      chart1: "0.52 0.15 200", // deep cyan
+      chart2: "0.52 0.18 290", // deep purple
+      chart3: "0.62 0.18 50", // amber orange
+      chart4: "0.58 0.28 355", // deep hot pink
+      chart5: "0.50 0.22 130", // Monokai lime green #A6E22E
+      sidebar: "0.93 0.01 95", // slightly darker parchment
+      sidebarForeground: "0.20 0.02 95",
+      sidebarPrimary: "0.52 0.18 290", // deep purple
+      sidebarPrimaryForeground: "0.97 0.01 95",
+      sidebarAccent: "0.88 0.01 95",
+      sidebarAccentForeground: "0.20 0.02 95",
+      sidebarBorder: "0.84 0.02 95",
+      sidebarRing: "0.58 0.08 95",
+    },
+    dark: {
+      background: "0.17 0.01 105", // Monokai bg #272822
+      foreground: "0.97 0.01 105", // Monokai fg #F8F8F2
+      card: "0.22 0.01 100", // slightly elevated surface
+      cardForeground: "0.97 0.01 105",
+      popover: "0.22 0.01 100",
+      popoverForeground: "0.97 0.01 105",
+      secondary: "0.27 0.01 95", // Monokai selection #3E3D32
+      secondaryForeground: "0.97 0.01 105",
+      muted: "0.27 0.01 95",
+      mutedForeground: "0.50 0.03 95", // Monokai comment #75715E
+      accent: "0.30 0.01 95",
+      accentForeground: "0.97 0.01 105",
+      destructive: "0.62 0.28 355", // Monokai red #F92672
+      border: "0.30 0.02 95",
+      input: "0.27 0.01 95",
+      ring: "0.70 0.18 290", // Monokai purple #AE81FF
+      chart1: "0.85 0.10 200", // Monokai cyan #66D9E8
+      chart2: "0.70 0.18 290", // Monokai purple #AE81FF
+      chart3: "0.75 0.18 55", // Monokai orange #FD971F
+      chart4: "0.62 0.28 355", // Monokai hot pink #F92672
+      chart5: "0.82 0.22 130", // Monokai lime green #A6E22E
+      sidebar: "0.14 0.01 105", // darker lair — deeper cave
+      sidebarForeground: "0.97 0.01 105",
+      sidebarPrimary: "0.85 0.10 200", // Monokai cyan
+      sidebarPrimaryForeground: "0.10 0.01 105",
+      sidebarAccent: "0.22 0.01 100",
+      sidebarAccentForeground: "0.97 0.01 105",
+      sidebarBorder: "0.30 0.02 95",
+      sidebarRing: "0.50 0.08 95",
     },
   },
 };

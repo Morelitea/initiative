@@ -187,7 +187,10 @@
     "language": "Idioma",
     "languageDescription": "Elige tu idioma preferido para la interfaz.",
     "updateSuccess": "Preferencias de interfaz actualizadas",
-    "updateError": "No se pudieron actualizar las preferencias de interfaz"
+    "updateError": "No se pudieron actualizar las preferencias de interfaz",
+    "themePreview": "Vista previa del tema",
+    "lightMode": "Claro",
+    "darkMode": "Oscuro"
   },
   "notifications": {
     "title": "Configuración de notificaciones",
