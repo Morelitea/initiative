@@ -1477,6 +1477,9 @@ async def download_document_file(
     request: Request,
     document_id: int,
     current_user: UploadUserDep,
+    # Use AdminSessionDep (not RLSSessionDep) because this endpoint is accessed
+    # via iframe and window.open(), which can't send X-Guild-ID headers.
+    # Guild isolation is enforced directly in the query instead.
     session: Annotated[AsyncSession, Depends(get_admin_session)],
     inline: bool = False,
 ) -> FileResponse:
