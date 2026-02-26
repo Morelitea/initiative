@@ -13,7 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { resolveDocumentDownloadUrl } from "@/lib/uploadUrl";
 import { formatBytes, getFileTypeLabel, getFileExtension } from "@/lib/fileUtils";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -23,6 +23,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface FileDocumentViewerProps {
+  documentId: number;
   fileUrl: string;
   contentType?: string | null;
   originalFilename?: string | null;
@@ -30,13 +31,15 @@ interface FileDocumentViewerProps {
 }
 
 export const FileDocumentViewer = ({
+  documentId,
   fileUrl,
   contentType,
   originalFilename,
   fileSize,
 }: FileDocumentViewerProps) => {
   const { t } = useTranslation("documents");
-  const resolvedUrl = resolveUploadUrl(fileUrl);
+  const resolvedUrl = resolveDocumentDownloadUrl(documentId);
+  const inlineUrl = resolveDocumentDownloadUrl(documentId, true);
   const fileTypeLabel = getFileTypeLabel(contentType, originalFilename);
   const extension = getFileExtension(originalFilename || fileUrl);
 
@@ -92,8 +95,8 @@ export const FileDocumentViewer = ({
   };
 
   const handleOpenInNewTab = () => {
-    if (!resolvedUrl) return;
-    window.open(resolvedUrl, "_blank", "noopener,noreferrer");
+    if (!inlineUrl) return;
+    window.open(inlineUrl, "_blank", "noopener,noreferrer");
   };
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -109,7 +112,7 @@ export const FileDocumentViewer = ({
   const zoomIn = () => setScale((prev) => Math.min(2.5, prev + 0.25));
   const zoomOut = () => setScale((prev) => Math.max(0.5, prev - 0.25));
 
-  if (!resolvedUrl) {
+  if (!resolvedUrl || !inlineUrl) {
     return (
       <div className="text-muted-foreground flex items-center justify-center rounded-lg border p-8">
         <p>{t("viewer.loadError")}</p>
@@ -186,7 +189,7 @@ export const FileDocumentViewer = ({
                 </div>
               ) : baseWidth ? (
                 <Document
-                  file={resolvedUrl}
+                  file={inlineUrl}
                   onLoadSuccess={onDocumentLoadSuccess}
                   onLoadError={onDocumentLoadError}
                   loading={
@@ -220,7 +223,7 @@ export const FileDocumentViewer = ({
         ) : isText ? (
           // Use iframe for text files
           <iframe
-            src={resolvedUrl}
+            src={inlineUrl}
             className="bg-muted w-full"
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || t("viewer.textDocument")}
@@ -228,7 +231,7 @@ export const FileDocumentViewer = ({
         ) : isHtml ? (
           // Use sandboxed iframe for HTML files
           <iframe
-            src={resolvedUrl}
+            src={inlineUrl}
             className="w-full"
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || t("viewer.htmlDocument")}

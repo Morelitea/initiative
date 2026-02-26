@@ -1,20 +1,27 @@
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated, List, Literal, Optional
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import delete as sa_delete, exists, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     RLSSessionDep,
     SessionDep,
+    UploadUserDep,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
 )
+from app.core.config import settings
 from app.core.messages import DocumentMessages, InitiativeMessages
-from app.db.session import reapply_rls_context
+from app.core.rate_limit import limiter
+from app.db.session import get_admin_session, reapply_rls_context
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
@@ -51,6 +58,8 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -1460,3 +1469,62 @@ async def remove_document_role_permission(
         return
     await session.delete(role_perm)
     await session.commit()
+
+
+@router.get("/{document_id}/download", include_in_schema=False)
+@limiter.limit("30/minute")
+async def download_document_file(
+    request: Request,
+    document_id: int,
+    current_user: UploadUserDep,
+    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    inline: bool = False,
+) -> FileResponse:
+    """Download a file-type document — requires read permission on the document."""
+    stmt = (
+        select(Document)
+        .where(Document.id == document_id)
+        .join(Document.initiative)
+        .where(
+            Initiative.guild_id.in_(
+                select(GuildMembership.guild_id).where(GuildMembership.user_id == current_user.id)
+            )
+        )
+        .options(
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+        )
+    )
+    result = await session.exec(stmt)
+    document = result.one_or_none()
+    if document is None or document.document_type != DocumentType.file or document.file_url is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
+
+    _require_document_access(document, current_user, access="read")
+
+    uploads_path = Path(settings.UPLOADS_DIR)
+    filename = document.file_url.split("/")[-1]
+    try:
+        file_path = (uploads_path / filename).resolve()
+        file_path.relative_to(uploads_path.resolve())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    if not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
+    ext = (document.original_filename or filename).rsplit(".", 1)[-1].lower()
+    content_type = (document.file_content_type or "").lower()
+    if ext in ("svg", "html", "htm") or "svg" in content_type or "html" in content_type:
+        headers["Content-Security-Policy"] = "script-src 'none'"
+
+    logger.info("document_download document_id=%d user=%d inline=%s", document_id, current_user.id, inline)
+    if inline:
+        return FileResponse(file_path, media_type=document.file_content_type or None, headers=headers)
+    return FileResponse(file_path, filename=document.original_filename or filename, headers=headers)
