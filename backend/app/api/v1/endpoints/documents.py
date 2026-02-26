@@ -16,6 +16,7 @@ from app.api.deps import (
 from app.core.messages import DocumentMessages, InitiativeMessages
 from app.db.session import reapply_rls_context
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
+from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.tag import Tag, DocumentTag
 from app.models.user import User
@@ -732,6 +733,15 @@ async def upload_document_file(
     # Save file to uploads directory
     file_url = attachments_service.save_document_file(contents, extension)
 
+    # Track the upload in the uploads table for guild-scoped access control
+    upload_record = Upload(
+        filename=file_url.split("/")[-1],
+        guild_id=guild_context.guild_id,
+        uploader_user_id=current_user.id,
+        size_bytes=len(contents),
+    )
+    session.add(upload_record)
+
     # Create document record
     document = Document(
         title=title,
@@ -876,6 +886,9 @@ async def update_document(
                 content=document.content,
                 guild_id=guild_context.guild_id,
             )
+        if removed_upload_urls:
+            filenames = [url.split("/")[-1] for url in removed_upload_urls]
+            await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
         await session.commit()
         await reapply_rls_context(session)
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
@@ -1171,6 +1184,9 @@ async def delete_document(
         removed_upload_urls.add(document.file_url)
     # Unresolve any wikilinks pointing to this document before deletion
     await documents_service.unresolve_wikilinks_to_document(session, deleted_document_id=document_id)
+    if removed_upload_urls:
+        filenames = [url.split("/")[-1] for url in removed_upload_urls]
+        await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
     await session.delete(document)
     await session.commit()
     attachments_service.delete_uploads_by_urls(removed_upload_urls)

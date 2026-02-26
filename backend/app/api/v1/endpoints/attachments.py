@@ -7,15 +7,17 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.api.deps import get_current_active_user
+from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
 from app.core.messages import AttachmentMessages
 from app.core.config import settings
+from app.models.upload import Upload
 from app.models.user import User
 from app.schemas.attachment import AttachmentUploadResponse
 
 router = APIRouter()
 
 ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _ensure_upload_dir() -> Path:
@@ -26,7 +28,9 @@ def _ensure_upload_dir() -> Path:
 
 @router.post("/", response_model=AttachmentUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_attachment(
-    _: ImageUploadUser,
+    current_user: ImageUploadUser,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
     file: UploadFile = File(...),
 ) -> AttachmentUploadResponse:
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -59,6 +63,15 @@ async def upload_attachment(
     upload_dir = _ensure_upload_dir()
     destination = upload_dir / filename
     destination.write_bytes(contents)
+
+    upload = Upload(
+        filename=filename,
+        guild_id=guild_context.guild_id,
+        uploader_user_id=current_user.id,
+        size_bytes=len(contents),
+    )
+    session.add(upload)
+    await session.commit()
 
     return AttachmentUploadResponse(
         filename=file.filename or filename,
