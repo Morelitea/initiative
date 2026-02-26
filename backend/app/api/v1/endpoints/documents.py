@@ -886,6 +886,9 @@ async def update_document(
                 content=document.content,
                 guild_id=guild_context.guild_id,
             )
+        if removed_upload_urls:
+            filenames = [url.split("/")[-1] for url in removed_upload_urls]
+            await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
         await session.commit()
         await reapply_rls_context(session)
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
@@ -1181,6 +1184,9 @@ async def delete_document(
         removed_upload_urls.add(document.file_url)
     # Unresolve any wikilinks pointing to this document before deletion
     await documents_service.unresolve_wikilinks_to_document(session, deleted_document_id=document_id)
+    if removed_upload_urls:
+        filenames = [url.split("/")[-1] for url in removed_upload_urls]
+        await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
     await session.delete(document)
     await session.commit()
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
