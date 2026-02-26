@@ -30,8 +30,8 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.0.1)
       '@capacitor/preferences':
-        specifier: ^8.0.0
-        version: 8.0.0(@capacitor/core@8.0.1)
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.0.1)
       '@capacitor/push-notifications':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.0.1)
@@ -556,8 +556,8 @@ packages:
     peerDependencies:
       '@capacitor/core': ^8.0.0
 
-  '@capacitor/preferences@8.0.0':
-    resolution: {integrity: sha512-NsE7Srk9Zr0SxiVelHGiAJR7M238eyCD6dI/sDhu3ckKwFrXn8/GRyGr+SZcnGLlQKy948li8Pfcfr0dqxNf1g==}
+  '@capacitor/preferences@8.0.1':
+    resolution: {integrity: sha512-T6no3ebi79XJCk91U3Jp/liJUwgBdvHR+s6vhvPkPxSuch7z3zx5Rv1bdWM6sWruNx+pViuEGqZvbfCdyBvcHQ==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -6844,7 +6844,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.0.1
 
-  '@capacitor/preferences@8.0.0(@capacitor/core@8.0.1)':
+  '@capacitor/preferences@8.0.1(@capacitor/core@8.0.1)':
     dependencies:
       '@capacitor/core': 8.0.1
 
