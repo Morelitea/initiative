@@ -119,30 +119,36 @@ export const hasPermission = (
   return permissions.permissions[key] ?? false;
 };
 
-// Helper to check if a feature is enabled for the user
+// Helper to check if a feature is enabled for the user.
+// Reads the permission value directly — the backend already accounts for
+// initiative-level flags and manager status, so we must not short-circuit
+// on is_manager here.
 export const isFeatureEnabled = (
   permissions: MyInitiativePermissions | undefined,
   feature: "docs" | "projects" | "queues"
 ): boolean => {
+  if (!permissions) return false;
   const keyMap: Record<typeof feature, PermissionKey> = {
     docs: "docs_enabled",
     projects: "projects_enabled",
     queues: "queues_enabled",
   };
-  return hasPermission(permissions, keyMap[feature]);
+  return permissions.permissions[keyMap[feature]] ?? false;
 };
 
-// Helper to check if user can create (docs, projects, or queues)
+// Helper to check if user can create (docs, projects, or queues).
+// Same as isFeatureEnabled — reads backend value directly.
 export const canCreate = (
   permissions: MyInitiativePermissions | undefined,
   entity: "docs" | "projects" | "queues"
 ): boolean => {
+  if (!permissions) return false;
   const keyMap: Record<typeof entity, PermissionKey> = {
     docs: "create_docs",
     projects: "create_projects",
     queues: "create_queues",
   };
-  return hasPermission(permissions, keyMap[entity]);
+  return permissions.permissions[keyMap[entity]] ?? false;
 };
 
 // Permission key labels for display (hardcoded, kept for backward compat)
