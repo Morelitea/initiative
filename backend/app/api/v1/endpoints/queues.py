@@ -200,7 +200,20 @@ async def list_queues(
     conditions = [Queue.guild_id == guild_context.guild_id]
 
     if initiative_id is not None:
+        # Validate that queues are enabled for this initiative
+        initiative = await session.get(Initiative, initiative_id)
+        if initiative and not initiative.queues_enabled:
+            return QueueListResponse(
+                items=[], total_count=0, page=page, page_size=page_size, has_next=False,
+            )
         conditions.append(Queue.initiative_id == initiative_id)
+    else:
+        # Only include queues from initiatives with queues enabled
+        conditions.append(
+            Queue.initiative_id.in_(
+                select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
+            )
+        )
 
     # DAC filtering: non-admins only see queues they have permission for
     if not rls_service.is_guild_admin(guild_context.role):
