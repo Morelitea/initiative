@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-02-27
+
 ### Added
 
 - Queue feature: turn/priority tracking with turn controls (start, stop, advance, previous, reset), per-item user/document/task linking, and tag support
