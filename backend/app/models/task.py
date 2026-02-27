@@ -9,6 +9,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
     from app.models.user import User
     from app.models.tag import TaskTag
+    from app.models.queue import QueueItemTask
 
 
 class TaskStatusCategory(str, Enum):
@@ -135,6 +136,10 @@ class Task(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     tag_links: List["TaskTag"] = Relationship(
+        back_populates="task",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    queue_item_links: List["QueueItemTask"] = Relationship(
         back_populates="task",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

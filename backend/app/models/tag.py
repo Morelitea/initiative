@@ -10,6 +10,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.task import Task
     from app.models.project import Project
     from app.models.document import Document
+    from app.models.queue import QueueItemTag
 
 
 class Tag(SQLModel, table=True):
@@ -50,6 +51,10 @@ class Tag(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     document_links: List["DocumentTag"] = Relationship(
+        back_populates="tag",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    queue_item_links: List["QueueItemTag"] = Relationship(
         back_populates="tag",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

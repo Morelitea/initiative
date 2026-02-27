@@ -113,8 +113,10 @@ class InitiativeMemberRead(BaseModel):
     # Permission flags for UI filtering
     can_view_docs: bool = True
     can_view_projects: bool = True
+    can_view_queues: bool = False
     can_create_docs: bool = False
     can_create_projects: bool = False
+    can_create_queues: bool = False
 
 
 class InitiativeRead(InitiativeBase):
@@ -160,12 +162,16 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         # Compute permissions from role
         can_view_docs = True
         can_view_projects = True
+        can_view_queues = False
         can_create_docs = False
         can_create_projects = False
+        can_create_queues = False
         if is_manager:
             # Managers have all permissions
             can_create_docs = True
             can_create_projects = True
+            can_view_queues = True
+            can_create_queues = True
         elif role_ref:
             # Check role permissions (use getattr to avoid lazy loading)
             role_permissions = getattr(role_ref, "permissions", None) or []
@@ -174,10 +180,14 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                     can_view_docs = perm.enabled
                 elif perm.permission_key == PermissionKey.projects_enabled:
                     can_view_projects = perm.enabled
+                elif perm.permission_key == PermissionKey.queues_enabled:
+                    can_view_queues = perm.enabled
                 elif perm.permission_key == PermissionKey.create_docs and perm.enabled:
                     can_create_docs = True
                 elif perm.permission_key == PermissionKey.create_projects and perm.enabled:
                     can_create_projects = True
+                elif perm.permission_key == PermissionKey.create_queues and perm.enabled:
+                    can_create_queues = True
 
         # Determine legacy role for backward compatibility
         legacy_role = (
@@ -198,8 +208,10 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 oidc_managed=membership.oidc_managed,
                 can_view_docs=can_view_docs,
                 can_view_projects=can_view_projects,
+                can_view_queues=can_view_queues,
                 can_create_docs=can_create_docs,
                 can_create_projects=can_create_projects,
+                can_create_queues=can_create_queues,
             )
         )
     return InitiativeRead(

@@ -40,6 +40,9 @@
   "themeSystem": "Sistema",
   "themeLight": "Claro",
   "themeDark": "Oscuro",
+  "queues": "Colas",
+  "allQueues": "Todas las colas",
+  "createQueue": "Nueva cola",
   "navigate": {
     "signInRequired": "Por favor, inicia sesión de nuevo para seguir este enlace.",
     "missingDestination": "Este enlace no tiene detalles de destino.",

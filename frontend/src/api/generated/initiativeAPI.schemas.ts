@@ -382,8 +382,10 @@ export interface InitiativeMemberRead {
   oidc_managed: boolean;
   can_view_docs: boolean;
   can_view_projects: boolean;
+  can_view_queues: boolean;
   can_create_docs: boolean;
   can_create_projects: boolean;
+  can_create_queues: boolean;
 }
 
 export interface InitiativeRead {
@@ -982,6 +984,8 @@ export const PermissionKey = {
   projects_enabled: "projects_enabled",
   create_docs: "create_docs",
   create_projects: "create_projects",
+  queues_enabled: "queues_enabled",
+  create_queues: "create_queues",
 } as const;
 
 export interface PlatformAISettingsResponse {
@@ -1204,6 +1208,171 @@ export interface PushTokenUnregisterRequest {
    * @maxLength 512
    */
   push_token: string;
+}
+
+export type QueuePermissionLevel = (typeof QueuePermissionLevel)[keyof typeof QueuePermissionLevel];
+
+export const QueuePermissionLevel = {
+  owner: "owner",
+  write: "write",
+  read: "read",
+} as const;
+
+export interface QueueRolePermissionCreate {
+  initiative_role_id: number;
+  level?: QueuePermissionLevel;
+}
+
+export interface QueuePermissionCreate {
+  user_id: number;
+  level?: QueuePermissionLevel;
+}
+
+export interface QueueCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  initiative_id: number;
+  role_permissions?: QueueRolePermissionCreate[] | null;
+  user_permissions?: QueuePermissionCreate[] | null;
+}
+
+export interface QueueItemCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  label: string;
+  position?: number;
+  color?: string | null;
+  notes?: string | null;
+  is_visible?: boolean;
+  user_id?: number | null;
+  tag_ids?: number[] | null;
+  document_ids?: number[] | null;
+  task_ids?: number[] | null;
+}
+
+export interface QueueItemDocumentRead {
+  document_id: number;
+  title?: string;
+  attached_at: string;
+}
+
+export interface QueueItemTaskRead {
+  task_id: number;
+  title?: string;
+  attached_at: string;
+}
+
+export interface QueueItemRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  label: string;
+  position: number;
+  color: string | null;
+  notes: string | null;
+  is_visible: boolean;
+  id: number;
+  queue_id: number;
+  user_id: number | null;
+  user: UserPublic | null;
+  tags: TagSummary[];
+  documents: QueueItemDocumentRead[];
+  tasks: QueueItemTaskRead[];
+  created_at: string;
+}
+
+export interface ReorderItem {
+  id: number;
+  position: number;
+}
+
+export interface QueueItemReorderRequest {
+  items: ReorderItem[];
+}
+
+export interface QueueItemUpdate {
+  label?: string | null;
+  position?: number | null;
+  user_id?: number | null;
+  color?: string | null;
+  notes?: string | null;
+  is_visible?: boolean | null;
+}
+
+export interface QueueSummary {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  current_round: number;
+  is_active: boolean;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+  my_permission_level: string | null;
+}
+
+export interface QueueListResponse {
+  items: QueueSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface QueuePermissionRead {
+  user_id: number;
+  level: QueuePermissionLevel;
+  created_at: string;
+}
+
+export interface QueueRolePermissionRead {
+  initiative_role_id: number;
+  role_name: string;
+  role_display_name: string;
+  level: QueuePermissionLevel;
+  created_at: string;
+}
+
+export interface QueueRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  current_round: number;
+  is_active: boolean;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+  my_permission_level: string | null;
+  items: QueueItemRead[];
+  current_item: QueueItemRead | null;
+  permissions: QueuePermissionRead[];
+  role_permissions: QueueRolePermissionRead[];
+}
+
+export interface QueueUpdate {
+  name?: string | null;
+  description?: string | null;
 }
 
 export interface RecentActivityEntry {
@@ -2357,3 +2526,18 @@ export type SyncDocumentContentApiV1CollaborationDocumentsDocumentIdSyncContentP
   token: string;
   guild_id: number;
 };
+
+export type ListQueuesApiV1QueuesGetParams = {
+  initiative_id?: number | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListQueuePermissionsApiV1QueuesQueueIdPermissionsGet200 = { [key: string]: unknown };
