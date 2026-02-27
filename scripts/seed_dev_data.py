@@ -43,6 +43,13 @@ from app.models.document import (  # noqa: E402
     ProjectDocument,
 )
 from app.models.guild import Guild, GuildMembership, GuildRole  # noqa: E402
+from app.models.queue import (  # noqa: E402
+    Queue,
+    QueueItem,
+    QueueItemTag,
+    QueuePermission,
+    QueuePermissionLevel,
+)
 from app.models.guild_setting import GuildSetting  # noqa: E402
 from app.models.initiative import (  # noqa: E402
     Initiative,
@@ -118,7 +125,7 @@ _DUNGEON_USERS = [
 
 
 def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
-    """Generate 10 000 TTRPG-themed task defs for the mega dungeon project."""
+    """Generate 1 000 TTRPG-themed task defs for the mega dungeon project."""
     import random as _rng
     _rng.seed(42)  # deterministic for reproducible seeds
 
@@ -134,7 +141,7 @@ def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
     ]
 
     tasks: list[dict] = []
-    for i in range(1, 10_001):
+    for i in range(1, 1_001):
         area = _DUNGEON_AREAS[i % len(_DUNGEON_AREAS)]
         verb = _DUNGEON_VERBS[i % len(_DUNGEON_VERBS)]
         adj = _adjectives[i % len(_adjectives)]
@@ -239,6 +246,10 @@ class IDTracker:
             "task_tags": [],
             "project_tags": [],
             "comments": [],
+            "queues": [],
+            "queue_items": [],
+            "queue_item_tags": [],
+            "queue_permissions": [],
         }
 
     def add(self, key: str, value) -> None:
@@ -345,6 +356,7 @@ async def _create_initiative(
     color: str,
     pm_user: User,
     member_users: list[User] | None = None,
+    queues_enabled: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
     """Create an initiative with roles and members."""
     initiative = Initiative(
@@ -352,6 +364,7 @@ async def _create_initiative(
         name=name,
         description=description,
         color=color,
+        queues_enabled=queues_enabled,
     )
     session.add(initiative)
     await session.flush()
@@ -794,6 +807,144 @@ async def _apply_user_settings(
 
 
 # ---------------------------------------------------------------------------
+# Queue permission helper
+# ---------------------------------------------------------------------------
+
+async def _enable_queue_permissions(
+    session: AsyncSession,
+    member_roles: list[InitiativeRoleModel],
+) -> None:
+    """Enable queues_enabled on member roles so all members can see queues."""
+    for role in member_roles:
+        result = await session.exec(
+            select(InitiativeRolePermission).where(
+                InitiativeRolePermission.initiative_role_id == role.id,
+                InitiativeRolePermission.permission_key == "queues_enabled",
+            )
+        )
+        perm = result.one_or_none()
+        if perm:
+            perm.enabled = True
+            session.add(perm)
+    await session.flush()
+
+
+# ---------------------------------------------------------------------------
+# Queue seeder helpers
+# ---------------------------------------------------------------------------
+
+async def _create_queues(
+    session: AsyncSession,
+    ids: IDTracker,
+    guild: Guild,
+    all_users: dict[str, User],
+    tags: dict[str, Tag],
+    queue_defs: list[dict],
+) -> dict[str, Queue]:
+    """Create queues with items, item tags, and permissions.
+
+    Each queue_def has:
+        initiative_id, name, description, created_by (user name),
+        is_active (bool), current_round (int),
+        write_users (list of names for write permission),
+        items: list of dicts with label, position, user (name or None),
+            color, notes, is_visible, tags (list of tag names)
+        active_item_label (str, optional) — label of the currently active item
+    """
+    queues: dict[str, Queue] = {}
+    for qd in queue_defs:
+        creator = all_users[qd["created_by"]]
+        queue = Queue(
+            guild_id=guild.id,
+            initiative_id=qd["initiative_id"],
+            name=qd["name"],
+            description=qd.get("description"),
+            created_by_id=creator.id,
+            is_active=qd.get("is_active", False),
+            current_round=qd.get("current_round", 1),
+        )
+        session.add(queue)
+        await session.flush()
+        ids.add("queues", queue.id)
+
+        # Owner permission for creator
+        owner_perm = QueuePermission(
+            queue_id=queue.id,
+            user_id=creator.id,
+            guild_id=guild.id,
+            level=QueuePermissionLevel.owner,
+        )
+        session.add(owner_perm)
+        ids.add("queue_permissions", {
+            "queue_id": queue.id, "user_id": creator.id,
+        })
+
+        # Write permissions
+        for uname in qd.get("write_users", []):
+            user = all_users.get(uname)
+            if user and user.id != creator.id:
+                wp = QueuePermission(
+                    queue_id=queue.id,
+                    user_id=user.id,
+                    guild_id=guild.id,
+                    level=QueuePermissionLevel.write,
+                )
+                session.add(wp)
+                ids.add("queue_permissions", {
+                    "queue_id": queue.id, "user_id": user.id,
+                })
+        await session.flush()
+
+        # Items
+        active_label = qd.get("active_item_label")
+        items_by_label: dict[str, QueueItem] = {}
+        for item_def in qd.get("items", []):
+            user_id = None
+            if item_def.get("user"):
+                linked_user = all_users.get(item_def["user"])
+                if linked_user:
+                    user_id = linked_user.id
+            qi = QueueItem(
+                guild_id=guild.id,
+                queue_id=queue.id,
+                label=item_def["label"],
+                position=item_def.get("position", 0),
+                user_id=user_id,
+                color=item_def.get("color"),
+                notes=item_def.get("notes"),
+                is_visible=item_def.get("is_visible", True),
+            )
+            session.add(qi)
+            await session.flush()
+            ids.add("queue_items", qi.id)
+            items_by_label[qi.label] = qi
+
+            # Item tags
+            for tag_name in item_def.get("tags", []):
+                tag = tags.get(tag_name)
+                if tag:
+                    qit = QueueItemTag(
+                        queue_item_id=qi.id,
+                        tag_id=tag.id,
+                    )
+                    session.add(qit)
+                    ids.add("queue_item_tags", {
+                        "queue_item_id": qi.id, "tag_id": tag.id,
+                    })
+            await session.flush()
+
+        # Set active item
+        if active_label and active_label in items_by_label:
+            queue.current_item_id = items_by_label[active_label].id
+            session.add(queue)
+            await session.flush()
+
+        queues[qd["name"]] = queue
+
+    return queues
+
+
+# ---------------------------------------------------------------------------
 # Seed
 # ---------------------------------------------------------------------------
 
@@ -912,6 +1063,7 @@ async def seed() -> None:
                 color="#7C3AED",
                 pm_user=dm,
                 member_users=[thorn, elara, vex, sera],
+                queues_enabled=True,
             )
 
             # --- Initiative: Lost Mine of Phandelver ---
@@ -923,6 +1075,7 @@ async def seed() -> None:
                 color="#059669",
                 pm_user=admin_user,
                 member_users=[dm, thorn, elara],
+                queues_enabled=True,
             )
 
             # -- Projects --
@@ -1373,6 +1526,98 @@ async def seed() -> None:
                 ("House Rules v2", "Session 1 Recap: Into the Mists"),
             ])
 
+            # -- Queues --
+            print("  Creating Guild 1 queues...")
+            g1_queues = await _create_queues(session, ids, g1, all_users, g1_tags, [
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Death House Encounter",
+                    "description": "Combat encounter in the haunted Death House basement",
+                    "created_by": "Dungeon Master",
+                    "is_active": True,
+                    "current_round": 3,
+                    "write_users": ["Thorn Ironforge", "Elara Moonwhisper"],
+                    "active_item_label": "Thorn Ironforge",
+                    "items": [
+                        {"label": "Thorn Ironforge", "position": 22, "user": "Thorn Ironforge",
+                         "color": "#DC2626", "notes": "Raging — advantage on Str checks",
+                         "tags": ["combat"]},
+                        {"label": "Elara Moonwhisper", "position": 19, "user": "Elara Moonwhisper",
+                         "color": "#3B82F6", "notes": "Concentration: Spirit Guardians",
+                         "tags": ["combat"]},
+                        {"label": "Shambling Mound", "position": 17,
+                         "color": "#10B981", "notes": "HP: 136/136",
+                         "tags": ["combat", "boss fight"]},
+                        {"label": "Vex Shadowstep", "position": 16, "user": "Vex Shadowstep",
+                         "color": "#8B5CF6", "notes": "Hidden — bonus action stealth",
+                         "tags": ["combat"]},
+                        {"label": "Seraphina Dawnlight", "position": 12, "user": "Seraphina Dawnlight",
+                         "color": "#F59E0B", "tags": ["combat"]},
+                        {"label": "Shadow #1", "position": 9, "color": "#374151",
+                         "notes": "HP: 16/16"},
+                        {"label": "Shadow #2", "position": 5, "color": "#374151",
+                         "notes": "HP: 16/16"},
+                        {"label": "Shadow #3", "position": 3, "color": "#374151",
+                         "is_visible": False, "notes": "Surprise round — not yet revealed"},
+                    ],
+                },
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Vallaki Town Square Ambush",
+                    "description": "Strahd's wolves attack during the Festival of the Blazing Sun",
+                    "created_by": "Dungeon Master",
+                    "is_active": False,
+                    "current_round": 1,
+                    "write_users": ["Thorn Ironforge"],
+                    "items": [
+                        {"label": "Dire Wolf Alpha", "position": 20,
+                         "color": "#6B7280", "notes": "Pack leader — AC 14, HP: 37",
+                         "tags": ["combat"]},
+                        {"label": "Thorn Ironforge", "position": 18, "user": "Thorn Ironforge",
+                         "color": "#DC2626"},
+                        {"label": "Elara Moonwhisper", "position": 15, "user": "Elara Moonwhisper",
+                         "color": "#3B82F6"},
+                        {"label": "Wolf Pack (x4)", "position": 13,
+                         "color": "#9CA3AF", "notes": "HP: 11 each"},
+                        {"label": "Vex Shadowstep", "position": 11, "user": "Vex Shadowstep",
+                         "color": "#8B5CF6"},
+                        {"label": "Seraphina Dawnlight", "position": 8, "user": "Seraphina Dawnlight",
+                         "color": "#F59E0B"},
+                    ],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "Cragmaw Hideout Assault",
+                    "description": "The party storms the goblin cave to rescue Sildar Hallwinter",
+                    "created_by": "Admin User",
+                    "is_active": False,
+                    "current_round": 5,
+                    "write_users": ["Dungeon Master", "Thorn Ironforge", "Elara Moonwhisper"],
+                    "items": [
+                        {"label": "Admin User (Ranger)", "position": 21, "user": "Admin User",
+                         "color": "#059669", "notes": "Hunter's Mark on Klarg"},
+                        {"label": "Thorn Ironforge", "position": 18, "user": "Thorn Ironforge",
+                         "color": "#DC2626"},
+                        {"label": "Klarg the Bugbear", "position": 15,
+                         "color": "#B91C1C", "notes": "HP: 27/27 — boss",
+                         "tags": ["combat", "boss fight"]},
+                        {"label": "Elara Moonwhisper", "position": 14, "user": "Elara Moonwhisper",
+                         "color": "#3B82F6"},
+                        {"label": "Goblin Archer #1", "position": 10,
+                         "color": "#65A30D", "notes": "HP: 7/7"},
+                        {"label": "Goblin Archer #2", "position": 7,
+                         "color": "#65A30D", "notes": "HP: 7/7"},
+                        {"label": "Ripper (Wolf)", "position": 4,
+                         "color": "#78716C", "notes": "HP: 11/11 — Klarg's pet"},
+                    ],
+                },
+            ])
+
+            # Enable queue visibility for members in initiatives that have queues
+            await _enable_queue_permissions(
+                session, [g1_strahd_mem, g1_lmop_mem],
+            )
+
             # ==============================================================
             # GUILD 2: "Starforge Collective" — Sci-Fi Campaign
             # ==============================================================
@@ -1444,6 +1689,7 @@ async def seed() -> None:
                 color="#0EA5E9",
                 pm_user=admin_user,
                 member_users=[finley, kael, aurelia, vex, elara],
+                queues_enabled=True,
             )
 
             g2_side, g2_side_pm, g2_side_mem = await _create_initiative(
@@ -1454,6 +1700,7 @@ async def seed() -> None:
                 color="#F59E0B",
                 pm_user=finley,
                 member_users=[kael, aurelia, vex],
+                queues_enabled=True,
             )
 
             # Projects
@@ -1768,6 +2015,41 @@ async def seed() -> None:
                 ("One-Shot: Smuggler's Run Briefing", "Setting Bible: The Exodus Protocol"),
             ])
 
+            # -- Queues --
+            print("  Creating Guild 2 queues...")
+            g2_queues = await _create_queues(session, ids, g2, all_users, g2_tags, [
+                {
+                    "initiative_id": g2_main.id,
+                    "name": "Bridge Standoff: Krellix Boarding Party",
+                    "description": "The Krellix shock troopers have breached the main airlock",
+                    "created_by": "Admin User",
+                    "is_active": True,
+                    "current_round": 2,
+                    "write_users": ["Finley Goldtongue", "Kael Windrunner"],
+                    "active_item_label": "Krellix Shock Trooper #1",
+                    "items": [
+                        {"label": "Kael Windrunner", "position": 24, "user": "Kael Windrunner",
+                         "color": "#0EA5E9", "notes": "Shield generator overcharged — +2 AC"},
+                        {"label": "Krellix Shock Trooper #1", "position": 21,
+                         "color": "#EF4444", "notes": "HP: 45/45 — plasma rifle",
+                         "tags": ["combat"]},
+                        {"label": "Aurelia Brightshield", "position": 19, "user": "Aurelia Brightshield",
+                         "color": "#F59E0B"},
+                        {"label": "Krellix Shock Trooper #2", "position": 17,
+                         "color": "#EF4444", "notes": "HP: 45/45"},
+                        {"label": "Finley Goldtongue", "position": 15, "user": "Finley Goldtongue",
+                         "color": "#8B5CF6", "notes": "Attempting to hack the airlock controls"},
+                        {"label": "Vex Shadowstep", "position": 12, "user": "Vex Shadowstep",
+                         "color": "#6366F1"},
+                        {"label": "Krellix Commander", "position": 10,
+                         "color": "#B91C1C", "notes": "HP: 80/80 — energy blade",
+                         "tags": ["combat", "boss fight"]},
+                    ],
+                },
+            ])
+
+            await _enable_queue_permissions(session, [g2_main_mem])
+
             # ==============================================================
             # GUILD 3: "Realm of Tides" — Pirate/Nautical Campaign
             # ==============================================================
@@ -1837,6 +2119,7 @@ async def seed() -> None:
                 color="#DC2626",
                 pm_user=finley,
                 member_users=[admin_user, dm, thorn, kael, aurelia, sera],
+                queues_enabled=True,
             )
 
             g3_navy, g3_navy_pm, g3_navy_mem = await _create_initiative(
@@ -1847,6 +2130,7 @@ async def seed() -> None:
                 color="#1E40AF",
                 pm_user=dm,
                 member_users=[finley, thorn, kael],
+                queues_enabled=True,
             )
 
             # Projects
@@ -2201,6 +2485,70 @@ async def seed() -> None:
                 ("Session 4 Recap: The Ironclad Falls", "Crew Manifest: The Crimson Maiden"),
             ])
 
+            # -- Queues --
+            print("  Creating Guild 3 queues...")
+            g3_queues = await _create_queues(session, ids, g3, all_users, g3_tags, [
+                {
+                    "initiative_id": g3_main.id,
+                    "name": "Kraken Attack on the Crimson Maiden",
+                    "description": "A massive kraken surfaces and wraps its tentacles around the ship",
+                    "created_by": "Finley Goldtongue",
+                    "is_active": True,
+                    "current_round": 4,
+                    "write_users": ["Admin User", "Dungeon Master", "Thorn Ironforge"],
+                    "active_item_label": "Finley Goldtongue",
+                    "items": [
+                        {"label": "Finley Goldtongue", "position": 23, "user": "Finley Goldtongue",
+                         "color": "#F59E0B", "notes": "At the helm — trying to steer free"},
+                        {"label": "Kraken Tentacle (Port)", "position": 20,
+                         "color": "#7C3AED", "notes": "HP: 30/30 — grappling the mast",
+                         "tags": ["combat"]},
+                        {"label": "Thorn Ironforge", "position": 19, "user": "Thorn Ironforge",
+                         "color": "#DC2626", "notes": "Hacking at the starboard tentacle",
+                         "tags": ["combat"]},
+                        {"label": "Kraken Tentacle (Starboard)", "position": 18,
+                         "color": "#7C3AED", "notes": "HP: 30/30",
+                         "tags": ["combat"]},
+                        {"label": "Kael Windrunner", "position": 16, "user": "Kael Windrunner",
+                         "color": "#0EA5E9", "notes": "In the crow's nest — firing arrows"},
+                        {"label": "Admin User (First Mate)", "position": 14, "user": "Admin User",
+                         "color": "#059669"},
+                        {"label": "Aurelia Brightshield", "position": 11, "user": "Aurelia Brightshield",
+                         "color": "#EAB308", "notes": "Channeling Tide Mother's blessing"},
+                        {"label": "Seraphina Dawnlight", "position": 8, "user": "Seraphina Dawnlight",
+                         "color": "#EC4899"},
+                        {"label": "Kraken (Body)", "position": 5,
+                         "color": "#581C87", "notes": "HP: 200/200 — submerged, surfaces round 6",
+                         "is_visible": False, "tags": ["combat", "boss fight"]},
+                    ],
+                },
+                {
+                    "initiative_id": g3_main.id,
+                    "name": "Port Havoc Bar Brawl",
+                    "description": "A tavern argument escalates into a full-blown melee",
+                    "created_by": "Dungeon Master",
+                    "is_active": False,
+                    "current_round": 1,
+                    "write_users": ["Finley Goldtongue"],
+                    "items": [
+                        {"label": "Finley Goldtongue", "position": 19, "user": "Finley Goldtongue",
+                         "color": "#F59E0B"},
+                        {"label": "Thorn Ironforge", "position": 17, "user": "Thorn Ironforge",
+                         "color": "#DC2626"},
+                        {"label": "Rival Pirate Captain", "position": 15,
+                         "color": "#B91C1C", "notes": "Dual-wielding cutlasses"},
+                        {"label": "Rival Crew (x3)", "position": 12,
+                         "color": "#9CA3AF", "notes": "HP: 9 each"},
+                        {"label": "Kael Windrunner", "position": 10, "user": "Kael Windrunner",
+                         "color": "#0EA5E9"},
+                        {"label": "Barkeep (Non-combatant)", "position": 1,
+                         "color": "#78716C", "notes": "Hiding behind the bar"},
+                    ],
+                },
+            ])
+
+            await _enable_queue_permissions(session, [g3_main_mem])
+
         # Transaction committed by context manager
 
     _save_state(ids.data)
@@ -2215,6 +2563,7 @@ async def seed() -> None:
     print(f"  3 guilds, {len(ids.data['initiatives'])} initiatives")
     print(f"  {total_projects} projects, {total_tasks} tasks")
     print(f"  {total_docs} documents, {len(ids.data['tags'])} tags")
+    print(f"  {len(ids.data['queues'])} queues, {len(ids.data['queue_items'])} queue items")
     print(f"  {len(ids.data['comments'])} comments")
     print(f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['document_links'])} doc links")
     print(f"\n  Superuser login: {settings.FIRST_SUPERUSER_EMAIL} / {settings.FIRST_SUPERUSER_PASSWORD}")
@@ -2246,6 +2595,49 @@ async def clean() -> None:
                     await session.delete(obj)
             await session.flush()
             print("  Removed comments")
+
+            # Queue item tags (composite key)
+            for qit in state.get("queue_item_tags", []):
+                obj = await session.get(
+                    QueueItemTag, (qit["queue_item_id"], qit["tag_id"])
+                )
+                if obj:
+                    await session.delete(obj)
+            await session.flush()
+            print("  Removed queue item tags")
+
+            # Queue permissions (composite key)
+            for qp in state.get("queue_permissions", []):
+                obj = await session.get(
+                    QueuePermission, (qp["queue_id"], qp["user_id"])
+                )
+                if obj:
+                    await session.delete(obj)
+            await session.flush()
+            print("  Removed queue permissions")
+
+            # Queue items
+            for qiid in state.get("queue_items", []):
+                obj = await session.get(QueueItem, qiid)
+                if obj:
+                    await session.delete(obj)
+            await session.flush()
+            print("  Removed queue items")
+
+            # Queues
+            for qid in state.get("queues", []):
+                obj = await session.get(Queue, qid)
+                if obj:
+                    # Clear current_item_id to avoid FK constraint on delete
+                    obj.current_item_id = None
+                    session.add(obj)
+            await session.flush()
+            for qid in state.get("queues", []):
+                obj = await session.get(Queue, qid)
+                if obj:
+                    await session.delete(obj)
+            await session.flush()
+            print("  Removed queues")
 
             # Document links (composite key)
             for dl in state.get("document_links", []):

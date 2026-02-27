@@ -17,6 +17,7 @@ class InitiativeBase(BaseModel):
     name: str
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
+    queues_enabled: bool = False
 
 
 class InitiativeCreate(InitiativeBase):
@@ -27,6 +28,7 @@ class InitiativeUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
+    queues_enabled: Optional[bool] = None
 
 
 # Role schemas
@@ -113,8 +115,10 @@ class InitiativeMemberRead(BaseModel):
     # Permission flags for UI filtering
     can_view_docs: bool = True
     can_view_projects: bool = True
+    can_view_queues: bool = False
     can_create_docs: bool = False
     can_create_projects: bool = False
+    can_create_queues: bool = False
 
 
 class InitiativeRead(InitiativeBase):
@@ -147,6 +151,7 @@ def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> Initia
 
 
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
+    initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -160,12 +165,16 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         # Compute permissions from role
         can_view_docs = True
         can_view_projects = True
+        can_view_queues = False
         can_create_docs = False
         can_create_projects = False
+        can_create_queues = False
         if is_manager:
             # Managers have all permissions
             can_create_docs = True
             can_create_projects = True
+            can_view_queues = True
+            can_create_queues = True
         elif role_ref:
             # Check role permissions (use getattr to avoid lazy loading)
             role_permissions = getattr(role_ref, "permissions", None) or []
@@ -174,10 +183,19 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                     can_view_docs = perm.enabled
                 elif perm.permission_key == PermissionKey.projects_enabled:
                     can_view_projects = perm.enabled
+                elif perm.permission_key == PermissionKey.queues_enabled:
+                    can_view_queues = perm.enabled
                 elif perm.permission_key == PermissionKey.create_docs and perm.enabled:
                     can_create_docs = True
                 elif perm.permission_key == PermissionKey.create_projects and perm.enabled:
                     can_create_projects = True
+                elif perm.permission_key == PermissionKey.create_queues and perm.enabled:
+                    can_create_queues = True
+
+        # Initiative-level master switch overrides role-level queue permissions
+        if not initiative_queues_enabled:
+            can_view_queues = False
+            can_create_queues = False
 
         # Determine legacy role for backward compatibility
         legacy_role = (
@@ -198,8 +216,10 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 oidc_managed=membership.oidc_managed,
                 can_view_docs=can_view_docs,
                 can_view_projects=can_view_projects,
+                can_view_queues=can_view_queues,
                 can_create_docs=can_create_docs,
                 can_create_projects=can_create_projects,
+                can_create_queues=can_create_queues,
             )
         )
     return InitiativeRead(
@@ -209,6 +229,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         description=initiative.description,
         color=initiative.color,
         is_default=initiative.is_default,
+        queues_enabled=initiative_queues_enabled,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

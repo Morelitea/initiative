@@ -14,6 +14,7 @@ from app.models.document import Document, DocumentPermission, DocumentRolePermis
 from app.models.notification import Notification
 from app.models.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
+from app.models.queue import Queue, QueueItem, QueueItemTag, QueuePermission, QueueRolePermission, QueueItemDocument, QueueItemTask
 from app.models.upload import Upload
 
 __all__ = [
@@ -47,5 +48,12 @@ __all__ = [
     "TaskTag",
     "ProjectTag",
     "DocumentTag",
+    "Queue",
+    "QueueItem",
+    "QueueItemTag",
+    "QueuePermission",
+    "QueueRolePermission",
+    "QueueItemDocument",
+    "QueueItemTask",
     "Upload",
 ]

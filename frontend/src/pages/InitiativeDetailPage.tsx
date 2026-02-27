@@ -7,6 +7,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { DocumentsView } from "./DocumentsPage";
 import { ProjectsView } from "./ProjectsPage";
+import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,26 +56,33 @@ export const InitiativeDetailPage = () => {
   // Determine which features are enabled for this user
   const docsEnabled = isFeatureEnabled(permissions, "docs");
   const projectsEnabled = isFeatureEnabled(permissions, "projects");
+  const queuesEnabled = isFeatureEnabled(permissions, "queues");
   const canCreateDocs = canCreate(permissions, "docs");
   const canCreateProjects = canCreate(permissions, "projects");
+  const canCreateQueues = canCreate(permissions, "queues");
+
+  type TabValue = "documents" | "projects" | "queues";
 
   // Determine default tab based on available features
-  const getDefaultTab = (): "documents" | "projects" => {
+  const getDefaultTab = (): TabValue => {
     if (docsEnabled) return "documents";
     if (projectsEnabled) return "projects";
+    if (queuesEnabled) return "queues";
     return "documents"; // fallback
   };
 
-  const [activeTab, setActiveTab] = useState<"documents" | "projects">(getDefaultTab());
+  const [activeTab, setActiveTab] = useState<TabValue>(getDefaultTab());
 
   // Update active tab if current tab becomes unavailable
   useEffect(() => {
-    if (activeTab === "documents" && !docsEnabled && projectsEnabled) {
-      setActiveTab("projects");
-    } else if (activeTab === "projects" && !projectsEnabled && docsEnabled) {
-      setActiveTab("documents");
+    const available: TabValue[] = [];
+    if (docsEnabled) available.push("documents");
+    if (projectsEnabled) available.push("projects");
+    if (queuesEnabled) available.push("queues");
+    if (available.length > 0 && !available.includes(activeTab)) {
+      setActiveTab(available[0]);
     }
-  }, [docsEnabled, projectsEnabled, activeTab]);
+  }, [docsEnabled, projectsEnabled, queuesEnabled, activeTab]);
 
   const memberCount = initiative?.members.length ?? 0;
 
@@ -102,11 +110,19 @@ export const InitiativeDetailPage = () => {
   }
 
   if (!initiative) {
-    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo="/initiatives" backLabel={t("detail.backToInitiatives")} />;
+    return (
+      <StatusMessage
+        icon={<SearchX />}
+        title={t("detail.notFound")}
+        description={t("detail.notFoundDescription")}
+        backTo="/initiatives"
+        backLabel={t("detail.backToInitiatives")}
+      />
+    );
   }
 
   // If user has no access to any features, show a message
-  if (!docsEnabled && !projectsEnabled) {
+  if (!docsEnabled && !projectsEnabled && !queuesEnabled) {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
@@ -163,17 +179,19 @@ export const InitiativeDetailPage = () => {
         </div>
       </div>
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as "documents" | "projects")}
-      >
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
         <TabsList
-          className={`grid w-full max-w-xs ${
-            docsEnabled && projectsEnabled ? "grid-cols-2" : "grid-cols-1"
+          className={`grid w-full max-w-md ${
+            [docsEnabled, projectsEnabled, queuesEnabled].filter(Boolean).length === 3
+              ? "grid-cols-3"
+              : [docsEnabled, projectsEnabled, queuesEnabled].filter(Boolean).length === 2
+                ? "grid-cols-2"
+                : "grid-cols-1"
           }`}
         >
           {docsEnabled && <TabsTrigger value="documents">{t("detail.documents")}</TabsTrigger>}
           {projectsEnabled && <TabsTrigger value="projects">{t("detail.projects")}</TabsTrigger>}
+          {queuesEnabled && <TabsTrigger value="queues">{t("detail.queues")}</TabsTrigger>}
         </TabsList>
         {docsEnabled && (
           <TabsContent value="documents" className="mt-6">
@@ -190,6 +208,15 @@ export const InitiativeDetailPage = () => {
               key={`projects-${initiative.id}`}
               fixedInitiativeId={initiative.id}
               canCreate={canCreateProjects}
+            />
+          </TabsContent>
+        )}
+        {queuesEnabled && (
+          <TabsContent value="queues" className="mt-6">
+            <QueuesView
+              key={`queues-${initiative.id}`}
+              fixedInitiativeId={initiative.id}
+              canCreate={canCreateQueues}
             />
           </TabsContent>
         )}

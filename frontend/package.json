@@ -10,6 +10,7 @@
     "cap:android": "pnpm build:capacitor && npx cap sync android && npx cap run android",
     "cap:ios": "pnpm build:capacitor && npx cap sync ios && npx cap run ios",
     "preview": "vite preview",
+    "check": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write .",

@@ -141,6 +141,13 @@ export const InitiativeSettingsPage = () => {
     });
   };
 
+  const handleToggleQueues = (value: boolean) => {
+    updateInitiative.mutate({
+      initiativeId,
+      data: { queues_enabled: value },
+    });
+  };
+
   const handleDeleteInitiative = () => {
     if (initiative?.is_default) {
       return;
@@ -230,6 +237,8 @@ export const InitiativeSettingsPage = () => {
           setDescription={setDescription}
           color={color}
           setColor={setColor}
+          queuesEnabled={initiative?.queues_enabled ?? false}
+          onToggleQueues={handleToggleQueues}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

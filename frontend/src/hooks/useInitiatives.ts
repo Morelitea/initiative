@@ -22,7 +22,11 @@ import {
   invalidateInitiativeMembers,
 } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  InitiativeMemberRead,
+  InitiativeRead,
+  UserPublic,
+} from "@/api/generated/initiativeAPI.schemas";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -51,15 +55,15 @@ export const useInitiative = (initiativeId: number | null, options?: QueryOpts<I
 
 export const useInitiativeMembers = (
   initiativeId: number | null,
-  options?: QueryOpts<InitiativeMemberRead[]>
+  options?: QueryOpts<UserPublic[]>
 ) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<InitiativeMemberRead[]>({
+  return useQuery<UserPublic[]>({
     queryKey: getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryKey(initiativeId!),
     queryFn: () =>
       getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
         initiativeId!
-      ) as unknown as Promise<InitiativeMemberRead[]>,
+      ) as unknown as Promise<UserPublic[]>,
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
     ...rest,
   });
@@ -68,14 +72,22 @@ export const useInitiativeMembers = (
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export const useCreateInitiative = (
-  options?: MutationOpts<InitiativeRead, { name: string; description?: string; color?: string }>
+  options?: MutationOpts<
+    InitiativeRead,
+    { name: string; description?: string; color?: string; queues_enabled?: boolean }
+  >
 ) => {
   const { t } = useTranslation("initiatives");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: { name: string; description?: string; color?: string }) => {
+    mutationFn: async (data: {
+      name: string;
+      description?: string;
+      color?: string;
+      queues_enabled?: boolean;
+    }) => {
       return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: (...args) => {

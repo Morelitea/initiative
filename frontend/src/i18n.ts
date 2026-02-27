@@ -19,6 +19,7 @@ export const namespaces = [
   "guilds",
   "import",
   "notifications",
+  "queues",
   "stats",
   "landing",
   "errors",
