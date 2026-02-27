@@ -8,7 +8,7 @@ import {
   CircleChevronRight,
   ListTodo,
   MoreVertical,
-  Layers2,
+  GalleryHorizontalEnd,
 } from "lucide-react";
 
 import { getItem, setItem } from "@/lib/storage";
@@ -276,7 +276,7 @@ export const InitiativeSection = memo(
                         search={{ initiativeId: String(initiative.id) }}
                         className="flex items-center gap-2"
                       >
-                        <Layers2 className="h-4 w-4" />
+                        <GalleryHorizontalEnd className="h-4 w-4" />
                         <span>{t("queues")}</span>
                         <span className="text-muted-foreground text-xs">{queueCount}</span>
                       </Link>

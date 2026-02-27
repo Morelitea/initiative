@@ -13,7 +13,7 @@ import {
   Tag,
   ChevronsDownUp,
   ChevronsUpDown,
-  Layers2,
+  GalleryHorizontalEnd,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -394,7 +394,7 @@ export const AppSidebar = () => {
                                 <SidebarMenuItem>
                                   <SidebarMenuButton asChild>
                                     <Link to={gp("/queues")} className="flex items-center gap-2">
-                                      <Layers2 className="h-4 w-4" />
+                                      <GalleryHorizontalEnd className="h-4 w-4" />
                                       <span>{t("allQueues")}</span>
                                     </Link>
                                   </SidebarMenuButton>

@@ -21,8 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { QueueCard } from "@/components/queues/QueueCard";
-import { CreateQueueDialog } from "@/components/queues/CreateQueueDialog";
+import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
+import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 
 const INITIATIVE_FILTER_ALL = "all";
 
