@@ -6,6 +6,7 @@ using the configured AI provider (OpenAI, Anthropic, Ollama, or custom).
 
 from __future__ import annotations
 
+import html
 import json
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -257,8 +258,8 @@ def _build_summary_prompt(
     )
     user_content = (
         f"<document>\n"
-        f"  <title>{title}</title>\n"
-        f"  <content>\n{content}\n  </content>\n"
+        f"  <title>{html.escape(title)}</title>\n"
+        f"  <content>\n{html.escape(content)}\n  </content>\n"
         f"</document>"
     )
     return system_prompt, user_content
@@ -285,9 +286,9 @@ def _build_subtasks_prompt(
 
     context_parts = []
     if initiative_name:
-        context_parts.append(f"  <initiative>{initiative_name}</initiative>")
+        context_parts.append(f"  <initiative>{html.escape(initiative_name)}</initiative>")
     if project_name:
-        context_parts.append(f"  <project>{project_name}</project>")
+        context_parts.append(f"  <project>{html.escape(project_name)}</project>")
     context_xml = (
         "\n<context>\n" + "\n".join(context_parts) + "\n</context>"
         if context_parts
@@ -295,13 +296,13 @@ def _build_subtasks_prompt(
     )
 
     description_xml = (
-        f"\n  <description>{task.description}</description>"
+        f"\n  <description>{html.escape(task.description)}</description>"
         if task.description
         else ""
     )
     user_content = (
         f"<task>\n"
-        f"  <title>{task.title}</title>{description_xml}\n"
+        f"  <title>{html.escape(task.title)}</title>{description_xml}\n"
         f"</task>{context_xml}"
     )
     return system_prompt, user_content
@@ -327,9 +328,9 @@ def _build_description_prompt(
 
     context_parts = []
     if initiative_name:
-        context_parts.append(f"  <initiative>{initiative_name}</initiative>")
+        context_parts.append(f"  <initiative>{html.escape(initiative_name)}</initiative>")
     if project_name:
-        context_parts.append(f"  <project>{project_name}</project>")
+        context_parts.append(f"  <project>{html.escape(project_name)}</project>")
     context_xml = (
         "\n<context>\n" + "\n".join(context_parts) + "\n</context>"
         if context_parts
@@ -337,13 +338,13 @@ def _build_description_prompt(
     )
 
     existing_xml = (
-        f"\n  <existing_description>{task.description}</existing_description>"
+        f"\n  <existing_description>{html.escape(task.description)}</existing_description>"
         if task.description
         else ""
     )
     user_content = (
         f"<task>\n"
-        f"  <title>{task.title}</title>{existing_xml}\n"
+        f"  <title>{html.escape(task.title)}</title>{existing_xml}\n"
         f"</task>{context_xml}"
     )
     return system_prompt, user_content
