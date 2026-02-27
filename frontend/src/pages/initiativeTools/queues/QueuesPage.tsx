@@ -14,15 +14,12 @@ import {
 } from "@/hooks/useInitiativeRoles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
+import {
+  QueuesFilterBar,
+  type StatusFilter,
+} from "@/components/initiativeTools/queues/QueuesFilterBar";
 
 const INITIATIVE_FILTER_ALL = "all";
 
@@ -124,7 +121,10 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   });
 
   const initiativesQuery = useInitiatives();
-  const initiatives = useMemo(() => initiativesQuery.data ?? [], [initiativesQuery.data]);
+  const initiatives = useMemo(
+    () => (initiativesQuery.data ?? []).filter((init) => init.queues_enabled),
+    [initiativesQuery.data]
+  );
 
   // Build initiative name lookup
   const initiativeNameMap = useMemo(() => {
@@ -164,6 +164,11 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   ]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const getDefaultFiltersVisibility = () =>
+    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   // Open create dialog when ?create=true is in URL
   useEffect(() => {
@@ -194,11 +199,28 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     });
   };
 
-  const queues = queuesQuery.data?.items ?? [];
   const totalCount = queuesQuery.data?.total_count ?? 0;
   const hasNext = queuesQuery.data?.has_next ?? false;
   const pageSize = 20;
   const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
+
+  // Client-side filtering by search query and status
+  const queues = useMemo(() => {
+    const items = queuesQuery.data?.items ?? [];
+    const query = searchQuery.trim().toLowerCase();
+    return items.filter((queue) => {
+      const matchesSearch = !query || queue.name.toLowerCase().includes(query);
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && queue.is_active) ||
+        (statusFilter === "inactive" && !queue.is_active);
+      return matchesSearch && matchesStatus;
+    });
+  }, [queuesQuery.data, searchQuery, statusFilter]);
+
+  const lockedInitiativeName = lockedInitiativeId
+    ? (initiativeNameMap.get(lockedInitiativeId) ?? null)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -228,24 +250,19 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
         </div>
       )}
 
-      {/* Initiative filter (only when not locked) */}
-      {!lockedInitiativeId && initiatives.length > 1 && (
-        <div className="flex items-center gap-3">
-          <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder={t("selectInitiative")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={INITIATIVE_FILTER_ALL}>{t("title")}</SelectItem>
-              {initiatives.map((initiative) => (
-                <SelectItem key={initiative.id} value={String(initiative.id)}>
-                  {initiative.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <QueuesFilterBar
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        initiativeFilter={initiativeFilter}
+        onInitiativeFilterChange={setInitiativeFilter}
+        lockedInitiativeId={lockedInitiativeId}
+        lockedInitiativeName={lockedInitiativeName}
+        initiatives={initiatives}
+        filtersOpen={filtersOpen}
+        onFiltersOpenChange={setFiltersOpen}
+      />
 
       {/* Content */}
       {queuesQuery.isLoading ? (
@@ -255,7 +272,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
         </div>
       ) : queuesQuery.isError ? (
         <p className="text-destructive text-sm">{t("loadError")}</p>
-      ) : totalCount > 0 ? (
+      ) : queues.length > 0 ? (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {queues.map((queue) => (
@@ -292,6 +309,8 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
             </div>
           )}
         </>
+      ) : totalCount > 0 ? (
+        <p className="text-muted-foreground text-sm">{t("filters.noMatchingQueues")}</p>
       ) : (
         <Card>
           <CardHeader>

@@ -41,7 +41,8 @@
     "updated": "Actualizada {{date}}",
     "initiativeSettings": "Configuración de la iniciativa",
     "documents": "Documentos",
-    "projects": "Proyectos"
+    "projects": "Proyectos",
+    "queues": "Colas"
   },
   "settings": {
     "title": "Configuración de la iniciativa",
@@ -134,12 +135,25 @@
     "removeMemberWarning": "Esto también eliminará su acceso explícito a todos los proyectos y documentos en esta iniciativa.",
     "removing": "Eliminando...",
     "nameRequired": "El nombre es obligatorio.",
-    "roleNameRequired": "El nombre y el nombre visible son obligatorios."
+    "roleNameRequired": "El nombre y el nombre visible son obligatorios.",
+    "memberCountBadge_one": "{{count}} miembro",
+    "memberCountBadge_other": "{{count}} miembros",
+    "permissionGroups": {
+      "documents": "Documentos",
+      "projects": "Proyectos",
+      "queues": "Colas"
+    },
+    "permissions": {
+      "viewDocuments": "Ver documentos",
+      "viewProjects": "Ver proyectos",
+      "createDocuments": "Crear documentos",
+      "createProjects": "Crear proyectos",
+      "viewQueues": "Ver colas",
+      "createQueues": "Crear colas"
+    }
   },
-  "permissions": {
-    "viewDocuments": "Ver documentos",
-    "viewProjects": "Ver proyectos",
-    "createDocuments": "Crear documentos",
-    "createProjects": "Crear proyectos"
-  }
+  "advancedTools": "Herramientas avanzadas",
+  "advancedToolsDescription": "Habilita herramientas opcionales para esta iniciativa.",
+  "queuesFeature": "Colas",
+  "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue."
 }

@@ -123,5 +123,20 @@
   "selectedCount": "{{count}} seleccionados",
   "changeAccess": "Cambiar acceso...",
   "removing": "Eliminando...",
-  "addAllCount": "Añadir todos ({{count}})"
+  "addAllCount": "Añadir todos ({{count}})",
+
+  "filters": {
+    "heading": "Filtros",
+    "show": "Mostrar",
+    "hide": "Ocultar",
+    "searchQueues": "Buscar colas...",
+    "filterByName": "Filtrar por nombre",
+    "filterByInitiative": "Iniciativa",
+    "allInitiatives": "Todas las iniciativas",
+    "status": "Estado",
+    "allStatuses": "Todas",
+    "activeOnly": "Activas",
+    "inactiveOnly": "Inactivas",
+    "noMatchingQueues": "Ninguna cola coincide con tus filtros."
+  }
 }

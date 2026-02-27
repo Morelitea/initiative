@@ -13,7 +13,6 @@ import {
   Tag,
   ChevronsDownUp,
   ChevronsUpDown,
-  GalleryHorizontalEnd,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -169,21 +168,21 @@ export const AppSidebar = () => {
         return {
           canViewDocs: true,
           canViewProjects: true,
-          canViewQueues: true,
+          canViewQueues: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
         };
       }
-      // Guild admins have all permissions
+      // Guild admins have all permissions (queues gated by initiative flag)
       if (isGuildAdmin) {
         return {
           canViewDocs: true,
           canViewProjects: true,
-          canViewQueues: true,
+          canViewQueues: initiative.queues_enabled ?? false,
           canCreateDocs: true,
           canCreateProjects: true,
-          canCreateQueues: true,
+          canCreateQueues: initiative.queues_enabled ?? false,
         };
       }
       const membership = initiative.members.find((m) => m.user.id === user.id);
@@ -191,7 +190,7 @@ export const AppSidebar = () => {
         return {
           canViewDocs: true,
           canViewProjects: true,
-          canViewQueues: true,
+          canViewQueues: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
@@ -388,14 +387,6 @@ export const AppSidebar = () => {
                                     <Link to={gp("/documents")} className="flex items-center gap-2">
                                       <ScrollText className="h-4 w-4" />
                                       <span>{t("allDocuments")}</span>
-                                    </Link>
-                                  </SidebarMenuButton>
-                                </SidebarMenuItem>
-                                <SidebarMenuItem>
-                                  <SidebarMenuButton asChild>
-                                    <Link to={gp("/queues")} className="flex items-center gap-2">
-                                      <GalleryHorizontalEnd className="h-4 w-4" />
-                                      <span>{t("allQueues")}</span>
                                     </Link>
                                   </SidebarMenuButton>
                                 </SidebarMenuItem>

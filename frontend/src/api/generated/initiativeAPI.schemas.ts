@@ -392,6 +392,7 @@ export interface InitiativeRead {
   name: string;
   description: string | null;
   color: string | null;
+  queues_enabled: boolean;
   id: number;
   guild_id: number;
   is_default: boolean;
@@ -744,6 +745,7 @@ export interface InitiativeCreate {
   name: string;
   description?: string | null;
   color?: string | null;
+  queues_enabled?: boolean;
 }
 
 /**
@@ -812,6 +814,7 @@ export interface InitiativeUpdate {
   name?: string | null;
   description?: string | null;
   color?: string | null;
+  queues_enabled?: boolean | null;
 }
 
 export interface InterfaceSettingsResponse {

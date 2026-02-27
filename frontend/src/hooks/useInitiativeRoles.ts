@@ -145,7 +145,7 @@ export const canCreate = (
   return hasPermission(permissions, keyMap[entity]);
 };
 
-// Permission key labels for display
+// Permission key labels for display (hardcoded, kept for backward compat)
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   docs_enabled: "View Documents",
   projects_enabled: "View Projects",
@@ -153,6 +153,16 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   create_projects: "Create Projects",
   queues_enabled: "View Queues",
   create_queues: "Create Queues",
+};
+
+// i18n-based permission label keys (use with t())
+export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
+  docs_enabled: "settings.permissions.viewDocuments",
+  projects_enabled: "settings.permissions.viewProjects",
+  create_docs: "settings.permissions.createDocuments",
+  create_projects: "settings.permissions.createProjects",
+  queues_enabled: "settings.permissions.viewQueues",
+  create_queues: "settings.permissions.createQueues",
 };
 
 // All permission keys in display order
@@ -163,4 +173,27 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   "create_projects",
   "queues_enabled",
   "create_queues",
+];
+
+// Permission groups for card-based layout
+export type PermissionGroup = {
+  labelKey: string;
+  keys: PermissionKey[];
+};
+
+// Core permissions always visible
+export const CORE_PERMISSION_GROUPS: PermissionGroup[] = [
+  { labelKey: "settings.permissionGroups.documents", keys: ["docs_enabled", "create_docs"] },
+  { labelKey: "settings.permissionGroups.projects", keys: ["projects_enabled", "create_projects"] },
+];
+
+// Advanced tools permissions shown in accordion
+export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
+  { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
+];
+
+// All groups combined (for backward compat)
+export const PERMISSION_GROUPS: PermissionGroup[] = [
+  ...CORE_PERMISSION_GROUPS,
+  ...ADVANCED_PERMISSION_GROUPS,
 ];
