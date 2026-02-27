@@ -275,6 +275,11 @@ async def create_queue(
     The creator automatically gets owner-level permission.
     """
     initiative = await _get_initiative_for_queue(session, queue_in.initiative_id)
+    if not initiative.queues_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=QueueMessages.FEATURE_DISABLED,
+        )
     await _check_initiative_permission(
         session,
         initiative,
