@@ -18,6 +18,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
           : undefined,
   }),
   component: lazyRouteComponent(() =>
-    import("@/pages/QueuesPage").then((m) => ({ default: m.QueuesPage }))
+    import("@/pages/initiativeTools/queues/QueuesPage").then((m) => ({ default: m.QueuesPage }))
   ),
 });

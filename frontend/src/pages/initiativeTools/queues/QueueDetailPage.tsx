@@ -33,10 +33,10 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { QueueControls } from "@/components/queues/QueueControls";
-import { QueueItemRow } from "@/components/queues/QueueItemRow";
-import { AddQueueItemDialog } from "@/components/queues/AddQueueItemDialog";
-import { EditQueueItemDialog } from "@/components/queues/EditQueueItemDialog";
+import { QueueControls } from "@/components/initiativeTools/queues/QueueControls";
+import { QueueItemRow } from "@/components/initiativeTools/queues/QueueItemRow";
+import { AddQueueItemDialog } from "@/components/initiativeTools/queues/AddQueueItemDialog";
+import { EditQueueItemDialog } from "@/components/initiativeTools/queues/EditQueueItemDialog";
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 
 export function QueueDetailPage() {
