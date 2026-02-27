@@ -181,6 +181,12 @@ export const resetGuildScopedQueries = () =>
     },
   });
 
+// ── Queues ──────────────────────────────────────────────────────────────────
+
+export const invalidateAllQueues = () => invalidatePrefix("/api/v1/queues");
+
+export const invalidateQueue = (queueId: number) => invalidateExact([`/api/v1/queues/${queueId}`]);
+
 // ── Subtasks ─────────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>

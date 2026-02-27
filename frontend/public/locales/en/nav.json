@@ -40,6 +40,9 @@
   "themeSystem": "System",
   "themeLight": "Light",
   "themeDark": "Dark",
+  "queues": "Queues",
+  "allQueues": "All Queues",
+  "createQueue": "New Queue",
   "navigate": {
     "signInRequired": "Please sign in again to follow this link.",
     "missingDestination": "This link is missing destination details.",

@@ -13,6 +13,7 @@ import {
   Tag,
   ChevronsDownUp,
   ChevronsUpDown,
+  Layers2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -43,14 +44,12 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects, useFavoriteProjects } from "@/hooks/useProjects";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { useTags } from "@/hooks/useTags";
+import { useQueuesList } from "@/hooks/useQueues";
 import { getItem, setItem } from "@/lib/storage";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { guildPath } from "@/lib/guildUrl";
-import type {
-  InitiativeRead,
-  ProjectRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
@@ -117,6 +116,22 @@ export const AppSidebar = () => {
     return map;
   }, [documentsQuery.data]);
 
+  // Fetch queues for counts (lightweight list query)
+  const queuesQuery = useQueuesList(
+    { page: 1, page_size: 100 },
+    { enabled: Boolean(activeGuild), staleTime: 60_000 }
+  );
+
+  const queueCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    const queues = queuesQuery.data?.items ?? [];
+    queues.forEach((queue) => {
+      const count = map.get(queue.initiative_id) ?? 0;
+      map.set(queue.initiative_id, count + 1);
+    });
+    return map;
+  }, [queuesQuery.data]);
+
   const visibleInitiatives = useMemo(() => {
     if (!user) {
       return [];
@@ -154,8 +169,10 @@ export const AppSidebar = () => {
         return {
           canViewDocs: true,
           canViewProjects: true,
+          canViewQueues: true,
           canCreateDocs: false,
           canCreateProjects: false,
+          canCreateQueues: false,
         };
       }
       // Guild admins have all permissions
@@ -163,8 +180,10 @@ export const AppSidebar = () => {
         return {
           canViewDocs: true,
           canViewProjects: true,
+          canViewQueues: true,
           canCreateDocs: true,
           canCreateProjects: true,
+          canCreateQueues: true,
         };
       }
       const membership = initiative.members.find((m) => m.user.id === user.id);
@@ -172,15 +191,19 @@ export const AppSidebar = () => {
         return {
           canViewDocs: true,
           canViewProjects: true,
+          canViewQueues: true,
           canCreateDocs: false,
           canCreateProjects: false,
+          canCreateQueues: false,
         };
       }
       return {
         canViewDocs: membership.can_view_docs ?? true,
         canViewProjects: membership.can_view_projects ?? true,
+        canViewQueues: membership.can_view_queues ?? false,
         canCreateDocs: membership.can_create_docs ?? false,
         canCreateProjects: membership.can_create_projects ?? false,
+        canCreateQueues: membership.can_create_queues ?? false,
       };
     },
     [user, isGuildAdmin]
@@ -225,7 +248,9 @@ export const AppSidebar = () => {
       const stored = getItem("initiative-collapsed-states");
       if (!stored) return false;
       const states = JSON.parse(stored) as Record<number, boolean>;
-      return visibleInitiatives.length > 0 && visibleInitiatives.every((i) => states[i.id] === false);
+      return (
+        visibleInitiatives.length > 0 && visibleInitiatives.every((i) => states[i.id] === false)
+      );
     } catch {
       return false;
     }
@@ -366,6 +391,14 @@ export const AppSidebar = () => {
                                     </Link>
                                   </SidebarMenuButton>
                                 </SidebarMenuItem>
+                                <SidebarMenuItem>
+                                  <SidebarMenuButton asChild>
+                                    <Link to={gp("/queues")} className="flex items-center gap-2">
+                                      <Layers2 className="h-4 w-4" />
+                                      <span>{t("allQueues")}</span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
                               </SidebarMenu>
                             </SidebarGroupContent>
                           </SidebarGroup>
@@ -385,8 +418,14 @@ export const AppSidebar = () => {
                                   variant="ghost"
                                   size="icon"
                                   className="h-5 w-5 shrink-0"
-                                  onClick={allInitiativesCollapsed ? expandAllInitiatives : collapseAllInitiatives}
-                                  aria-label={allInitiativesCollapsed ? t("expandAll") : t("collapseAll")}
+                                  onClick={
+                                    allInitiativesCollapsed
+                                      ? expandAllInitiatives
+                                      : collapseAllInitiatives
+                                  }
+                                  aria-label={
+                                    allInitiativesCollapsed ? t("expandAll") : t("collapseAll")
+                                  }
                                 >
                                   {allInitiativesCollapsed ? (
                                     <ChevronsUpDown className="h-3.5 w-3.5" />
@@ -429,8 +468,11 @@ export const AppSidebar = () => {
                                     userId={user?.id}
                                     canViewDocs={permissions.canViewDocs}
                                     canViewProjects={permissions.canViewProjects}
+                                    canViewQueues={permissions.canViewQueues}
                                     canCreateDocs={permissions.canCreateDocs}
                                     canCreateProjects={permissions.canCreateProjects}
+                                    canCreateQueues={permissions.canCreateQueues}
+                                    queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
                                     activeGuildId={activeGuildId}
                                     collapseKey={initiativeCollapseKey}
                                   />

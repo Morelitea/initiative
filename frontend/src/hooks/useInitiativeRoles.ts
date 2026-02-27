@@ -122,19 +122,27 @@ export const hasPermission = (
 // Helper to check if a feature is enabled for the user
 export const isFeatureEnabled = (
   permissions: MyInitiativePermissions | undefined,
-  feature: "docs" | "projects"
+  feature: "docs" | "projects" | "queues"
 ): boolean => {
-  const key: PermissionKey = feature === "docs" ? "docs_enabled" : "projects_enabled";
-  return hasPermission(permissions, key);
+  const keyMap: Record<typeof feature, PermissionKey> = {
+    docs: "docs_enabled",
+    projects: "projects_enabled",
+    queues: "queues_enabled",
+  };
+  return hasPermission(permissions, keyMap[feature]);
 };
 
-// Helper to check if user can create (docs or projects)
+// Helper to check if user can create (docs, projects, or queues)
 export const canCreate = (
   permissions: MyInitiativePermissions | undefined,
-  entity: "docs" | "projects"
+  entity: "docs" | "projects" | "queues"
 ): boolean => {
-  const key: PermissionKey = entity === "docs" ? "create_docs" : "create_projects";
-  return hasPermission(permissions, key);
+  const keyMap: Record<typeof entity, PermissionKey> = {
+    docs: "create_docs",
+    projects: "create_projects",
+    queues: "create_queues",
+  };
+  return hasPermission(permissions, keyMap[entity]);
 };
 
 // Permission key labels for display
@@ -143,12 +151,16 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   projects_enabled: "View Projects",
   create_docs: "Create Documents",
   create_projects: "Create Projects",
+  queues_enabled: "View Queues",
+  create_queues: "Create Queues",
 };
 
 // All permission keys in display order
 export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   "docs_enabled",
-  "projects_enabled",
   "create_docs",
+  "projects_enabled",
   "create_projects",
+  "queues_enabled",
+  "create_queues",
 ];

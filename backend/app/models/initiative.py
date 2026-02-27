@@ -10,6 +10,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.user import User
     from app.models.guild import Guild
     from app.models.document import Document
+    from app.models.queue import Queue
 
 
 # Legacy enum kept for backwards compatibility during migration
@@ -24,6 +25,8 @@ class PermissionKey(str, Enum):
     projects_enabled = "projects_enabled"
     create_docs = "create_docs"
     create_projects = "create_projects"
+    queues_enabled = "queues_enabled"
+    create_queues = "create_queues"
 
 
 # Fallback values when a permission is not explicitly set on a role.
@@ -34,6 +37,8 @@ DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
     PermissionKey.projects_enabled: True,
     PermissionKey.create_docs: False,
     PermissionKey.create_projects: False,
+    PermissionKey.queues_enabled: False,
+    PermissionKey.create_queues: False,
 }
 
 
@@ -44,12 +49,16 @@ BUILTIN_ROLE_PERMISSIONS = {
         PermissionKey.projects_enabled: True,
         PermissionKey.create_docs: True,
         PermissionKey.create_projects: True,
+        PermissionKey.queues_enabled: True,
+        PermissionKey.create_queues: True,
     },
     "member": {
         PermissionKey.docs_enabled: True,
         PermissionKey.projects_enabled: True,
         PermissionKey.create_docs: False,
         PermissionKey.create_projects: False,
+        PermissionKey.queues_enabled: False,
+        PermissionKey.create_queues: False,
     },
 }
 
@@ -168,6 +177,10 @@ class Initiative(SQLModel, table=True):
     projects: List["Project"] = Relationship(back_populates="initiative")
     guild: Optional["Guild"] = Relationship(back_populates="initiatives")
     documents: List["Document"] = Relationship(
+        back_populates="initiative",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    queues: List["Queue"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
