@@ -123,5 +123,20 @@
   "selectedCount": "{{count}} selected",
   "changeAccess": "Change access...",
   "removing": "Removing...",
-  "addAllCount": "Add all ({{count}})"
+  "addAllCount": "Add all ({{count}})",
+
+  "filters": {
+    "heading": "Filters",
+    "show": "Show",
+    "hide": "Hide",
+    "searchQueues": "Search queues...",
+    "filterByName": "Filter by name",
+    "filterByInitiative": "Initiative",
+    "allInitiatives": "All initiatives",
+    "status": "Status",
+    "allStatuses": "All",
+    "activeOnly": "Active",
+    "inactiveOnly": "Inactive",
+    "noMatchingQueues": "No queues match your filters."
+  }
 }

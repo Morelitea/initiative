@@ -41,7 +41,8 @@
     "updated": "Updated {{date}}",
     "initiativeSettings": "Initiative settings",
     "documents": "Documents",
-    "projects": "Projects"
+    "projects": "Projects",
+    "queues": "Queues"
   },
   "settings": {
     "title": "Initiative settings",
@@ -134,12 +135,25 @@
     "removeMemberWarning": "This will also remove their explicit access to all projects and documents in this initiative.",
     "removing": "Removing...",
     "nameRequired": "Name is required.",
-    "roleNameRequired": "Name and display name are required."
+    "roleNameRequired": "Name and display name are required.",
+    "memberCountBadge_one": "{{count}} member",
+    "memberCountBadge_other": "{{count}} members",
+    "permissionGroups": {
+      "documents": "Documents",
+      "projects": "Projects",
+      "queues": "Queues"
+    },
+    "permissions": {
+      "viewDocuments": "View Documents",
+      "viewProjects": "View Projects",
+      "createDocuments": "Create Documents",
+      "createProjects": "Create Projects",
+      "viewQueues": "View Queues",
+      "createQueues": "Create Queues"
+    }
   },
-  "permissions": {
-    "viewDocuments": "View Documents",
-    "viewProjects": "View Projects",
-    "createDocuments": "Create Documents",
-    "createProjects": "Create Projects"
-  }
+  "advancedTools": "Advanced Tools",
+  "advancedToolsDescription": "Enable optional tools for this initiative.",
+  "queuesFeature": "Queues",
+  "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next."
 }

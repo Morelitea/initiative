@@ -125,7 +125,7 @@ _DUNGEON_USERS = [
 
 
 def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
-    """Generate 10 000 TTRPG-themed task defs for the mega dungeon project."""
+    """Generate 1 000 TTRPG-themed task defs for the mega dungeon project."""
     import random as _rng
     _rng.seed(42)  # deterministic for reproducible seeds
 
@@ -141,7 +141,7 @@ def _generate_mega_dungeon_tasks(project_id: int) -> list[dict]:
     ]
 
     tasks: list[dict] = []
-    for i in range(1, 10_001):
+    for i in range(1, 1_001):
         area = _DUNGEON_AREAS[i % len(_DUNGEON_AREAS)]
         verb = _DUNGEON_VERBS[i % len(_DUNGEON_VERBS)]
         adj = _adjectives[i % len(_adjectives)]
@@ -356,6 +356,7 @@ async def _create_initiative(
     color: str,
     pm_user: User,
     member_users: list[User] | None = None,
+    queues_enabled: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
     """Create an initiative with roles and members."""
     initiative = Initiative(
@@ -363,6 +364,7 @@ async def _create_initiative(
         name=name,
         description=description,
         color=color,
+        queues_enabled=queues_enabled,
     )
     session.add(initiative)
     await session.flush()
@@ -1061,6 +1063,7 @@ async def seed() -> None:
                 color="#7C3AED",
                 pm_user=dm,
                 member_users=[thorn, elara, vex, sera],
+                queues_enabled=True,
             )
 
             # --- Initiative: Lost Mine of Phandelver ---
@@ -1072,6 +1075,7 @@ async def seed() -> None:
                 color="#059669",
                 pm_user=admin_user,
                 member_users=[dm, thorn, elara],
+                queues_enabled=True,
             )
 
             # -- Projects --
@@ -1685,6 +1689,7 @@ async def seed() -> None:
                 color="#0EA5E9",
                 pm_user=admin_user,
                 member_users=[finley, kael, aurelia, vex, elara],
+                queues_enabled=True,
             )
 
             g2_side, g2_side_pm, g2_side_mem = await _create_initiative(
@@ -1695,6 +1700,7 @@ async def seed() -> None:
                 color="#F59E0B",
                 pm_user=finley,
                 member_users=[kael, aurelia, vex],
+                queues_enabled=True,
             )
 
             # Projects
@@ -2113,6 +2119,7 @@ async def seed() -> None:
                 color="#DC2626",
                 pm_user=finley,
                 member_users=[admin_user, dm, thorn, kael, aurelia, sera],
+                queues_enabled=True,
             )
 
             g3_navy, g3_navy_pm, g3_navy_mem = await _create_initiative(
@@ -2123,6 +2130,7 @@ async def seed() -> None:
                 color="#1E40AF",
                 pm_user=dm,
                 member_users=[finley, thorn, kael],
+                queues_enabled=True,
             )
 
             # Projects

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -16,6 +17,8 @@ interface InitiativeSettingsDetailsTabProps {
   setDescription: (value: string) => void;
   color: string;
   setColor: (value: string) => void;
+  queuesEnabled: boolean;
+  onToggleQueues: (value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -28,6 +31,8 @@ export const InitiativeSettingsDetailsTab = ({
   setDescription,
   color,
   setColor,
+  queuesEnabled,
+  onToggleQueues,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -91,6 +96,26 @@ export const InitiativeSettingsDetailsTab = ({
               <p className="text-muted-foreground text-sm">{t("settings.editPermissionNote")}</p>
             )}
           </form>
+        </CardContent>
+      </Card>
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>{t("advancedTools")}</CardTitle>
+          <CardDescription>{t("advancedToolsDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="settings-queues-toggle">{t("queuesFeature")}</Label>
+              <p className="text-muted-foreground text-xs">{t("queuesFeatureDescription")}</p>
+            </div>
+            <Switch
+              id="settings-queues-toggle"
+              checked={queuesEnabled}
+              onCheckedChange={onToggleQueues}
+              disabled={!canManageMembers || isSaving}
+            />
+          </div>
         </CardContent>
       </Card>
     </TabsContent>

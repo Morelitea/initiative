@@ -189,6 +189,7 @@
   "QUEUE_ALREADY_ACTIVE": "Queue is already active",
   "QUEUE_NO_ITEMS": "Queue has no items",
   "QUEUE_INVALID_TAG_IDS": "One or more tag IDs are invalid",
+  "QUEUES_NOT_ENABLED": "Queues are not enabled for this initiative",
   "NOTIFICATION_NOT_FOUND": "Notification not found",
   "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
   "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",

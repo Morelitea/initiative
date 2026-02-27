@@ -17,6 +17,7 @@ class InitiativeBase(BaseModel):
     name: str
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
+    queues_enabled: bool = False
 
 
 class InitiativeCreate(InitiativeBase):
@@ -27,6 +28,7 @@ class InitiativeUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
+    queues_enabled: Optional[bool] = None
 
 
 # Role schemas
@@ -149,6 +151,7 @@ def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> Initia
 
 
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
+    initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -189,6 +192,11 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 elif perm.permission_key == PermissionKey.create_queues and perm.enabled:
                     can_create_queues = True
 
+        # Initiative-level master switch overrides role-level queue permissions
+        if not initiative_queues_enabled:
+            can_view_queues = False
+            can_create_queues = False
+
         # Determine legacy role for backward compatibility
         legacy_role = (
             InitiativeRole.project_manager
@@ -221,6 +229,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         description=initiative.description,
         color=initiative.color,
         is_default=initiative.is_default,
+        queues_enabled=initiative_queues_enabled,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

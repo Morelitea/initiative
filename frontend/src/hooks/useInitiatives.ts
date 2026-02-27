@@ -72,14 +72,22 @@ export const useInitiativeMembers = (
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export const useCreateInitiative = (
-  options?: MutationOpts<InitiativeRead, { name: string; description?: string; color?: string }>
+  options?: MutationOpts<
+    InitiativeRead,
+    { name: string; description?: string; color?: string; queues_enabled?: boolean }
+  >
 ) => {
   const { t } = useTranslation("initiatives");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: { name: string; description?: string; color?: string }) => {
+    mutationFn: async (data: {
+      name: string;
+      description?: string;
+      color?: string;
+      queues_enabled?: boolean;
+    }) => {
       return createInitiativeApiV1InitiativesPost(data) as unknown as Promise<InitiativeRead>;
     },
     onSuccess: (...args) => {

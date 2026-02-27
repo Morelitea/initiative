@@ -33,7 +33,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
@@ -105,6 +112,7 @@ export const InitiativesPage = () => {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_INITIATIVE_COLOR);
+  const [queuesEnabled, setQueuesEnabled] = useState(false);
   const lastConsumedParams = useRef<string>("");
 
   // Check for query params to open create dialog (consume once)
@@ -132,6 +140,7 @@ export const InitiativesPage = () => {
         name: trimmedName,
         description: newDescription.trim() || undefined,
         color: newColor,
+        queues_enabled: queuesEnabled,
       },
       {
         onSuccess: () => {
@@ -139,6 +148,7 @@ export const InitiativesPage = () => {
           setNewName("");
           setNewDescription("");
           setNewColor(DEFAULT_INITIATIVE_COLOR);
+          setQueuesEnabled(false);
         },
       }
     );
@@ -299,6 +309,30 @@ export const InitiativesPage = () => {
                   />
                   <p className="text-muted-foreground text-xs">{t("createDialog.colorHint")}</p>
                 </div>
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="advanced-tools">
+                    <AccordionTrigger>{t("advancedTools")}</AccordionTrigger>
+                    <AccordionContent>
+                      <p className="text-muted-foreground mb-3 text-sm">
+                        {t("advancedToolsDescription")}
+                      </p>
+                      <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="create-queues-toggle">{t("queuesFeature")}</Label>
+                          <p className="text-muted-foreground text-xs">
+                            {t("queuesFeatureDescription")}
+                          </p>
+                        </div>
+                        <Switch
+                          id="create-queues-toggle"
+                          checked={queuesEnabled}
+                          onCheckedChange={setQueuesEnabled}
+                          disabled={createInitiative.isPending}
+                        />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
                 <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <Button type="submit" disabled={createInitiative.isPending}>
                     {createInitiative.isPending ? (

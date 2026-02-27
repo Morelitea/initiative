@@ -132,6 +132,12 @@ async def _get_queue_with_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.NOT_FOUND,
         )
+    # Block access when queues are disabled at the initiative level
+    if queue.initiative and not queue.initiative.queues_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=QueueMessages.FEATURE_DISABLED,
+        )
     # Guild admins bypass DAC
     if not rls_service.is_guild_admin(guild_context.role):
         queues_service.require_queue_access(queue, user, access=access)
@@ -200,7 +206,20 @@ async def list_queues(
     conditions = [Queue.guild_id == guild_context.guild_id]
 
     if initiative_id is not None:
+        # Validate that queues are enabled for this initiative
+        initiative = await session.get(Initiative, initiative_id)
+        if initiative and not initiative.queues_enabled:
+            return QueueListResponse(
+                items=[], total_count=0, page=page, page_size=page_size, has_next=False,
+            )
         conditions.append(Queue.initiative_id == initiative_id)
+    else:
+        # Only include queues from initiatives with queues enabled
+        conditions.append(
+            Queue.initiative_id.in_(
+                select(Initiative.id).where(Initiative.queues_enabled == True)  # noqa: E712
+            )
+        )
 
     # DAC filtering: non-admins only see queues they have permission for
     if not rls_service.is_guild_admin(guild_context.role):
@@ -275,6 +294,11 @@ async def create_queue(
     The creator automatically gets owner-level permission.
     """
     initiative = await _get_initiative_for_queue(session, queue_in.initiative_id)
+    if not initiative.queues_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=QueueMessages.FEATURE_DISABLED,
+        )
     await _check_initiative_permission(
         session,
         initiative,

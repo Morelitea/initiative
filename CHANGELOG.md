@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Queue user permissions table: filtering by name, multiselect with bulk access change/remove, pagination, and "Add All" button
 - Queue backend integration tests (19 tests covering CRUD, items, turns, DAC, and associations)
 - Queue frontend and backend test factories
+- Initiative-level feature flags: per-initiative toggle to enable/disable advanced tools like Queues; Advanced Tools accordion in create and settings dialogs
+- Queues tab on initiative detail page when queues are enabled
+- Queue list filter bar with search, active/inactive status filter, and initiative filter
+
+### Changed
+
+- Roles tab redesigned from data table to card-per-role layout with grouped permission switches and an Advanced Tools accordion, scaling to any number of permissions without horizontal scrolling
+- Removed standalone "All Queues" sidebar link; queues are now accessed per-initiative
 
 ## [0.32.4] - 2026-02-26
 

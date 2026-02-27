@@ -16,7 +16,7 @@ from app.api.deps import (
 from app.core.messages import AuthMessages, InitiativeMessages
 from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
 from app.models.user import User, UserRole
@@ -198,7 +198,12 @@ async def create_initiative(
     guild_id = guild_context.guild_id
     if await _initiative_name_exists(session, initiative_in.name, guild_id=guild_id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=InitiativeMessages.NAME_EXISTS)
-    initiative = Initiative(name=initiative_in.name, description=initiative_in.description, guild_id=guild_id)
+    initiative = Initiative(
+        name=initiative_in.name,
+        description=initiative_in.description,
+        guild_id=guild_id,
+        queues_enabled=initiative_in.queues_enabled,
+    )
     if initiative_in.color:
         initiative.color = initiative_in.color
     session.add(initiative)
@@ -445,7 +450,7 @@ async def get_my_initiative_permissions(
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> MyInitiativePermissions:
     """Get the current user's permissions for an initiative."""
-    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
     # Guild admins have all permissions
     if rls_service.is_guild_admin(guild_context.role):
@@ -456,6 +461,8 @@ async def get_my_initiative_permissions(
                 "projects_enabled": True,
                 "create_docs": True,
                 "create_projects": True,
+                "queues_enabled": initiative.queues_enabled,
+                "create_queues": initiative.queues_enabled,
             },
         )
 
@@ -475,6 +482,11 @@ async def get_my_initiative_permissions(
         perm.permission_key: perm.enabled
         for perm in (role.permissions or [])
     }
+
+    # Initiative-level master switch overrides role-level queue permissions
+    if not initiative.queues_enabled:
+        permissions[PermissionKey.queues_enabled] = False
+        permissions[PermissionKey.create_queues] = False
 
     return MyInitiativePermissions(
         role_id=role.id,
