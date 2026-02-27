@@ -335,6 +335,7 @@ export function QueueDetailPage() {
           queueId={parsedId}
           initiativeId={queue.initiative_id}
           item={editingItem}
+          readOnly={!canEdit}
         />
       )}
 

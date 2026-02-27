@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Queue feature: turn/priority tracking with turn controls (start, stop, advance, previous, reset), per-item user/document/task linking, and tag support
+- Queue DAC (Discretionary Access Control): user-level and role-based permissions with read/write/owner levels
+- Queue settings page with details editing, role/user permission management, and delete
+- Queue user permissions table: filtering by name, multiselect with bulk access change/remove, pagination, and "Add All" button
+- Queue backend integration tests (19 tests covering CRUD, items, turns, DAC, and associations)
+- Queue frontend and backend test factories
+
 ## [0.32.4] - 2026-02-26
 
 ### Security

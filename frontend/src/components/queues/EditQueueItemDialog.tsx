@@ -39,6 +39,7 @@ type EditQueueItemDialogProps = DialogProps & {
   queueId: number;
   initiativeId: number;
   item: QueueItemRead;
+  readOnly?: boolean;
   onSuccess?: () => void;
 };
 
@@ -48,6 +49,7 @@ export const EditQueueItemDialog = ({
   queueId,
   initiativeId,
   item,
+  readOnly = false,
   onSuccess,
 }: EditQueueItemDialogProps) => {
   const { t } = useTranslation(["queues", "common"]);
@@ -203,7 +205,7 @@ export const EditQueueItemDialog = ({
 
   const isSaving = updateItem.isPending;
   const isDeleting = deleteItem.isPending;
-  const canSubmit = label.trim() && !isSaving && !isDeleting;
+  const canSubmit = !readOnly && label.trim() && !isSaving && !isDeleting;
 
   const handleSubmit = () => {
     const trimmedLabel = label.trim();
@@ -243,6 +245,7 @@ export const EditQueueItemDialog = ({
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder={t("labelPlaceholder")}
+                disabled={readOnly}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && canSubmit) {
                     e.preventDefault();
@@ -261,6 +264,7 @@ export const EditQueueItemDialog = ({
                 value={position}
                 onChange={(e) => setPosition(e.target.value)}
                 placeholder="0"
+                disabled={readOnly}
               />
               <p className="text-muted-foreground text-xs">{t("positionHelp")}</p>
             </div>
@@ -273,6 +277,7 @@ export const EditQueueItemDialog = ({
                 onChange={setColor}
                 triggerLabel={t("color")}
                 className="h-9"
+                disabled={readOnly}
               />
             </div>
 
@@ -285,6 +290,7 @@ export const EditQueueItemDialog = ({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder={t("notesPlaceholder")}
                 rows={2}
+                disabled={readOnly}
               />
             </div>
 
@@ -300,6 +306,7 @@ export const EditQueueItemDialog = ({
                 checked={isVisible}
                 onCheckedChange={setIsVisible}
                 aria-label={t("visible")}
+                disabled={readOnly}
               />
             </div>
 
@@ -310,6 +317,7 @@ export const EditQueueItemDialog = ({
                 selectedTags={selectedTags}
                 onChange={setSelectedTags}
                 placeholder={t("tags")}
+                disabled={readOnly}
               />
             </div>
 
@@ -323,8 +331,9 @@ export const EditQueueItemDialog = ({
                   onValueChange={(val) => setUserId(val ? Number(val) : null)}
                   placeholder={t("selectUser")}
                   emptyMessage={t("noUser")}
+                  disabled={readOnly}
                 />
-                {userId !== null && (
+                {userId !== null && !readOnly && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -341,18 +350,20 @@ export const EditQueueItemDialog = ({
             {/* Linked Documents */}
             <div className="space-y-2">
               <Label>{t("linkedDocuments")}</Label>
-              <SearchableCombobox
-                items={docItems}
-                value={null}
-                onValueChange={(val) => {
-                  const docId = Number(val);
-                  if (docId && !selectedDocIds.includes(docId)) {
-                    setSelectedDocIds((prev) => [...prev, docId]);
-                  }
-                }}
-                placeholder={t("selectDocument")}
-                emptyMessage={t("noDocuments")}
-              />
+              {!readOnly && (
+                <SearchableCombobox
+                  items={docItems}
+                  value={null}
+                  onValueChange={(val) => {
+                    const docId = Number(val);
+                    if (docId && !selectedDocIds.includes(docId)) {
+                      setSelectedDocIds((prev) => [...prev, docId]);
+                    }
+                  }}
+                  placeholder={t("selectDocument")}
+                  emptyMessage={t("noDocuments")}
+                />
+              )}
               {selectedDocIds.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {selectedDocIds.map((docId) => (
@@ -367,16 +378,18 @@ export const EditQueueItemDialog = ({
                       >
                         {docLookup.get(docId) ?? `#${docId}`}
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedDocIds((prev) => prev.filter((id) => id !== docId))
-                        }
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label={t("removeLink")}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedDocIds((prev) => prev.filter((id) => id !== docId))
+                          }
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={t("removeLink")}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -386,18 +399,20 @@ export const EditQueueItemDialog = ({
             {/* Linked Tasks */}
             <div className="space-y-2">
               <Label>{t("linkedTasks")}</Label>
-              <SearchableCombobox
-                items={taskItems}
-                value={null}
-                onValueChange={(val) => {
-                  const taskId = Number(val);
-                  if (taskId && !selectedTaskIds.includes(taskId)) {
-                    setSelectedTaskIds((prev) => [...prev, taskId]);
-                  }
-                }}
-                placeholder={t("selectTask")}
-                emptyMessage={t("noTasks")}
-              />
+              {!readOnly && (
+                <SearchableCombobox
+                  items={taskItems}
+                  value={null}
+                  onValueChange={(val) => {
+                    const taskId = Number(val);
+                    if (taskId && !selectedTaskIds.includes(taskId)) {
+                      setSelectedTaskIds((prev) => [...prev, taskId]);
+                    }
+                  }}
+                  placeholder={t("selectTask")}
+                  emptyMessage={t("noTasks")}
+                />
+              )}
               {selectedTaskIds.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {selectedTaskIds.map((taskId) => (
@@ -412,16 +427,18 @@ export const EditQueueItemDialog = ({
                       >
                         {taskLookup.get(taskId) ?? `#${taskId}`}
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId))
-                        }
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label={t("removeLink")}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId))
+                          }
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={t("removeLink")}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -429,28 +446,30 @@ export const EditQueueItemDialog = ({
             </div>
           </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => setDeleteConfirmOpen(true)}
-              disabled={isSaving || isDeleting}
-            >
-              <Trash2 className="mr-1 h-4 w-4" />
-              {t("removeItem")}
-            </Button>
-            <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t("saving")}
-                </>
-              ) : (
-                t("common:save")
-              )}
-            </Button>
-          </DialogFooter>
+          {!readOnly && (
+            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={isSaving || isDeleting}
+              >
+                <Trash2 className="mr-1 h-4 w-4" />
+                {t("removeItem")}
+              </Button>
+              <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t("saving")}
+                  </>
+                ) : (
+                  t("common:save")
+                )}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
