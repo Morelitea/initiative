@@ -132,6 +132,12 @@ async def _get_queue_with_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.NOT_FOUND,
         )
+    # Block access when queues are disabled at the initiative level
+    if queue.initiative and not queue.initiative.queues_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=QueueMessages.FEATURE_DISABLED,
+        )
     # Guild admins bypass DAC
     if not rls_service.is_guild_admin(guild_context.role):
         queues_service.require_queue_access(queue, user, access=access)
