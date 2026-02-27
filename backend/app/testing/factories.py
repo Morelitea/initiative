@@ -257,6 +257,7 @@ async def create_initiative(
         "name": f"Test Initiative {datetime.now(timezone.utc).timestamp()}",
         "description": "A test initiative",
         "guild_id": guild.id,
+        "queues_enabled": True,
     }
 
     initiative_data = {**defaults, **overrides}
