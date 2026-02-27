@@ -164,8 +164,12 @@ async def _refetch_queue(
     session: RLSSessionDep,
     queue_id: int,
 ) -> Queue:
-    """Re-fetch a queue after commit + reapply_rls_context for serialization."""
-    queue = await queues_service.get_queue(session, queue_id)
+    """Re-fetch a queue after commit + reapply_rls_context for serialization.
+
+    Uses populate_existing=True so selectinload returns fresh relationship data
+    (needed because expire_on_commit=False keeps stale collections in identity map).
+    """
+    queue = await queues_service.get_queue(session, queue_id, populate_existing=True)
     if not queue:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -454,7 +458,7 @@ async def add_queue_item(
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id)
+    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -491,7 +495,7 @@ async def update_queue_item(
         await session.commit()
         await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id)
+    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -718,7 +722,7 @@ async def set_queue_item_tags(
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id)
+    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -753,7 +757,7 @@ async def set_queue_item_documents(
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id)
+    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -783,7 +787,7 @@ async def set_queue_item_tasks(
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id)
+    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

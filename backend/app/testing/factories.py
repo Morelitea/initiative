@@ -15,6 +15,7 @@ from app.core.security import create_access_token, get_password_hash
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
+from app.models.queue import Queue, QueueItem
 from app.models.user import User, UserRole
 from app.services.initiatives import create_builtin_roles
 
@@ -334,6 +335,94 @@ async def create_project(
         await session.commit()
 
     return project
+
+
+async def create_queue(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    commit: bool = True,
+    **overrides: Any,
+) -> Queue:
+    """
+    Create a test queue with sensible defaults.
+
+    Args:
+        session: Database session
+        initiative: Initiative the queue belongs to
+        creator: User who creates the queue
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created Queue instance
+    """
+    from app.models.queue import QueuePermission, QueuePermissionLevel
+
+    defaults = {
+        "name": f"Test Queue {datetime.now(timezone.utc).timestamp()}",
+        "description": "A test queue",
+        "initiative_id": initiative.id,
+        "guild_id": initiative.guild_id,
+        "created_by_id": creator.id,
+    }
+
+    queue_data = {**defaults, **overrides}
+    queue = Queue(**queue_data)
+    session.add(queue)
+
+    if commit:
+        await session.commit()
+        await session.refresh(queue)
+
+        # Create owner permission for creator
+        owner_perm = QueuePermission(
+            queue_id=queue.id,
+            user_id=creator.id,
+            guild_id=queue.guild_id,
+            level=QueuePermissionLevel.owner,
+        )
+        session.add(owner_perm)
+        await session.commit()
+
+    return queue
+
+
+async def create_queue_item(
+    session: AsyncSession,
+    queue: Queue,
+    commit: bool = True,
+    **overrides: Any,
+) -> QueueItem:
+    """
+    Create a test queue item with sensible defaults.
+
+    Args:
+        session: Database session
+        queue: Queue the item belongs to
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created QueueItem instance
+    """
+    defaults = {
+        "queue_id": queue.id,
+        "guild_id": queue.guild_id,
+        "label": f"Item {datetime.now(timezone.utc).timestamp()}",
+        "position": 0,
+        "is_visible": True,
+    }
+
+    item_data = {**defaults, **overrides}
+    item = QueueItem(**item_data)
+    session.add(item)
+
+    if commit:
+        await session.commit()
+        await session.refresh(item)
+
+    return item
 
 
 async def create_initiative_member(

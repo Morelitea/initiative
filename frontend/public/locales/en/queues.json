@@ -118,5 +118,10 @@
   "userPermissionAdded": "User permission added",
   "userPermissionRemoved": "User permission removed",
   "permissionsUpdated": "Permissions updated",
-  "detailsUpdated": "Queue details updated"
+  "detailsUpdated": "Queue details updated",
+  "filterByName": "Filter by name...",
+  "selectedCount": "{{count}} selected",
+  "changeAccess": "Change access...",
+  "removing": "Removing...",
+  "addAllCount": "Add all ({{count}})"
 }

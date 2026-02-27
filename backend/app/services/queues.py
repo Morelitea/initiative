@@ -177,7 +177,12 @@ def require_queue_access(
 # Query helpers
 # ---------------------------------------------------------------------------
 
-async def get_queue(session: AsyncSession, queue_id: int) -> Queue | None:
+async def get_queue(
+    session: AsyncSession,
+    queue_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Queue | None:
     """Fetch a queue with all relationships loaded for serialization."""
     stmt = (
         select(Queue)
@@ -201,11 +206,18 @@ async def get_queue(session: AsyncSession, queue_id: int) -> Queue | None:
             .selectinload(Initiative.memberships),
         )
     )
+    if populate_existing:
+        stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
 
 
-async def get_queue_item(session: AsyncSession, item_id: int) -> QueueItem | None:
+async def get_queue_item(
+    session: AsyncSession,
+    item_id: int,
+    *,
+    populate_existing: bool = False,
+) -> QueueItem | None:
     """Fetch a queue item with tag/document/task/user relationships loaded."""
     stmt = (
         select(QueueItem)
@@ -220,6 +232,8 @@ async def get_queue_item(session: AsyncSession, item_id: int) -> QueueItem | Non
             selectinload(QueueItem.user),
         )
     )
+    if populate_existing:
+        stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
 

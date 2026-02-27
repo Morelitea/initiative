@@ -118,5 +118,10 @@
   "userPermissionAdded": "Permiso de usuario añadido",
   "userPermissionRemoved": "Permiso de usuario eliminado",
   "permissionsUpdated": "Permisos actualizados",
-  "detailsUpdated": "Detalles de la cola actualizados"
+  "detailsUpdated": "Detalles de la cola actualizados",
+  "filterByName": "Filtrar por nombre...",
+  "selectedCount": "{{count}} seleccionados",
+  "changeAccess": "Cambiar acceso...",
+  "removing": "Eliminando...",
+  "addAllCount": "Añadir todos ({{count}})"
 }

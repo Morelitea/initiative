@@ -178,6 +178,7 @@ export const QueueSettingsPage = () => {
   // User permission helpers
   const [selectedNewUserId, setSelectedNewUserId] = useState<string>("");
   const [selectedNewUserLevel, setSelectedNewUserLevel] = useState<QueuePermissionLevel>("read");
+  const [selectedMembers, setSelectedMembers] = useState<UserPermissionRow[]>([]);
 
   const availableMembers = useMemo(() => {
     const members = membersQuery.data ?? [];
@@ -205,6 +206,41 @@ export const QueueSettingsPage = () => {
 
   const handleRemoveUserPermission = (userId: number) => {
     const newList = localUserPerms.filter((p) => p.user_id !== userId);
+    setLocalUserPerms(newList);
+    setUserPermissions.mutate(newList);
+  };
+
+  const handleBulkUpdateLevel = (level: QueuePermissionLevel) => {
+    const selectedUserIds = new Set(
+      selectedMembers.filter((m) => !m.isOwner).map((m) => m.user_id)
+    );
+    if (selectedUserIds.size === 0) return;
+    const newList = localUserPerms.map((p) =>
+      selectedUserIds.has(p.user_id) ? { ...p, level } : p
+    );
+    setLocalUserPerms(newList);
+    setUserPermissions.mutate(newList);
+    setSelectedMembers([]);
+  };
+
+  const handleBulkRemoveUsers = () => {
+    const selectedUserIds = new Set(
+      selectedMembers.filter((m) => !m.isOwner).map((m) => m.user_id)
+    );
+    if (selectedUserIds.size === 0) return;
+    const newList = localUserPerms.filter((p) => !selectedUserIds.has(p.user_id));
+    setLocalUserPerms(newList);
+    setUserPermissions.mutate(newList);
+    setSelectedMembers([]);
+  };
+
+  const handleAddAllMembers = () => {
+    if (availableMembers.length === 0) return;
+    const newEntries: QueuePermissionCreate[] = availableMembers.map((m) => ({
+      user_id: m.id,
+      level: selectedNewUserLevel,
+    }));
+    const newList = [...localUserPerms, ...newEntries];
     setLocalUserPerms(newList);
     setUserPermissions.mutate(newList);
   };
@@ -546,15 +582,50 @@ export const QueueSettingsPage = () => {
                 <CardDescription>{t("userPermissionsDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {userPermissionRows.length > 0 ? (
-                  <DataTable
-                    columns={userColumns}
-                    data={userPermissionRows}
-                    getRowId={(row) => String(row.user_id)}
-                  />
-                ) : (
-                  <p className="text-muted-foreground text-sm">{t("noUserPermissions")}</p>
+                {/* Bulk action bar */}
+                {selectedMembers.length > 0 && (
+                  <div className="bg-muted flex items-center gap-3 rounded-md p-3">
+                    <span className="text-sm font-medium">
+                      {t("selectedCount", { count: selectedMembers.length })}
+                    </span>
+                    <Select
+                      onValueChange={(level) =>
+                        handleBulkUpdateLevel(level as QueuePermissionLevel)
+                      }
+                      disabled={setUserPermissions.isPending}
+                    >
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder={t("changeAccess")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">{t("permissionRead")}</SelectItem>
+                        <SelectItem value="write">{t("permissionWrite")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleBulkRemoveUsers}
+                      disabled={setUserPermissions.isPending}
+                    >
+                      {setUserPermissions.isPending ? t("removing") : t("removeMember")}
+                    </Button>
+                  </div>
                 )}
+
+                <DataTable
+                  columns={userColumns}
+                  data={userPermissionRows}
+                  getRowId={(row) => String(row.user_id)}
+                  enableFilterInput
+                  filterInputColumnKey="displayName"
+                  filterInputPlaceholder={t("filterByName")}
+                  enableRowSelection
+                  onRowSelectionChange={setSelectedMembers}
+                  onExitSelection={() => setSelectedMembers([])}
+                  enablePagination
+                />
 
                 {/* Add member form */}
                 <div className="space-y-2 pt-2">
@@ -592,6 +663,16 @@ export const QueueSettingsPage = () => {
                         disabled={!selectedNewUserId || setUserPermissions.isPending}
                       >
                         {setUserPermissions.isPending ? t("adding") : t("addMember")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleAddAllMembers}
+                        disabled={setUserPermissions.isPending}
+                      >
+                        {setUserPermissions.isPending
+                          ? t("adding")
+                          : t("addAllCount", { count: availableMembers.length })}
                       </Button>
                     </div>
                   )}
