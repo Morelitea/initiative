@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Docker container now runs as non-root user (`app`, UID/GID 1000 by default) instead of root — compatible with rootless Docker and Podman. Set `PUID`/`PGID` environment variables to customize (e.g. `PUID=99 PGID=100` for Unraid's `nobody:users`)
+
 ### Fixed
 
 - `app_admin` role missing grants on queue tables — caused `permission denied for table queues` errors for background jobs and seed scripts
 - Added `ALTER DEFAULT PRIVILEGES` for `app_admin` so future migrations automatically inherit grants (previously only `app_user` had default privileges)
+
+### Upgrade Notes
+
+- **Uploads volume ownership**: The container now runs as a non-root user (UID 1000 by default). If file uploads fail after upgrading, fix ownership on the host: `chown -R 1000:1000 ./uploads`. Alternatively, set `PUID` and `PGID` to match your host user (e.g. `PUID=99 PGID=100` for Unraid)
 
 ## [0.33.0] - 2026-02-27
 
