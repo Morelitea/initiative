@@ -185,6 +185,8 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration | - |
 | `SMTP_FROM_ADDRESS` | Email sender address | - |
 | `FCM_ENABLED` | Enable Firebase Cloud Messaging | `false` |
+| `PUID` | UID the container runs as (for rootless/NAS setups) | `1000` |
+| `PGID` | GID the container runs as (for rootless/NAS setups) | `1000` |
 
 For FCM setup, see [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). For a complete list of options, see `backend/.env.example`.
 
