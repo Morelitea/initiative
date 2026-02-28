@@ -25,6 +25,10 @@ services:
     volumes:
       - ./uploads:/app/uploads
     environment:
+      # Optional: Run as a specific UID/GID (default: 1000/1000)
+      # Unraid users: set PUID=99 PGID=100 for nobody:users
+      # PUID: 1000
+      # PGID: 1000
       # RLS-enforced connection (app_user role, no BYPASSRLS)
       DATABASE_URL_APP: postgresql+asyncpg://app_user:${APP_USER_PASSWORD:-app_user_password}@db:5432/${POSTGRES_DB:-initiative}
       # Admin connection for migrations and background jobs (app_admin role, BYPASSRLS)
