@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-02-27
+
 ### Security
 
 - Docker container now runs as non-root user (`app`, UID/GID 1000 by default) instead of root — compatible with rootless Docker and Podman. Set `PUID`/`PGID` environment variables to customize (e.g. `PUID=99 PGID=100` for Unraid's `nobody:users`)
