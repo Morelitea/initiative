@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `app_admin` role missing grants on queue tables — caused `permission denied for table queues` errors for background jobs and seed scripts
+- Added `ALTER DEFAULT PRIVILEGES` for `app_admin` so future migrations automatically inherit grants (previously only `app_user` had default privileges)
+
 ## [0.33.0] - 2026-02-27
 
 ### Added
