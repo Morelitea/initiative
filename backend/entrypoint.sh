@@ -32,4 +32,4 @@ fi
 chown -R "$APP_UID:$APP_GID" /app/uploads
 
 # Run the command as the requested UID (numeric avoids name-resolution issues)
-exec gosu "$APP_UID" "$@"
+exec gosu "$APP_UID:$APP_GID" "$@"
