@@ -80,10 +80,15 @@ jobs:
             echo "scope=app/" >> $GITHUB_OUTPUT
             echo "Shared infrastructure changed — running all tests"
           else
-            # Extract unique directories and strip backend/ prefix
-            DIRS=$(echo "$CHANGED" | sed 's|^backend/||' | xargs -I{} dirname {} | sort -u | tr '\n' ' ')
-            echo "scope=$DIRS" >> $GITHUB_OUTPUT
-            echo "Running tests in: $DIRS"
+            # Extract unique directories, strip backend/ prefix, and exclude non-code dirs
+            DIRS=$(echo "$CHANGED" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sort -u | tr '\n' ' ')
+            if [[ -z "${DIRS// }" ]]; then
+              echo "scope=app/" >> $GITHUB_OUTPUT
+              echo "Only non-code files changed — running all tests"
+            else
+              echo "scope=$DIRS" >> $GITHUB_OUTPUT
+              echo "Running tests in: $DIRS"
+            fi
           fi
 
       - name: Run tests
