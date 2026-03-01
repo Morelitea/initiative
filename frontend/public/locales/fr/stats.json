@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "Mes statistiques",
+    "subtitle": "Suivez votre productivité et vos indicateurs de complétion des tâches",
+    "guildFilterPlaceholder": "Sélectionner un groupe",
+    "allGuilds": "Tous les groupes",
+    "loading": "Chargement des statistiques…",
+    "error": "Échec du chargement des statistiques. Veuillez réessayer plus tard."
+  },
+  "metrics": {
+    "currentStreak": "Série en cours",
+    "consecutiveDays": "Jours de travail consécutifs",
+    "onTimeRate": "Taux de ponctualité",
+    "onTimeSubtitle": "Tâches terminées avant la date d'échéance",
+    "avgCompletion": "Complétion moyenne",
+    "avgCompletionSubtitle": "Du début à la complétion",
+    "backlogTrend": "Tendance du backlog",
+    "thisWeek": "Cette semaine",
+    "days": "jours",
+    "growing": "En hausse",
+    "shrinking": "En baisse"
+  },
+  "tasksCompleted": {
+    "title": "Tâches terminées",
+    "allTime": "Depuis toujours",
+    "thisWeek": "Cette semaine"
+  },
+  "velocity": {
+    "title": "Vélocité",
+    "description": "Tâches assignées vs terminées par semaine",
+    "descriptionLong": "Tâches assignées vs terminées par semaine (12 dernières semaines)",
+    "noData": "Aucune donnée de vélocité disponible",
+    "assigned": "Assignées",
+    "completed": "Terminées"
+  },
+  "guildBreakdown": {
+    "title": "Tâches par groupe",
+    "description": "Répartition des tâches terminées par groupe",
+    "noData": "Aucune donnée de groupe disponible"
+  },
+  "heatmap": {
+    "title": "Carte de chaleur d'activité",
+    "description": "Activité des tâches au cours de l'année passée",
+    "noData": "Aucune donnée d'activité disponible",
+    "less": "Moins",
+    "more": "Plus",
+    "activity_one": "{{count}} activité",
+    "activity_other": "{{count}} activités"
+  }
+}

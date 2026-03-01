@@ -1,0 +1,31 @@
+{
+  "placeholder": "Rechercher dans {{activeGuildName}}...",
+  "noResults": "Aucun résultat trouvé.",
+  "groups": {
+    "suggested": "Suggestions",
+    "pages": "Pages",
+    "projects": "Projets",
+    "tasks": "Tâches",
+    "documents": "Documents"
+  },
+  "pages": {
+    "myTasks": "Mes tâches",
+    "tasksICreated": "Tâches que j'ai créées",
+    "myProjects": "Mes projets",
+    "myDocuments": "Mes documents",
+    "myStats": "Mes statistiques",
+    "userSettings": "Paramètres utilisateur",
+    "guildSettings": "Paramètres du groupe",
+    "allProjects": "Tous les projets",
+    "allDocuments": "Tous les documents",
+    "allInitiatives": "Toutes les initiatives",
+    "platformSettings": "Paramètres de la plateforme"
+  },
+  "shortcutHint": "Rechercher",
+  "shortcutTooltip": "Recherche rapide ({{shortcut}})",
+  "types": {
+    "project": "Projet",
+    "task": "Tâche",
+    "document": "Document"
+  }
+}
