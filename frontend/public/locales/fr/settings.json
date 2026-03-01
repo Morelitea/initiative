@@ -233,7 +233,7 @@
     "serverConnection": "Connexion au serveur",
     "connectedTo": "Actuellement connecté à {{hostname}}.",
     "disconnectTitle": "Se déconnecter du serveur",
-    "disconnectDescription": "Se déconnecter et se déconnecter de ce serveur. Vous pouvez vous connecter à un autre serveur ensuite.",
+    "disconnectDescription": "Se déconnecter du compte et du serveur. Vous pouvez vous connecter à un autre serveur ensuite.",
     "disconnectButton": "Se déconnecter",
     "title": "Zone de danger",
     "subtitle": "Actions irréversibles et destructrices pour votre compte.",

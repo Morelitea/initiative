@@ -6,9 +6,9 @@
   "hero": {
     "tagline": "Fait par des joueurs, pour des joueurs",
     "preTitle": "Êtes-vous prêt à",
-    "titleLine1": "LANCER POUR",
+    "titleLine1": "VOUS LANCER DANS",
     "titleLine2": "L'INITIATIVE",
-    "titleAria": "Lancer pour l'initiative",
+    "titleAria": "Vous lancer dans l'initiative",
     "subtitle": "Une application de gestion de projets en guildes, conçue pour les groupes de jeu. Créez votre guilde, invitez votre groupe et conquérez des quêtes ensemble.",
     "ctaStart": "Commencez votre aventure",
     "ctaSignIn": "Rejoindre votre guilde",
@@ -75,7 +75,7 @@
     "button": "Commencer gratuitement"
   },
   "footer": {
-    "copyright": "© {{year}} Initiative. Lancez haut, restez organisé."
+    "copyright": "© {{year}} Initiative. Visez haut, restez organisés."
   },
   "screenshot": {
     "placeholder": "Capture d'écran"

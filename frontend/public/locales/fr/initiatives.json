@@ -94,7 +94,7 @@
     "roleUpdated": "Rôle mis à jour.",
     "roleUpdateError": "Impossible de mettre à jour le rôle pour l'instant.",
     "rolesTitle": "Permissions des rôles",
-    "rolesDescription": "Configurez ce que chaque rôle peut faire dans cette initiative. Les permissions de chef de projet sont verrouillées pour éviter les blocages accidentels.",
+    "rolesDescription": "Configurez ce que chaque rôle peut faire dans cette initiative. Les permissions du chef de projet sont verrouillées pour éviter les blocages accidentels.",
     "loadingRoles": "Chargement des rôles...",
     "addCustomRole": "Ajouter un rôle personnalisé",
     "builtIn": "Intégré",
