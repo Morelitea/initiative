@@ -28,7 +28,8 @@ export const HomeSidebarContent = () => {
     <>
       <SidebarHeader className="border-b">
         <div className="flex min-w-0 items-center gap-2 p-4">
-          <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{t("home")}</h2>
+          {/* eslint-disable-next-line i18next/no-literal-string */}
+          <h2 className="text-center text-lg font-semibold">initiative</h2>
         </div>
       </SidebarHeader>
       <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">

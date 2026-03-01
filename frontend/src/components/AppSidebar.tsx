@@ -32,7 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
-import { HomeSidebarContent } from "@/components/HomeSidebarContent";
+import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
