@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { keepPreviousData } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
@@ -18,6 +18,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { useGuilds } from "@/hooks/useGuilds";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable } from "@/components/ui/data-table";
+import { SortIcon } from "@/components/SortIcon";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -29,6 +30,12 @@ import type {
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
 const FILTER_DEFAULTS = {
   guildFilters: [] as number[],
+};
+
+/** Map DataTable column IDs to backend sort field names */
+const SORT_FIELD_MAP: Record<string, string> = {
+  name: "name",
+  updated: "updated_at",
 };
 
 const readStoredFilters = () => {
@@ -80,6 +87,21 @@ export const MyProjectsPage = () => {
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<string | undefined>(undefined);
+
+  const handleSortingChange = useCallback((sorting: SortingState) => {
+    if (sorting.length > 0) {
+      const field = SORT_FIELD_MAP[sorting[0].id];
+      if (field) {
+        setSortBy(field);
+        setSortDir(sorting[0].desc ? "desc" : "asc");
+      }
+    } else {
+      setSortBy(undefined);
+      setSortDir(undefined);
+    }
+  }, []);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -131,10 +153,12 @@ export const MyProjectsPage = () => {
     const params: ListGlobalProjectsApiV1ProjectsGlobalGetParams = {};
     if (guildFilters.length > 0) params.guild_ids = guildFilters;
     if (debouncedSearch) params.search = debouncedSearch;
+    if (sortBy) params.sort_by = sortBy;
+    if (sortDir) params.sort_dir = sortDir;
     params.page = page;
     params.page_size = pageSize;
     return params;
-  }, [guildFilters, debouncedSearch, page, pageSize]);
+  }, [guildFilters, debouncedSearch, sortBy, sortDir, page, pageSize]);
 
   const projectsQuery = useGlobalProjects(projectsGlobalParams, {
     placeholderData: keepPreviousData,
@@ -180,7 +204,18 @@ export const MyProjectsPage = () => {
       {
         id: "name",
         accessorFn: (project) => project.name,
-        header: () => <span className="font-medium">{t("myProjects.columns.project")}</span>,
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                {t("myProjects.columns.project")}
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        enableSorting: true,
         cell: ({ row }) => {
           const project = row.original;
           const guildId = getProjectGuildId(project);
@@ -201,7 +236,6 @@ export const MyProjectsPage = () => {
             </Link>
           );
         },
-        enableSorting: false,
       },
       {
         id: "initiative",
@@ -279,7 +313,18 @@ export const MyProjectsPage = () => {
       {
         id: "updated",
         accessorFn: (project) => project.updated_at,
-        header: () => <span className="font-medium">{t("myProjects.columns.updated")}</span>,
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                {t("myProjects.columns.updated")}
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        enableSorting: true,
         cell: ({ row }) => {
           const updatedAt = row.original.updated_at;
           if (!updatedAt) {
@@ -291,7 +336,6 @@ export const MyProjectsPage = () => {
             </span>
           );
         },
-        enableSorting: false,
       },
     ],
     [t, getGuildName, getProjectGuildId, dateLocale]
@@ -416,6 +460,8 @@ export const MyProjectsPage = () => {
               data={projects}
               enablePagination
               manualPagination
+              manualSorting
+              onSortingChange={handleSortingChange}
               pageCount={totalPages}
               rowCount={totalCount}
               onPaginationChange={(pag) => {

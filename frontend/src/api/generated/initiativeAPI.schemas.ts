@@ -2381,6 +2381,8 @@ export type ListGlobalProjectsApiV1ProjectsGlobalGetParams = {
    * @maximum 100
    */
   page_size?: number;
+  sort_by?: string | null;
+  sort_dir?: string | null;
 };
 
 export type ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams = {
