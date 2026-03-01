@@ -292,12 +292,10 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
               to="/"
               className={cn(
                 "flex flex-col items-center rounded-2xl p-1 transition",
-                isHomeMode && "bg-primary/10 ring-primary/60 ring-2"
+                isHomeMode && "bg-primary/10 ring-primary/60 ring-3"
               )}
             >
-              <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />
-              {/* eslint-disable-next-line i18next/no-literal-string */}
-              <span className="text-primary text-s text-center">initiative</span>
+              <LogoIcon className="h-10 w-10" aria-hidden="true" focusable="false" />
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={12}>

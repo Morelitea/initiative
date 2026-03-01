@@ -471,6 +471,8 @@ async def _project_reads_with_order(
     session: SessionDep,
     current_user: User,
     projects: List[Project],
+    *,
+    preserve_order: bool = False,
 ) -> List[ProjectRead]:
     if not projects:
         return []
@@ -484,15 +486,18 @@ async def _project_reads_with_order(
         session, current_user.id, project_ids,
     )
 
-    def sort_key(project: Project) -> tuple[bool, float, int]:
-        order_value = order_map.get(project.id)
-        return (
-            order_value is None,
-            float(order_value) if order_value is not None else 0.0,
-            project.id or 0,
-        )
+    if preserve_order:
+        sorted_projects = projects
+    else:
+        def sort_key(project: Project) -> tuple[bool, float, int]:
+            order_value = order_map.get(project.id)
+            return (
+                order_value is None,
+                float(order_value) if order_value is not None else 0.0,
+                project.id or 0,
+            )
 
-    sorted_projects = sorted(projects, key=sort_key)
+        sorted_projects = sorted(projects, key=sort_key)
 
     payloads: List[ProjectRead] = []
     for project in sorted_projects:
@@ -758,6 +763,22 @@ async def _require_project_membership(
     )
 
 
+GLOBAL_PROJECT_SORT_FIELDS = {
+    "name": func.lower(Project.name),
+    "updated_at": Project.updated_at,
+}
+
+
+def _apply_global_project_sort(statement, sort_by: Optional[str], sort_dir: Optional[str]):
+    col = GLOBAL_PROJECT_SORT_FIELDS.get(sort_by) if sort_by else None
+    if col is not None:
+        order = col.desc() if sort_dir == "desc" else col.asc()
+        statement = statement.order_by(order.nulls_last(), Project.id.desc())
+    else:
+        statement = statement.order_by(Project.updated_at.desc(), Project.id.desc())
+    return statement
+
+
 async def _list_global_projects(
     session: SessionDep,
     current_user: User,
@@ -766,6 +787,8 @@ async def _list_global_projects(
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None,
 ) -> tuple[list[Project], int]:
     """List projects across all guilds the user belongs to.
 
@@ -814,7 +837,8 @@ async def _list_global_projects(
             selectinload(Document.role_permissions),
         ),
         selectinload(Project.tag_links).selectinload(ProjectTag.tag),
-    ).order_by(Project.updated_at.desc())
+    )
+    statement = _apply_global_project_sort(statement, sort_by, sort_dir)
 
     statement = statement.offset((page - 1) * page_size).limit(page_size)
 
@@ -891,6 +915,8 @@ async def list_global_projects(
     search: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    sort_by: Optional[str] = Query(default=None),
+    sort_dir: Optional[str] = Query(default=None),
 ) -> ProjectListResponse:
     """List projects across all guilds the current user belongs to.
 
@@ -905,9 +931,12 @@ async def list_global_projects(
         search=search,
         page=page,
         page_size=page_size,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
     project_reads = await _project_reads_with_order(
         session, current_user, projects,
+        preserve_order=sort_by is not None,
     )
     return ProjectListResponse(
         items=project_reads,
