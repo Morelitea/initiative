@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.2] - 2026-02-28
+
 ### Added
 
 - Column header sorting on the My Projects page (name and updated columns) with server-side sort support
