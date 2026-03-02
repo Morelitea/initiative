@@ -88,7 +88,7 @@ export const FileDocumentViewer = ({
     fetch(inlineUrl, { credentials: "include" })
       .then((res) => res.text())
       .then(setMarkdownContent)
-      .catch(() => setMarkdownContent(null));
+      .catch(() => setMarkdownContent(""));
   }, [isMarkdown, inlineUrl]);
 
   // Office documents can't be rendered in-browser without external services
