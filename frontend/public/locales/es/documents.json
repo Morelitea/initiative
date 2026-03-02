@@ -250,7 +250,7 @@
     "templateToggle": "Alternar estado de plantilla",
     "fileLabel": "Archivo",
     "chooseFile": "Elegir archivo",
-    "fileHelp": "Soportados: PDF, Word, Excel, PowerPoint, TXT, HTML (máx. 50 MB)",
+    "fileHelp": "Soportados: PDF, Word, Excel, PowerPoint, TXT, HTML, imágenes, Markdown (máx. 50 MB)",
     "fileTooLarge": "El archivo es demasiado grande. El tamaño máximo es 50 MB.",
     "creating": "Creando\u2026",
     "createDocument": "Crear documento",
@@ -283,7 +283,11 @@
     "htmlDocument": "Documento HTML",
     "document": "Documento",
     "unknownFileType": "Este tipo de archivo no se puede previsualizar en el navegador.",
-    "downloadFile": "Descargar archivo"
+    "downloadFile": "Descargar archivo",
+    "imageDocument": "Imagen",
+    "markdownDocument": "Documento Markdown",
+    "showSource": "Ver código fuente",
+    "showRendered": "Ver renderizado"
   },
   "summary": {
     "aiNotEnabled": "Las funciones de IA no están habilitadas. Configura los ajustes de IA para generar resúmenes de documentos.",

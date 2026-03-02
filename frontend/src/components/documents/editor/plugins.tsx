@@ -52,6 +52,7 @@ import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/
 import { ImagesPlugin } from "@/components/ui/editor/plugins/images-plugin";
 import { KeywordsPlugin } from "@/components/ui/editor/plugins/keywords-plugin";
 import { LayoutPlugin } from "@/components/ui/editor/plugins/layout-plugin";
+import { HeadingAnchorPlugin } from "@/components/ui/editor/plugins/heading-anchor-plugin";
 import { LinkPlugin } from "@/components/ui/editor/plugins/link-plugin";
 import { ListMaxIndentLevelPlugin } from "@/components/ui/editor/plugins/list-max-indent-level-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
@@ -235,6 +236,7 @@ export function Plugins({
         />
 
         <ClickableLinkPlugin />
+        <HeadingAnchorPlugin />
         <CheckListPlugin />
         <HorizontalRulePlugin />
         <TablePlugin hasCellMerge hasCellBackgroundColor />

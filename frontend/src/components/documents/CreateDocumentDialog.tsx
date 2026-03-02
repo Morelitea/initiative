@@ -1,5 +1,15 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { FileSpreadsheet, FileText, Loader2, Plus, Presentation, Upload, X } from "lucide-react";
+import {
+  FileCode,
+  FileSpreadsheet,
+  FileText,
+  ImageIcon,
+  Loader2,
+  Plus,
+  Presentation,
+  Upload,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -306,7 +316,7 @@ export const CreateDocumentDialog = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown"
                 className="hidden"
                 onChange={handleFileSelect}
               />
@@ -314,7 +324,11 @@ export const CreateDocumentDialog = ({
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-3">
                     <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-lg">
-                      {getFileTypeLabel(selectedFile.type, selectedFile.name) === "Excel" ? (
+                      {getFileTypeLabel(selectedFile.type, selectedFile.name) === "Image" ? (
+                        <ImageIcon className="h-5 w-5 text-emerald-500" />
+                      ) : getFileTypeLabel(selectedFile.type, selectedFile.name) === "Markdown" ? (
+                        <FileCode className="h-5 w-5 text-indigo-500" />
+                      ) : getFileTypeLabel(selectedFile.type, selectedFile.name) === "Excel" ? (
                         <FileSpreadsheet className="h-5 w-5 text-green-600" />
                       ) : getFileTypeLabel(selectedFile.type, selectedFile.name) ===
                         "PowerPoint" ? (
@@ -353,7 +367,9 @@ export const CreateDocumentDialog = ({
                   {t("create.chooseFile")}
                 </Button>
               )}
-              <p className="text-muted-foreground text-xs">{t("create.fileHelp")}</p>
+              <p className="text-muted-foreground text-xs whitespace-pre-line">
+                {t("create.fileHelp")}
+              </p>
             </div>
           </TabsContent>
         </Tabs>

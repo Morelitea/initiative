@@ -27,6 +27,14 @@ ALLOWED_DOCUMENT_MIME_TYPES: Dict[str, str] = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
     "text/plain": ".txt",
     "text/html": ".html",
+    # Images
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    # Markdown
+    "text/markdown": ".md",
 }
 
 # Extension to MIME type mapping for validation
@@ -41,6 +49,14 @@ EXTENSION_TO_MIME: Dict[str, str] = {
     ".txt": "text/plain",
     ".html": "text/html",
     ".htm": "text/html",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
 }
 
 
@@ -215,14 +231,24 @@ def validate_document_file(
     detected_mime = detect_mime_type(content, filename)
 
     if detected_mime and detected_mime not in ALLOWED_DOCUMENT_MIME_TYPES:
-        raise ValueError(f"Unsupported file type: {detected_mime}")
+        # Magic returned an unrecognized type — fall back to extension if it
+        # maps to an allowed type (e.g. magic returns text/x-markdown for .md)
+        if filename:
+            file_ext = Path(filename).suffix.lower()
+            ext_mime = EXTENSION_TO_MIME.get(file_ext)
+            if ext_mime and ext_mime in ALLOWED_DOCUMENT_MIME_TYPES:
+                detected_mime = ext_mime
+            else:
+                raise ValueError(f"Unsupported file type: {detected_mime}")
+        else:
+            raise ValueError(f"Unsupported file type: {detected_mime}")
 
     # If we couldn't detect the MIME type, fall back to Content-Type header
     if not detected_mime:
         if content_type and content_type in ALLOWED_DOCUMENT_MIME_TYPES:
             detected_mime = content_type
         else:
-            raise ValueError("Unable to determine file type. Supported types: PDF, Word, Excel, PowerPoint, TXT, HTML")
+            raise ValueError("Unable to determine file type. Supported types: PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown")
 
     # Get extension for the detected MIME type
     extension = ALLOWED_DOCUMENT_MIME_TYPES.get(detected_mime, "")

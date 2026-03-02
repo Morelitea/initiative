@@ -250,7 +250,7 @@
     "templateToggle": "Toggle template status",
     "fileLabel": "File",
     "chooseFile": "Choose file",
-    "fileHelp": "Supported: PDF, Word, Excel, PowerPoint, TXT, HTML (max 50 MB)",
+    "fileHelp": "Supported: PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown (max 50 MB)",
     "fileTooLarge": "File is too large. Maximum size is 50 MB.",
     "creating": "Creating\u2026",
     "createDocument": "Create document",
@@ -283,7 +283,11 @@
     "htmlDocument": "HTML document",
     "document": "Document",
     "unknownFileType": "This file type cannot be previewed in the browser.",
-    "downloadFile": "Download file"
+    "downloadFile": "Download file",
+    "imageDocument": "Image",
+    "markdownDocument": "Markdown document",
+    "showSource": "View source",
+    "showRendered": "View rendered"
   },
   "summary": {
     "aiNotEnabled": "AI features are not enabled. Configure AI settings to generate document summaries.",

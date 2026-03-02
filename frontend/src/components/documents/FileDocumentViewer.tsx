@@ -13,6 +13,8 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Markdown } from "@/components/Markdown";
 import { resolveDocumentDownloadUrl } from "@/lib/uploadUrl";
 import { formatBytes, getFileTypeLabel, getFileExtension } from "@/lib/fileUtils";
 
@@ -50,6 +52,23 @@ export const FileDocumentViewer = ({
   const [baseWidth, setBaseWidth] = useState<number | null>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
+  // Image viewer state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // Markdown viewer state
+  const [markdownContent, setMarkdownContent] = useState<string | null>(null);
+  const [showRendered, setShowRendered] = useState(true);
+
+  // Determine file type for rendering strategy
+  const isPdf = extension === "pdf" || contentType === "application/pdf";
+  const isText = extension === "txt" || contentType === "text/plain";
+  const isHtml = extension === "html" || extension === "htm" || contentType === "text/html";
+  const isImage =
+    contentType?.startsWith("image/") ||
+    ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension);
+  const isMarkdown =
+    extension === "md" || extension === "markdown" || contentType === "text/markdown";
+
   // Measure toolbar width once on mount for PDF sizing
   useEffect(() => {
     const measureWidth = () => {
@@ -63,10 +82,14 @@ export const FileDocumentViewer = ({
     return () => clearTimeout(timeoutId);
   }, []);
 
-  // Determine file type for rendering strategy
-  const isPdf = extension === "pdf" || contentType === "application/pdf";
-  const isText = extension === "txt" || contentType === "text/plain";
-  const isHtml = extension === "html" || extension === "htm" || contentType === "text/html";
+  // Fetch markdown content for rendering
+  useEffect(() => {
+    if (!isMarkdown || !inlineUrl) return;
+    fetch(inlineUrl, { credentials: "include" })
+      .then((res) => res.text())
+      .then(setMarkdownContent)
+      .catch(() => setMarkdownContent(""));
+  }, [isMarkdown, inlineUrl]);
 
   // Office documents can't be rendered in-browser without external services
   const isWord =
@@ -237,6 +260,55 @@ export const FileDocumentViewer = ({
             title={originalFilename || t("viewer.htmlDocument")}
             sandbox=""
           />
+        ) : isImage ? (
+          <>
+            <div
+              className="bg-muted/50 flex cursor-zoom-in items-center justify-center overflow-auto"
+              style={{ height: "70vh", minHeight: 500 }}
+              onClick={() => setLightboxOpen(true)}
+            >
+              <img
+                src={inlineUrl}
+                alt={originalFilename || t("viewer.imageDocument")}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+            <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+              <DialogContent
+                className="max-h-[95vh] max-w-[95vw] place-items-center gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[95vw]"
+                showCloseButton={false}
+                onClick={() => setLightboxOpen(false)}
+              >
+                <img
+                  src={inlineUrl}
+                  alt={originalFilename || ""}
+                  className="max-h-[90vh] max-w-[90vw] object-contain"
+                />
+              </DialogContent>
+            </Dialog>
+          </>
+        ) : isMarkdown ? (
+          <div className="flex flex-col">
+            <div className="bg-muted/50 flex items-center justify-between border-b px-4 py-2">
+              <span className="text-muted-foreground text-sm">{t("viewer.markdownDocument")}</span>
+              <Button variant="ghost" size="sm" onClick={() => setShowRendered((prev) => !prev)}>
+                {showRendered ? t("viewer.showSource") : t("viewer.showRendered")}
+              </Button>
+            </div>
+            <div className="overflow-auto p-6" style={{ height: "70vh", minHeight: 500 }}>
+              {markdownContent === null ? (
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                </div>
+              ) : showRendered ? (
+                <Markdown content={markdownContent} />
+              ) : (
+                <pre className="text-muted-foreground font-mono text-sm whitespace-pre-wrap">
+                  {markdownContent}
+                </pre>
+              )}
+            </div>
+          </div>
         ) : isOffice ? (
           // Office documents - show preview card with download options
           <div

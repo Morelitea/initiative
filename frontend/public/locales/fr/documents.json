@@ -250,7 +250,7 @@
     "templateToggle": "Basculer le statut de modèle",
     "fileLabel": "Fichier",
     "chooseFile": "Choisir un fichier",
-    "fileHelp": "Formats supportés : PDF, Word, Excel, PowerPoint, TXT, HTML (50 Mo max)",
+    "fileHelp": "Formats supportés : PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown (50 Mo max)",
     "fileTooLarge": "Le fichier est trop volumineux. La taille maximale est de 50 Mo.",
     "creating": "Création en cours…",
     "createDocument": "Créer le document",
@@ -283,7 +283,11 @@
     "htmlDocument": "Document HTML",
     "document": "Document",
     "unknownFileType": "Ce type de fichier ne peut pas être prévisualisé dans le navigateur.",
-    "downloadFile": "Télécharger le fichier"
+    "downloadFile": "Télécharger le fichier",
+    "imageDocument": "Image",
+    "markdownDocument": "Document Markdown",
+    "showSource": "Voir la source",
+    "showRendered": "Voir le rendu"
   },
   "summary": {
     "aiNotEnabled": "Les fonctionnalités IA ne sont pas activées. Configurez les paramètres IA pour générer des résumés de documents.",

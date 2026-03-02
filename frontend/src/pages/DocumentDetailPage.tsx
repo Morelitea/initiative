@@ -11,7 +11,16 @@ import {
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
-import { ImagePlus, Loader2, PanelRight, ScrollText, SearchX, Settings, ShieldAlert, X } from "lucide-react";
+import {
+  ImagePlus,
+  Loader2,
+  PanelRight,
+  ScrollText,
+  SearchX,
+  Settings,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import { StatusMessage } from "@/components/StatusMessage";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -493,9 +502,25 @@ export const DocumentDetailPage = () => {
     const backLabel = t("detail.backToDocuments");
 
     if (status === 403) {
-      return <StatusMessage icon={<ShieldAlert />} title={t("detail.noAccess")} description={t("detail.noAccessDescription")} backTo={backTo} backLabel={backLabel} />;
+      return (
+        <StatusMessage
+          icon={<ShieldAlert />}
+          title={t("detail.noAccess")}
+          description={t("detail.noAccessDescription")}
+          backTo={backTo}
+          backLabel={backLabel}
+        />
+      );
     }
-    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo={backTo} backLabel={backLabel} />;
+    return (
+      <StatusMessage
+        icon={<SearchX />}
+        title={t("detail.notFound")}
+        description={t("detail.notFoundDescription")}
+        backTo={backTo}
+        backLabel={backLabel}
+      />
+    );
   }
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
@@ -580,79 +605,83 @@ export const DocumentDetailPage = () => {
             <CardTitle>{t("detail.metadataTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Featured image */}
-            <div className="space-y-2">
-              <Label>{t("detail.featuredImage")}</Label>
-              <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
-                  {featuredImageUrl ? (
-                    <img
-                      src={resolveUploadUrl(featuredImageUrl) ?? undefined}
-                      alt=""
-                      className="h-full w-full object-cover"
+            {/* Featured image — hidden for image documents (the image IS the featured image) */}
+            {!(
+              document.document_type === "file" && document.file_content_type?.startsWith("image/")
+            ) && (
+              <div className="space-y-2">
+                <Label>{t("detail.featuredImage")}</Label>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                  <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
+                    {featuredImageUrl ? (
+                      <img
+                        src={resolveUploadUrl(featuredImageUrl) ?? undefined}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-muted-foreground flex h-full items-center justify-center">
+                        <ScrollText className="h-10 w-10" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      ref={featuredImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFeaturedImageChange}
                     />
-                  ) : (
-                    <div className="text-muted-foreground flex h-full items-center justify-center">
-                      <ScrollText className="h-10 w-10" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <input
-                    ref={featuredImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFeaturedImageChange}
-                  />
-                  {canEditDocument ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={openFeaturedImagePicker}
-                        disabled={isUploadingFeaturedImage}
-                      >
-                        {isUploadingFeaturedImage ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {t("detail.uploading")}
-                          </>
-                        ) : (
-                          <>
-                            <ImagePlus className="mr-2 h-4 w-4" />
-                            {t("detail.uploadImage")}
-                          </>
-                        )}
-                      </Button>
-                      {featuredImageUrl ? (
+                    {canEditDocument ? (
+                      <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            setFeaturedImageUrl(null);
-                            isAutosaveRef.current = true;
-                            saveDocument.mutate({
-                              documentId: parsedId,
-                              data: {
-                                title: title?.trim(),
-                                content: contentState as unknown as Record<string, unknown>,
-                                featured_image_url: null,
-                              },
-                            });
-                          }}
+                          variant="outline"
+                          onClick={openFeaturedImagePicker}
                           disabled={isUploadingFeaturedImage}
                         >
-                          <X className="mr-2 h-4 w-4" />
-                          {t("detail.removeImage")}
+                          {isUploadingFeaturedImage ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              {t("detail.uploading")}
+                            </>
+                          ) : (
+                            <>
+                              <ImagePlus className="mr-2 h-4 w-4" />
+                              {t("detail.uploadImage")}
+                            </>
+                          )}
                         </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <p className="text-muted-foreground text-xs">{t("detail.uploadHelpText")}</p>
+                        {featuredImageUrl ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setFeaturedImageUrl(null);
+                              isAutosaveRef.current = true;
+                              saveDocument.mutate({
+                                documentId: parsedId,
+                                data: {
+                                  title: title?.trim(),
+                                  content: contentState as unknown as Record<string, unknown>,
+                                  featured_image_url: null,
+                                },
+                              });
+                            }}
+                            disabled={isUploadingFeaturedImage}
+                          >
+                            <X className="mr-2 h-4 w-4" />
+                            {t("detail.removeImage")}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <p className="text-muted-foreground text-xs">{t("detail.uploadHelpText")}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Tags */}
             <div className="space-y-2">

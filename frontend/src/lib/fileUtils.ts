@@ -1,5 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { FileSpreadsheet, FileText, Presentation, ScrollText } from "lucide-react";
+import {
+  FileCode,
+  FileSpreadsheet,
+  FileText,
+  ImageIcon,
+  Presentation,
+  ScrollText,
+} from "lucide-react";
 
 /**
  * Format bytes to a human-readable string.
@@ -51,6 +58,14 @@ export function getFileTypeLabel(
     txt: "Text",
     html: "HTML",
     htm: "HTML",
+    png: "Image",
+    jpg: "Image",
+    jpeg: "Image",
+    gif: "Image",
+    webp: "Image",
+    svg: "Image",
+    md: "Markdown",
+    markdown: "Markdown",
   };
 
   if (ext && extensionLabels[ext]) {
@@ -68,6 +83,12 @@ export function getFileTypeLabel(
     "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint",
     "text/plain": "Text",
     "text/html": "HTML",
+    "image/png": "Image",
+    "image/jpeg": "Image",
+    "image/gif": "Image",
+    "image/webp": "Image",
+    "image/svg+xml": "Image",
+    "text/markdown": "Markdown",
   };
 
   if (mimeType && mimeLabels[mimeType]) {
@@ -102,6 +123,10 @@ export function getDocumentIconColor(
       return "text-gray-500";
     case "HTML":
       return "text-purple-500";
+    case "Image":
+      return "text-emerald-500";
+    case "Markdown":
+      return "text-indigo-500";
     default:
       return "text-muted-foreground";
   }
@@ -118,6 +143,8 @@ export function getDocumentIcon(
 ): LucideIcon {
   if (documentType !== "file") return ScrollText;
   const label = getFileTypeLabel(mimeType, filename);
+  if (label === "Image") return ImageIcon;
+  if (label === "Markdown") return FileCode;
   if (label === "Excel") return FileSpreadsheet;
   if (label === "PowerPoint") return Presentation;
   return FileText;
@@ -129,7 +156,14 @@ export function getDocumentIcon(
 export function getFileTypeIcon(
   mimeType: string | null | undefined,
   filename: string | null | undefined
-): "file-text" | "file-spreadsheet" | "presentation" | "file-type" | "file" {
+):
+  | "file-text"
+  | "file-spreadsheet"
+  | "presentation"
+  | "file-type"
+  | "image"
+  | "file-code"
+  | "file" {
   const ext = getFileExtension(filename);
 
   if (ext === "pdf" || mimeType === "application/pdf") {
@@ -167,6 +201,17 @@ export function getFileTypeIcon(
 
   if (ext === "html" || ext === "htm" || mimeType === "text/html") {
     return "file-type";
+  }
+
+  if (
+    ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext) ||
+    (mimeType && mimeType.startsWith("image/"))
+  ) {
+    return "image";
+  }
+
+  if (ext === "md" || ext === "markdown" || mimeType === "text/markdown") {
+    return "file-code";
   }
 
   return "file";
