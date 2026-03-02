@@ -1,4 +1,6 @@
+import type { AnchorHTMLAttributes, MouseEvent } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
@@ -6,6 +8,47 @@ import { cn } from "@/lib/utils";
 interface MarkdownProps {
   content: string;
   className?: string;
+}
+
+function handleHashClick(e: MouseEvent<HTMLAnchorElement>) {
+  const href = e.currentTarget.getAttribute("href");
+  if (!href) return;
+
+  // Walk up to the nearest scrollable ancestor
+  let container: HTMLElement | null = e.currentTarget.parentElement;
+  while (container) {
+    const { overflow, overflowY } = getComputedStyle(container);
+    if (
+      overflow === "auto" ||
+      overflow === "scroll" ||
+      overflowY === "auto" ||
+      overflowY === "scroll"
+    ) {
+      break;
+    }
+    container = container.parentElement;
+  }
+
+  const target = (container ?? document).querySelector(href);
+  if (target) {
+    e.preventDefault();
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function MarkdownAnchor({ href, children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  if (href?.startsWith("#")) {
+    return (
+      <a href={href} onClick={handleHashClick} {...props}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  );
 }
 
 export const Markdown = ({ content, className }: MarkdownProps) => {
@@ -19,7 +62,13 @@ export const Markdown = ({ content, className }: MarkdownProps) => {
         className
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSlug]}
+        components={{ a: MarkdownAnchor }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 };
