@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "signIn": "Se connecter",
+    "getStarted": "Commencer"
+  },
+  "hero": {
+    "tagline": "Fait par des joueurs, pour des joueurs",
+    "preTitle": "Êtes-vous prêt à",
+    "titleLine1": "VOUS LANCER DANS",
+    "titleLine2": "L'INITIATIVE",
+    "titleAria": "Vous lancer dans l'initiative",
+    "subtitle": "Une application de gestion de projets en guildes, conçue pour les groupes de jeu. Créez votre guilde, invitez votre groupe et conquérez des quêtes ensemble.",
+    "ctaStart": "Commencez votre aventure",
+    "ctaSignIn": "Rejoindre votre guilde",
+    "scroll": "Défiler",
+    "loading": "Chargement..."
+  },
+  "heroScreenshot": {
+    "dashboard": "Tableau de bord Initiative"
+  },
+  "stats": {
+    "initiatives": "Initiatives",
+    "initiativesValue": "Illimitées",
+    "partyMembers": "Membres du groupe",
+    "partyMembersValue": "Sans limites",
+    "openSource": "Open Source",
+    "openSourceValue": "Pour toujours",
+    "selfHosted": "Auto-hébergé",
+    "selfHostedValue": "Vos données"
+  },
+  "features": {
+    "sectionLabel": "Arsenal",
+    "title": "Tout ce dont votre groupe a besoin",
+    "description": "Chaque guilde dispose d'un espace de travail privé avec des projets, des tâches et des documents. Que vous gériez une campagne, organisiez des soirées de raid ou administriez une communauté de jeu — gardez tout en un seul endroit.",
+    "campaignTitle": "Gestion de campagne",
+    "campaignDescription": "Organisez vos campagnes de JDR facilement. Suivez les intrigues, les PNJ et les accroches narratives sur plusieurs sessions.",
+    "partyTitle": "Coordination du groupe",
+    "partyDescription": "Gardez votre groupe de jeu synchronisé. Assignez des tâches, planifiez les sessions et assurez-vous que tout le monde connaît son rôle.",
+    "worldTitle": "Construction du monde",
+    "worldDescription": "Documentez votre lore, vos cartes et les détails de votre monde. Construisez des univers riches que vos joueurs adoreront explorer.",
+    "questTitle": "Suivi des quêtes",
+    "questDescription": "Ne perdez plus jamais de vue les quêtes secondaires. Gérez objectifs, récompenses et progression narrative en un seul endroit.",
+    "sessionTitle": "Notes de session",
+    "sessionDescription": "Documents collaboratifs pour les récapitulatifs de session, les documents remis aux joueurs et les connaissances partagées du groupe.",
+    "eventTitle": "Planification d'événements",
+    "eventDescription": "Coordonnez les soirées de jeu, les calendriers de raid et les événements de guilde. Tout le monde reste sur la même longueur d'onde."
+  },
+  "gallery": {
+    "sectionLabel": "Voir en action",
+    "title": "Conçu pour votre flux de travail",
+    "projectAlt": "Vue de gestion de projet",
+    "projectCaption": "Organisez les projets avec des tableaux, des listes et des vues personnalisées",
+    "documentAlt": "Collaboration sur documents",
+    "documentCaption": "Collaborez sur des documents avec toute votre guilde"
+  },
+  "useCases": {
+    "sectionLabel": "Votre quête vous attend",
+    "title": "Votre guilde, à votre façon",
+    "description": "Créez une guilde privée pour votre groupe. Invitez des membres, organisez-les en initiatives et gérez des projets ensemble. Tout le monde reste synchronisé, et vos données restent les vôtres.",
+    "ttrpgName": "Groupes JDR",
+    "ttrpgDesc": "Gérez des campagnes, suivez des quêtes et partagez des notes de session avec votre groupe d'aventuriers.",
+    "mmoName": "Guildes MMO",
+    "mmoDesc": "Coordonnez les calendriers de raid, la distribution du butin et les événements de guilde.",
+    "esportsName": "Équipes esports",
+    "esportsDesc": "Suivez les plannings d'entraînement, la préparation aux tournois et les objectifs de l'équipe.",
+    "communityName": "Communautés gaming",
+    "communityDesc": "Organisez des événements, gérez des projets et gardez votre communauté engagée.",
+    "cta": "Créer votre guilde"
+  },
+  "cta": {
+    "title": "Prêt à <1>passer au niveau supérieur</1> ?",
+    "titleReady": "Prêt à",
+    "titleHighlight": "passer au niveau supérieur",
+    "description": "Rejoignez les groupes de jeu qui utilisent déjà Initiative pour rester organisés et s'amuser davantage ensemble.",
+    "button": "Commencer gratuitement"
+  },
+  "footer": {
+    "copyright": "© {{year}} Initiative. Visez haut, restez organisés."
+  },
+  "screenshot": {
+    "placeholder": "Capture d'écran"
+  }
+}

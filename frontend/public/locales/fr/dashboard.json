@@ -1,0 +1,60 @@
+{
+  "title": "Vue d'ensemble du groupe",
+  "subtitle": "Vue d'ensemble et activité du groupe",
+  "loading": "Chargement du tableau de bord…",
+  "error": "Impossible de charger les données du tableau de bord. Veuillez réessayer plus tard.",
+  "quickActions": {
+    "projects": "Projets",
+    "initiatives": "Initiatives",
+    "documents": "Documents"
+  },
+  "metrics": {
+    "tasksThisWeek": "Tâches cette semaine",
+    "onTimeRate": "Taux de ponctualité",
+    "currentStreak": "Série en cours",
+    "backlogTrend": "Tendance du backlog",
+    "days": "jours",
+    "growing": "En hausse",
+    "shrinking": "En baisse"
+  },
+  "projectHealth": {
+    "title": "Santé des projets",
+    "description": "Progression des tâches par projet",
+    "noProjects": "Aucun projet pour l'instant",
+    "viewAll": "Tout afficher",
+    "tasks_one": "{{count}} tâche",
+    "tasks_other": "{{count}} tâches"
+  },
+  "upcomingTasks": {
+    "title": "Tâches à venir",
+    "description": "Tâches triées par urgence",
+    "noTasks": "Aucune tâche à venir",
+    "overdue": "En retard",
+    "today": "Aujourd'hui",
+    "upcoming": "À venir",
+    "viewAll": "Tout afficher"
+  },
+  "recentComments": {
+    "title": "Commentaires récents",
+    "description": "Derniers commentaires du groupe",
+    "noComments": "Aucun commentaire pour l'instant",
+    "onTask": "sur {{taskTitle}}",
+    "onDocument": "sur {{documentTitle}}",
+    "inProject": "dans {{projectName}}"
+  },
+  "recentProjects": {
+    "title": "Projets récents",
+    "description": "Projets récemment mis à jour",
+    "noProjects": "Aucun projet récent"
+  },
+  "initiatives": {
+    "title": "Initiatives",
+    "description": "Initiatives actives dans ce groupe",
+    "noInitiatives": "Aucune initiative pour l'instant",
+    "viewAll": "Tout afficher",
+    "member_one": "{{count}} membre",
+    "member_other": "{{count}} membres",
+    "project_one": "{{count}} projet",
+    "project_other": "{{count}} projets"
+  }
+}

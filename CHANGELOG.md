@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- French (Français) locale — full translation of all 19 frontend namespaces and backend email templates
+
 ## [0.33.2] - 2026-02-28
 
 ### Added

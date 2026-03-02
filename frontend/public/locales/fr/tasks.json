@@ -1,0 +1,244 @@
+{
+  "statusCategory": {
+    "backlog": "Backlog",
+    "todo": "À faire",
+    "in_progress": "En cours",
+    "done": "Terminé"
+  },
+  "priority": {
+    "low": "Faible",
+    "medium": "Moyenne",
+    "high": "Haute",
+    "urgent": "Urgente"
+  },
+
+  "filters": {
+    "heading": "Filtres",
+    "show": "Afficher les filtres",
+    "hide": "Masquer les filtres",
+    "statusCategory": "Catégorie de statut",
+    "filterByStatusCategory": "Filtrer par catégorie de statut",
+    "allStatusCategories": "Toutes les catégories de statut",
+    "noStatusCategories": "Aucune catégorie de statut disponible",
+    "filterByPriority": "Filtrer par priorité",
+    "priorityLabel": "Priorité",
+    "allPriorities": "Toutes les priorités",
+    "noPriorities": "Aucune priorité disponible",
+    "filterByGuild": "Filtrer par groupe",
+    "allGuilds": "Tous les groupes",
+    "noGuilds": "Aucun groupe disponible",
+    "filterPlaceholder": "Filtrer les tâches..."
+  },
+
+  "columns": {
+    "done": "Terminé",
+    "task": "Tâche",
+    "project": "Projet",
+    "startDate": "Date de début",
+    "dueDate": "Date d'échéance",
+    "dateWindow": "Fenêtre de dates",
+    "guild": "Groupe",
+    "projectPath": "Chemin du projet",
+    "priority": "Priorité",
+    "tags": "Étiquettes",
+    "status": "Statut"
+  },
+
+  "checkbox": {
+    "markDone": "Marquer la tâche comme terminée",
+    "markInProgress": "Marquer la tâche comme en cours"
+  },
+
+  "errors": {
+    "guildContext": "Impossible de déterminer le contexte du groupe pour cette tâche.",
+    "statusUpdate": "Impossible de mettre à jour le statut de la tâche.",
+    "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé."
+  },
+
+  "updating": "Mise à jour…",
+  "projectFallback": "Projet #{{id}}",
+
+  "edit": {
+    "invalidTaskId": "Identifiant de tâche invalide.",
+    "back": "← Retour",
+    "loadingTask": "Chargement de la tâche…",
+    "loadError": "Impossible de charger la tâche.",
+    "notFound": "Tâche introuvable",
+    "notFoundDescription": "Cette tâche a peut-être été supprimée ou vous avez suivi un lien invalide.",
+    "noAccess": "Accès refusé",
+    "noAccessDescription": "Vous n'avez pas la permission de consulter cette tâche. Demandez à un gestionnaire de projet de vous accorder l'accès.",
+    "backToProjects": "← Retour aux projets",
+    "loadProjectError": "Impossible de charger le contexte du projet pour cette tâche.",
+    "statusBadge": "Statut",
+    "subtitle": "Modifiez chaque détail de cette tâche.",
+    "detailsTitle": "Détails de la tâche",
+    "detailsDescription": "Mettez à jour les champs ci-dessous et enregistrez vos modifications.",
+    "readOnlyNoAccess": "Vous n'avez qu'un accès en lecture à ce projet, les champs de la tâche sont donc désactivés.",
+    "readOnlyArchived": "Ce projet est archivé. Désarchivez-le depuis les paramètres du projet pour modifier les tâches.",
+    "titleLabel": "Titre",
+    "titlePlaceholder": "Titre de la tâche",
+    "descriptionLabel": "Description",
+    "preview": "Aperçu",
+    "aiGenerate": "Génération IA",
+    "descriptionPlaceholder": "Ajoutez du contexte supplémentaire ou des critères d'acceptation. Markdown pris en charge.",
+    "noDescriptionReadOnly": "Aucune description pour l'instant.",
+    "noDescription": "Aucune description pour l'instant. Cliquez sur Modifier pour ajouter du contexte.",
+    "statusLabel": "Statut",
+    "selectStatus": "Sélectionner un statut",
+    "priorityLabel": "Priorité",
+    "startDateLabel": "Date de début",
+    "dueDateLabel": "Date d'échéance",
+    "assigneesLabel": "Assignés",
+    "assigneesEmptyMessage": "Aucun titulaire du rôle {{memberLabel}} disponible dans cette initiative.",
+    "tagsLabel": "Étiquettes",
+    "tagsPlaceholder": "Ajouter des étiquettes...",
+    "saving": "Enregistrement…",
+    "saveTask": "Enregistrer la tâche",
+    "moveToProject": "Déplacer vers un projet",
+    "duplicating": "Duplication…",
+    "duplicateTask": "Dupliquer la tâche",
+    "unarchiving": "Désarchivage…",
+    "unarchive": "Désarchiver",
+    "archiving": "Archivage…",
+    "archive": "Archiver",
+    "deleting": "Suppression…",
+    "deleteTask": "Supprimer la tâche",
+    "deleteTitle": "Supprimer la tâche ?",
+    "deleteDescription": "Cela supprimera définitivement la tâche et toutes ses sous-tâches. Cette action est irréversible.",
+    "taskUpdated": "Tâche mise à jour",
+    "taskDuplicated": "Tâche dupliquée",
+    "taskDeleted": "Tâche supprimée",
+    "taskArchived": "Tâche archivée",
+    "taskUnarchived": "Tâche désarchivée",
+    "moveSuccess": "Tâche déplacée vers {{projectName}}.",
+    "moveError": "Impossible de déplacer la tâche",
+    "archiveError": "Impossible de mettre à jour la tâche",
+    "descriptionGenerated": "Description générée",
+    "generateDescriptionError": "Impossible de générer la description",
+    "commentsError": "Impossible de charger les commentaires pour l'instant.",
+    "taskStatusRequired": "Le statut de la tâche est requis"
+  },
+
+  "myTasks": {
+    "title": "Mes tâches",
+    "subtitle": "Tout ce qui vous est assigné dans tous les projets.",
+    "noGuild": "Aucun groupe",
+    "loadError": "Impossible de charger vos tâches.",
+    "groupByDate": "Date",
+    "groupByGuild": "Groupe"
+  },
+
+  "createdTasks": {
+    "title": "Tâches que j'ai créées",
+    "subtitle": "Les tâches que vous avez créées dans tous vos groupes.",
+    "empty": "Vous n'avez pas encore créé de tâches.",
+    "loadError": "Impossible de charger vos tâches créées.",
+    "groupByDate": "Date",
+    "groupByGuild": "Groupe"
+  },
+
+  "tagTasks": {
+    "loadError": "Impossible de charger les tâches."
+  },
+
+  "checklist": {
+    "title": "Sous-tâches",
+    "aiGenerate": "Génération IA",
+    "loading": "Chargement de la liste…",
+    "loadError": "Impossible de charger les éléments de la liste pour l'instant.",
+    "empty": "Aucun élément dans la liste.",
+    "emptyCanEdit": "Ajoutez votre première étape ci-dessous.",
+    "addPlaceholder": "Ajouter un élément",
+    "readOnlyPlaceholder": "Lecture seule",
+    "readOnlyMessage": "Vous n'avez qu'un accès en lecture, les modifications de la liste sont donc désactivées.",
+    "aiDialogTitle": "Sous-tâches générées par l'IA",
+    "aiDialogDescription": "Sélectionnez les sous-tâches que vous souhaitez ajouter à cette tâche.",
+    "addSelected": "Ajouter la sélection ({{count}})",
+    "addButton": "Ajouter",
+    "reorderItem": "Réordonner l'élément",
+    "markIncomplete": "Marquer la sous-tâche comme incomplète",
+    "markComplete": "Marquer la sous-tâche comme complète",
+    "itemAdded": "Élément ajouté à la liste",
+    "addError": "Impossible d'ajouter l'élément. Veuillez réessayer.",
+    "updateError": "Impossible de mettre à jour l'élément. Veuillez réessayer.",
+    "itemDeleted": "Élément supprimé",
+    "deleteError": "Impossible de supprimer l'élément. Veuillez réessayer.",
+    "reorderError": "Impossible de réordonner les éléments. Veuillez réessayer.",
+    "generateError": "Impossible de générer les sous-tâches. Veuillez réessayer.",
+    "batchAdded": "{{count}} sous-tâche ajoutée",
+    "batchAdded_other": "{{count}} sous-tâches ajoutées",
+    "batchAddError": "Impossible d'ajouter les sous-tâches. Veuillez réessayer.",
+    "contentEmpty": "Le contenu de l'élément ne peut pas être vide.",
+    "progress": "{{completed}}/{{total}} sous-tâche",
+    "progress_other": "{{completed}}/{{total}} sous-tâches"
+  },
+
+  "prioritySelector": {
+    "ariaLabel": "Priorité : {{priority}}. Cliquer pour modifier.",
+    "changed": "Priorité changée en {{priority}}",
+    "updateError": "Impossible de mettre à jour la priorité."
+  },
+
+  "statusSelector": {
+    "invalidStatus": "Statut sélectionné invalide."
+  },
+
+  "move": {
+    "title": "Déplacer la tâche vers un autre projet",
+    "description": "Sélectionnez un projet de destination dans le groupe actuel. Vous ne pouvez déplacer des tâches que vers des projets où vous avez la permission de créer du travail.",
+    "loadError": "Impossible de charger les projets accessibles en écriture.",
+    "loading": "Chargement des projets disponibles…",
+    "noProjects": "Vous n'avez pas encore d'autres projets accessibles en écriture.",
+    "searchPlaceholder": "Rechercher des projets…",
+    "statusResetWarning": "Le déplacement de cette tâche réinitialisera son statut à « Backlog ».",
+    "moving": "Déplacement…",
+    "moveTask": "Déplacer la tâche"
+  },
+
+  "bulkEditTags": {
+    "title": "Modifier les étiquettes",
+    "descriptionAdd": "Ajouter des étiquettes à {{count}} tâche sélectionnée.",
+    "descriptionAdd_other": "Ajouter des étiquettes à {{count}} tâches sélectionnées.",
+    "descriptionRemove": "Retirer des étiquettes de {{count}} tâche sélectionnée.",
+    "descriptionRemove_other": "Retirer des étiquettes de {{count}} tâches sélectionnées.",
+    "tabAdd": "Ajouter",
+    "tabRemove": "Retirer",
+    "addPlaceholder": "Sélectionner les étiquettes à ajouter...",
+    "removePlaceholder": "Sélectionner les étiquettes à retirer...",
+    "noTags": "Aucune étiquette sur les tâches sélectionnées.",
+    "applying": "Application…",
+    "apply": "Appliquer",
+    "tagsAdded": "Étiquettes ajoutées à {{count}} tâche",
+    "tagsAdded_other": "Étiquettes ajoutées à {{count}} tâches",
+    "tagsRemoved": "Étiquettes retirées de {{count}} tâche",
+    "tagsRemoved_other": "Étiquettes retirées de {{count}} tâches",
+    "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
+  },
+
+  "bulkEdit": {
+    "title": "Modifier les tâches",
+    "description": "Appliquer les modifications à {{count}} tâche sélectionnée. Seuls les champs définis seront mis à jour.",
+    "description_other": "Appliquer les modifications à {{count}} tâches sélectionnées. Seuls les champs définis seront mis à jour.",
+    "datesSection": "Dates",
+    "startDateLabel": "Date de début",
+    "startDatePlaceholder": "Définir la date de début",
+    "dueDateLabel": "Date d'échéance",
+    "dueDatePlaceholder": "Définir la date d'échéance",
+    "assignmentSection": "Attribution",
+    "assigneesLabel": "Assignés",
+    "noUsersAvailable": "Aucun utilisateur disponible",
+    "detailsSection": "Détails",
+    "statusLabel": "Statut",
+    "selectStatus": "Sélectionner un statut",
+    "priorityLabel": "Priorité",
+    "selectPriority": "Sélectionner une priorité",
+    "recurrenceSection": "Récurrence",
+    "recurringSchedule": "Planification récurrente",
+    "applying": "Application…",
+    "applyChanges": "Appliquer les modifications",
+    "selected": "{{count}} tâche sélectionnée",
+    "selected_other": "{{count}} tâches sélectionnées",
+    "editTags": "Modifier les étiquettes",
+    "archiving": "Archivage…"
+  }
+}
