@@ -775,6 +775,10 @@ async def upload_document_file(
         level=DocumentPermissionLevel.owner,
         guild_id=guild_context.guild_id,
     )
+    # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
+    if mime_type and mime_type.startswith("image/"):
+        document.featured_image_url = file_url
+
     session.add(owner_permission)
     await session.commit()
     await reapply_rls_context(session)

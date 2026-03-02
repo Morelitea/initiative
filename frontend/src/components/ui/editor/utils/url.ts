@@ -17,6 +17,10 @@ const urlRegExp = new RegExp(
   /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/
 );
 export function validateUrl(url: string): boolean {
+  // Allow hash-only links for heading anchors (e.g. #some-heading)
+  if (url.startsWith("#") && url.length > 1) {
+    return true;
+  }
   // TODO Fix UI for link insertion; it should never default to an invalid URL such as https://.
   // Maybe show a dialog where they user can type the URL before inserting it.
   return url === "https://" || urlRegExp.test(url);

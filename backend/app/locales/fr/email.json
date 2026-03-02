@@ -1,0 +1,70 @@
+{
+  "layout": {
+    "footerDisclaimer": "Ce message a été envoyé par Initiative. Si vous ne l'attendiez pas, vous pouvez ignorer cet e-mail.",
+    "updateNotifications": "Modifier les paramètres de notifications"
+  },
+  "test": {
+    "subject": "Test de configuration SMTP",
+    "title": "E-mail de test SMTP",
+    "body": "Ceci est un e-mail de test confirmant que les paramètres SMTP sont correctement configurés."
+  },
+  "verification": {
+    "subject": "Vérifiez votre compte Initiative",
+    "title": "Vérifiez votre adresse e-mail",
+    "greeting": "Bonjour {{name}},",
+    "body": "Confirmez votre adresse e-mail pour terminer la configuration de votre compte Initiative.",
+    "buttonLabel": "Vérifier l'adresse e-mail",
+    "fallbackText": "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
+    "textBody": "Confirmez votre compte Initiative en visitant {{link}}"
+  },
+  "passwordReset": {
+    "subject": "Réinitialisez votre mot de passe Initiative",
+    "title": "Réinitialisez votre mot de passe",
+    "greeting": "Bonjour {{name}},",
+    "body": "Nous avons reçu une demande de réinitialisation de votre mot de passe Initiative.",
+    "buttonLabel": "Réinitialiser le mot de passe",
+    "fallbackText": "Si vous n'avez pas effectué cette demande, vous pouvez ignorer cet e-mail. Le lien expire bientôt.",
+    "textBody": "Réinitialisez votre mot de passe Initiative en visitant {{link}}"
+  },
+  "initiativeAdded": {
+    "subject": "Ajouté à l'initiative {{initiativeName}}",
+    "title": "Vous avez rejoint une nouvelle initiative",
+    "greeting": "Bonjour {{name}},",
+    "body": "Vous avez été ajouté(e) à l'initiative <strong>{{initiativeName}}</strong>.",
+    "buttonLabel": "Voir les initiatives",
+    "textBody": "Vous avez été ajouté(e) à l'initiative {{initiativeName}}. Visitez {{link}} pour la consulter."
+  },
+  "projectAdded": {
+    "subject": "Nouveau projet dans {{initiativeName}}",
+    "title": "Nouveau projet dans votre initiative",
+    "greeting": "Bonjour {{name}},",
+    "body": "Un nouveau projet, <strong>{{projectName}}</strong>, a été ajouté à l'initiative <strong>{{initiativeName}}</strong>.",
+    "buttonLabel": "Ouvrir le projet",
+    "textBody": "Un nouveau projet, {{projectName}}, a été ajouté à l'initiative {{initiativeName}}. Consultez-le à l'adresse {{link}}."
+  },
+  "taskAssignment": {
+    "subject": "Nouvelles tâches qui vous sont assignées",
+    "title": "Récapitulatif des tâches assignées",
+    "greeting": "Bonjour {{name}},",
+    "body": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
+    "assignedBy": "assigné par {{name}}",
+    "inProject": "dans {{projectName}}",
+    "footer": "Visitez Initiative pour examiner les tâches.",
+    "textBody": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :"
+  },
+  "mention": {
+    "greeting": "Bonjour {{name}},",
+    "buttonLabel": "Voir"
+  },
+  "overdue": {
+    "subject": "Rappel de tâches en retard",
+    "title": "Rappel de tâches en retard",
+    "greeting": "Bonjour {{name}},",
+    "body_one": "Vous avez {{count}} tâche en retard :",
+    "body_other": "Vous avez {{count}} tâches en retard :",
+    "taskDetail": "projet : {{projectName}}, échéance {{dueDate}}",
+    "footer": "Visitez Initiative pour vous remettre sur la bonne voie.",
+    "textBody_one": "Vous avez {{count}} tâche en retard :",
+    "textBody_other": "Vous avez {{count}} tâches en retard :"
+  }
+}

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-03-01
+
+### Added
+
+- French (Français) locale — full translation of all 19 frontend namespaces and backend email templates
+- Image and Markdown file uploads for documents — images display with lightbox zoom, markdown files render with source/rendered toggle
+- Heading anchor links (`#slug`) in both markdown file viewer and native Lexical editor — clicking scrolls to the matching heading
+
+### Fixed
+
+- `app_admin` role missing grants on `uploads` table — caused `permission denied` errors when serving uploaded files
+- Markdown file upload rejected with 400 error when `python-magic` returns variant MIME type (e.g. `text/x-markdown`)
+
 ## [0.33.2] - 2026-02-28
 
 ### Added

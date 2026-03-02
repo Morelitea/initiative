@@ -1,0 +1,52 @@
+{
+  "detail": {
+    "notFound": "Étiquette introuvable",
+    "notFoundDescription": "Cette étiquette a peut-être été supprimée ou vous avez suivi un lien invalide.",
+    "backToTags": "← Retour à l'accueil",
+    "taggedItems_one": "{{count}} élément étiqueté",
+    "taggedItems_other": "{{count}} éléments étiquetés",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer l'étiquette ?",
+    "deleteDescription": "Cela supprimera l'étiquette « {{name}} » de toutes les tâches, projets et documents. Cette action est irréversible.",
+    "deleted": "Étiquette supprimée",
+    "saving": "Enregistrement…",
+    "save": "Enregistrer",
+    "tasksTab": "Tâches ({{count}})",
+    "projectsTab": "Projets ({{count}})",
+    "documentsTab": "Documents ({{count}})"
+  },
+
+  "picker": {
+    "defaultPlaceholder": "Ajouter des étiquettes...",
+    "createHeading": "Créer une nouvelle étiquette",
+    "namePlaceholder": "Nom de l'étiquette",
+    "creating": "Création en cours…",
+    "create": "Créer",
+    "searchPlaceholder": "Rechercher ou créer des étiquettes...",
+    "loading": "Chargement…",
+    "existingTags": "Étiquettes existantes",
+    "noTagsFound": "Aucune étiquette trouvée.",
+    "createTag": "Créer « {{name}} »",
+    "selected": "{{count}} sélectionné(e)(s)"
+  },
+
+  "tree": {
+    "notTagged": "Non étiqueté",
+    "collapse": "Réduire",
+    "expand": "Développer"
+  },
+
+  "badge": {
+    "remove": "Supprimer l'étiquette {{name}}"
+  },
+
+  "updated": "Étiquette mise à jour.",
+  "deleted": "Étiquette supprimée.",
+  "createError": "Impossible de créer l'étiquette.",
+  "updateError": "Impossible de mettre à jour l'étiquette.",
+  "deleteError": "Impossible de supprimer l'étiquette.",
+  "taskTagsError": "Impossible de mettre à jour les étiquettes de la tâche.",
+  "projectTagsError": "Impossible de mettre à jour les étiquettes du projet.",
+  "documentTagsError": "Impossible de mettre à jour les étiquettes du document."
+}
