@@ -77,7 +77,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.18",
     "@tanstack/router-devtools": "^1.157.16",
-    "axios": "^1.13.5",
+    "axios": "^1.13.6",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
