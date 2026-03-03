@@ -25,7 +25,7 @@
     "@capacitor/app": "^8.0.0",
     "@capacitor/browser": "^8.0.0",
     "@capacitor/core": "^8.0.1",
-    "@capacitor/device": "^8.0.0",
+    "@capacitor/device": "^8.0.1",
     "@capacitor/ios": "^8.0.1",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.1",
