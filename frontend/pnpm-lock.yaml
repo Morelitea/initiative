@@ -27,8 +27,8 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.0.1)
       '@capacitor/ios':
-        specifier: ^8.0.1
-        version: 8.0.1(@capacitor/core@8.0.1)
+        specifier: ^8.0.2
+        version: 8.0.2(@capacitor/core@8.0.1)
       '@capacitor/preferences':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.0.1)
@@ -554,8 +554,8 @@ packages:
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
-  '@capacitor/ios@8.0.1':
-    resolution: {integrity: sha512-pDxwQtx3n07DBhRKFGvYh4g00ruIsT7HxPm6IIT+tJD8VuTNgwgWYmEOZzfHkG6mZuCe03KqCsuD+aVmg5Rctg==}
+  '@capacitor/ios@8.0.2':
+    resolution: {integrity: sha512-7EM7vBxXI3Ku49aYCJcS9su5Y3i6UmXpx7e0y+oQV9PzCnZ6l5B0ACJ+gXAU0bM3q7/f+kGBsOtXMid84rU6MQ==}
     peerDependencies:
       '@capacitor/core': ^8.0.0
 
@@ -6853,7 +6853,7 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.0.1
 
-  '@capacitor/ios@8.0.1(@capacitor/core@8.0.1)':
+  '@capacitor/ios@8.0.2(@capacitor/core@8.0.1)':
     dependencies:
       '@capacitor/core': 8.0.1
 
