@@ -1,6 +1,5 @@
-import { Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Loader2 } from "lucide-react";
 
 import type { RouterContext } from "@/router";
@@ -8,6 +7,14 @@ import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useColorTheme } from "@/hooks/useColorTheme";
 import { useSafeArea } from "@/hooks/useSafeArea";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
+
+const TanStackRouterDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-router-devtools").then((mod) => ({
+        default: mod.TanStackRouterDevtools,
+      }))
+    )
+  : () => null;
 
 /**
  * Loading fallback for lazy-loaded pages.
@@ -29,10 +36,14 @@ const RootComponent = () => {
   useDeepLinks();
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <TanStackRouterDevtools position="bottom-right" />
-      <Outlet />
-    </Suspense>
+    <>
+      <Suspense fallback={<PageLoader />}>
+        <Outlet />
+      </Suspense>
+      <Suspense>
+        <TanStackRouterDevtools position="bottom-right" />
+      </Suspense>
+    </>
   );
 };
 
