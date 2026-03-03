@@ -9,7 +9,7 @@ package-mode = false
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.111.0"
-uvicorn = { extras = ["standard"], version = "^0.30.0" }
+uvicorn = { extras = ["standard"], version = "^0.41.0" }
 sqlmodel = "^0.0.22"
 asyncpg = "^0.29.0"
 sqlalchemy = "^2.0.0"
