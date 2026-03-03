@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Loader2 } from "lucide-react";
 
 import type { RouterContext } from "@/router";
@@ -29,6 +30,7 @@ const RootComponent = () => {
 
   return (
     <Suspense fallback={<PageLoader />}>
+      <TanStackRouterDevtools position="bottom-right" />
       <Outlet />
     </Suspense>
   );
