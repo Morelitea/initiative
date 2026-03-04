@@ -23,7 +23,8 @@
     "noProjects": "Aucun projet pour l'instant",
     "viewAll": "Tout afficher",
     "tasks_one": "{{count}} tâche",
-    "tasks_other": "{{count}} tâches"
+    "tasks_other": "{{count}} tâches",
+    "progressLabel": "Progression du projet"
   },
   "upcomingTasks": {
     "title": "Tâches à venir",

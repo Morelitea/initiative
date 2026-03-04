@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Moved search/Cmd+K button from sidebar footer to top bar for better discoverability
+- Aligned sidebar header, top bar, and activity sidebar header heights
+
+### Fixed
+
+- Lighthouse accessibility: added aria-labels to home link, progress bars, task status select, page size select, and searchable combobox
+- Lighthouse SEO: added meta description and robots.txt
+- Lighthouse performance: deferred Google Fonts loading, added Cache-Control headers for hashed static assets
+
 ## [0.34.0] - 2026-03-01
 
 ### Added

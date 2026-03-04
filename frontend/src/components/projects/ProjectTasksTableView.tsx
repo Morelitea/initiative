@@ -146,10 +146,7 @@ const SortableRowWrapperInner = ({
       <TableRow
         ref={setRefs}
         style={style}
-        className={cn(
-          isDragging && "bg-muted/60",
-          row.original.is_archived && "opacity-50"
-        )}
+        className={cn(isDragging && "bg-muted/60", row.original.is_archived && "opacity-50")}
         data-state={row.getIsSelected() && "selected"}
         data-index={virtualIndex}
       >
@@ -402,7 +399,11 @@ const ProjectTasksTableViewComponent = ({
               }}
               disabled={statusDisabled}
             >
-              <SelectTrigger className="w-40" disabled={statusDisabled}>
+              <SelectTrigger
+                className="w-40"
+                disabled={statusDisabled}
+                aria-label={t("table.statusColumn")}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -422,10 +423,7 @@ const ProjectTasksTableViewComponent = ({
   );
   const groupingOptions = useMemo(() => [{ id: "date group", label: t("table.dateWindow") }], [t]);
 
-  const sortableItems = useMemo(
-    () => tasks.map((task) => task.id.toString()),
-    [tasks]
-  );
+  const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
 
   // Track sorting/grouping state to know when DnD is possible.
   // When either is active, we skip useSortable hooks entirely for performance.

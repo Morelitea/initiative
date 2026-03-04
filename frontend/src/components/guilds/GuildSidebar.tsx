@@ -294,6 +294,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 "flex flex-col items-center rounded-2xl p-1 transition",
                 isHomeMode && "bg-primary/10 ring-primary/60 ring-3"
               )}
+              aria-label={t("nav:home")}
             >
               <LogoIcon className="h-10 w-10" aria-hidden="true" focusable="false" />
             </Link>

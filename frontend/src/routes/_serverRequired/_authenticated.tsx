@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import {
   createFileRoute,
   Link,
@@ -9,13 +9,14 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Loader2, LogOut, Menu, Plus, Ticket } from "lucide-react";
+import { Loader2, LogOut, Menu, Plus, Search, Ticket } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/AppSidebar";
-import { CommandCenter } from "@/components/CommandCenter";
+import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { VersionDialog } from "@/components/VersionDialog";
@@ -66,8 +67,14 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
 
 function AppLayout() {
   // ALL hooks must be called before any conditional returns
+  const { t } = useTranslation("command");
   const { user, loading, logout } = useAuth();
   const { isNativePlatform } = useServer();
+  const isMac = useMemo(
+    () => typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent),
+    []
+  );
+  const shortcutLabel = isMac ? "\u2318K" : "Ctrl+K";
   const {
     activeGuildId,
     guilds,
@@ -138,11 +145,25 @@ function AppLayout() {
           >
             <AppSidebar />
             <div className="bg-muted/50 min-w-0 flex-1 md:pl-0">
-              <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 flex border-b backdrop-blur">
+              <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 flex h-12 border-b backdrop-blur">
                 <SidebarTrigger
                   icon={<Menu />}
                   className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
                 />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-12 w-12 shrink-0 rounded-none border-r"
+                      onClick={() => getOpenCommandCenter()?.()}
+                      aria-label={t("shortcutTooltip", { shortcut: shortcutLabel })}
+                    >
+                      <Search className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{shortcutLabel}</TooltipContent>
+                </Tooltip>
                 <div className="min-w-0 flex-1">
                   <ProjectTabsBar
                     projects={recentQuery.data as ProjectRead[] | undefined}
