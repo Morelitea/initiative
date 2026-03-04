@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-03-03
+
 ### Changed
 
 - Moved search/Cmd+K button from sidebar footer to top bar for better discoverability
