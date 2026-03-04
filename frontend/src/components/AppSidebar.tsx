@@ -300,7 +300,7 @@ export const AppSidebar = () => {
               <HomeSidebarContent />
             ) : (
               <>
-                <SidebarHeader className="p2.5 h-12 border-b">
+                <SidebarHeader className="h-12 border-b p-2.5">
                   <div className="flex min-w-0 items-center justify-between gap-2">
                     <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">
                       {activeGuild?.name ?? t("selectGuild")}
