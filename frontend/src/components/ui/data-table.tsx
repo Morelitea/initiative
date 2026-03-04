@@ -793,7 +793,7 @@ export function DataTable<TData, TValue>({
                   }
                 }}
               >
-                <SelectTrigger className="w-24">
+                <SelectTrigger className="w-24" aria-label={t("rowsPerPage")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="end">

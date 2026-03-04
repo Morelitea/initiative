@@ -143,6 +143,7 @@
 
   "checklist": {
     "title": "Sous-tâches",
+    "progressLabel": "Progression de la checklist",
     "aiGenerate": "Génération IA",
     "loading": "Chargement de la liste…",
     "loadError": "Impossible de charger les éléments de la liste pour l'instant.",

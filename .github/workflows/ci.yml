@@ -33,12 +33,12 @@ jobs:
       AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -100,7 +100,7 @@ jobs:
     name: Frontend Lint & Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -160,7 +160,7 @@ jobs:
     name: Check Generated Types
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -182,7 +182,7 @@ jobs:
 
       - name: Set up Python
         if: steps.filter.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip

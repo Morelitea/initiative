@@ -564,6 +564,8 @@
     "more": "+{{count}} más"
   },
 
+  "progressLabel": "Progreso del proyecto",
+
   "preview": {
     "updated": "Actualizado {{date}}",
     "tasksDone": "{{completed}}/{{total}} completadas"

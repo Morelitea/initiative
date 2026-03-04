@@ -73,7 +73,7 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
       )}
     >
       <div className="bg-card flex h-full w-full flex-col border-l shadow-sm">
-        <div className="flex h-[calc(4rem+1px)] items-center justify-between border-b px-3 py-3">
+        <div className="flex h-12 items-center justify-between border-b px-3">
           {!collapsed && (
             <div className="flex items-center gap-2">
               <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden="true" />

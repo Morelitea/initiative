@@ -78,7 +78,11 @@ export function ProjectHealthList({ projects, isLoading }: ProjectHealthListProp
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Progress value={percent} className="h-2 flex-1" />
+                    <Progress
+                      value={percent}
+                      className="h-2 flex-1"
+                      aria-label={t("projectHealth.progressLabel")}
+                    />
                     <span className="text-muted-foreground w-10 text-right text-xs">
                       {percent}%
                     </span>
