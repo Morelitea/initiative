@@ -143,6 +143,7 @@
 
   "checklist": {
     "title": "Subtasks",
+    "progressLabel": "Checklist progress",
     "aiGenerate": "AI Generate",
     "loading": "Loading checklist\u2026",
     "loadError": "Unable to load checklist items right now.",

@@ -228,7 +228,7 @@ const ProjectProgress = ({ summary }: { summary?: ProjectRead["task_summary"] })
         <span className="text-muted-foreground flex justify-end text-xs">
           {t("preview.tasksDone", { completed, total })}
         </span>
-        <Progress value={percent} className="h-2" />
+        <Progress value={percent} className="h-2" aria-label={t("progressLabel")} />
       </div>
       <div className="flex w-full items-center justify-end gap-3 @xs:hidden">
         <ProgressCircle value={percent} />

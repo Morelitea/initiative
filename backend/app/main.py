@@ -136,9 +136,20 @@ async def serve_spa(full_path: str) -> FileResponse:
         raise HTTPException(status_code=404)
     static_file = _resolve_static_file(full_path) if full_path else None
     if static_file:
-        return FileResponse(static_file)
+        if full_path.startswith("assets/"):
+            return FileResponse(
+                static_file,
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+        return FileResponse(
+            static_file,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
     if static_index_path.is_file():
-        return FileResponse(static_index_path)
+        return FileResponse(
+            static_index_path,
+            headers={"Cache-Control": "no-cache"},
+        )
     raise HTTPException(status_code=404, detail="SPA bundle not found")
 
 

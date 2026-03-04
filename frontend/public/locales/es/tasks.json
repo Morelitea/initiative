@@ -134,6 +134,7 @@
   },
   "checklist": {
     "title": "Subtareas",
+    "progressLabel": "Progreso de la lista",
     "aiGenerate": "Generar con IA",
     "loading": "Cargando lista de verificación\u2026",
     "loadError": "No se pudieron cargar los elementos de la lista de verificación en este momento.",

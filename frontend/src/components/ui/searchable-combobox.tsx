@@ -20,6 +20,7 @@ export interface SearchableComboboxProps {
   className?: string;
   buttonClassName?: string;
   disabled?: boolean;
+  "aria-label"?: string;
 }
 
 export const SearchableCombobox = ({
@@ -31,6 +32,7 @@ export const SearchableCombobox = ({
   className,
   buttonClassName,
   disabled = false,
+  "aria-label": ariaLabel,
 }: SearchableComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [internalValue, setInternalValue] = useState(value ?? "");
@@ -66,6 +68,7 @@ export const SearchableCombobox = ({
             variant="outline"
             role="combobox"
             aria-expanded={!disabled && open}
+            aria-label={ariaLabel}
             className={cn("w-full justify-between", buttonClassName)}
             disabled={disabled}
           >

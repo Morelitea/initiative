@@ -23,7 +23,8 @@
     "noProjects": "No projects yet",
     "viewAll": "View all",
     "tasks_one": "{{count}} task",
-    "tasks_other": "{{count}} tasks"
+    "tasks_other": "{{count}} tasks",
+    "progressLabel": "Project progress"
   },
   "upcomingTasks": {
     "title": "Upcoming Tasks",
