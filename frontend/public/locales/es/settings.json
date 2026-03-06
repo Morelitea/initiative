@@ -190,7 +190,11 @@
     "updateError": "No se pudieron actualizar las preferencias de interfaz",
     "themePreview": "Vista previa del tema",
     "lightMode": "Claro",
-    "darkMode": "Oscuro"
+    "darkMode": "Oscuro",
+    "onboardingTour": "Tour de bienvenida",
+    "onboardingTourDescription": "Vuelve a ejecutar el tour guiado con Chester el Mímico para conocer las funciones de la aplicación.",
+    "restartTour": "Reiniciar tour",
+    "restartPmTour": "Reiniciar tour de JP"
   },
   "notifications": {
     "title": "Configuración de notificaciones",
@@ -340,7 +344,9 @@
     "saveRoles": "Guardar etiquetas de roles",
     "savingRoles": "Guardando\u2026",
     "rolesSuccess": "Etiquetas de roles actualizadas",
-    "rolesUpdateError": "No se pudieron actualizar las etiquetas de roles."
+    "rolesUpdateError": "No se pudieron actualizar las etiquetas de roles.",
+    "onboardingTourLabel": "Tour de bienvenida",
+    "onboardingTourHelp": "Cuando está desactivado, los nuevos usuarios no verán el tour guiado de Chester al iniciar sesión por primera vez."
   },
   "email": {
     "adminOnly": "Solo los administradores de la plataforma pueden gestionar la configuración de email.",
