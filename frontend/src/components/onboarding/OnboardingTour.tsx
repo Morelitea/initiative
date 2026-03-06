@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { ChesterTooltip } from "./ChesterTooltip";
 import {
   getTourSteps,
@@ -29,6 +30,9 @@ export const OnboardingTour = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const isGuildRoute = location.pathname.startsWith("/g/");
+  const { data: initiatives } = useInitiatives({ enabled: isGuildRoute });
+
   const variant: TourVariant =
     user?.role === "admin"
       ? "superadmin"
@@ -36,8 +40,15 @@ export const OnboardingTour = () => {
         ? "guild_admin"
         : "new_user";
   const isGuildAdmin = activeGuild?.role === "admin";
-  const isProjectManager =
-    user?.initiative_roles?.some((r) => r.role === "project_manager") ?? false;
+  const isProjectManager = useMemo(() => {
+    if (!activeGuild?.id || !initiatives || !user?.initiative_roles) return false;
+    const guildInitiativeIds = new Set(
+      initiatives.filter((i) => i.guild_id === activeGuild.id).map((i) => i.id)
+    );
+    return user.initiative_roles.some(
+      (r) => r.role === "project_manager" && guildInitiativeIds.has(r.initiative_id)
+    );
+  }, [activeGuild?.id, initiatives, user?.initiative_roles]);
   const steps = useMemo(
     () => getTourSteps(t, variant, isGuildAdmin, isProjectManager),
     [t, variant, isGuildAdmin, isProjectManager]
@@ -72,7 +83,6 @@ export const OnboardingTour = () => {
   }, [running]);
 
   // Auto-advance when the user navigates into a guild
-  const isGuildRoute = location.pathname.startsWith("/g/");
   useEffect(() => {
     if (waitingForGuild.current && isGuildRoute) {
       waitingForGuild.current = false;
