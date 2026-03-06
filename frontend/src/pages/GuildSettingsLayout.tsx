@@ -73,7 +73,7 @@ export const GuildSettingsLayout = () => {
     "guild";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="guild-settings-page">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">{t("guildLayout.title")}</h1>
         <p className="text-muted-foreground">{t("guildLayout.subtitle")}</p>

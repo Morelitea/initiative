@@ -56,7 +56,7 @@ export const SidebarUserFooter = ({
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   return (
-    <SidebarFooter className="border-t border-r">
+    <SidebarFooter className="border-t border-r" data-tour="settings">
       <div className="flex flex-col">
         <div className="flex items-center gap-2 p-2">
           <DropdownMenu>
@@ -64,6 +64,7 @@ export const SidebarUserFooter = ({
               <Button
                 variant="ghost"
                 className="h-auto min-w-0 flex-1 justify-start gap-2 px-2 py-2"
+                data-tour="platform-settings"
               >
                 <Avatar className="h-8 w-8 shrink-0">
                   {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
@@ -75,7 +76,7 @@ export const SidebarUserFooter = ({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-56" data-tour="user-menu-content">
               <DropdownMenuLabel>{t("myAccount")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
@@ -102,7 +103,7 @@ export const SidebarUserFooter = ({
               )}
               {isPlatformAdmin && (
                 <DropdownMenuItem asChild>
-                  <Link to="/settings/admin">
+                  <Link to="/settings/admin" data-tour="platform-settings-item">
                     <Settings className="h-4 w-4" /> {t("platformSettings")}
                   </Link>
                 </DropdownMenuItem>

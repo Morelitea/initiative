@@ -121,6 +121,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        onboarding_tour_enabled=settings_obj.onboarding_tour_enabled,
     )
 
 
@@ -143,10 +144,12 @@ async def update_interface_settings(
         session,
         light_accent_color=payload.light_accent_color,
         dark_accent_color=payload.dark_accent_color,
+        onboarding_tour_enabled=payload.onboarding_tour_enabled,
     )
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        onboarding_tour_enabled=settings_obj.onboarding_tour_enabled,
     )
 
 

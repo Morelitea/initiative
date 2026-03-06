@@ -125,7 +125,7 @@ export function GuildDashboardPage() {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4" data-tour="dashboard">
         <StatsMetricCard
           icon={CheckCircle2}
           title={t("metrics.tasksThisWeek")}

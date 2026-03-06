@@ -39,7 +39,7 @@ export const AdminSettingsLayout = () => {
       ?.value ?? "auth";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="admin-settings">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">{t("adminLayout.title")}</h1>
         <p className="text-muted-foreground">{t("adminLayout.subtitle")}</p>
@@ -56,7 +56,12 @@ export const AdminSettingsLayout = () => {
         <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
           <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
             {adminTabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="shrink-0"
+                {...(tab.value === "branding" ? { "data-tour": "admin-branding-tab" } : {})}
+              >
                 {tab.label}
               </TabsTrigger>
             ))}

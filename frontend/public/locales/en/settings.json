@@ -190,7 +190,11 @@
     "updateError": "Unable to update interface preferences",
     "themePreview": "Theme preview",
     "lightMode": "Light",
-    "darkMode": "Dark"
+    "darkMode": "Dark",
+    "onboardingTour": "Onboarding tour",
+    "onboardingTourDescription": "Re-run the guided tour with Chester the Mimic to learn about the app's features.",
+    "restartTour": "Restart tour",
+    "restartPmTour": "Restart PM tour"
   },
   "notifications": {
     "title": "Notification settings",
@@ -340,7 +344,9 @@
     "saveRoles": "Save role labels",
     "savingRoles": "Saving\u2026",
     "rolesSuccess": "Role labels updated",
-    "rolesUpdateError": "Unable to update role labels."
+    "rolesUpdateError": "Unable to update role labels.",
+    "onboardingTourLabel": "Onboarding tour",
+    "onboardingTourHelp": "When disabled, new users will not see Chester's guided tour on first login."
   },
   "email": {
     "adminOnly": "Only platform admins can manage email settings.",

@@ -31,11 +31,13 @@ class InterfaceSettingsResponse(BaseModel):
 
     light_accent_color: str
     dark_accent_color: str
+    onboarding_tour_enabled: bool
 
 
 class InterfaceSettingsUpdate(BaseModel):
     light_accent_color: str
     dark_accent_color: str
+    onboarding_tour_enabled: bool
 
 
 class RoleLabelsResponse(BaseModel):

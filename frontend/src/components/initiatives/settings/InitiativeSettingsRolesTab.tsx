@@ -89,7 +89,7 @@ export const InitiativeSettingsRolesTab = ({
   );
 
   return (
-    <TabsContent value="roles">
+    <TabsContent value="roles" data-tour="initiative-roles-tab">
       <div className="space-y-4">
         <div>
           <h3 className="text-lg font-semibold">{t("settings.rolesTitle")}</h3>

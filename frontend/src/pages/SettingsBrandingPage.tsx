@@ -14,6 +14,7 @@ import {
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { DEFAULT_ROLE_LABELS, useRoleLabels, useUpdateRoleLabels } from "@/hooks/useRoleLabels";
 import { useAuth } from "@/hooks/useAuth";
 import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
@@ -35,6 +36,7 @@ export const SettingsBrandingPage = () => {
   const isPlatformAdmin = user?.role === "admin";
   const [lightColor, setLightColor] = useState("#2563eb");
   const [darkColor, setDarkColor] = useState("#60a5fa");
+  const [tourEnabled, setTourEnabled] = useState(true);
   const [roleFormState, setRoleFormState] = useState<RoleLabelsResponse>(DEFAULT_ROLE_LABELS);
   const [roleMessage, setRoleMessage] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export const SettingsBrandingPage = () => {
     if (interfaceQuery.data) {
       setLightColor(interfaceQuery.data.light_accent_color);
       setDarkColor(interfaceQuery.data.dark_accent_color);
+      setTourEnabled(interfaceQuery.data.onboarding_tour_enabled);
     }
   }, [interfaceQuery.data]);
 
@@ -68,6 +71,7 @@ export const SettingsBrandingPage = () => {
     updateInterface.mutate({
       light_accent_color: lightColor,
       dark_accent_color: darkColor,
+      onboarding_tour_enabled: tourEnabled,
     });
   };
 
@@ -136,6 +140,30 @@ export const SettingsBrandingPage = () => {
               </CardFooter>
             </form>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("branding.onboardingTourLabel")}</CardTitle>
+          <CardDescription>{t("branding.onboardingTourHelp")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="tour-toggle">{t("branding.onboardingTourLabel")}</Label>
+            <Switch
+              id="tour-toggle"
+              checked={tourEnabled}
+              onCheckedChange={(checked) => {
+                setTourEnabled(checked);
+                updateInterface.mutate({
+                  light_accent_color: lightColor,
+                  dark_accent_color: darkColor,
+                  onboarding_tour_enabled: checked,
+                });
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 

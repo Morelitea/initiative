@@ -98,7 +98,7 @@ export const InitiativeSettingsDetailsTab = ({
           </form>
         </CardContent>
       </Card>
-      <Card className="mt-4">
+      <Card className="mt-4" data-tour="initiative-advanced-tools">
         <CardHeader>
           <CardTitle>{t("advancedTools")}</CardTitle>
           <CardDescription>{t("advancedToolsDescription")}</CardDescription>

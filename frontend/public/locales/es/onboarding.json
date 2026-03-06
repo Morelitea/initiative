@@ -1,0 +1,113 @@
+{
+  "welcome": {
+    "title": "¡Aparece un Mímico Salvaje!",
+    "body": "Vaya, vaya… ¡otro aventurero! Soy Chester, tu mímico amigable del vecindario. No te preocupes, solo muerdo a los cazadores de tesoros. ¡Déjame mostrarte este fino establecimiento!"
+  },
+  "homeTasks": {
+    "title": "Tu Tablón de Misiones Personal",
+    "body": "¡Esta es tu base! Desde aquí puedes ver todas tus tareas asignadas, las que has creado, tus proyectos, documentos y estadísticas personales — en todos los gremios a los que perteneces. Piensa en ello como el diario del aventurero que te sigue a todas partes."
+  },
+  "guildList": {
+    "title": "¡Elige Tu Gremio!",
+    "body": "Aquí están tus gremios — cada uno es un grupo de aventureros independiente con sus propios proyectos y misiones. ¡Adelante, haz clic en un icono de gremio para entrar en su dominio! Te seguiré."
+  },
+  "sidebar": {
+    "title": "El Campamento Base del Grupo",
+    "body": "Esta es la barra lateral principal — el tablón de anuncios de tu gremio, con iniciativas, proyectos y documentos bien organizados. Puedes explorar por tu cuenta desde aquí, ¡o pulsa Siguiente y te mostraré cómo navegar por tu gremio e iniciativas!"
+  },
+  "viewToggle": {
+    "title": "Dos Formas de Explorar",
+    "body": "¿Ves estas pestañas? Cambia entre Iniciativas para explorar tus proyectos por equipo, o Etiquetas para filtrar todo por label. ¡Dos mapas diferentes para la misma mazmorra!"
+  },
+  "tasks": {
+    "title": "Las Misiones del Grupo",
+    "body": "Las iniciativas agrupan tus proyectos — como capítulos en una campaña. Cada iniciativa puede tener su propio grupo de aventureros con diferentes roles y permisos. ¡Haz clic en un proyecto para sumergirte!"
+  },
+  "settings": {
+    "title": "El Taller del Artífice",
+    "body": "Aquí encontrarás tu perfil, notificaciones y configuración de tema. ¡Incluso puedes cambiar los colores de la aplicación! Hazlo sentir como en casa."
+  },
+  "guildSettings": {
+    "title": "El Salón del Líder del Gremio",
+    "body": "Como administrador del gremio, puedes gestionar miembros, crear iniciativas, configurar tu gremio e invitar nuevos aventureros. ¿Quieres saber más sobre cómo personalizar la experiencia de tu gremio? ¡Haz clic aquí y te mostraré! Si no, pulsa Siguiente para continuar."
+  },
+  "guildSettingsOverview": {
+    "title": "El Puesto de Mando de Tu Gremio",
+    "body": "¡Bienvenido a la Configuración del Gremio! Desde aquí puedes personalizar el nombre y detalles de tu gremio, configurar funciones de IA y gestionar tus miembros y sus roles. ¡Todo lo que necesitas para dirigir bien!"
+  },
+  "pmHandoff": {
+    "title": "El Mapa del Estratega",
+    "body": "Como jefe de proyecto, tienes acceso a potentes configuraciones de iniciativa — controla quién puede ver y editar, gestiona roles y configura herramientas personalizadas. ¡Haz clic en el icono de configuración ahora y te daré un tour dedicado! O pulsa Siguiente para terminar."
+  },
+  "menuOverview": {
+    "title": "El Kit de Herramientas del Aventurero",
+    "body": "¿Ves tu nombre aquí abajo? ¡Haz clic para abrir tu menú de acceso rápido! Desde aquí puedes saltar a tus tareas, revisar tus estadísticas o ir a Configuración de Usuario para personalizar tu tema y notificaciones. Todo lo que un aventurero necesita en un solo lugar.",
+    "bodySuperadmin": "¿Ves tu nombre aquí abajo? ¡Haz clic para abrir tu menú de acceso rápido! Tienes todos los atajos habituales — tareas, estadísticas y Configuración de Usuario. Pero ¿ves Configuración de la Plataforma ahí abajo? ¡Haz clic ahora y te mostraré tu centro de mando!"
+  },
+  "adminSettingsOverview": {
+    "title": "Tu Centro de Mando",
+    "body": "¡Bienvenido a la Configuración de la Plataforma! Desde aquí puedes configurar el inicio de sesión único (Auth), personalizar colores y nombres de roles (Marca), configurar la entrega de correos (Email), gestionar proveedores de IA (IA) y supervisar cada usuario de la plataforma (Usuarios). ¡Cosas poderosas!"
+  },
+  "brandingTab": {
+    "title": "¡Una Nota Sobre Mí!",
+    "body": "Cada nuevo usuario recibe un tour guiado de parte de un servidor cuando inicia sesión por primera vez. Si alguna vez quieres desactivarlo, encontrarás el interruptor aquí bajo Marca. Pero ¿por qué lo harías? ¡Soy encantador!"
+  },
+  "projectViews": {
+    "title": "Múltiples Mapas de Batalla",
+    "body": "¡Cada proyecto te da cuatro formas de ver tus tareas! Tabla para un vistazo rápido, Kanban para flujo de arrastrar y soltar, Calendario para planificar por fecha y Gantt para vistas de línea de tiempo. Cambia entre ellas cuando quieras — tus tareas siguen siendo las mismas, solo cambia la perspectiva."
+  },
+  "projectFilters": {
+    "title": "Filtra Tus Misiones",
+    "body": "¿Necesitas encontrar tareas específicas? Usa estos filtros para acotar por asignado, fecha de vencimiento, estado o etiquetas. ¡Incluso puedes mostrar tareas archivadas si necesitas desenterrar misiones antiguas!"
+  },
+  "farewell": {
+    "title": "¡Misión Aceptada!",
+    "body": "¡Estás listo, aventurero! Ve y conquista tus proyectos. Si alguna vez me necesitas de nuevo, visita la configuración de tu perfil y reinicia este tour. ¡Que tus críticos sean 20 naturales!",
+    "bodyAdmin": "¡Estás listo, Líder del Gremio! Tienes las llaves del reino. Gestiona tu gremio, invita aliados y lidera tu grupo a la victoria. Si me necesitas, estaré en la configuración de tu perfil. ¡Que tus críticos sean 20 naturales!",
+    "bodySuperadmin": "¡Estás listo, miembro del Alto Consejo! Tienes el poder absoluto sobre toda la plataforma. Configura la autenticación, la marca y gestiona todos los gremios desde la Configuración de la Plataforma. Si me necesitas, estaré en la configuración de tu perfil. ¡Que tus críticos sean 20 naturales!"
+  },
+  "pmTour": {
+    "welcome": {
+      "title": "¡Bienvenido, Jefe de Proyecto!",
+      "body": "¡Felicidades por tu nuevo rol! Soy Chester, y tengo un tour rápido de las herramientas disponibles para ti como jefe de proyecto. ¡Veamos qué puedes hacer!"
+    },
+    "initiativeSettings": {
+      "title": "El Mapa del Estratega",
+      "body": "Como jefe de proyecto, puedes personalizar la configuración de esta iniciativa — controla quién puede ver y editar, gestiona roles y configura herramientas personalizadas para hacer cada iniciativa única. ¡Haz clic en el icono de configuración para explorar!"
+    },
+    "initiativeSettingsOverview": {
+      "title": "Centro de Mando de la Iniciativa",
+      "body": "¡Bienvenido a la Configuración de Iniciativa! Desde aquí puedes gestionar miembros y roles, configurar permisos de visualización y edición, y establecer herramientas personalizadas. ¡Adapta cada iniciativa a tu flujo de trabajo!"
+    },
+    "advancedTools": {
+      "title": "El Banco del Encantador",
+      "body": "Las Herramientas Avanzadas son complementos opcionales que puedes activar por iniciativa. A diferencia de los proyectos y documentos que siempre están disponibles, estas desbloquean funciones especializadas — como el Rastreador de Iniciativa para gestionar elementos en cola. ¡Actívalas cuando tu grupo las necesite!"
+    },
+    "membersTab": {
+      "title": "Reúne a Tu Grupo",
+      "body": "¡Haz clic en la pestaña Miembros para ver quién está en tu grupo de aventureros!"
+    },
+    "membersTabContent": {
+      "title": "El Plantel de Tu Iniciativa",
+      "body": "Aquí es donde gestionas los miembros de tu iniciativa. Añade miembros del gremio, asígnales roles y elimina a los que se hayan ido. Todos aquí pueden acceder a los proyectos y documentos de la iniciativa según su rol."
+    },
+    "rolesTab": {
+      "title": "Asigna las Clases",
+      "body": "¡Ahora haz clic en la pestaña Roles para ver cómo funcionan los permisos!"
+    },
+    "rolesTabContent": {
+      "title": "El Sistema de Clases del Grupo",
+      "body": "Los roles controlan lo que cada miembro puede hacer dentro de esta iniciativa — quién puede crear proyectos, gestionar documentos o ver colas. Puedes personalizar los roles integrados o crear nuevos para adaptarlos a las necesidades de tu grupo."
+    },
+    "farewell": {
+      "title": "¡Listo para Liderar!",
+      "body": "¡Estás listo, Jefe de Proyecto! Ya sabes dónde encontrar la configuración y herramientas de tu iniciativa. ¡Ve y lidera a tu equipo a la victoria! Si necesitas este tour de nuevo, lo encontrarás en la configuración de tu perfil."
+    }
+  },
+  "stepCounter": "{{current}} de {{total}}",
+  "exploreSelf": "¡Yo exploro!",
+  "skip": "Saltar tour",
+  "back": "Atrás",
+  "next": "Siguiente",
+  "finish": "¡Vamos!"
+}
