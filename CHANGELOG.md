@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Project view steps in onboarding tour — users now see the view switcher (table/kanban/calendar/gantt) and task filters after clicking a project
+- Onboarding tour auto-advances when users click guild icons or project links
+- Next button is hidden on tour steps that require clicking a specific element (guild list, tasks, platform settings, tab triggers)
+- Back button in onboarding tour navigates between routes (project → guild → home) with lazy-load support
+- PM tour walks users through Members and Roles tabs with click-to-navigate steps and content highlights
+- Initiative settings tabs are URL-driven (`?tab=members`, `?tab=roles`) for tour integration and deep linking
+
 ## [0.34.1] - 2026-03-03
 
 ### Changed
