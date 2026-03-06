@@ -190,7 +190,11 @@
     "updateError": "Impossible de mettre à jour les préférences d'interface",
     "themePreview": "Aperçu du thème",
     "lightMode": "Clair",
-    "darkMode": "Sombre"
+    "darkMode": "Sombre",
+    "onboardingTour": "Visite guidée",
+    "onboardingTourDescription": "Relancez la visite guidée avec Chester le Mimic pour découvrir les fonctionnalités de l'application.",
+    "restartTour": "Relancer la visite",
+    "restartPmTour": "Relancer la visite JP"
   },
   "notifications": {
     "title": "Paramètres de notifications",
@@ -340,7 +344,9 @@
     "saveRoles": "Enregistrer les libellés de rôles",
     "savingRoles": "Enregistrement…",
     "rolesSuccess": "Libellés de rôles mis à jour",
-    "rolesUpdateError": "Impossible de mettre à jour les libellés de rôles."
+    "rolesUpdateError": "Impossible de mettre à jour les libellés de rôles.",
+    "onboardingTourLabel": "Visite guidée",
+    "onboardingTourHelp": "Lorsque désactivé, les nouveaux utilisateurs ne verront pas la visite guidée de Chester lors de leur première connexion."
   },
   "email": {
     "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres e-mail.",

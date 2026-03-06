@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
+import { Link, Navigate, useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Loader2 } from "lucide-react";
@@ -40,6 +40,8 @@ export const InitiativeSettingsPage = () => {
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const router = useRouter();
+  const { tab: tabParam } = useSearch({ strict: false }) as { tab?: string };
+  const activeTab = tabParam || "details";
 
   const { t } = useTranslation(["initiatives", "common"]);
   const { user } = useAuth();
@@ -204,7 +206,7 @@ export const InitiativeSettingsPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="initiative-settings-page">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -223,11 +225,23 @@ export const InitiativeSettingsPage = () => {
         <p className="text-muted-foreground text-sm">{t("settings.subtitle")}</p>
       </div>
 
-      <Tabs defaultValue="details" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) =>
+          void router.navigate({ to: ".", search: { tab: value }, replace: true })
+        }
+        className="space-y-4"
+      >
         <TabsList className="w-full max-w-xl justify-start">
-          <TabsTrigger value="details">{t("settings.detailsTab")}</TabsTrigger>
-          <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
-          <TabsTrigger value="roles">{t("settings.rolesTab")}</TabsTrigger>
+          <TabsTrigger value="details" data-tour="initiative-tab-details">
+            {t("settings.detailsTab")}
+          </TabsTrigger>
+          <TabsTrigger value="members" data-tour="initiative-tab-members">
+            {t("settings.membersTab")}
+          </TabsTrigger>
+          <TabsTrigger value="roles" data-tour="initiative-tab-roles">
+            {t("settings.rolesTab")}
+          </TabsTrigger>
           <TabsTrigger value="danger">{t("settings.dangerTab")}</TabsTrigger>
         </TabsList>
         <InitiativeSettingsDetailsTab

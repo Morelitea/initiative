@@ -32,7 +32,7 @@ export const HomeSidebarContent = () => {
           <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">initiative</h2>
         </div>
       </SidebarHeader>
-      <SidebarContent className="h-full overflow-x-hidden overflow-y-auto">
+      <SidebarContent className="h-full overflow-x-hidden overflow-y-auto" data-tour="home-tasks">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

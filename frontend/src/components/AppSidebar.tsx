@@ -81,6 +81,12 @@ export const AppSidebar = () => {
 
   const initiativesQuery = useInitiatives({ enabled: Boolean(activeGuild), staleTime: 60_000 });
 
+  // First initiative where user is project manager (for onboarding tour target)
+  const pmInitiativeId = useMemo(
+    () => user?.initiative_roles?.find((r) => r.role === "project_manager")?.initiative_id ?? null,
+    [user?.initiative_roles]
+  );
+
   const projectsQuery = useProjects(undefined, {
     enabled: Boolean(activeGuild),
     staleTime: 60_000,
@@ -291,6 +297,7 @@ export const AppSidebar = () => {
       className="sticky top-0 h-screen"
       variant="sidebar"
       collapsible={isMobile ? "offcanvas" : "none"}
+      data-tour="sidebar"
     >
       <div className="flex h-full w-full max-w-full min-w-0 flex-col">
         <div className="flex min-h-0 max-w-full flex-1">
@@ -307,7 +314,11 @@ export const AppSidebar = () => {
                     </h2>
                     {activeGuild && isGuildAdmin && (
                       <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-                        <Link to={gp("/settings")} aria-label={t("guildSettings")}>
+                        <Link
+                          to={gp("/settings")}
+                          aria-label={t("guildSettings")}
+                          data-tour="guild-settings"
+                        >
                           <Settings className="h-4 w-4" />
                         </Link>
                       </Button>
@@ -317,7 +328,7 @@ export const AppSidebar = () => {
 
                 <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">
                   {/* <div className="border-b px-2"> */}
-                  <TabsList className="h-9 w-full rounded-none">
+                  <TabsList className="h-9 w-full rounded-none" data-tour="sidebar-view-toggle">
                     <TabsTrigger value="initiatives" className="flex-1 text-xs">
                       <Users className="mr-2 h-3.5 w-3.5" />
                       {t("initiatives")}
@@ -376,7 +387,11 @@ export const AppSidebar = () => {
                               <SidebarMenu>
                                 <SidebarMenuItem>
                                   <SidebarMenuButton asChild>
-                                    <Link to={gp("/projects")} className="flex items-center gap-2">
+                                    <Link
+                                      to={gp("/projects")}
+                                      className="flex items-center gap-2"
+                                      data-tour="create-project"
+                                    >
                                       <ListTodo className="h-4 w-4" />
                                       <span>{t("allProjects")}</span>
                                     </Link>
@@ -398,7 +413,7 @@ export const AppSidebar = () => {
                       )}
 
                       {/* Initiatives Section */}
-                      <SidebarGroup>
+                      <SidebarGroup data-tour="tasks">
                         <SidebarGroupLabel className="flex items-center gap-2 py-2">
                           <Users className="h-4 w-4" />
                           <span className="flex-1">{t("initiatives")}</span>
@@ -466,6 +481,7 @@ export const AppSidebar = () => {
                                     queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
                                     activeGuildId={activeGuildId}
                                     collapseKey={initiativeCollapseKey}
+                                    isTourTarget={initiative.id === pmInitiativeId}
                                   />
                                 );
                               })}

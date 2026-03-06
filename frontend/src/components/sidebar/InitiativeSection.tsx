@@ -43,6 +43,8 @@ export interface InitiativeSectionProps {
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
+  /** When true, the settings button gets a data-tour attribute and stays visible. */
+  isTourTarget?: boolean;
 }
 
 export const InitiativeSection = memo(
@@ -62,6 +64,7 @@ export const InitiativeSection = memo(
     queueCount,
     activeGuildId,
     collapseKey,
+    isTourTarget,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
     // Helper to create guild-scoped paths
@@ -148,10 +151,16 @@ export const InitiativeSection = memo(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/initiative:opacity-100 lg:flex"
+                    className={cn(
+                      "hidden h-6 w-6 shrink-0 transition-opacity lg:flex",
+                      isTourTarget ? "opacity-100" : "opacity-0 group-hover/initiative:opacity-100"
+                    )}
                     asChild
                   >
-                    <Link to={gp(`/initiatives/${initiative.id}/settings`)}>
+                    <Link
+                      to={gp(`/initiatives/${initiative.id}/settings`)}
+                      {...(isTourTarget ? { "data-tour": "initiative-settings" } : {})}
+                    >
                       <Settings className="h-3 w-3" />
                     </Link>
                   </Button>

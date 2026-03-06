@@ -225,7 +225,7 @@ export const InitiativeSettingsMembersTab = ({
   ]);
 
   return (
-    <TabsContent value="members">
+    <TabsContent value="members" data-tour="initiative-members-tab">
       <Card>
         <CardHeader>
           <CardTitle>{t("settings.membersTitle")}</CardTitle>

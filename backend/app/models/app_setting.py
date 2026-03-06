@@ -78,3 +78,9 @@ class AppSetting(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+
+    # Onboarding
+    onboarding_tour_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )

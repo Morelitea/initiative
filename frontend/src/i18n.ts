@@ -26,6 +26,7 @@ export const namespaces = [
   "dates",
   "dashboard",
   "command",
+  "onboarding",
 ] as const;
 
 const LANGUAGE_STORAGE_KEY = "initiative-language";

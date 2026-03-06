@@ -179,10 +179,12 @@ async def update_interface_colors(
     *,
     light_accent_color: str,
     dark_accent_color: str,
+    onboarding_tour_enabled: bool = True,
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
     settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
+    settings_row.onboarding_tour_enabled = onboarding_tour_enabled
     session.add(settings_row)
     await session.commit()
     await reapply_rls_context(session)

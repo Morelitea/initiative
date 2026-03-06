@@ -149,6 +149,14 @@ class User(SQLModel, table=True):
         default="kobold",
         sa_column=Column(String(50), nullable=False, server_default="kobold"),
     )
+    onboarding_completed: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    pm_tour_completed: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
 
     @property
     def email(self) -> str:

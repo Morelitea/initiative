@@ -1,0 +1,113 @@
+{
+  "welcome": {
+    "title": "A Wild Mimic Appears!",
+    "body": "Well, well... another adventurer! I'm Chester, your friendly neighborhood mimic. Don't worry, I only bite treasure hunters. Let me show you around this fine establishment!"
+  },
+  "homeTasks": {
+    "title": "Your Personal Quest Board",
+    "body": "This is your home base! From here you can see all your assigned tasks, tasks you've created, your projects, documents, and personal stats \u2014 all across every guild you belong to. Think of it as the adventurer's journal that follows you everywhere."
+  },
+  "guildList": {
+    "title": "Choose Your Guild!",
+    "body": "Over here are your guilds \u2014 each one is a separate adventuring party with its own projects and quests. Go ahead, click on a guild icon to enter that guild's domain! I'll follow you in."
+  },
+  "sidebar": {
+    "title": "The Party's Base Camp",
+    "body": "This is the main sidebar \u2014 your guild's notice board, with initiatives, projects, and documents all neatly organized. You can explore on your own from here, or hit Next and I'll show you how to navigate your guild and initiatives!"
+  },
+  "viewToggle": {
+    "title": "Two Ways to Explore",
+    "body": "See these tabs? Switch between Initiatives to browse your projects by team, or Tags to filter everything by label. Two different maps for the same dungeon!"
+  },
+  "tasks": {
+    "title": "The Party's Missions",
+    "body": "Initiatives group your projects together \u2014 like chapters in a campaign. Each initiative can have its own adventuring party with different roles and permissions. Click on a project to dive in!"
+  },
+  "settings": {
+    "title": "The Artificer's Workshop",
+    "body": "Down here you'll find your profile, notifications, and theme settings. You can even change the app's colors! Make it feel like home."
+  },
+  "guildSettings": {
+    "title": "The Guild Leader's Hall",
+    "body": "As a guild admin, you can manage members, create initiatives, configure your guild, and invite new adventurers. Want to learn more about customizing your guild\u2019s experience? Click here and I\u2019ll show you around! Otherwise, hit Next to continue our tour."
+  },
+  "guildSettingsOverview": {
+    "title": "Your Guild's Command Post",
+    "body": "Welcome to Guild Settings! From here you can customize your guild's name and details, configure AI features, and manage your members and their roles. Everything you need to run a tight ship!"
+  },
+  "pmHandoff": {
+    "title": "The Strategist's Map",
+    "body": "As a project manager, you have access to powerful initiative settings \u2014 control who can view and edit, manage roles, and set up custom tools. Click the settings icon now and I'll give you a dedicated tour! Or hit Next to wrap up."
+  },
+  "menuOverview": {
+    "title": "Your Adventurer's Toolkit",
+    "body": "See your name down here? Click it to open your quick-access menu! From here you can jump to your tasks, check your stats, or head to User Settings to customize your theme and notifications. Everything an adventurer needs in one spot.",
+    "bodySuperadmin": "See your name down here? Click it to open your quick-access menu! You\u2019ve got all the usual shortcuts \u2014 tasks, stats, and User Settings. But see Platform Settings down there? Click it now and I\u2019ll show you around your command center!"
+  },
+  "adminSettingsOverview": {
+    "title": "Your Command Center",
+    "body": "Welcome to Platform Settings! From here you can configure single sign-on (Auth), customize colors and role names (Branding), set up email delivery (Email), manage AI providers (AI), and oversee every user on the platform (Users). Powerful stuff!"
+  },
+  "brandingTab": {
+    "title": "A Note About Me!",
+    "body": "Every new user gets a guided tour from yours truly when they first log in. If you ever want to turn that off, you'll find the switch right here under Branding. But why would you? I'm delightful!"
+  },
+  "projectViews": {
+    "title": "Multiple Battle Maps",
+    "body": "Every project gives you four ways to view your tasks! Table for quick scanning, Kanban for drag-and-drop workflow, Calendar to plan by date, and Gantt for timeline views. Switch between them anytime — your tasks stay the same, just the perspective changes."
+  },
+  "projectFilters": {
+    "title": "Filter Your Quests",
+    "body": "Need to find specific tasks? Use these filters to narrow things down by assignee, due date, status, or tags. You can even show archived tasks if you need to dig up old quests!"
+  },
+  "farewell": {
+    "title": "Quest Accepted!",
+    "body": "You're all set, adventurer! Go forth and conquer your projects. If you ever need me again, visit your profile settings and restart this tour. May your crits be natural 20s!",
+    "bodyAdmin": "You're all set, Guild Leader! You have the keys to the kingdom. Manage your guild, invite allies, and lead your party to victory. If you need me again, I'll be in your profile settings. May your crits be natural 20s!",
+    "bodySuperadmin": "You're all set, High Council member! You have ultimate power over the entire platform. Configure authentication, branding, and manage all guilds from Platform Settings. If you need me again, I'll be in your profile settings. May your crits be natural 20s!"
+  },
+  "pmTour": {
+    "welcome": {
+      "title": "Welcome, Project Manager!",
+      "body": "Congratulations on your new role! I'm Chester, and I've got a quick tour of the tools available to you as a project manager. Let's take a look at what you can do!"
+    },
+    "initiativeSettings": {
+      "title": "The Strategist's Map",
+      "body": "As a project manager, you can customize this initiative's settings \u2014 control who can view and edit, manage roles, and set up custom tools to make each initiative unique for your party's needs. Click the settings icon to explore!"
+    },
+    "initiativeSettingsOverview": {
+      "title": "Initiative Command Center",
+      "body": "Welcome to Initiative Settings! From here you can manage members and roles, configure permissions for viewing and editing, and set up custom tools. Tailor each initiative to fit your workflow!"
+    },
+    "advancedTools": {
+      "title": "The Enchanter's Workbench",
+      "body": "Advanced Tools are optional add-ons you can enable per initiative. Unlike projects and documents which are always available, these unlock specialized features \u2014 like the Initiative Tracker for managing queued items. Toggle them on when your party needs them!"
+    },
+    "membersTab": {
+      "title": "Rally Your Party",
+      "body": "Click the Members tab to see who's in your adventuring party!"
+    },
+    "membersTabContent": {
+      "title": "Your Initiative's Roster",
+      "body": "Here's where you manage your initiative's members. Add guild members, assign them roles, and remove anyone who's moved on. Everyone here can access the initiative's projects and documents based on their role."
+    },
+    "rolesTab": {
+      "title": "Assign the Classes",
+      "body": "Now click the Roles tab to see how permissions work!"
+    },
+    "rolesTabContent": {
+      "title": "The Party's Class System",
+      "body": "Roles control what each member can do within this initiative — who can create projects, manage documents, or view queues. You can customize the built-in roles or create entirely new ones to fit your party's needs."
+    },
+    "farewell": {
+      "title": "Ready to Lead!",
+      "body": "You're all set, Project Manager! You now know where to find your initiative settings and tools. Go forth and lead your team to victory! If you need this tour again, you'll find it in your profile settings."
+    }
+  },
+  "stepCounter": "{{current}} of {{total}}",
+  "exploreSelf": "I'll explore!",
+  "skip": "Skip tour",
+  "back": "Back",
+  "next": "Next",
+  "finish": "Let's go!"
+}

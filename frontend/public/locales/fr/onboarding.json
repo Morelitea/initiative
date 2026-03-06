@@ -1,0 +1,113 @@
+{
+  "welcome": {
+    "title": "Un Mimic Sauvage Apparaît !",
+    "body": "Eh bien, eh bien… un autre aventurier ! Je suis Chester, votre mimic de quartier. Ne vous inquiétez pas, je ne mords que les chasseurs de trésors. Laissez-moi vous faire visiter cet établissement !"
+  },
+  "homeTasks": {
+    "title": "Votre Tableau de Quêtes Personnel",
+    "body": "Voici votre base ! D'ici, vous pouvez voir toutes vos tâches assignées, celles que vous avez créées, vos projets, documents et statistiques personnelles — dans toutes les guildes auxquelles vous appartenez. C'est le journal de l'aventurier qui vous suit partout."
+  },
+  "guildList": {
+    "title": "Choisissez Votre Guilde !",
+    "body": "Voici vos guildes — chacune est un groupe d'aventuriers distinct avec ses propres projets et quêtes. Allez-y, cliquez sur une icône de guilde pour entrer dans son domaine ! Je vous suis."
+  },
+  "sidebar": {
+    "title": "Le Camp de Base du Groupe",
+    "body": "Voici la barre latérale principale — le tableau d'affichage de votre guilde, avec les initiatives, projets et documents bien organisés. Vous pouvez explorer par vous-même, ou appuyez sur Suivant et je vous montrerai comment naviguer dans votre guilde et vos initiatives !"
+  },
+  "viewToggle": {
+    "title": "Deux Façons d'Explorer",
+    "body": "Vous voyez ces onglets ? Basculez entre Initiatives pour parcourir vos projets par équipe, ou Étiquettes pour tout filtrer par label. Deux cartes différentes pour le même donjon !"
+  },
+  "tasks": {
+    "title": "Les Missions du Groupe",
+    "body": "Les initiatives regroupent vos projets — comme des chapitres dans une campagne. Chaque initiative peut avoir son propre groupe d'aventuriers avec des rôles et permissions différents. Cliquez sur un projet pour plonger !"
+  },
+  "settings": {
+    "title": "L'Atelier de l'Artificier",
+    "body": "Ici, vous trouverez votre profil, vos notifications et les paramètres de thème. Vous pouvez même changer les couleurs de l'application ! Faites-en votre chez-vous."
+  },
+  "guildSettings": {
+    "title": "La Salle du Chef de Guilde",
+    "body": "En tant qu'administrateur de guilde, vous pouvez gérer les membres, créer des initiatives, configurer votre guilde et inviter de nouveaux aventuriers. Vous voulez en savoir plus sur la personnalisation de votre guilde ? Cliquez ici et je vous ferai visiter ! Sinon, appuyez sur Suivant pour continuer."
+  },
+  "guildSettingsOverview": {
+    "title": "Le Poste de Commande de Votre Guilde",
+    "body": "Bienvenue dans les Paramètres de Guilde ! D'ici, vous pouvez personnaliser le nom et les détails de votre guilde, configurer les fonctionnalités IA et gérer vos membres et leurs rôles. Tout ce qu'il faut pour bien diriger !"
+  },
+  "pmHandoff": {
+    "title": "La Carte du Stratège",
+    "body": "En tant que chef de projet, vous avez accès à de puissants paramètres d'initiative — contrôlez qui peut voir et modifier, gérez les rôles et configurez des outils personnalisés. Cliquez sur l'icône de paramètres maintenant et je vous ferai une visite dédiée ! Ou appuyez sur Suivant pour terminer."
+  },
+  "menuOverview": {
+    "title": "La Boîte à Outils de l'Aventurier",
+    "body": "Vous voyez votre nom ici ? Cliquez dessus pour ouvrir votre menu d'accès rapide ! D'ici, vous pouvez accéder à vos tâches, consulter vos statistiques ou aller dans les Paramètres Utilisateur pour personnaliser votre thème et vos notifications. Tout ce dont un aventurier a besoin en un seul endroit.",
+    "bodySuperadmin": "Vous voyez votre nom ici ? Cliquez dessus pour ouvrir votre menu d'accès rapide ! Vous avez tous les raccourcis habituels — tâches, statistiques et Paramètres Utilisateur. Mais voyez-vous Paramètres de la Plateforme en bas ? Cliquez dessus maintenant et je vous ferai visiter votre centre de commande !"
+  },
+  "adminSettingsOverview": {
+    "title": "Votre Centre de Commande",
+    "body": "Bienvenue dans les Paramètres de la Plateforme ! D'ici, vous pouvez configurer l'authentification unique (Auth), personnaliser les couleurs et les noms de rôles (Marque), configurer la livraison d'e-mails (E-mail), gérer les fournisseurs IA (IA) et superviser chaque utilisateur de la plateforme (Utilisateurs). Du costaud !"
+  },
+  "brandingTab": {
+    "title": "Une Note à Mon Sujet !",
+    "body": "Chaque nouvel utilisateur bénéficie d'une visite guidée de votre serviteur lors de sa première connexion. Si vous voulez désactiver ça, vous trouverez l'option ici sous Marque. Mais pourquoi le feriez-vous ? Je suis charmant !"
+  },
+  "projectViews": {
+    "title": "Cartes de Bataille Multiples",
+    "body": "Chaque projet vous offre quatre façons de voir vos tâches ! Tableau pour un aperçu rapide, Kanban pour un flux glisser-déposer, Calendrier pour planifier par date et Gantt pour les vues chronologiques. Basculez entre elles à tout moment — vos tâches restent les mêmes, seule la perspective change."
+  },
+  "projectFilters": {
+    "title": "Filtrez Vos Quêtes",
+    "body": "Besoin de trouver des tâches spécifiques ? Utilisez ces filtres pour affiner par assigné, date d'échéance, statut ou étiquettes. Vous pouvez même afficher les tâches archivées si vous devez retrouver d'anciennes quêtes !"
+  },
+  "farewell": {
+    "title": "Quête Acceptée !",
+    "body": "Vous êtes prêt, aventurier ! Allez conquérir vos projets. Si vous avez encore besoin de moi, visitez les paramètres de votre profil et relancez cette visite. Que vos critiques soient des 20 naturels !",
+    "bodyAdmin": "Vous êtes prêt, Chef de Guilde ! Vous avez les clés du royaume. Gérez votre guilde, invitez des alliés et menez votre groupe à la victoire. Si vous avez besoin de moi, je serai dans vos paramètres de profil. Que vos critiques soient des 20 naturels !",
+    "bodySuperadmin": "Vous êtes prêt, membre du Haut Conseil ! Vous avez le pouvoir ultime sur toute la plateforme. Configurez l'authentification, la marque et gérez toutes les guildes depuis les Paramètres de la Plateforme. Si vous avez besoin de moi, je serai dans vos paramètres de profil. Que vos critiques soient des 20 naturels !"
+  },
+  "pmTour": {
+    "welcome": {
+      "title": "Bienvenue, Chef de Projet !",
+      "body": "Félicitations pour votre nouveau rôle ! Je suis Chester, et j'ai une visite rapide des outils disponibles pour vous en tant que chef de projet. Voyons ce que vous pouvez faire !"
+    },
+    "initiativeSettings": {
+      "title": "La Carte du Stratège",
+      "body": "En tant que chef de projet, vous pouvez personnaliser les paramètres de cette initiative — contrôlez qui peut voir et modifier, gérez les rôles et configurez des outils personnalisés pour rendre chaque initiative unique. Cliquez sur l'icône de paramètres pour explorer !"
+    },
+    "initiativeSettingsOverview": {
+      "title": "Centre de Commande de l'Initiative",
+      "body": "Bienvenue dans les Paramètres d'Initiative ! D'ici, vous pouvez gérer les membres et les rôles, configurer les permissions de consultation et d'édition, et mettre en place des outils personnalisés. Adaptez chaque initiative à votre flux de travail !"
+    },
+    "advancedTools": {
+      "title": "L'Établi de l'Enchanteur",
+      "body": "Les Outils Avancés sont des modules optionnels que vous pouvez activer par initiative. Contrairement aux projets et documents qui sont toujours disponibles, ceux-ci débloquent des fonctionnalités spécialisées — comme le Suivi d'Initiative pour gérer les éléments en file d'attente. Activez-les quand votre groupe en a besoin !"
+    },
+    "membersTab": {
+      "title": "Rassemblez Votre Groupe",
+      "body": "Cliquez sur l'onglet Membres pour voir qui fait partie de votre groupe d'aventuriers !"
+    },
+    "membersTabContent": {
+      "title": "L'Effectif de Votre Initiative",
+      "body": "C'est ici que vous gérez les membres de votre initiative. Ajoutez des membres de guilde, assignez-leur des rôles et retirez ceux qui sont partis. Chacun ici peut accéder aux projets et documents de l'initiative selon son rôle."
+    },
+    "rolesTab": {
+      "title": "Assignez les Classes",
+      "body": "Maintenant, cliquez sur l'onglet Rôles pour voir comment fonctionnent les permissions !"
+    },
+    "rolesTabContent": {
+      "title": "Le Système de Classes du Groupe",
+      "body": "Les rôles contrôlent ce que chaque membre peut faire dans cette initiative — qui peut créer des projets, gérer des documents ou consulter les files d'attente. Vous pouvez personnaliser les rôles intégrés ou en créer de nouveaux pour répondre aux besoins de votre groupe."
+    },
+    "farewell": {
+      "title": "Prêt à Diriger !",
+      "body": "Vous êtes prêt, Chef de Projet ! Vous savez maintenant où trouver les paramètres et outils de votre initiative. Allez mener votre équipe à la victoire ! Si vous avez besoin de cette visite à nouveau, vous la trouverez dans les paramètres de votre profil."
+    }
+  },
+  "stepCounter": "{{current}} sur {{total}}",
+  "exploreSelf": "J'explore !",
+  "skip": "Passer la visite",
+  "back": "Retour",
+  "next": "Suivant",
+  "finish": "C'est parti !"
+}

@@ -800,7 +800,7 @@ export const ProjectTasksSection = ({
                 </SelectContent>
               </Select>
             </div>
-            <div className="hidden sm:block">
+            <div className="hidden sm:block" data-tour="project-views">
               <TabsList>
                 {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
                   <TabsTrigger key={value} value={value} className="gap-2">
@@ -813,7 +813,12 @@ export const ProjectTasksSection = ({
           </div>
         </div>
 
-        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+        <Collapsible
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          className="space-y-2"
+          data-tour="project-filters"
+        >
           <div className="flex items-center justify-between sm:hidden">
             <div className="text-muted-foreground inline-flex items-center gap-2 text-sm font-medium">
               <Filter className="h-4 w-4" />
