@@ -30,6 +30,7 @@ export const PmTour = () => {
   const waitingForMembersTab = useRef(false);
   const waitingForRolesTab = useRef(false);
   const navigatedToGuild = useRef(false);
+  const prevTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isGuildRoute = location.pathname.startsWith("/g/");
 
@@ -42,6 +43,13 @@ export const PmTour = () => {
       void navigate({ to: guildPath(activeGuildId, "/") });
     }
   }, [running, isGuildRoute, activeGuildId, navigate]);
+
+  // Clean up pending PREV timer on unmount
+  useEffect(() => {
+    return () => {
+      if (prevTimerRef.current) clearTimeout(prevTimerRef.current);
+    };
+  }, []);
 
   // Reset state when tour restarts
   useEffect(() => {
@@ -172,13 +180,15 @@ export const PmTour = () => {
           const triggerSel = tabTriggerMap[sel];
           if (triggerSel) {
             document.querySelector<HTMLElement>(triggerSel)?.click();
-            setTimeout(() => setStepIndex(target), 300);
+            if (prevTimerRef.current) clearTimeout(prevTimerRef.current);
+            prevTimerRef.current = setTimeout(() => setStepIndex(target), 300);
             return;
           }
 
           // Other targets (e.g., advanced tools on details tab) → switch to details
           document.querySelector<HTMLElement>('[data-tour="initiative-tab-details"]')?.click();
-          setTimeout(() => setStepIndex(target), 300);
+          if (prevTimerRef.current) clearTimeout(prevTimerRef.current);
+          prevTimerRef.current = setTimeout(() => setStepIndex(target), 300);
         }
       }
     },

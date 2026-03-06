@@ -39,6 +39,7 @@ export function useOnboarding() {
   }, [updateUser]);
 
   const restartTour = useCallback(() => {
+    completedRef.current = false;
     setRunning(true);
   }, []);
 
