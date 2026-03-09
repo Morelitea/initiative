@@ -140,7 +140,7 @@
     "jsdom": "^25.0.1",
     "lint-staged": "^16.3.1",
     "msw": "^2.12.10",
-    "orval": "^8.5.1",
+    "orval": "^8.5.3",
     "postcss": "^8.5.8",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
