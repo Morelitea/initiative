@@ -62,7 +62,8 @@ export const PmTour = () => {
     }
   }, [running, initialStep]);
 
-  // Set waiting flags when we're on steps that wait for navigation
+  // Set waiting flags when we're on steps that wait for navigation.
+  // If the tab is already active, auto-advance past the "click tab" step.
   useEffect(() => {
     if (!running) return;
     const currentStep = steps[stepIndex];
@@ -71,10 +72,18 @@ export const PmTour = () => {
     if (stepId === PM_INITIATIVE_SETTINGS_STEP_ID) {
       waitingForInitiativeSettings.current = true;
     }
-    if (stepId === PM_MEMBERS_TAB_STEP_ID && activeTab !== "members") {
+    if (stepId === PM_MEMBERS_TAB_STEP_ID) {
+      if (activeTab === "members") {
+        const timer = setTimeout(() => setStepIndex((prev) => prev + 1), 300);
+        return () => clearTimeout(timer);
+      }
       waitingForMembersTab.current = true;
     }
-    if (stepId === PM_ROLES_TAB_STEP_ID && activeTab !== "roles") {
+    if (stepId === PM_ROLES_TAB_STEP_ID) {
+      if (activeTab === "roles") {
+        const timer = setTimeout(() => setStepIndex((prev) => prev + 1), 300);
+        return () => clearTimeout(timer);
+      }
       waitingForRolesTab.current = true;
     }
   }, [running, stepIndex, steps, activeTab]);
