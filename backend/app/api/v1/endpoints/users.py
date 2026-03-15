@@ -266,6 +266,8 @@ async def update_users_me(
         "push_project_added",
         "push_overdue_tasks",
         "push_mentions",
+        "onboarding_completed",
+        "pm_tour_completed",
     ]:
         if field in update_data:
             new_value = bool(update_data[field])

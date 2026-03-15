@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { triggerTourRestart } from "@/components/onboarding/onboardingState";
+import { triggerPmTourStart } from "@/components/onboarding/pmTourState";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
+import { useInterfaceSettings } from "@/hooks/useSettings";
 import { getTheme, getThemeList } from "@/lib/themes";
 import type { ThemeColors } from "@/lib/themes";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
@@ -156,6 +161,11 @@ export const UserSettingsInterfacePage = ({
   refreshUser,
 }: UserSettingsInterfacePageProps) => {
   const { t, i18n } = useTranslation(["settings", "dates"]);
+  const navigate = useNavigate();
+  const { data: interfaceSettings } = useInterfaceSettings();
+  const tourGloballyEnabled = interfaceSettings?.onboarding_tour_enabled !== false;
+  const isProjectManager =
+    user?.initiative_roles?.some((r) => r.role === "project_manager") ?? false;
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
@@ -165,6 +175,30 @@ export const UserSettingsInterfacePage = ({
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
   }, [user]);
+
+  const restartTourMutation = useUpdateCurrentUser({
+    onSuccess: async () => {
+      await refreshUser();
+      triggerTourRestart();
+      void navigate({ to: "/" });
+    },
+  });
+
+  const handleRestartTour = () => {
+    restartTourMutation.mutate({ onboarding_completed: false });
+  };
+
+  const restartPmTourMutation = useUpdateCurrentUser({
+    onSuccess: async () => {
+      await refreshUser();
+      triggerPmTourStart();
+      void navigate({ to: "/" });
+    },
+  });
+
+  const handleRestartPmTour = () => {
+    restartPmTourMutation.mutate({ pm_tour_completed: false });
+  };
 
   const updateInterfacePrefs = useUpdateCurrentUser({
     onSuccess: async (_, variables) => {
@@ -291,6 +325,33 @@ export const UserSettingsInterfacePage = ({
       </Card>
 
       <ThemeColorPreview themeId={colorTheme} />
+
+      {tourGloballyEnabled && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>{t("interface.onboardingTour")}</CardTitle>
+            <CardDescription>{t("interface.onboardingTourDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRestartTour}
+              disabled={restartTourMutation.isPending}
+            >
+              {t("interface.restartTour")}
+            </Button>
+            {isProjectManager && user.pm_tour_completed && (
+              <Button
+                variant="outline"
+                onClick={handleRestartPmTour}
+                disabled={restartPmTourMutation.isPending}
+              >
+                {t("interface.restartPmTour")}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

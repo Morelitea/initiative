@@ -17,6 +17,8 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { PmTour } from "@/components/onboarding/PmTour";
 import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { VersionDialog } from "@/components/VersionDialog";
@@ -131,6 +133,8 @@ function AppLayout() {
   return (
     <>
       <CommandCenter />
+      <OnboardingTour />
+      <PmTour />
       <div className="bg-background flex min-h-screen flex-col">
         <PushPermissionPrompt />
         <div className="flex flex-1">
