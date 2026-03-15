@@ -179,7 +179,7 @@ async def update_interface_colors(
     *,
     light_accent_color: str,
     dark_accent_color: str,
-    onboarding_tour_enabled: Optional[bool] = None,
+    onboarding_tour_enabled: bool | None = None,
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
     settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
