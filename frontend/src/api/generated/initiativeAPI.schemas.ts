@@ -826,7 +826,7 @@ export interface InterfaceSettingsResponse {
 export interface InterfaceSettingsUpdate {
   light_accent_color: string;
   dark_accent_color: string;
-  onboarding_tour_enabled: boolean;
+  onboarding_tour_enabled?: boolean | null;
 }
 
 /**

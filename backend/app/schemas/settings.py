@@ -37,7 +37,7 @@ class InterfaceSettingsResponse(BaseModel):
 class InterfaceSettingsUpdate(BaseModel):
     light_accent_color: str
     dark_accent_color: str
-    onboarding_tour_enabled: bool
+    onboarding_tour_enabled: Optional[bool] = None
 
 
 class RoleLabelsResponse(BaseModel):

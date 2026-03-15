@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -16,8 +16,6 @@ import { triggerTourRestart } from "@/components/onboarding/onboardingState";
 import { triggerPmTourStart } from "@/components/onboarding/pmTourState";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { useInterfaceSettings } from "@/hooks/useSettings";
-import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { getTheme, getThemeList } from "@/lib/themes";
 import type { ThemeColors } from "@/lib/themes";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
@@ -164,19 +162,10 @@ export const UserSettingsInterfacePage = ({
 }: UserSettingsInterfacePageProps) => {
   const { t, i18n } = useTranslation(["settings", "dates"]);
   const navigate = useNavigate();
-  const { activeGuild } = useGuilds();
-  const { data: initiatives } = useInitiatives({ enabled: !!activeGuild });
   const { data: interfaceSettings } = useInterfaceSettings();
   const tourGloballyEnabled = interfaceSettings?.onboarding_tour_enabled !== false;
-  const isProjectManager = useMemo(() => {
-    if (!activeGuild?.id || !initiatives || !user?.initiative_roles) return false;
-    const guildInitiativeIds = new Set(
-      initiatives.filter((i) => i.guild_id === activeGuild.id).map((i) => i.id)
-    );
-    return user.initiative_roles.some(
-      (r) => r.role === "project_manager" && guildInitiativeIds.has(r.initiative_id)
-    );
-  }, [activeGuild?.id, initiatives, user?.initiative_roles]);
+  const isProjectManager =
+    user?.initiative_roles?.some((r) => r.role === "project_manager") ?? false;
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
