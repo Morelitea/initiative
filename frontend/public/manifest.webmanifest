@@ -8,46 +8,81 @@
   "description": "Prioritize projects and tasks anywhere, even offline.",
   "icons": [
     {
-      "src": "../icons/icon-48.webp",
-      "type": "image/png",
+      "src": "./icons/icon-48.webp",
+      "type": "image/webp",
       "sizes": "48x48",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-72.webp",
-      "type": "image/png",
+      "src": "./icons/icon-72.webp",
+      "type": "image/webp",
       "sizes": "72x72",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-96.webp",
-      "type": "image/png",
+      "src": "./icons/icon-96.webp",
+      "type": "image/webp",
       "sizes": "96x96",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-128.webp",
-      "type": "image/png",
+      "src": "./icons/icon-128.webp",
+      "type": "image/webp",
       "sizes": "128x128",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-192.webp",
-      "type": "image/png",
+      "src": "./icons/icon-192.webp",
+      "type": "image/webp",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-256.webp",
-      "type": "image/png",
+      "src": "./icons/icon-192.webp",
+      "type": "image/webp",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/icon-256.webp",
+      "type": "image/webp",
       "sizes": "256x256",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-512.webp",
-      "type": "image/png",
+      "src": "./icons/icon-512.webp",
+      "type": "image/webp",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.webp",
+      "type": "image/webp",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./screenshots/my-tasks.png",
+      "type": "image/png",
+      "sizes": "2545x1271",
+      "form_factor": "wide",
+      "label": "My Tasks view showing all tasks assigned to you"
+    },
+    {
+      "src": "./screenshots/project.png",
+      "type": "image/png",
+      "sizes": "2545x1271",
+      "form_factor": "wide",
+      "label": "Project view with documents and task board"
+    },
+    {
+      "src": "./screenshots/mobile-project.png",
+      "type": "image/png",
+      "sizes": "400x800",
+      "form_factor": "narrow",
+      "label": "Project view on mobile"
     }
   ]
 }
