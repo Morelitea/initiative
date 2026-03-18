@@ -80,7 +80,7 @@
     {
       "src": "./screenshots/mobile-project.png",
       "type": "image/png",
-      "sizes": "412x915",
+      "sizes": "400x800",
       "form_factor": "narrow",
       "label": "Project view on mobile"
     }
