@@ -41,9 +41,9 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
