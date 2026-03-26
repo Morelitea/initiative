@@ -46,7 +46,8 @@ import {
 import { getItem, setItem } from "@/lib/storage";
 
 import { useTags } from "@/hooks/useTags";
-import { ProjectCalendarView } from "@/components/projects/ProjectCalendarView";
+import { useAuth } from "@/hooks/useAuth";
+import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/components/calendar";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
@@ -196,6 +197,12 @@ export const ProjectTasksSection = ({
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [archiveDialogStatusId, setArchiveDialogStatusId] = useState<number | undefined>(undefined);
   const lastKanbanOverRef = useRef<DragOverEvent["over"] | null>(null);
+
+  // Calendar view state
+  const { user } = useAuth();
+  const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>("month");
+  const [calendarFocusDate, setCalendarFocusDate] = useState(() => new Date());
 
   // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
   const conditions: FilterCondition[] = [
@@ -523,6 +530,39 @@ export const ProjectTasksSection = ({
 
   // Status filtering is now done server-side, so statusFilteredTasks is just filteredTasks
   const statusFilteredTasks = filteredTasks;
+
+  // Map tasks to CalendarEntry[] for the generic CalendarView
+  const calendarEntries = useMemo(() => {
+    const entries: CalendarEntry[] = [];
+    statusFilteredTasks.forEach((task) => {
+      const taskAttendees = task.assignees
+        .filter((a) => a.full_name)
+        .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
+
+      if (task.due_date) {
+        entries.push({
+          id: `${task.id}-due`,
+          title: task.title,
+          startAt: task.due_date,
+          endAt: task.due_date,
+          allDay: true,
+          attendees: taskAttendees,
+        });
+      }
+      if (task.start_date) {
+        entries.push({
+          id: `${task.id}-start`,
+          title: task.title,
+          startAt: task.start_date,
+          endAt: task.start_date,
+          allDay: true,
+          color: "#10b981",
+          attendees: taskAttendees,
+        });
+      }
+    });
+    return entries;
+  }, [statusFilteredTasks]);
 
   // Count of archivable done tasks (non-archived tasks in done category)
   const archivableDoneTasksCount = useMemo(() => {
@@ -930,10 +970,17 @@ export const ProjectTasksSection = ({
           )}
         </TabsContent>
         <TabsContent value="calendar">
-          <ProjectCalendarView
-            tasks={statusFilteredTasks}
-            canOpenTask={canViewTaskDetails}
-            onTaskClick={onTaskClick}
+          <CalendarView
+            entries={calendarEntries}
+            viewMode={calendarViewMode}
+            onViewModeChange={setCalendarViewMode}
+            focusDate={calendarFocusDate}
+            onFocusDateChange={setCalendarFocusDate}
+            onEntryClick={(entry) => {
+              const taskId = Number(String(entry.id).split("-")[0]);
+              if (canViewTaskDetails) onTaskClick(taskId);
+            }}
+            weekStartsOn={weekStartsOn}
           />
         </TabsContent>
         <TabsContent value="gantt">

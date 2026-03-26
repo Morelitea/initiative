@@ -33,13 +33,19 @@ const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   done: ["done", "in_progress", "todo", "backlog"],
 };
 
+const SORT_DEFAULTS: SortField[] = [
+  { field: "date_group", dir: "asc" },
+  { field: "due_date", dir: "asc" },
+];
+
 const FILTER_DEFAULTS = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
   priorityFilters: [] as TaskPriority[],
   guildFilters: [] as number[],
+  sorting: SORT_DEFAULTS,
 };
 
-const readStoredFilters = (storageKey: string) => {
+const readStoredPrefs = (storageKey: string) => {
   try {
     const raw = getItem(storageKey);
     if (!raw) {
@@ -56,6 +62,7 @@ const readStoredFilters = (storageKey: string) => {
       guildFilters: Array.isArray(parsed?.guildFilters)
         ? parsed.guildFilters
         : FILTER_DEFAULTS.guildFilters,
+      sorting: Array.isArray(parsed?.sorting) ? parsed.sorting : FILTER_DEFAULTS.sorting,
     };
   } catch {
     return FILTER_DEFAULTS;
@@ -102,25 +109,23 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     new Map()
   );
 
+  // --- Read stored preferences once ---
+  const storedPrefs = useMemo(() => readStoredPrefs(storageKey), [storageKey]);
+
   // --- Filter state ---
   const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
-    () => readStoredFilters(storageKey).statusFilters
+    () => storedPrefs.statusFilters
   );
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>(
-    () => readStoredFilters(storageKey).priorityFilters
+    () => storedPrefs.priorityFilters
   );
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [guildFilters, setGuildFilters] = useState<number[]>(
-    () => readStoredFilters(storageKey).guildFilters
-  );
+  const [guildFilters, setGuildFilters] = useState<number[]>(() => storedPrefs.guildFilters);
 
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sorting, setSorting] = useState<SortField[]>([
-    { field: "date_group", dir: "asc" },
-    { field: "due_date", dir: "asc" },
-  ]);
+  const [sorting, setSorting] = useState<SortField[]>(() => storedPrefs.sorting ?? SORT_DEFAULTS);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -169,10 +174,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   }, [statusFilters, priorityFilters, guildFilters, setPage]);
 
   // --- User timezone for server-side date_group calculation ---
-  const userTimezone = useMemo(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-    []
-  );
+  const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
   // --- Tasks query ---
   const tasksParams = useMemo((): ListTasksApiV1TasksGetParams => {
@@ -277,15 +279,16 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     });
   }, [tasks]);
 
-  // --- Persist filters ---
+  // --- Persist filters & sorting ---
   useEffect(() => {
     const payload = {
       statusFilters,
       priorityFilters,
       guildFilters,
+      sorting,
     };
     setItem(storageKey, JSON.stringify(payload));
-  }, [statusFilters, priorityFilters, guildFilters, storageKey]);
+  }, [statusFilters, priorityFilters, guildFilters, sorting, storageKey]);
 
   // --- Status helpers ---
   const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {

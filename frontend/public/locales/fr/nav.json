@@ -15,6 +15,7 @@
   "tasksICreated": "Tâches que j'ai créées",
   "myProjects": "Mes projets",
   "myDocuments": "Mes documents",
+  "myCalendar": "Mon calendrier",
   "myStats": "Mes statistiques",
   "userSettings": "Paramètres utilisateur",
   "platformSettings": "Paramètres de la plateforme",
@@ -43,6 +44,9 @@
   "queues": "Files",
   "allQueues": "Toutes les files",
   "createQueue": "Nouvelle file",
+  "events": "Calendrier",
+  "allEvents": "Tous les événements",
+  "createEvent": "Nouvel événement",
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",

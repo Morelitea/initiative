@@ -128,6 +128,13 @@
     "groupByGuild": "Groupe"
   },
 
+  "myCalendar": {
+    "title": "Mon calendrier",
+    "subtitle": "Tâches et événements dans tous vos groupes.",
+    "loadError": "Impossible de charger les données du calendrier.",
+    "typeEvents": "Événements"
+  },
+
   "createdTasks": {
     "title": "Tâches que j'ai créées",
     "subtitle": "Les tâches que vous avez créées dans tous vos groupes.",

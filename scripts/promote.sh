@@ -376,7 +376,7 @@ do_release() {
     # then run orval to regenerate TypeScript types from the spec.
     if [[ -f frontend/package.json ]] && command -v pnpm &>/dev/null; then
         dim "  Exporting OpenAPI spec and regenerating frontend types..."
-        (cd backend && python scripts/export_openapi.py ../frontend/openapi.json) 2>/dev/null
+        (cd backend && .venv/bin/python scripts/export_openapi.py ../frontend/openapi.json) 2>/dev/null
         (cd frontend && pnpm orval && pnpm prettier --write src/api/generated/) 2>/dev/null
         if ! git diff --quiet frontend/src/api/generated/ 2>/dev/null; then
             git add frontend/src/api/generated/

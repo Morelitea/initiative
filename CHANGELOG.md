@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-03-26
+
+### Added
+
+- Calendar events feature with Google Calendar-like UI
+  - Initiative-scoped events with title, description, location, date/time, color, and recurrence
+  - Attendee system with RSVP (pending, accepted, declined, tentative)
+  - `events_enabled` toggle and `create_events` permission key on initiatives
+  - Full CRUD, attendee management, RSVP, tags, and document attachment endpoints
+- Reusable multi-view CalendarView component (day, week, month, year, list)
+  - Month: multi-day spanning bars for all-day events, dot+time+title for timed events
+  - Week/Day: positioned cards spanning full hour range with colored sidebar
+  - Year: mini-month grids with per-event color dots or count badges
+  - List: date, weekday, description, stacked attendee avatars with tooltip, time range
+- Calendar sidebar link under each initiative with CalendarDays icon
+- Event creation via clicking calendar day slots with date/time pre-fill
+- Attendee picker using initiative members with searchable combobox
+- Task recurrence selector reused for event recurrence
+
+- Calendar view toggle on My Tasks and Created Tasks pages
+- My Calendar page: cross-guild unified calendar combining tasks and events
+  - Filters for status category, priority, and guild (persisted to local storage)
+  - Events toggle to show/hide calendar events alongside tasks
+  - Global calendar events backend endpoint (`GET /api/v1/calendar-events/global`)
+- Filter and sort preferences persisted to local storage on My Tasks, Tasks I Created, My Projects, and My Documents pages
+- Spanish and French translations for My Calendar page
+
+### Changed
+
+- Replaced ProjectCalendarView with generic CalendarView component for project tasks
+- Project task calendar now shows assignee avatars in list view
+- Initiative settings: Calendar toggle alongside Queues under Advanced Tools
+
+### Fixed
+
+- Calendar event update endpoint now validates date ordering and 24-hour limit for timed events
+- Document attachment on calendar events now scoped to guild, preventing cross-guild association
+
 ## [0.34.2] - 2026-03-18
 
 ### Fixed

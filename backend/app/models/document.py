@@ -11,6 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
     from app.models.tag import DocumentTag
     from app.models.queue import QueueItemDocument
+    from app.models.calendar_event import CalendarEventDocument
 
 
 class DocumentType(str, Enum):
@@ -104,6 +105,10 @@ class Document(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     queue_item_links: List["QueueItemDocument"] = Relationship(
+        back_populates="document",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    calendar_event_links: List["CalendarEventDocument"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

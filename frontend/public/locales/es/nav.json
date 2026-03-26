@@ -15,6 +15,7 @@
   "tasksICreated": "Tareas que creé",
   "myProjects": "Mis proyectos",
   "myDocuments": "Mis documentos",
+  "myCalendar": "Mi calendario",
   "myStats": "Mis estadísticas",
   "userSettings": "Configuración de usuario",
   "platformSettings": "Configuración de la plataforma",
@@ -43,6 +44,9 @@
   "queues": "Colas",
   "allQueues": "Todas las colas",
   "createQueue": "Nueva cola",
+  "events": "Calendario",
+  "allEvents": "Todos los eventos",
+  "createEvent": "Nuevo evento",
   "navigate": {
     "signInRequired": "Por favor, inicia sesión de nuevo para seguir este enlace.",
     "missingDestination": "Este enlace no tiene detalles de destino.",

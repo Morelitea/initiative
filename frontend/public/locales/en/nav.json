@@ -15,6 +15,7 @@
   "tasksICreated": "Tasks I Created",
   "myProjects": "My Projects",
   "myDocuments": "My Documents",
+  "myCalendar": "My Calendar",
   "myStats": "My Stats",
   "userSettings": "User Settings",
   "platformSettings": "Platform Settings",
@@ -43,6 +44,9 @@
   "queues": "Queues",
   "allQueues": "All Queues",
   "createQueue": "New Queue",
+  "events": "Calendar",
+  "allEvents": "All Events",
+  "createEvent": "New Event",
   "navigate": {
     "signInRequired": "Please sign in again to follow this link.",
     "missingDestination": "This link is missing destination details.",

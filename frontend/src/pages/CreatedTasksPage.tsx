@@ -1,19 +1,33 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { invalidateAllTasks } from "@/api/query-keys";
+import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
+import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/components/calendar";
 import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@/components/ui/button";
 import { PullToRefresh } from "@/components/PullToRefresh";
+import { CalendarDays, Table2 } from "lucide-react";
+import { useGuildPath } from "@/lib/guildUrl";
 import type { TranslateFn } from "@/types/i18n";
 
 export const CreatedTasksPage = () => {
   const { t } = useTranslation(["tasks", "dates", "common"]);
   const { guilds } = useGuilds();
+  const { user } = useAuth();
+  const gp = useGuildPath();
+  const navigate = useNavigate();
+
+  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>("month");
+  const [calendarFocusDate, setCalendarFocusDate] = useState(() => new Date());
+  const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
   const table = useGlobalTasksTable({ scope: "global_created", storageKeyPrefix: "created-tasks" });
 
@@ -54,80 +68,154 @@ export const CreatedTasksPage = () => {
     [t]
   );
 
+  const calendarEntries = useMemo<CalendarEntry[]>(() => {
+    const entries: CalendarEntry[] = [];
+    table.displayTasks.forEach((task) => {
+      const taskAttendees = task.assignees
+        .filter((a) => a.full_name)
+        .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
+
+      if (task.due_date) {
+        entries.push({
+          id: `${task.id}-due`,
+          title: task.title,
+          startAt: task.due_date,
+          endAt: task.due_date,
+          allDay: true,
+          attendees: taskAttendees,
+        });
+      }
+      if (task.start_date) {
+        entries.push({
+          id: `${task.id}-start`,
+          title: task.title,
+          startAt: task.start_date,
+          endAt: task.start_date,
+          allDay: true,
+          color: "#10b981",
+          attendees: taskAttendees,
+        });
+      }
+    });
+    return entries;
+  }, [table.displayTasks]);
+
+  const handleEntryClick = (entry: CalendarEntry) => {
+    const taskId = Number(String(entry.id).split("-")[0]);
+    if (taskId) {
+      void navigate({ to: gp(`/tasks/${taskId}`) });
+    }
+  };
+
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{t("createdTasks.title")}</h1>
-          <p className="text-muted-foreground">{t("createdTasks.subtitle")}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">{t("createdTasks.title")}</h1>
+            <p className="text-muted-foreground">{t("createdTasks.subtitle")}</p>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg border p-1">
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+            >
+              <Table2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "calendar" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("calendar")}
+            >
+              <CalendarDays className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        <GlobalTaskFilters
-          statusFilters={table.statusFilters}
-          setStatusFilters={table.setStatusFilters}
-          priorityFilters={table.priorityFilters}
-          setPriorityFilters={table.setPriorityFilters}
-          guildFilters={table.guildFilters}
-          setGuildFilters={table.setGuildFilters}
-          filtersOpen={table.filtersOpen}
-          setFiltersOpen={table.setFiltersOpen}
-          guilds={guilds}
-        />
-
-        <div className="relative">
-          {table.isRefetching ? (
-            <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
-              <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-muted-foreground text-sm">{t("updating")}</span>
-              </div>
-            </div>
-          ) : null}
-          {table.isInitialLoad ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : table.hasError ? (
-            <p className="text-destructive py-8 text-center text-sm">
-              {t("createdTasks.loadError")}
-            </p>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={table.displayTasks}
-              groupingOptions={groupingOptions}
-              initialState={{
-                grouping: ["date group"],
-                expanded: true,
-                columnVisibility: { "date group": false, guild: false },
-              }}
-              initialSorting={[
-                { id: "date group", desc: false },
-                { id: "due date", desc: false },
-              ]}
-              enableFilterInput
-              filterInputColumnKey="title"
-              filterInputPlaceholder={t("filters.filterPlaceholder")}
-              enablePagination
-              manualPagination
-              pageCount={table.totalPages}
-              rowCount={table.totalCount}
-              onPaginationChange={(pag) => {
-                if (pag.pageSize !== table.pageSize) {
-                  table.setPageSize(pag.pageSize);
-                  table.setPage(1);
-                } else {
-                  table.setPage(pag.pageIndex + 1);
-                }
-              }}
-              onPrefetchPage={(pageIndex) => table.prefetchPage(pageIndex + 1)}
-              manualSorting
-              onSortingChange={table.handleSortingChange}
-              enableResetSorting
-              enableColumnVisibilityDropdown
+        {viewMode === "table" && (
+          <>
+            <GlobalTaskFilters
+              statusFilters={table.statusFilters}
+              setStatusFilters={table.setStatusFilters}
+              priorityFilters={table.priorityFilters}
+              setPriorityFilters={table.setPriorityFilters}
+              guildFilters={table.guildFilters}
+              setGuildFilters={table.setGuildFilters}
+              filtersOpen={table.filtersOpen}
+              setFiltersOpen={table.setFiltersOpen}
+              guilds={guilds}
             />
-          )}
-        </div>
+
+            <div className="relative">
+              {table.isRefetching ? (
+                <div className="bg-background/60 absolute inset-0 z-10 flex items-start justify-center pt-4">
+                  <div className="bg-background border-border flex items-center gap-2 rounded-md border px-4 py-2 shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-muted-foreground text-sm">{t("updating")}</span>
+                  </div>
+                </div>
+              ) : null}
+              {table.isInitialLoad ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : table.hasError ? (
+                <p className="text-destructive py-8 text-center text-sm">
+                  {t("createdTasks.loadError")}
+                </p>
+              ) : (
+                <DataTable
+                  columns={columns}
+                  data={table.displayTasks}
+                  groupingOptions={groupingOptions}
+                  initialState={{
+                    grouping: ["date group"],
+                    expanded: true,
+                    columnVisibility: { "date group": false, guild: false },
+                  }}
+                  initialSorting={[
+                    { id: "date group", desc: false },
+                    { id: "due date", desc: false },
+                  ]}
+                  enableFilterInput
+                  filterInputColumnKey="title"
+                  filterInputPlaceholder={t("filters.filterPlaceholder")}
+                  enablePagination
+                  manualPagination
+                  pageCount={table.totalPages}
+                  rowCount={table.totalCount}
+                  onPaginationChange={(pag) => {
+                    if (pag.pageSize !== table.pageSize) {
+                      table.setPageSize(pag.pageSize);
+                      table.setPage(1);
+                    } else {
+                      table.setPage(pag.pageIndex + 1);
+                    }
+                  }}
+                  onPrefetchPage={(pageIndex) => table.prefetchPage(pageIndex + 1)}
+                  manualSorting
+                  onSortingChange={table.handleSortingChange}
+                  enableResetSorting
+                  enableColumnVisibilityDropdown
+                />
+              )}
+            </div>
+          </>
+        )}
+
+        {viewMode === "calendar" && (
+          <CalendarView
+            entries={calendarEntries}
+            viewMode={calendarViewMode}
+            onViewModeChange={setCalendarViewMode}
+            focusDate={calendarFocusDate}
+            onFocusDateChange={setCalendarFocusDate}
+            onEntryClick={handleEntryClick}
+            weekStartsOn={weekStartsOn}
+            isLoading={table.isInitialLoad}
+          />
+        )}
       </div>
     </PullToRefresh>
   );
