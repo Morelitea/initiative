@@ -124,7 +124,10 @@ async def set_event_documents(
 ) -> None:
     """Replace all document links on a calendar event."""
     if document_ids:
-        docs_stmt = select(Document.id).where(Document.id.in_(document_ids))
+        docs_stmt = select(Document.id).where(
+            Document.id.in_(document_ids),
+            Document.guild_id == guild_id,
+        )
         docs_result = await session.exec(docs_stmt)
         valid_ids = set(docs_result.all())
 

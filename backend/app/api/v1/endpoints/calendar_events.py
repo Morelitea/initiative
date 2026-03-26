@@ -289,7 +289,20 @@ async def update_calendar_event(
             event.recurrence = None
         updated = True
 
+    # Validate dates after applying partial updates
     if updated:
+        if event.end_at < event.start_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="end_at must be after start_at",
+            )
+        if not event.all_day:
+            from datetime import timedelta
+            if (event.end_at - event.start_at) > timedelta(hours=24):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Non-all-day events cannot span more than 24 hours",
+                )
         event.updated_at = datetime.now(timezone.utc)
         session.add(event)
         await session.commit()
