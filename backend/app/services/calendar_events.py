@@ -66,7 +66,25 @@ async def set_event_attendees(
     user_ids: list[int],
     guild_id: int,
 ) -> None:
-    """Replace all attendees on a calendar event."""
+    """Replace all attendees on a calendar event.
+
+    Validates that all user IDs are members of the event's initiative.
+    """
+    if user_ids:
+        from app.models.initiative import InitiativeMember
+        stmt = select(InitiativeMember.user_id).where(
+            InitiativeMember.initiative_id == event.initiative_id,
+            InitiativeMember.user_id.in_(user_ids),
+        )
+        result = await session.exec(stmt)
+        valid_ids = set(result.all())
+        invalid = set(user_ids) - valid_ids
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=CalendarEventMessages.INVALID_ATTENDEE_IDS,
+            )
+
     delete_stmt = sa_delete(CalendarEventAttendee).where(
         CalendarEventAttendee.calendar_event_id == event.id,
     )

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
-import { format } from "date-fns";
+import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -84,11 +84,13 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     }
   }, [activeGuildId, lockedInitiativeId]);
 
-  // Fetch events (large page to cover the visible range)
+  // Fetch events within ±1 year of the focused date to avoid silent truncation
   const eventsQuery = useCalendarEventsList({
     ...(initiativeFilter !== INITIATIVE_FILTER_ALL
       ? { initiative_id: Number(initiativeFilter) }
       : {}),
+    start_after: startOfYear(subYears(focusDate, 1)).toISOString(),
+    start_before: endOfYear(addYears(focusDate, 1)).toISOString(),
     page: 1,
     page_size: 200,
   });
