@@ -44,6 +44,7 @@ import { useProjects, useFavoriteProjects } from "@/hooks/useProjects";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { useTags } from "@/hooks/useTags";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useCalendarEventsList } from "@/hooks/useCalendarEvents";
 import { getItem, setItem } from "@/lib/storage";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -131,6 +132,22 @@ export const AppSidebar = () => {
     return map;
   }, [queuesQuery.data]);
 
+  // Fetch calendar events for counts
+  const calendarEventsQuery = useCalendarEventsList(
+    { page: 1, page_size: 200 },
+    { enabled: Boolean(activeGuild), staleTime: 60_000 }
+  );
+
+  const eventCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    const events = calendarEventsQuery.data?.items ?? [];
+    events.forEach((event) => {
+      const count = map.get(event.initiative_id) ?? 0;
+      map.set(event.initiative_id, count + 1);
+    });
+    return map;
+  }, [calendarEventsQuery.data]);
+
   const visibleInitiatives = useMemo(() => {
     if (!user) {
       return [];
@@ -169,20 +186,24 @@ export const AppSidebar = () => {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: false,
+          canViewEvents: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
+          canCreateEvents: false,
         };
       }
-      // Guild admins have all permissions (queues gated by initiative flag)
+      // Guild admins have all permissions (queues/events gated by initiative flag)
       if (isGuildAdmin) {
         return {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: initiative.queues_enabled ?? false,
+          canViewEvents: initiative.events_enabled ?? false,
           canCreateDocs: true,
           canCreateProjects: true,
           canCreateQueues: initiative.queues_enabled ?? false,
+          canCreateEvents: initiative.events_enabled ?? false,
         };
       }
       const membership = initiative.members.find((m) => m.user.id === user.id);
@@ -191,18 +212,22 @@ export const AppSidebar = () => {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: false,
+          canViewEvents: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
+          canCreateEvents: false,
         };
       }
       return {
         canViewDocs: membership.can_view_docs ?? true,
         canViewProjects: membership.can_view_projects ?? true,
         canViewQueues: membership.can_view_queues ?? false,
+        canViewEvents: membership.can_view_events ?? false,
         canCreateDocs: membership.can_create_docs ?? false,
         canCreateProjects: membership.can_create_projects ?? false,
         canCreateQueues: membership.can_create_queues ?? false,
+        canCreateEvents: membership.can_create_events ?? false,
       };
     },
     [user, isGuildAdmin]
@@ -460,10 +485,13 @@ export const AppSidebar = () => {
                                     canViewDocs={permissions.canViewDocs}
                                     canViewProjects={permissions.canViewProjects}
                                     canViewQueues={permissions.canViewQueues}
+                                    canViewEvents={permissions.canViewEvents}
                                     canCreateDocs={permissions.canCreateDocs}
                                     canCreateProjects={permissions.canCreateProjects}
                                     canCreateQueues={permissions.canCreateQueues}
+                                    canCreateEvents={permissions.canCreateEvents}
                                     queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
+                                    eventCount={eventCountsByInitiative.get(initiative.id) ?? 0}
                                     activeGuildId={activeGuildId}
                                     collapseKey={initiativeCollapseKey}
                                   />

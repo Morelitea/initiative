@@ -11,6 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.guild import Guild
     from app.models.document import Document
     from app.models.queue import Queue
+    from app.models.calendar_event import CalendarEvent
 
 
 # Legacy enum kept for backwards compatibility during migration
@@ -27,6 +28,8 @@ class PermissionKey(str, Enum):
     create_projects = "create_projects"
     queues_enabled = "queues_enabled"
     create_queues = "create_queues"
+    events_enabled = "events_enabled"
+    create_events = "create_events"
 
 
 # Fallback values when a permission is not explicitly set on a role.
@@ -39,6 +42,8 @@ DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
     PermissionKey.create_projects: False,
     PermissionKey.queues_enabled: False,
     PermissionKey.create_queues: False,
+    PermissionKey.events_enabled: False,
+    PermissionKey.create_events: False,
 }
 
 
@@ -51,6 +56,8 @@ BUILTIN_ROLE_PERMISSIONS = {
         PermissionKey.create_projects: True,
         PermissionKey.queues_enabled: True,
         PermissionKey.create_queues: True,
+        PermissionKey.events_enabled: True,
+        PermissionKey.create_events: True,
     },
     "member": {
         PermissionKey.docs_enabled: True,
@@ -59,6 +66,8 @@ BUILTIN_ROLE_PERMISSIONS = {
         PermissionKey.create_projects: False,
         PermissionKey.queues_enabled: False,
         PermissionKey.create_queues: False,
+        PermissionKey.events_enabled: False,
+        PermissionKey.create_events: False,
     },
 }
 
@@ -161,6 +170,10 @@ class Initiative(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    events_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -185,6 +198,10 @@ class Initiative(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     queues: List["Queue"] = Relationship(
+        back_populates="initiative",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    calendar_events: List["CalendarEvent"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

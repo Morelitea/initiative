@@ -20,6 +20,7 @@ export const namespaces = [
   "import",
   "notifications",
   "queues",
+  "events",
   "stats",
   "landing",
   "errors",

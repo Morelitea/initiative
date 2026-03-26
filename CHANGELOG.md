@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Calendar events feature with Google Calendar-like UI
+  - Initiative-scoped events with title, description, location, date/time, color, and recurrence
+  - Attendee system with RSVP (pending, accepted, declined, tentative)
+  - `events_enabled` toggle and `create_events` permission key on initiatives
+  - Full CRUD, attendee management, RSVP, tags, and document attachment endpoints
+- Reusable multi-view CalendarView component (day, week, month, year, list)
+  - Month: multi-day spanning bars for all-day events, dot+time+title for timed events
+  - Week/Day: positioned cards spanning full hour range with colored sidebar
+  - Year: mini-month grids with per-event color dots or count badges
+  - List: date, weekday, description, stacked attendee avatars with tooltip, time range
+- Calendar sidebar link under each initiative with CalendarDays icon
+- Event creation via clicking calendar day slots with date/time pre-fill
+- Attendee picker using initiative members with searchable combobox
+- Task recurrence selector reused for event recurrence
+
+### Changed
+
+- Replaced ProjectCalendarView with generic CalendarView component for project tasks
+- Project task calendar now shows assignee avatars in list view
+- Initiative settings: Calendar toggle alongside Queues under Advanced Tools
+
 ## [0.34.2] - 2026-03-18
 
 ### Fixed

@@ -19,6 +19,8 @@ interface InitiativeSettingsDetailsTabProps {
   setColor: (value: string) => void;
   queuesEnabled: boolean;
   onToggleQueues: (value: boolean) => void;
+  eventsEnabled: boolean;
+  onToggleEvents: (value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -33,6 +35,8 @@ export const InitiativeSettingsDetailsTab = ({
   setColor,
   queuesEnabled,
   onToggleQueues,
+  eventsEnabled,
+  onToggleEvents,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -104,17 +108,31 @@ export const InitiativeSettingsDetailsTab = ({
           <CardDescription>{t("advancedToolsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="settings-queues-toggle">{t("queuesFeature")}</Label>
-              <p className="text-muted-foreground text-xs">{t("queuesFeatureDescription")}</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="settings-queues-toggle">{t("queuesFeature")}</Label>
+                <p className="text-muted-foreground text-xs">{t("queuesFeatureDescription")}</p>
+              </div>
+              <Switch
+                id="settings-queues-toggle"
+                checked={queuesEnabled}
+                onCheckedChange={onToggleQueues}
+                disabled={!canManageMembers || isSaving}
+              />
             </div>
-            <Switch
-              id="settings-queues-toggle"
-              checked={queuesEnabled}
-              onCheckedChange={onToggleQueues}
-              disabled={!canManageMembers || isSaving}
-            />
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="settings-events-toggle">{t("eventsFeature")}</Label>
+                <p className="text-muted-foreground text-xs">{t("eventsFeatureDescription")}</p>
+              </div>
+              <Switch
+                id="settings-events-toggle"
+                checked={eventsEnabled}
+                onCheckedChange={onToggleEvents}
+                disabled={!canManageMembers || isSaving}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

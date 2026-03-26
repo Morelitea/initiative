@@ -141,7 +141,8 @@
     "permissionGroups": {
       "documents": "Documents",
       "projects": "Projects",
-      "queues": "Queues"
+      "queues": "Queues",
+      "events": "Events"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -149,11 +150,15 @@
       "createDocuments": "Create Documents",
       "createProjects": "Create Projects",
       "viewQueues": "View Queues",
-      "createQueues": "Create Queues"
+      "createQueues": "Create Queues",
+      "viewEvents": "View Events",
+      "createEvents": "Create Events"
     }
   },
   "advancedTools": "Advanced Tools",
   "advancedToolsDescription": "Enable optional tools for this initiative.",
   "queuesFeature": "Queues",
-  "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next."
+  "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
+  "eventsFeature": "Calendar",
+  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking."
 }
