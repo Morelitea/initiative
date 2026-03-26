@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import {
   listCalendarEventsApiV1CalendarEventsGet,
   getListCalendarEventsApiV1CalendarEventsGetQueryKey,
+  listGlobalCalendarEventsApiV1CalendarEventsGlobalGet,
+  getListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryKey,
   readCalendarEventApiV1CalendarEventsEventIdGet,
   getReadCalendarEventApiV1CalendarEventsEventIdGetQueryKey,
   createCalendarEventApiV1CalendarEventsPost,
@@ -18,6 +20,7 @@ import {
 import { invalidateAllCalendarEvents, invalidateCalendarEvent } from "@/api/query-keys";
 import type {
   ListCalendarEventsApiV1CalendarEventsGetParams,
+  ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
   CalendarEventCreate,
   CalendarEventUpdate,
   CalendarEventRead,
@@ -37,6 +40,21 @@ export const useCalendarEventsList = (
     queryKey: getListCalendarEventsApiV1CalendarEventsGetQueryKey(params),
     queryFn: () =>
       listCalendarEventsApiV1CalendarEventsGet(
+        params
+      ) as unknown as Promise<CalendarEventListResponse>,
+    placeholderData: keepPreviousData,
+    ...options,
+  });
+};
+
+export const useGlobalCalendarEventsList = (
+  params: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options?: QueryOpts<CalendarEventListResponse>
+) => {
+  return useQuery<CalendarEventListResponse>({
+    queryKey: getListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryKey(params),
+    queryFn: () =>
+      listGlobalCalendarEventsApiV1CalendarEventsGlobalGet(
         params
       ) as unknown as Promise<CalendarEventListResponse>,
     placeholderData: keepPreviousData,
@@ -249,4 +267,3 @@ export const useSetEventDocuments = (
     onSettled,
   });
 };
-

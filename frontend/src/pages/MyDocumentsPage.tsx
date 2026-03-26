@@ -28,6 +28,8 @@ import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
 const FILTER_DEFAULTS = {
   guildFilters: [] as number[],
+  sortBy: undefined as string | undefined,
+  sortDir: undefined as string | undefined,
 };
 const PAGE_SIZE = 20;
 
@@ -37,7 +39,12 @@ const SORT_FIELD_MAP: Record<string, string> = {
   updatedAt: "updated_at",
 };
 
-const readStoredFilters = () => {
+/** Reverse map: backend field name → column ID */
+const SORT_FIELD_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(SORT_FIELD_MAP).map(([col, field]) => [field, col])
+);
+
+const readStoredPrefs = () => {
   try {
     const raw = getItem(MY_DOCUMENTS_FILTERS_KEY);
     if (!raw) {
@@ -48,6 +55,8 @@ const readStoredFilters = () => {
       guildFilters: Array.isArray(parsed?.guildFilters)
         ? parsed.guildFilters
         : FILTER_DEFAULTS.guildFilters,
+      sortBy: typeof parsed?.sortBy === "string" ? parsed.sortBy : undefined,
+      sortDir: typeof parsed?.sortDir === "string" ? parsed.sortDir : undefined,
     };
   } catch {
     return FILTER_DEFAULTS;
@@ -75,17 +84,17 @@ export const MyDocumentsPage = () => {
     await invalidateAllDocuments();
   }, []);
 
-  const [guildFilters, setGuildFilters] = useState<number[]>(
-    () => readStoredFilters().guildFilters
-  );
+  const storedPrefs = useMemo(() => readStoredPrefs(), []);
+
+  const [guildFilters, setGuildFilters] = useState<number[]>(() => storedPrefs.guildFilters);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
-  const [sortDir, setSortDir] = useState<string | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<string | undefined>(() => storedPrefs.sortBy);
+  const [sortDir, setSortDir] = useState<string | undefined>(() => storedPrefs.sortDir);
 
   const handleSortingChange = useCallback((sorting: SortingState) => {
     if (sorting.length > 0) {
@@ -131,11 +140,11 @@ export const MyDocumentsPage = () => {
     setPage(1);
   }, [guildFilters, debouncedSearch, setPage]);
 
-  // Persist filters to localStorage
+  // Persist filters & sort to localStorage
   useEffect(() => {
-    const payload = { guildFilters };
+    const payload = { guildFilters, sortBy, sortDir };
     setItem(MY_DOCUMENTS_FILTERS_KEY, JSON.stringify(payload));
-  }, [guildFilters]);
+  }, [guildFilters, sortBy, sortDir]);
 
   const documentsGlobalParams = useMemo(() => {
     const params: Record<string, string | string[] | number | number[]> = {
@@ -318,6 +327,13 @@ export const MyDocumentsPage = () => {
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
+  const initialSorting = useMemo(() => {
+    if (!sortBy) return undefined;
+    const colId = SORT_FIELD_REVERSE[sortBy];
+    if (!colId) return undefined;
+    return [{ id: colId, desc: sortDir === "desc" }];
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- only on mount
+
   const isInitialLoad = documentsQuery.isLoading && !documentsQuery.data;
   const isRefetching = documentsQuery.isFetching && !isInitialLoad;
   const hasError = documentsQuery.isError;
@@ -419,6 +435,7 @@ export const MyDocumentsPage = () => {
             <DataTable
               columns={columns}
               data={documents}
+              initialSorting={initialSorting}
               enablePagination
               manualPagination
               manualSorting

@@ -121,6 +121,13 @@
     "groupByGuild": "Gremio"
   },
 
+  "myCalendar": {
+    "title": "Mi calendario",
+    "subtitle": "Tareas y eventos en todos tus gremios.",
+    "loadError": "No se pudieron cargar los datos del calendario.",
+    "typeEvents": "Eventos"
+  },
+
   "createdTasks": {
     "title": "Tareas que creé",
     "subtitle": "Tareas que has creado en todos tus gremios.",

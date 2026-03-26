@@ -30,6 +30,8 @@ import type {
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
 const FILTER_DEFAULTS = {
   guildFilters: [] as number[],
+  sortBy: undefined as string | undefined,
+  sortDir: undefined as string | undefined,
 };
 
 /** Map DataTable column IDs to backend sort field names */
@@ -38,7 +40,12 @@ const SORT_FIELD_MAP: Record<string, string> = {
   updated: "updated_at",
 };
 
-const readStoredFilters = () => {
+/** Reverse map: backend field name → column ID */
+const SORT_FIELD_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(SORT_FIELD_MAP).map(([col, field]) => [field, col])
+);
+
+const readStoredPrefs = () => {
   try {
     const raw = getItem(MY_PROJECTS_FILTERS_KEY);
     if (!raw) {
@@ -49,6 +56,8 @@ const readStoredFilters = () => {
       guildFilters: Array.isArray(parsed?.guildFilters)
         ? parsed.guildFilters
         : FILTER_DEFAULTS.guildFilters,
+      sortBy: typeof parsed?.sortBy === "string" ? parsed.sortBy : undefined,
+      sortDir: typeof parsed?.sortDir === "string" ? parsed.sortDir : undefined,
     };
   } catch {
     return FILTER_DEFAULTS;
@@ -78,17 +87,17 @@ export const MyProjectsPage = () => {
     await invalidateAllProjects();
   }, []);
 
-  const [guildFilters, setGuildFilters] = useState<number[]>(
-    () => readStoredFilters().guildFilters
-  );
+  const storedPrefs = useMemo(() => readStoredPrefs(), []);
+
+  const [guildFilters, setGuildFilters] = useState<number[]>(() => storedPrefs.guildFilters);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
-  const [sortDir, setSortDir] = useState<string | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<string | undefined>(() => storedPrefs.sortBy);
+  const [sortDir, setSortDir] = useState<string | undefined>(() => storedPrefs.sortDir);
 
   const handleSortingChange = useCallback((sorting: SortingState) => {
     if (sorting.length > 0) {
@@ -134,11 +143,11 @@ export const MyProjectsPage = () => {
     setPage(1);
   }, [guildFilters, debouncedSearch, setPage]);
 
-  // Persist filters to localStorage
+  // Persist filters & sort to localStorage
   useEffect(() => {
-    const payload = { guildFilters };
+    const payload = { guildFilters, sortBy, sortDir };
     setItem(MY_PROJECTS_FILTERS_KEY, JSON.stringify(payload));
-  }, [guildFilters]);
+  }, [guildFilters, sortBy, sortDir]);
 
   // Build guild lookup for display
   const guildsById = useMemo(() => {
@@ -359,6 +368,13 @@ export const MyProjectsPage = () => {
     return () => mediaQuery.removeListener(handleChange);
   }, []);
 
+  const initialSorting = useMemo(() => {
+    if (!sortBy) return undefined;
+    const colId = SORT_FIELD_REVERSE[sortBy];
+    if (!colId) return undefined;
+    return [{ id: colId, desc: sortDir === "desc" }];
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- only on mount
+
   const isInitialLoad = projectsQuery.isLoading && !projectsQuery.data;
   const isRefetching = projectsQuery.isFetching && !isInitialLoad;
   const hasError = projectsQuery.isError;
@@ -458,6 +474,7 @@ export const MyProjectsPage = () => {
             <DataTable
               columns={columns}
               data={projects}
+              initialSorting={initialSorting}
               enablePagination
               manualPagination
               manualSorting
