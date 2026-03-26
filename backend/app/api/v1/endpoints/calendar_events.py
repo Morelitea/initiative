@@ -24,7 +24,7 @@ from app.models.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
 )
-from app.models.initiative import Initiative, InitiativeMember, PermissionKey
+from app.models.initiative import Initiative, PermissionKey
 from app.models.user import User
 from app.core.messages import CalendarEventMessages, InitiativeMessages
 from app.schemas.calendar_event import (
