@@ -525,9 +525,11 @@ export interface InitiativeMemberRead {
   can_view_docs: boolean;
   can_view_projects: boolean;
   can_view_queues: boolean;
+  can_view_events: boolean;
   can_create_docs: boolean;
   can_create_projects: boolean;
   can_create_queues: boolean;
+  can_create_events: boolean;
 }
 
 export interface InitiativeRead {
@@ -535,6 +537,7 @@ export interface InitiativeRead {
   description: string | null;
   color: string | null;
   queues_enabled: boolean;
+  events_enabled: boolean;
   id: number;
   guild_id: number;
   is_default: boolean;
@@ -879,6 +882,7 @@ export interface InitiativeCreate {
   description?: string | null;
   color?: string | null;
   queues_enabled?: boolean;
+  events_enabled?: boolean;
 }
 
 /**
@@ -948,6 +952,7 @@ export interface InitiativeUpdate {
   description?: string | null;
   color?: string | null;
   queues_enabled?: boolean | null;
+  events_enabled?: boolean | null;
 }
 
 export interface InterfaceSettingsResponse {
@@ -1122,6 +1127,8 @@ export const PermissionKey = {
   create_projects: "create_projects",
   queues_enabled: "queues_enabled",
   create_queues: "create_queues",
+  events_enabled: "events_enabled",
+  create_events: "create_events",
 } as const;
 
 export interface PlatformAISettingsResponse {
