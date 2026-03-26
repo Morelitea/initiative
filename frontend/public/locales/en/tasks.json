@@ -132,10 +132,6 @@
     "title": "My Calendar",
     "subtitle": "Tasks and events across all your guilds.",
     "loadError": "Unable to load calendar data.",
-    "noStatus": "No Status (Events)",
-    "filterByType": "Filter by type",
-    "allTypes": "All types",
-    "typeTasks": "Tasks",
     "typeEvents": "Events"
   },
 

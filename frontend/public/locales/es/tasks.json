@@ -125,10 +125,6 @@
     "title": "Mi calendario",
     "subtitle": "Tareas y eventos en todos tus gremios.",
     "loadError": "No se pudieron cargar los datos del calendario.",
-    "noStatus": "Sin estado (Eventos)",
-    "filterByType": "Filtrar por tipo",
-    "allTypes": "Todos los tipos",
-    "typeTasks": "Tareas",
     "typeEvents": "Eventos"
   },
 

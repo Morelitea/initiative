@@ -26,7 +26,7 @@ import { getItem, setItem } from "@/lib/storage";
 const STORAGE_KEY = "initiative-my-calendar-prefs";
 
 const PREFS_DEFAULTS = {
-  showNoStatus: true,
+  showEvents: true,
   calendarViewMode: "month" as CalendarViewMode,
 };
 
@@ -36,10 +36,8 @@ const readStoredPrefs = () => {
     if (!raw) return PREFS_DEFAULTS;
     const parsed = JSON.parse(raw);
     return {
-      showNoStatus:
-        typeof parsed?.showNoStatus === "boolean"
-          ? parsed.showNoStatus
-          : PREFS_DEFAULTS.showNoStatus,
+      showEvents:
+        typeof parsed?.showEvents === "boolean" ? parsed.showEvents : PREFS_DEFAULTS.showEvents,
       calendarViewMode:
         typeof parsed?.calendarViewMode === "string"
           ? (parsed.calendarViewMode as CalendarViewMode)
@@ -68,7 +66,7 @@ export const MyCalendarPage = () => {
     () => storedPrefs.calendarViewMode
   );
   const [focusDate, setFocusDate] = useState(() => new Date());
-  const [showNoStatus, setShowNoStatus] = useState(() => storedPrefs.showNoStatus);
+  const [showEvents, setShowEvents] = useState(() => storedPrefs.showEvents);
 
   // Use the same hook as My Tasks for task data + filters
   const table = useGlobalTasksTable({ scope: "global", storageKeyPrefix: "my-calendar-tasks" });
@@ -76,11 +74,11 @@ export const MyCalendarPage = () => {
   // Persist calendar-specific preferences
   useEffect(() => {
     const payload = {
-      showNoStatus,
+      showEvents,
       calendarViewMode,
     };
     setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [showNoStatus, calendarViewMode]);
+  }, [showEvents, calendarViewMode]);
 
   // --- Events query (global cross-guild) ---
   const eventsParams = useMemo((): ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams => {
@@ -137,8 +135,8 @@ export const MyCalendarPage = () => {
       }
     });
 
-    // Event entries (only if showNoStatus is true, since events have no task status)
-    if (showNoStatus) {
+    // Event entries (only if showEvents is true, since events have no task status)
+    if (showEvents) {
       const events = eventsQuery.data?.items ?? [];
       events.forEach((event) => {
         entries.push({
@@ -156,7 +154,7 @@ export const MyCalendarPage = () => {
     }
 
     return entries;
-  }, [table.displayTasks, eventsQuery.data, showNoStatus]);
+  }, [table.displayTasks, eventsQuery.data, showEvents]);
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
@@ -259,10 +257,10 @@ export const MyCalendarPage = () => {
               </div>
               <div className="flex items-end">
                 <Button
-                  variant={showNoStatus ? "default" : "outline"}
+                  variant={showEvents ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setShowNoStatus(!showNoStatus)}
-                  title={t("tasks:myCalendar.noStatus")}
+                  onClick={() => setShowEvents(!showEvents)}
+                  title={t("tasks:myCalendar.typeEvents")}
                 >
                   {t("tasks:myCalendar.typeEvents")}
                 </Button>
