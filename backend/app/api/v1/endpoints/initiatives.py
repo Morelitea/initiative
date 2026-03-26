@@ -203,6 +203,7 @@ async def create_initiative(
         description=initiative_in.description,
         guild_id=guild_id,
         queues_enabled=initiative_in.queues_enabled,
+        events_enabled=initiative_in.events_enabled,
     )
     if initiative_in.color:
         initiative.color = initiative_in.color
@@ -463,6 +464,8 @@ async def get_my_initiative_permissions(
                 "create_projects": True,
                 "queues_enabled": initiative.queues_enabled,
                 "create_queues": initiative.queues_enabled,
+                "events_enabled": initiative.events_enabled,
+                "create_events": initiative.events_enabled,
             },
         )
 
@@ -487,6 +490,11 @@ async def get_my_initiative_permissions(
     if not initiative.queues_enabled:
         permissions[PermissionKey.queues_enabled] = False
         permissions[PermissionKey.create_queues] = False
+
+    # Initiative-level master switch overrides role-level event permissions
+    if not initiative.events_enabled:
+        permissions[PermissionKey.events_enabled] = False
+        permissions[PermissionKey.create_events] = False
 
     return MyInitiativePermissions(
         role_id=role.id,

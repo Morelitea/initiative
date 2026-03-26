@@ -18,6 +18,7 @@ class InitiativeBase(BaseModel):
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     queues_enabled: bool = False
+    events_enabled: bool = False
 
 
 class InitiativeCreate(InitiativeBase):
@@ -29,6 +30,7 @@ class InitiativeUpdate(BaseModel):
     description: Optional[str] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     queues_enabled: Optional[bool] = None
+    events_enabled: Optional[bool] = None
 
 
 # Role schemas
@@ -116,9 +118,11 @@ class InitiativeMemberRead(BaseModel):
     can_view_docs: bool = True
     can_view_projects: bool = True
     can_view_queues: bool = False
+    can_view_events: bool = False
     can_create_docs: bool = False
     can_create_projects: bool = False
     can_create_queues: bool = False
+    can_create_events: bool = False
 
 
 class InitiativeRead(InitiativeBase):
@@ -152,6 +156,7 @@ def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> Initia
 
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
     initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
+    initiative_events_enabled = getattr(initiative, "events_enabled", False)
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -166,15 +171,19 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         can_view_docs = True
         can_view_projects = True
         can_view_queues = False
+        can_view_events = False
         can_create_docs = False
         can_create_projects = False
         can_create_queues = False
+        can_create_events = False
         if is_manager:
             # Managers have all permissions
             can_create_docs = True
             can_create_projects = True
             can_view_queues = True
             can_create_queues = True
+            can_view_events = True
+            can_create_events = True
         elif role_ref:
             # Check role permissions (use getattr to avoid lazy loading)
             role_permissions = getattr(role_ref, "permissions", None) or []
@@ -191,11 +200,20 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                     can_create_projects = True
                 elif perm.permission_key == PermissionKey.create_queues and perm.enabled:
                     can_create_queues = True
+                elif perm.permission_key == PermissionKey.events_enabled:
+                    can_view_events = perm.enabled
+                elif perm.permission_key == PermissionKey.create_events and perm.enabled:
+                    can_create_events = True
 
         # Initiative-level master switch overrides role-level queue permissions
         if not initiative_queues_enabled:
             can_view_queues = False
             can_create_queues = False
+
+        # Initiative-level master switch overrides role-level event permissions
+        if not initiative_events_enabled:
+            can_view_events = False
+            can_create_events = False
 
         # Determine legacy role for backward compatibility
         legacy_role = (
@@ -217,9 +235,11 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 can_view_docs=can_view_docs,
                 can_view_projects=can_view_projects,
                 can_view_queues=can_view_queues,
+                can_view_events=can_view_events,
                 can_create_docs=can_create_docs,
                 can_create_projects=can_create_projects,
                 can_create_queues=can_create_queues,
+                can_create_events=can_create_events,
             )
         )
     return InitiativeRead(
@@ -230,6 +250,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         color=initiative.color,
         is_default=initiative.is_default,
         queues_enabled=initiative_queues_enabled,
+        events_enabled=initiative_events_enabled,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

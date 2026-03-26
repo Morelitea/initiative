@@ -187,6 +187,13 @@ export const invalidateAllQueues = () => invalidatePrefix("/api/v1/queues");
 
 export const invalidateQueue = (queueId: number) => invalidateExact([`/api/v1/queues/${queueId}`]);
 
+// ── Calendar Events ─────────────────────────────────────────────────────────
+
+export const invalidateAllCalendarEvents = () => invalidatePrefix("/api/v1/calendar-events");
+
+export const invalidateCalendarEvent = (eventId: number) =>
+  invalidateExact([`/api/v1/calendar-events/${eventId}`]);
+
 // ── Subtasks ─────────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>

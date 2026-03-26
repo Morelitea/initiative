@@ -43,6 +43,9 @@
   "queues": "Colas",
   "allQueues": "Todas las colas",
   "createQueue": "Nueva cola",
+  "events": "Calendario",
+  "allEvents": "Todos los eventos",
+  "createEvent": "Nuevo evento",
   "navigate": {
     "signInRequired": "Por favor, inicia sesión de nuevo para seguir este enlace.",
     "missingDestination": "Este enlace no tiene detalles de destino.",

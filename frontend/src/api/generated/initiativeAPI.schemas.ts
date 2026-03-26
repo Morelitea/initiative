@@ -225,6 +225,148 @@ export interface BodyUploadDocumentFileApiV1DocumentsUploadPost {
   file: Blob;
 }
 
+export type RSVPStatus = (typeof RSVPStatus)[keyof typeof RSVPStatus];
+
+export const RSVPStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  declined: "declined",
+  tentative: "tentative",
+} as const;
+
+export interface CalendarEventAttendeeRead {
+  user_id: number;
+  user: UserPublic | null;
+  rsvp_status: RSVPStatus;
+  created_at: string;
+}
+
+export interface EventRecurrence {
+  /** @pattern ^(daily|weekly|monthly|yearly)$ */
+  frequency: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  interval?: number;
+  weekdays?: string[] | null;
+  monthly_mode?: string | null;
+  day_of_month?: number | null;
+  weekday_position?: string | null;
+  weekday?: string | null;
+  month?: number | null;
+  /** @pattern ^(never|on_date|after_occurrences)$ */
+  ends?: string;
+  end_after_occurrences?: number | null;
+  end_date?: string | null;
+}
+
+export interface CalendarEventCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  start_at: string;
+  end_at: string;
+  all_day?: boolean;
+  color?: string | null;
+  recurrence?: EventRecurrence | null;
+  initiative_id: number;
+  attendee_ids?: number[] | null;
+  tag_ids?: number[] | null;
+  document_ids?: number[] | null;
+}
+
+export interface CalendarEventDocumentRead {
+  document_id: number;
+  title?: string;
+  attached_at: string;
+}
+
+export interface CalendarEventSummary {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_at: string;
+  end_at: string;
+  all_day: boolean;
+  color: string | null;
+  recurrence: EventRecurrence | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  attendee_count: number;
+  attendee_names: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarEventListResponse {
+  items: CalendarEventSummary[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export interface CalendarEventRSVPUpdate {
+  rsvp_status: RSVPStatus;
+}
+
+/**
+ * Lightweight tag representation for embedding in other schemas.
+ */
+export interface TagSummary {
+  id: number;
+  name: string;
+  color: string;
+}
+
+export interface CalendarEventRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_at: string;
+  end_at: string;
+  all_day: boolean;
+  color: string | null;
+  recurrence: EventRecurrence | null;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by_id: number;
+  attendee_count: number;
+  attendee_names: string[];
+  created_at: string;
+  updated_at: string;
+  attendees: CalendarEventAttendeeRead[];
+  tags: TagSummary[];
+  documents: CalendarEventDocumentRead[];
+}
+
+export interface CalendarEventUpdate {
+  title?: string | null;
+  description?: string | null;
+  location?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  all_day?: boolean | null;
+  color?: string | null;
+  recurrence?: EventRecurrence | null;
+}
+
 export interface CommentAuthor {
   id: number;
   email: string;
@@ -423,15 +565,6 @@ export interface DocumentRolePermissionRead {
   role_display_name: string;
   level: DocumentPermissionLevel;
   created_at: string;
-}
-
-/**
- * Lightweight tag representation for embedding in other schemas.
- */
-export interface TagSummary {
-  id: number;
-  name: string;
-  color: string;
 }
 
 export type DocumentSummaryDocumentType =
@@ -1633,7 +1766,6 @@ export interface TaskCreate {
   due_date?: string | null;
   recurrence?: TaskRecurrenceInput | null;
   recurrence_strategy?: TaskCreateRecurrenceStrategy;
-  is_event?: boolean;
   project_id: number;
   assignee_ids?: number[];
   task_status_id?: number | null;
@@ -1752,7 +1884,6 @@ export interface TaskListRead {
   due_date: string | null;
   recurrence: TaskRecurrenceOutput | null;
   recurrence_strategy: TaskListReadRecurrenceStrategy;
-  is_event: boolean;
   id: number;
   project_id: number;
   task_status_id: number;
@@ -1822,7 +1953,6 @@ export interface TaskRead {
   due_date: string | null;
   recurrence: TaskRecurrenceOutput | null;
   recurrence_strategy: TaskReadRecurrenceStrategy;
-  is_event: boolean;
   id: number;
   project_id: number;
   task_status_id: number;
@@ -1894,7 +2024,6 @@ export interface TaskUpdate {
   recurrence?: TaskRecurrenceInput | null;
   recurrence_strategy?: "fixed" | "rolling" | null;
   is_archived?: boolean | null;
-  is_event?: boolean | null;
 }
 
 /**
@@ -2557,3 +2686,18 @@ export type ListQueuesApiV1QueuesGetParams = {
 };
 
 export type ListQueuePermissionsApiV1QueuesQueueIdPermissionsGet200 = { [key: string]: unknown };
+
+export type ListCalendarEventsApiV1CalendarEventsGetParams = {
+  initiative_id?: number | null;
+  start_after?: string | null;
+  start_before?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};

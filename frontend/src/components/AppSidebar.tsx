@@ -169,20 +169,24 @@ export const AppSidebar = () => {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: false,
+          canViewEvents: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
+          canCreateEvents: false,
         };
       }
-      // Guild admins have all permissions (queues gated by initiative flag)
+      // Guild admins have all permissions (queues/events gated by initiative flag)
       if (isGuildAdmin) {
         return {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: initiative.queues_enabled ?? false,
+          canViewEvents: initiative.events_enabled ?? false,
           canCreateDocs: true,
           canCreateProjects: true,
           canCreateQueues: initiative.queues_enabled ?? false,
+          canCreateEvents: initiative.events_enabled ?? false,
         };
       }
       const membership = initiative.members.find((m) => m.user.id === user.id);
@@ -191,18 +195,22 @@ export const AppSidebar = () => {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: false,
+          canViewEvents: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
+          canCreateEvents: false,
         };
       }
       return {
         canViewDocs: membership.can_view_docs ?? true,
         canViewProjects: membership.can_view_projects ?? true,
         canViewQueues: membership.can_view_queues ?? false,
+        canViewEvents: membership.can_view_events ?? false,
         canCreateDocs: membership.can_create_docs ?? false,
         canCreateProjects: membership.can_create_projects ?? false,
         canCreateQueues: membership.can_create_queues ?? false,
+        canCreateEvents: membership.can_create_events ?? false,
       };
     },
     [user, isGuildAdmin]
@@ -460,9 +468,11 @@ export const AppSidebar = () => {
                                     canViewDocs={permissions.canViewDocs}
                                     canViewProjects={permissions.canViewProjects}
                                     canViewQueues={permissions.canViewQueues}
+                                    canViewEvents={permissions.canViewEvents}
                                     canCreateDocs={permissions.canCreateDocs}
                                     canCreateProjects={permissions.canCreateProjects}
                                     canCreateQueues={permissions.canCreateQueues}
+                                    canCreateEvents={permissions.canCreateEvents}
                                     queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
                                     activeGuildId={activeGuildId}
                                     collapseKey={initiativeCollapseKey}

@@ -140,13 +140,14 @@ export const isFeatureEnabled = (
 // Same as isFeatureEnabled — reads backend value directly.
 export const canCreate = (
   permissions: MyInitiativePermissions | undefined,
-  entity: "docs" | "projects" | "queues"
+  entity: "docs" | "projects" | "queues" | "events"
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof entity, PermissionKey> = {
     docs: "create_docs",
     projects: "create_projects",
     queues: "create_queues",
+    events: "create_events",
   };
   return permissions.permissions[keyMap[entity]] ?? false;
 };
@@ -159,6 +160,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   create_projects: "Create Projects",
   queues_enabled: "View Queues",
   create_queues: "Create Queues",
+  events_enabled: "View Events",
+  create_events: "Create Events",
 };
 
 // i18n-based permission label keys (use with t())
@@ -169,6 +172,8 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
   create_projects: "settings.permissions.createProjects",
   queues_enabled: "settings.permissions.viewQueues",
   create_queues: "settings.permissions.createQueues",
+  events_enabled: "settings.permissions.viewEvents",
+  create_events: "settings.permissions.createEvents",
 };
 
 // All permission keys in display order
@@ -179,6 +184,8 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   "create_projects",
   "queues_enabled",
   "create_queues",
+  "events_enabled",
+  "create_events",
 ];
 
 // Permission groups for card-based layout
@@ -196,6 +203,7 @@ export const CORE_PERMISSION_GROUPS: PermissionGroup[] = [
 // Advanced tools permissions shown in accordion
 export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
   { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
+  { labelKey: "settings.permissionGroups.events", keys: ["events_enabled", "create_events"] },
 ];
 
 // All groups combined (for backward compat)

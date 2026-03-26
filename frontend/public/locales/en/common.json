@@ -64,6 +64,18 @@
   "selectEllipsis": "Select...",
   "noOptionsAvailable": "No options available",
   "clearAll": "Clear all",
+  "calendar": {
+    "today": "Today",
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "year": "Year",
+    "list": "List",
+    "viewMode": "View mode",
+    "noEntries": "No events",
+    "allDay": "All day",
+    "more": "+{{count}} more"
+  },
   "createAccess": {
     "advancedOptions": "Advanced options",
     "roleAccess": "Role access",

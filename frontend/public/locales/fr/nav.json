@@ -43,6 +43,9 @@
   "queues": "Files",
   "allQueues": "Toutes les files",
   "createQueue": "Nouvelle file",
+  "events": "Calendrier",
+  "allEvents": "Tous les événements",
+  "createEvent": "Nouvel événement",
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",
