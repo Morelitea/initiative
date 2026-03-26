@@ -2687,6 +2687,21 @@ export type ListQueuesApiV1QueuesGetParams = {
 
 export type ListQueuePermissionsApiV1QueuesQueueIdPermissionsGet200 = { [key: string]: unknown };
 
+export type ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams = {
+  guild_ids?: number[] | null;
+  start_after?: string | null;
+  start_before?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
 export type ListCalendarEventsApiV1CalendarEventsGetParams = {
   initiative_id?: number | null;
   start_after?: string | null;

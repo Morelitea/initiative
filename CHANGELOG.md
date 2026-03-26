@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Task recurrence selector reused for event recurrence
 
 - Calendar view toggle on My Tasks and Created Tasks pages
+- My Calendar page: cross-guild unified calendar combining tasks and events
+  - Filters for status category, priority, and guild (persisted to local storage)
+  - Events toggle to show/hide calendar events alongside tasks
+  - Global calendar events backend endpoint (`GET /api/v1/calendar-events/global`)
+- Filter and sort preferences persisted to local storage on My Tasks, Tasks I Created, My Projects, and My Documents pages
+- Spanish and French translations for My Calendar page
 
 ### Changed
 

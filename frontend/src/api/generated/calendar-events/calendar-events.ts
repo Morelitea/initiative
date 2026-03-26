@@ -28,12 +28,177 @@ import type {
   CalendarEventUpdate,
   HTTPValidationError,
   ListCalendarEventsApiV1CalendarEventsGetParams,
+  ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * List calendar events across all guilds the user belongs to.
+
+Uses AdminSessionDep (bypasses RLS) because this endpoint manually
+filters by the user's guild memberships — same pattern as global tasks.
+ * @summary List Global Calendar Events
+ */
+export const listGlobalCalendarEventsApiV1CalendarEventsGlobalGet = (
+  params?: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventListResponse>(
+    { url: `/api/v1/calendar-events/global`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryKey = (
+  params?: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams
+) => {
+  return [`/api/v1/calendar-events/global`, ...(params ? [params] : [])] as const;
+};
+
+export const getListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>
+  > = ({ signal }) =>
+    listGlobalCalendarEventsApiV1CalendarEventsGlobalGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>
+>;
+export type ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListGlobalCalendarEventsApiV1CalendarEventsGlobalGet<
+  TData = Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGlobalCalendarEventsApiV1CalendarEventsGlobalGet<
+  TData = Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+          TError,
+          Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGlobalCalendarEventsApiV1CalendarEventsGlobalGet<
+  TData = Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Global Calendar Events
+ */
+
+export function useListGlobalCalendarEventsApiV1CalendarEventsGlobalGet<
+  TData = Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGlobalCalendarEventsApiV1CalendarEventsGlobalGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListGlobalCalendarEventsApiV1CalendarEventsGlobalGetQueryOptions(
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * List calendar events. RLS + initiative membership handle access.

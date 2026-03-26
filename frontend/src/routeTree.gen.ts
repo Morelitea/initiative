@@ -29,6 +29,7 @@ import { Route as ServerRequiredAuthenticatedProfileRouteImport } from './routes
 import { Route as ServerRequiredAuthenticatedNavigateRouteImport } from './routes/_serverRequired/_authenticated/navigate'
 import { Route as ServerRequiredAuthenticatedMyProjectsRouteImport } from './routes/_serverRequired/_authenticated/my-projects'
 import { Route as ServerRequiredAuthenticatedMyDocumentsRouteImport } from './routes/_serverRequired/_authenticated/my-documents'
+import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
@@ -193,6 +194,12 @@ const ServerRequiredAuthenticatedMyDocumentsRoute =
   ServerRequiredAuthenticatedMyDocumentsRouteImport.update({
     id: '/my-documents',
     path: '/my-documents',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedMyCalendarRoute =
+  ServerRequiredAuthenticatedMyCalendarRouteImport.update({
+    id: '/my-calendar',
+    path: '/my-calendar',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedInitiativesRoute =
@@ -526,6 +533,7 @@ export interface FileRoutesByFullPath {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
@@ -598,6 +606,7 @@ export interface FileRoutesByTo {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
@@ -667,6 +676,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/_serverRequired/_authenticated/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/_serverRequired/_authenticated/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/_serverRequired/_authenticated/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
@@ -742,6 +752,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/my-calendar'
     | '/my-documents'
     | '/my-projects'
     | '/navigate'
@@ -814,6 +825,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/my-calendar'
     | '/my-documents'
     | '/my-projects'
     | '/navigate'
@@ -882,6 +894,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
+    | '/_serverRequired/_authenticated/my-calendar'
     | '/_serverRequired/_authenticated/my-documents'
     | '/_serverRequired/_authenticated/my-projects'
     | '/_serverRequired/_authenticated/navigate'
@@ -1089,6 +1102,13 @@ declare module '@tanstack/react-router' {
       path: '/my-documents'
       fullPath: '/my-documents'
       preLoaderRoute: typeof ServerRequiredAuthenticatedMyDocumentsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/my-calendar': {
+      id: '/_serverRequired/_authenticated/my-calendar'
+      path: '/my-calendar'
+      fullPath: '/my-calendar'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyCalendarRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/initiatives': {
@@ -1654,6 +1674,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
+  ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
   ServerRequiredAuthenticatedMyDocumentsRoute: typeof ServerRequiredAuthenticatedMyDocumentsRoute
   ServerRequiredAuthenticatedMyProjectsRoute: typeof ServerRequiredAuthenticatedMyProjectsRoute
   ServerRequiredAuthenticatedNavigateRoute: typeof ServerRequiredAuthenticatedNavigateRoute
@@ -1682,6 +1703,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedDocumentsRoute,
     ServerRequiredAuthenticatedInitiativesRoute:
       ServerRequiredAuthenticatedInitiativesRoute,
+    ServerRequiredAuthenticatedMyCalendarRoute:
+      ServerRequiredAuthenticatedMyCalendarRoute,
     ServerRequiredAuthenticatedMyDocumentsRoute:
       ServerRequiredAuthenticatedMyDocumentsRoute,
     ServerRequiredAuthenticatedMyProjectsRoute:

@@ -1,6 +1,13 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ChartColumn, ListTodo, PenLine, ScrollText, SquareCheckBig } from "lucide-react";
+import {
+  CalendarDays,
+  ChartColumn,
+  ListTodo,
+  PenLine,
+  ScrollText,
+  SquareCheckBig,
+} from "lucide-react";
 
 import {
   SidebarContent,
@@ -19,6 +26,7 @@ export const HomeSidebarContent = () => {
   const navItems = [
     { to: "/", label: t("myTasks"), icon: SquareCheckBig, exact: true },
     { to: "/created-tasks", label: t("tasksICreated"), icon: PenLine },
+    { to: "/my-calendar", label: t("myCalendar"), icon: CalendarDays },
     { to: "/my-projects", label: t("myProjects"), icon: ListTodo },
     { to: "/my-documents", label: t("myDocuments"), icon: ScrollText },
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },

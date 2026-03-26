@@ -11,6 +11,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.api.deps import (
@@ -19,11 +20,12 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.db.session import reapply_rls_context
+from app.db.session import get_admin_session, reapply_rls_context
 from app.models.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
 )
+from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, PermissionKey
 from app.models.user import User
 from app.core.messages import CalendarEventMessages, InitiativeMessages
@@ -41,6 +43,8 @@ from app.services import rls as rls_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -120,6 +124,84 @@ async def _refetch_event(session: RLSSessionDep, event_id: int) -> CalendarEvent
             detail=CalendarEventMessages.NOT_FOUND,
         )
     return event
+
+
+# ---------------------------------------------------------------------------
+# Cross-guild global view
+# ---------------------------------------------------------------------------
+
+
+@router.get("/global", response_model=CalendarEventListResponse)
+async def list_global_calendar_events(
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_ids: Optional[List[int]] = Query(default=None),
+    start_after: Optional[datetime] = Query(default=None),
+    start_before: Optional[datetime] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=200, ge=1, le=200),
+) -> CalendarEventListResponse:
+    """List calendar events across all guilds the user belongs to.
+
+    Uses AdminSessionDep (bypasses RLS) because this endpoint manually
+    filters by the user's guild memberships — same pattern as global tasks.
+    """
+    # Base conditions: user must be a guild member and events must be enabled
+    conditions = [
+        GuildMembership.user_id == current_user.id,
+        Initiative.events_enabled == True,  # noqa: E712
+    ]
+
+    # If specific guild_ids requested, intersect with user's memberships
+    if guild_ids:
+        conditions.append(CalendarEvent.guild_id.in_(tuple(guild_ids)))
+
+    if start_after is not None:
+        conditions.append(CalendarEvent.start_at >= start_after)
+    if start_before is not None:
+        conditions.append(CalendarEvent.start_at <= start_before)
+
+    def _base_query(stmt):  # type: ignore[no-untyped-def]
+        return (
+            stmt
+            .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
+            .join(
+                GuildMembership,
+                GuildMembership.guild_id == CalendarEvent.guild_id,
+            )
+            .where(*conditions)
+        )
+
+    # Count
+    count_subq = _base_query(select(CalendarEvent.id)).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.execute(count_stmt)).scalar_one()
+
+    # Data
+    stmt = _base_query(select(CalendarEvent)).options(
+        selectinload(CalendarEvent.attendees).selectinload(
+            CalendarEventAttendee.user,
+        ),
+        selectinload(CalendarEvent.initiative),
+    ).order_by(
+        CalendarEvent.start_at.asc(),
+        CalendarEvent.id.asc(),
+    ).offset(
+        (page - 1) * page_size,
+    ).limit(page_size)
+
+    result = await session.execute(stmt)
+    events = result.unique().scalars().all()
+
+    items = [serialize_calendar_event_summary(e) for e in events]
+    has_next = page * page_size < total_count
+    return CalendarEventListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=has_next,
+    )
 
 
 # ---------------------------------------------------------------------------
