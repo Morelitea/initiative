@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 # Open the dev server in the default browser
-python3 -m webbrowser http://localhost:5173 2>/dev/null ||
-  xdg-open http://localhost:5173 2>/dev/null ||
-  echo "Open http://localhost:5173 in your browser"
+URL="http://localhost:5173"
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  # WSL: use wslview (wslu) or fall back to cmd.exe
+  wslview "$URL" 2>/dev/null ||
+    cmd.exe /c start "" "$URL" 2>/dev/null ||
+    echo "Open $URL in your browser"
+else
+  python3 -m webbrowser "$URL" 2>/dev/null ||
+    xdg-open "$URL" 2>/dev/null ||
+    echo "Open $URL in your browser"
+fi
