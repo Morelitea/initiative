@@ -24,11 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Attendee picker using initiative members with searchable combobox
 - Task recurrence selector reused for event recurrence
 
+- Calendar view toggle on My Tasks and Created Tasks pages
+
 ### Changed
 
 - Replaced ProjectCalendarView with generic CalendarView component for project tasks
 - Project task calendar now shows assignee avatars in list view
 - Initiative settings: Calendar toggle alongside Queues under Advanced Tools
+
+### Fixed
+
+- Calendar event update endpoint now validates date ordering and 24-hour limit for timed events
+- Document attachment on calendar events now scoped to guild, preventing cross-guild association
 
 ## [0.34.2] - 2026-03-18
 
