@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { addYears, endOfYear, startOfYear, subYears } from "date-fns";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 
-import { invalidateAllTasks } from "@/api/query-keys";
+import { invalidateAllTasks, invalidateAllCalendarEvents } from "@/api/query-keys";
 import type {
   ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
   TaskPriority,
@@ -99,7 +99,7 @@ export const MyCalendarPage = () => {
   const eventsQuery = useGlobalCalendarEventsList(eventsParams);
 
   const handleRefresh = useCallback(async () => {
-    await invalidateAllTasks();
+    await Promise.all([invalidateAllTasks(), invalidateAllCalendarEvents()]);
   }, []);
 
   // --- Merge tasks + events into calendar entries ---
