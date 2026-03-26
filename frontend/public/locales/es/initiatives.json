@@ -141,7 +141,8 @@
     "permissionGroups": {
       "documents": "Documentos",
       "projects": "Proyectos",
-      "queues": "Colas"
+      "queues": "Colas",
+      "events": "Eventos"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -149,11 +150,15 @@
       "createDocuments": "Crear documentos",
       "createProjects": "Crear proyectos",
       "viewQueues": "Ver colas",
-      "createQueues": "Crear colas"
+      "createQueues": "Crear colas",
+      "viewEvents": "Ver eventos",
+      "createEvents": "Crear eventos"
     }
   },
   "advancedTools": "Herramientas avanzadas",
   "advancedToolsDescription": "Habilita herramientas opcionales para esta iniciativa.",
   "queuesFeature": "Colas",
-  "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue."
+  "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
+  "eventsFeature": "Calendario",
+  "eventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP."
 }

@@ -64,6 +64,18 @@
   "selectEllipsis": "Seleccionar...",
   "noOptionsAvailable": "No hay opciones disponibles",
   "clearAll": "Limpiar todo",
+  "calendar": {
+    "today": "Hoy",
+    "day": "Día",
+    "week": "Semana",
+    "month": "Mes",
+    "year": "Año",
+    "list": "Lista",
+    "viewMode": "Modo de vista",
+    "noEntries": "Sin eventos",
+    "allDay": "Todo el día",
+    "more": "+{{count}} más"
+  },
   "createAccess": {
     "advancedOptions": "Opciones avanzadas",
     "roleAccess": "Acceso por rol",
