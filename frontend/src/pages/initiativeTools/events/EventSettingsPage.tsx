@@ -306,7 +306,7 @@ export function EventSettingsPage() {
         title={t("deleteEvent")}
         description={t("deleteEventConfirm")}
         confirmLabel={t("deleteEvent")}
-        variant="destructive"
+        destructive
         onConfirm={() => deleteEvent.mutate(eventId)}
         isLoading={deleteEvent.isPending}
       />
