@@ -180,60 +180,9 @@ function buildEntriesByDate(entries: CalendarEntry[]): Map<string, CalendarEntry
   return map;
 }
 
-/** Build a color style object for an entry chip. */
-function entryColorStyle(color?: string | null): React.CSSProperties | undefined {
-  if (!color) return undefined;
-  return {
-    backgroundColor: color + "15",
-    borderColor: color + "40",
-  };
-}
-
-function entryDotStyle(color?: string | null): React.CSSProperties | undefined {
-  if (!color) return undefined;
-  return { backgroundColor: color };
-}
-
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-/** A single entry chip used in month, week, and day views. */
-function EntryChip({
-  entry,
-  showTime = false,
-  onClick,
-}: {
-  entry: CalendarEntry;
-  showTime?: boolean;
-  onClick?: (entry: CalendarEntry) => void;
-}) {
-  const { start } = parseEntry(entry);
-
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex w-full items-center gap-1.5 rounded-md border px-2 py-1 text-left text-[11px] transition-colors",
-        onClick ? "hover:bg-accent cursor-pointer" : "cursor-default"
-      )}
-      style={entryColorStyle(entry.color)}
-      onClick={() => onClick?.(entry)}
-    >
-      <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={entryDotStyle(entry.color)}
-        aria-hidden="true"
-      />
-      <span className="truncate">{entry.title}</span>
-      {showTime && !entry.allDay ? (
-        <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
-          {formatTime(start)}
-        </span>
-      ) : null}
-    </button>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Calendar Header
@@ -649,7 +598,7 @@ function WeekView({
     return eachDayOfInterval({ start, end: addDays(start, 6) });
   }, [focusDate, weekStartsOn]);
 
-  const { spans, singleDay, maxLane } = useMemo(
+  const { spans, singleDay } = useMemo(
     () => computeSpanPlacements(weekDays, entries),
     [weekDays, entries]
   );
@@ -1264,7 +1213,7 @@ function ListView({
   return (
     <TooltipProvider delayDuration={200}>
     <div className="space-y-1">
-      {rows.map(({ entry, displayDate, isSpanDay }, idx) => {
+      {rows.map(({ entry, displayDate, isSpanDay }) => {
         const { start } = parseEntry(entry);
         const day = format(displayDate, "d");
         const month = format(displayDate, "MMM");
