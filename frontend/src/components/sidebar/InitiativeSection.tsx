@@ -43,7 +43,6 @@ export interface InitiativeSectionProps {
   canCreateQueues: boolean;
   canCreateEvents: boolean;
   queueCount: number;
-  eventCount: number;
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -66,7 +65,6 @@ export const InitiativeSection = memo(
     canCreateQueues,
     canCreateEvents,
     queueCount,
-    eventCount,
     activeGuildId,
     collapseKey,
   }: InitiativeSectionProps) => {
@@ -337,7 +335,6 @@ export const InitiativeSection = memo(
                       >
                         <CalendarDays className="h-4 w-4" />
                         <span>{t("events")}</span>
-                        <span className="text-muted-foreground text-xs">{eventCount}</span>
                       </Link>
                     </SidebarMenuButton>
                     {canCreateEvents && (

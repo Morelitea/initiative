@@ -44,7 +44,6 @@ import { useProjects, useFavoriteProjects } from "@/hooks/useProjects";
 import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersion";
 import { useTags } from "@/hooks/useTags";
 import { useQueuesList } from "@/hooks/useQueues";
-import { useCalendarEventsList } from "@/hooks/useCalendarEvents";
 import { getItem, setItem } from "@/lib/storage";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -131,22 +130,6 @@ export const AppSidebar = () => {
     });
     return map;
   }, [queuesQuery.data]);
-
-  // Fetch calendar events for counts
-  const calendarEventsQuery = useCalendarEventsList(
-    { page: 1, page_size: 200 },
-    { enabled: Boolean(activeGuild), staleTime: 60_000 }
-  );
-
-  const eventCountsByInitiative = useMemo(() => {
-    const map = new Map<number, number>();
-    const events = calendarEventsQuery.data?.items ?? [];
-    events.forEach((event) => {
-      const count = map.get(event.initiative_id) ?? 0;
-      map.set(event.initiative_id, count + 1);
-    });
-    return map;
-  }, [calendarEventsQuery.data]);
 
   const visibleInitiatives = useMemo(() => {
     if (!user) {
@@ -491,7 +474,6 @@ export const AppSidebar = () => {
                                     canCreateQueues={permissions.canCreateQueues}
                                     canCreateEvents={permissions.canCreateEvents}
                                     queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
-                                    eventCount={eventCountsByInitiative.get(initiative.id) ?? 0}
                                     activeGuildId={activeGuildId}
                                     collapseKey={initiativeCollapseKey}
                                   />
