@@ -102,5 +102,33 @@
   "noTags": "Sin etiquetas",
   "today": "Hoy",
   "upcoming": "Próximos",
-  "past": "Pasados"
+  "past": "Pasados",
+
+  "export": {
+    "exportIcs": "Exportar .ics",
+    "exporting": "Exportando\u2026",
+    "exportError": "Error al exportar eventos"
+  },
+  "import": {
+    "title": "Importar eventos del calendario",
+    "importIcs": "Importar .ics",
+    "uploadDescription": "Sube un archivo .ics para importar eventos a una iniciativa.",
+    "uploadFileLabel": "Elegir archivo .ics",
+    "selectInitiative": "Importar a iniciativa",
+    "parseButton": "Vista previa",
+    "parsing": "Analizando\u2026",
+    "parseFailed": "Error al analizar el archivo .ics",
+    "noEventsFound": "No se encontraron eventos en el archivo.",
+    "foundEvents_one": "Se encontró {{count}} evento",
+    "foundEvents_other": "Se encontraron {{count}} eventos",
+    "hasRecurring": "Incluye eventos recurrentes",
+    "importButton": "Importar eventos",
+    "importing": "Importando\u2026",
+    "eventsCreated_one": "{{count}} evento creado",
+    "eventsCreated_other": "{{count}} eventos creados",
+    "eventsFailed_one": "{{count}} evento fallido",
+    "eventsFailed_other": "{{count}} eventos fallidos",
+    "importSuccess": "¡Importación completa!",
+    "importError": "Error en la importación"
+  }
 }

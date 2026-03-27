@@ -102,5 +102,33 @@
   "noTags": "Aucune étiquette",
   "today": "Aujourd'hui",
   "upcoming": "À venir",
-  "past": "Passés"
+  "past": "Passés",
+
+  "export": {
+    "exportIcs": "Exporter .ics",
+    "exporting": "Exportation\u2026",
+    "exportError": "Échec de l'exportation des événements"
+  },
+  "import": {
+    "title": "Importer des événements",
+    "importIcs": "Importer .ics",
+    "uploadDescription": "Téléchargez un fichier .ics pour importer des événements dans une initiative.",
+    "uploadFileLabel": "Choisir un fichier .ics",
+    "selectInitiative": "Importer dans l'initiative",
+    "parseButton": "Aperçu",
+    "parsing": "Analyse\u2026",
+    "parseFailed": "Échec de l'analyse du fichier .ics",
+    "noEventsFound": "Aucun événement trouvé dans le fichier.",
+    "foundEvents_one": "{{count}} événement trouvé",
+    "foundEvents_other": "{{count}} événements trouvés",
+    "hasRecurring": "Comprend des événements récurrents",
+    "importButton": "Importer les événements",
+    "importing": "Importation\u2026",
+    "eventsCreated_one": "{{count}} événement créé",
+    "eventsCreated_other": "{{count}} événements créés",
+    "eventsFailed_one": "{{count}} événement échoué",
+    "eventsFailed_other": "{{count}} événements échoués",
+    "importSuccess": "Importation terminée !",
+    "importError": "Échec de l'importation"
+  }
 }

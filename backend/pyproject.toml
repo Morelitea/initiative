@@ -21,6 +21,7 @@ python-multipart = "^0.0.22"
 email-validator = "^2.1.1"
 httpx = "^0.27.0"
 alembic = "^1.14.0"
+icalendar = ">=6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"

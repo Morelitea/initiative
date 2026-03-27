@@ -113,5 +113,33 @@
 
   "today": "Today",
   "upcoming": "Upcoming",
-  "past": "Past"
+  "past": "Past",
+
+  "export": {
+    "exportIcs": "Export .ics",
+    "exporting": "Exporting\u2026",
+    "exportError": "Failed to export events"
+  },
+  "import": {
+    "title": "Import Calendar Events",
+    "importIcs": "Import .ics",
+    "uploadDescription": "Upload an .ics file to import events into an initiative.",
+    "uploadFileLabel": "Choose .ics file",
+    "selectInitiative": "Import to initiative",
+    "parseButton": "Preview",
+    "parsing": "Parsing\u2026",
+    "parseFailed": "Failed to parse .ics file",
+    "noEventsFound": "No events found in the file.",
+    "foundEvents_one": "Found {{count}} event",
+    "foundEvents_other": "Found {{count}} events",
+    "hasRecurring": "Includes recurring events",
+    "importButton": "Import Events",
+    "importing": "Importing\u2026",
+    "eventsCreated_one": "{{count}} event created",
+    "eventsCreated_other": "{{count}} events created",
+    "eventsFailed_one": "{{count}} event failed",
+    "eventsFailed_other": "{{count}} events failed",
+    "importSuccess": "Import complete!",
+    "importError": "Import failed"
+  }
 }
