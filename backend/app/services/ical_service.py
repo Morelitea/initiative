@@ -70,11 +70,13 @@ def _recurrence_to_rrule(recurrence_json: Optional[str]) -> Optional[dict]:
         rule["BYMONTH"] = [rec.month]
 
     if rec.ends == "on_date" and rec.end_date:
-        end_dt = rec.end_date if isinstance(rec.end_date, datetime) else rec.end_date
-        if isinstance(end_dt, datetime):
-            rule["UNTIL"] = [end_dt.astimezone(timezone.utc)]
+        if isinstance(rec.end_date, datetime):
+            rule["UNTIL"] = [rec.end_date.astimezone(timezone.utc)]
         else:
-            rule["UNTIL"] = [end_dt]
+            rule["UNTIL"] = [datetime(
+                rec.end_date.year, rec.end_date.month, rec.end_date.day,
+                23, 59, 59, tzinfo=timezone.utc,
+            )]
 
     if rec.ends == "after_occurrences" and rec.end_after_occurrences:
         rule["COUNT"] = [rec.end_after_occurrences]

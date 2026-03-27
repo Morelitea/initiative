@@ -345,8 +345,9 @@ async def import_ical_events(
     created = 0
     for event in events:
         try:
-            session.add(event)
-            await session.flush()
+            async with session.begin_nested():
+                session.add(event)
+                await session.flush()
             created += 1
         except Exception as exc:
             errors.append(f"DB error for '{event.title}': {exc}")
