@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/components/calendar";
 import { useCalendarEventsList } from "@/hooks/useCalendarEvents";
@@ -14,7 +15,10 @@ import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
 } from "@/hooks/useInitiativeRoles";
+import { apiClient } from "@/api/client";
+import { Button } from "@/components/ui/button";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
+import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
 import { EventsFilterBar } from "@/components/initiativeTools/events/EventsFilterBar";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -150,10 +154,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
+  const [filtersOpen, setFiltersOpen] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
   );
 
   useEffect(() => {
@@ -206,14 +211,45 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     ? (initiatives.find((i) => i.id === lockedInitiativeId)?.name ?? null)
     : null;
 
-  const defaultStartDate = createDefaultDate
-    ? format(createDefaultDate, "yyyy-MM-dd")
-    : undefined;
+  const defaultStartDate = createDefaultDate ? format(createDefaultDate, "yyyy-MM-dd") : undefined;
+
+  const handleExport = useCallback(async () => {
+    try {
+      const params: Record<string, string> = {};
+      if (filteredInitiativeId) {
+        params.initiative_id = String(filteredInitiativeId);
+      }
+      const response = await apiClient.get("/api/v1/calendar-events/export.ics", {
+        params,
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "events.ics";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(t("export.exportError"));
+    }
+  }, [filteredInitiativeId, t]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("export.exportIcs")}
+          </Button>
+          {canCreateEvents && (
+            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="mr-1.5 h-4 w-4" />
+              {t("import.importIcs")}
+            </Button>
+          )}
+        </div>
       </div>
 
       <EventsFilterBar
@@ -255,6 +291,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           onSuccess={handleEventCreated}
         />
       )}
+
+      <ICalImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        fixedInitiativeId={filteredInitiativeId ?? undefined}
+      />
     </div>
   );
 };

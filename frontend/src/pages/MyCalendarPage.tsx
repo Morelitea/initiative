@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { addYears, endOfYear, startOfYear, subYears } from "date-fns";
-import { ChevronDown, Filter, Loader2 } from "lucide-react";
+import { ChevronDown, Download, Filter, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { invalidateAllTasks, invalidateAllCalendarEvents } from "@/api/query-keys";
 import type {
@@ -20,6 +21,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { apiClient } from "@/api/client";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getItem, setItem } from "@/lib/storage";
 
@@ -181,12 +183,39 @@ export const MyCalendarPage = () => {
 
   const isLoading = table.isInitialLoad || (eventsQuery.isLoading && !eventsQuery.data);
 
+  const handleExport = useCallback(async () => {
+    try {
+      const params: Record<string, string | number[]> = {};
+      if (table.guildFilters.length > 0) {
+        params.guild_ids = table.guildFilters;
+      }
+      const response = await apiClient.get("/api/v1/calendar-events/global/export.ics", {
+        params,
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "events.ics";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(t("events:export.exportError"));
+    }
+  }, [table.guildFilters, t]);
+
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{t("tasks:myCalendar.title")}</h1>
-          <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">{t("tasks:myCalendar.title")}</h1>
+            <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("events:export.exportIcs")}
+          </Button>
         </div>
 
         <Collapsible

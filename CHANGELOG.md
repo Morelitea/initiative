@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Global calendar events backend endpoint (`GET /api/v1/calendar-events/global`)
 - Filter and sort preferences persisted to local storage on My Tasks, Tasks I Created, My Projects, and My Documents pages
 - Spanish and French translations for My Calendar page
+- iCal (.ics) import/export for calendar events
+  - Export events as `.ics` files (per-guild and cross-guild)
+  - Import events from `.ics` files with preview and initiative selection
+  - RRULE recurrence mapping (best-effort bidirectional conversion)
+  - Export/import buttons on guild Events page and My Calendar page
+  - Spanish and French translations for import/export UI
 
 ### Changed
 
