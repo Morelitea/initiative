@@ -304,7 +304,7 @@ def build_calendar_events(
         try:
             data = _extract_vevent(component)
             if not data:
-                errors.append(f"Skipped event with no start date")
+                errors.append("Skipped event with no start date")
                 continue
 
             event = CalendarEvent(
