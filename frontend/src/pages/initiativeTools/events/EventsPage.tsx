@@ -228,7 +228,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       a.href = url;
       a.download = "events.ics";
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
       toast.error(t("export.exportError"));
     }

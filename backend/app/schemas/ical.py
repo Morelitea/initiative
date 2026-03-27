@@ -19,9 +19,13 @@ class ICalParseResult(BaseModel):
     has_recurring: bool
 
 
+class ICalParseRequest(BaseModel):
+    ics_content: str = Field(..., max_length=2_000_000)
+
+
 class ICalImportRequest(BaseModel):
     initiative_id: int
-    ics_content: str
+    ics_content: str = Field(..., max_length=2_000_000)
 
 
 class ICalImportResult(BaseModel):

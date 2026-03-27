@@ -38,7 +38,7 @@ from app.schemas.calendar_event import (
     serialize_calendar_event,
     serialize_calendar_event_summary,
 )
-from app.schemas.ical import ICalImportRequest, ICalImportResult, ICalParseResult
+from app.schemas.ical import ICalImportRequest, ICalImportResult, ICalParseRequest, ICalParseResult
 from app.services import calendar_events as events_service
 from app.services import ical_service
 from app.services import rls as rls_service
@@ -298,7 +298,7 @@ async def export_global_calendar_events_ics(
 @router.post("/import/parse", response_model=ICalParseResult)
 async def parse_ical_file(
     current_user: Annotated[User, Depends(get_current_active_user)],
-    body: ICalImportRequest,
+    body: ICalParseRequest,
 ) -> ICalParseResult:
     """Parse an .ics file and return a preview of found events."""
     try:

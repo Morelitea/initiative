@@ -110,7 +110,7 @@ export const ICalImportDialog = ({
       const result = await apiMutator<ICalParseResult>({
         url: "/api/v1/calendar-events/import/parse",
         method: "POST",
-        data: { initiative_id: selectedInitiativeId ?? 0, ics_content: content },
+        data: { ics_content: content },
         headers: { "Content-Type": "application/json" },
       });
       setParseResult(result);
