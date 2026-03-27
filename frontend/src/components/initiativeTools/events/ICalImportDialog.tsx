@@ -89,20 +89,23 @@ export const ICalImportDialog = ({
     );
   }, [initiativesQuery.data, user]);
 
-  const handleFileUpload = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setIcsContent(content);
-        doParse(content);
-      };
-      reader.readAsText(file);
-    },
-    [] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const MAX_ICS_SIZE = 2_000_000;
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_ICS_SIZE) {
+      toast.error(t("events:import.parseFailed"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setIcsContent(content);
+      doParse(content);
+    };
+    reader.readAsText(file);
+  };
 
   const doParse = async (content: string) => {
     setIsParsing(true);

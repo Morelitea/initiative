@@ -330,7 +330,7 @@ async def import_ical_events(
     )
 
     try:
-        events, errors = ical_service.build_calendar_events(
+        events, errors, skipped = ical_service.build_calendar_events(
             content=body.ics_content,
             initiative_id=body.initiative_id,
             guild_id=guild_context.guild_id,
@@ -358,7 +358,7 @@ async def import_ical_events(
 
     return ICalImportResult(
         events_created=created,
-        events_failed=len(events) - created,
+        events_failed=len(events) - created + skipped,
         errors=errors,
     )
 

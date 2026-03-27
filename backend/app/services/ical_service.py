@@ -291,14 +291,15 @@ def build_calendar_events(
     initiative_id: int,
     guild_id: int,
     created_by_id: int,
-) -> Tuple[List[CalendarEvent], List[str]]:
+) -> Tuple[List[CalendarEvent], List[str], int]:
     """Parse .ics content and build CalendarEvent model instances.
 
-    Returns (events, errors). Does NOT persist — the caller handles that.
+    Returns (events, errors, skipped_count). Does NOT persist — caller handles that.
     """
     cal = icalendar.Calendar.from_ical(content)
     events: List[CalendarEvent] = []
     errors: List[str] = []
+    skipped = 0
 
     for component in cal.walk():
         if component.name != "VEVENT":
@@ -307,6 +308,7 @@ def build_calendar_events(
             data = _extract_vevent(component)
             if not data:
                 errors.append("Skipped event with no start date")
+                skipped += 1
                 continue
 
             event = CalendarEvent(
@@ -325,5 +327,6 @@ def build_calendar_events(
         except Exception as exc:
             summary = str(component.get("summary", "Unknown"))
             errors.append(f"Failed to import '{summary}': {exc}")
+            skipped += 1
 
-    return events, errors
+    return events, errors, skipped
