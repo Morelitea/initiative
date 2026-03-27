@@ -132,7 +132,8 @@
     "title": "Mon calendrier",
     "subtitle": "Tâches et événements dans tous vos groupes.",
     "loadError": "Impossible de charger les données du calendrier.",
-    "typeEvents": "Événements"
+    "typeEvents": "Événements",
+    "typeTasks": "Tâches"
   },
 
   "createdTasks": {

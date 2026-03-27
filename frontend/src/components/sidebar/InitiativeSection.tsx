@@ -241,6 +241,46 @@ export const InitiativeSection = memo(
             forceMount
           >
             <SidebarMenu>
+              {/* Events Link */}
+              {canViewEvents && (
+                <SidebarMenuItem>
+                  <div className="group/events flex w-full min-w-0 items-center gap-1">
+                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+                      <Link
+                        to={gp("/events")}
+                        search={{ initiativeId: String(initiative.id) }}
+                        className="flex items-center gap-2"
+                      >
+                        <CalendarDays className="h-4 w-4" />
+                        <span>{t("events")}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {canCreateEvents && (
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/events:opacity-100 lg:flex"
+                            asChild
+                          >
+                            <Link
+                              to={gp("/events")}
+                              search={{ create: "true", initiativeId: String(initiative.id) }}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p>{t("createEvent")}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </SidebarMenuItem>
+              )}
+
               {/* Documents Link */}
               {canViewDocs && (
                 <SidebarMenuItem>
@@ -316,46 +356,6 @@ export const InitiativeSection = memo(
                         </TooltipTrigger>
                         <TooltipContent side="top">
                           <p>{t("createQueue")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </SidebarMenuItem>
-              )}
-
-              {/* Events Link */}
-              {canViewEvents && (
-                <SidebarMenuItem>
-                  <div className="group/events flex w-full min-w-0 items-center gap-1">
-                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                      <Link
-                        to={gp("/events")}
-                        search={{ initiativeId: String(initiative.id) }}
-                        className="flex items-center gap-2"
-                      >
-                        <CalendarDays className="h-4 w-4" />
-                        <span>{t("events")}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {canCreateEvents && (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/events:opacity-100 lg:flex"
-                            asChild
-                          >
-                            <Link
-                              to={gp("/events")}
-                              search={{ create: "true", initiativeId: String(initiative.id) }}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("createEvent")}</p>
                         </TooltipContent>
                       </Tooltip>
                     )}
