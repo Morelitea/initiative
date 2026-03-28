@@ -32,6 +32,25 @@ import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImport
 
 const STORAGE_KEY = "initiative-events-prefs";
 
+/** Distinct colors auto-assigned to projects on the calendar */
+const PROJECT_COLORS = [
+  "#3b82f6", // blue
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#06b6d4", // cyan
+  "#84cc16", // lime
+];
+
+const getProjectColor = (projectId: number, projectIds: number[]) => {
+  const idx = projectIds.indexOf(projectId);
+  return PROJECT_COLORS[(idx >= 0 ? idx : projectId) % PROJECT_COLORS.length];
+};
+
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 const PRIORITY_ORDER: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -201,10 +220,13 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
     if (showTasks) {
       const tasks = tasksQuery.data?.items ?? [];
+      // Collect unique project IDs for stable color assignment
+      const uniqueProjectIds = [...new Set(tasks.map((t) => t.project_id))];
       tasks.forEach((task) => {
         const taskAttendees = task.assignees
           .filter((a) => a.full_name)
           .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
+        const color = getProjectColor(task.project_id, uniqueProjectIds);
 
         if (task.due_date) {
           entries.push({
@@ -213,6 +235,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             startAt: task.due_date,
             endAt: task.due_date,
             allDay: true,
+            color,
             attendees: taskAttendees,
             meta: { type: "task", taskId: task.id },
           });
@@ -224,7 +247,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             startAt: task.start_date,
             endAt: task.start_date,
             allDay: true,
-            color: "#10b981",
+            color,
             attendees: taskAttendees,
             meta: { type: "task", taskId: task.id },
           });
