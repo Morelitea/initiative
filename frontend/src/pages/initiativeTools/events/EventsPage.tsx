@@ -46,10 +46,7 @@ const PROJECT_COLORS = [
   "#84cc16", // lime
 ];
 
-const getProjectColor = (projectId: number, projectIds: number[]) => {
-  const idx = projectIds.indexOf(projectId);
-  return PROJECT_COLORS[(idx >= 0 ? idx : projectId) % PROJECT_COLORS.length];
-};
+const getProjectColor = (projectId: number) => PROJECT_COLORS[projectId % PROJECT_COLORS.length];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 const PRIORITY_ORDER: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -141,6 +138,15 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
   );
 
+  // Reset project filter when initiative changes (project IDs are initiative-scoped)
+  const prevInitiativeId = useRef(initiativeId);
+  useEffect(() => {
+    if (prevInitiativeId.current !== initiativeId) {
+      prevInitiativeId.current = initiativeId;
+      setProjectFilters([]);
+    }
+  }, [initiativeId]);
+
   // Persist preferences
   useEffect(() => {
     setItem(
@@ -220,13 +226,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
     if (showTasks) {
       const tasks = tasksQuery.data?.items ?? [];
-      // Collect unique project IDs for stable color assignment
-      const uniqueProjectIds = [...new Set(tasks.map((t) => t.project_id))];
       tasks.forEach((task) => {
         const taskAttendees = task.assignees
           .filter((a) => a.full_name)
           .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
-        const color = getProjectColor(task.project_id, uniqueProjectIds);
+        const color = getProjectColor(task.project_id);
 
         if (task.due_date) {
           entries.push({
@@ -429,7 +433,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             )}
 
             {/* Project filter (for tasks) */}
-            {showTasks && projectOptions.length > 1 && (
+            {showTasks && (projectOptions.length > 1 || projectFilters.length > 0) && (
               <div className="w-full sm:w-48 lg:flex-1">
                 <Label className="text-muted-foreground mb-2 block text-xs font-medium">
                   {t("common:project", "Project")}
