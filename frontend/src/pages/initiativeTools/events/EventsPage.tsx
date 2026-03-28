@@ -15,10 +15,8 @@ import type {
   FilterCondition,
   ListTasksApiV1TasksGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
 import {
   useMyInitiativePermissions,
   canCreate as canCreatePermission,
@@ -31,15 +29,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-const INITIATIVE_FILTER_ALL = "all";
 const STORAGE_KEY = "initiative-events-prefs";
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
@@ -50,6 +40,7 @@ interface StoredPrefs {
   showTasks: boolean;
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
+  projectFilters: number[];
 }
 
 const PREFS_DEFAULTS: StoredPrefs = {
@@ -57,6 +48,7 @@ const PREFS_DEFAULTS: StoredPrefs = {
   showTasks: true,
   statusFilters: ["backlog", "todo", "in_progress"],
   priorityFilters: [],
+  projectFilters: [],
 };
 
 const readStoredPrefs = (): StoredPrefs => {
@@ -75,6 +67,9 @@ const readStoredPrefs = (): StoredPrefs => {
       priorityFilters: Array.isArray(parsed?.priorityFilters)
         ? parsed.priorityFilters
         : PREFS_DEFAULTS.priorityFilters,
+      projectFilters: Array.isArray(parsed?.projectFilters)
+        ? parsed.projectFilters
+        : PREFS_DEFAULTS.projectFilters,
     };
   } catch {
     return PREFS_DEFAULTS;
@@ -90,7 +85,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const { t } = useTranslation(["events", "tasks", "common"]);
   const router = useRouter();
   const { user } = useAuth();
-  const { activeGuildId } = useGuilds();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -98,22 +92,15 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   };
 
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
 
-  const [initiativeFilter, setInitiativeFilter] = useState<string>(
-    lockedInitiativeId ? String(lockedInitiativeId) : INITIATIVE_FILTER_ALL
-  );
-  const filteredInitiativeId =
-    initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : null;
+  // Resolve initiative from prop or URL param
+  const initiativeId =
+    fixedInitiativeId ?? (searchParams.initiativeId ? Number(searchParams.initiativeId) : null);
 
-  const { data: filteredInitiativePermissions } = useMyInitiativePermissions(
-    !lockedInitiativeId && filteredInitiativeId ? filteredInitiativeId : null
-  );
+  const { data: initiativePermissions } = useMyInitiativePermissions(initiativeId);
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const lastConsumedParams = useRef<string>("");
-  const prevGuildIdRef = useRef<number | null>(activeGuildId);
   const isClosingCreateDialog = useRef(false);
 
   // Calendar state
@@ -130,62 +117,35 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>(
     () => storedPrefs.priorityFilters
   );
+  const [projectFilters, setProjectFilters] = useState<number[]>(() => storedPrefs.projectFilters);
   const [filtersOpen, setFiltersOpen] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
   );
-  const [searchQuery] = useState("");
 
   // Persist preferences
   useEffect(() => {
-    setItem(STORAGE_KEY, JSON.stringify({ showEvents, showTasks, statusFilters, priorityFilters }));
-  }, [showEvents, showTasks, statusFilters, priorityFilters]);
+    setItem(
+      STORAGE_KEY,
+      JSON.stringify({ showEvents, showTasks, statusFilters, priorityFilters, projectFilters })
+    );
+  }, [showEvents, showTasks, statusFilters, priorityFilters, projectFilters]);
 
-  // Consume ?initiativeId from URL once
-  useEffect(() => {
-    const urlInitiativeId = searchParams.initiativeId;
-    const paramKey = urlInitiativeId || "";
-    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedParams.current) {
-      lastConsumedParams.current = paramKey;
-      setInitiativeFilter(urlInitiativeId);
-    }
-  }, [searchParams, lockedInitiativeId]);
-
-  useEffect(() => {
-    if (lockedInitiativeId) {
-      const lockedValue = String(lockedInitiativeId);
-      setInitiativeFilter((prev) => (prev === lockedValue ? prev : lockedValue));
-    }
-  }, [lockedInitiativeId]);
-
-  useEffect(() => {
-    const prevGuildId = prevGuildIdRef.current;
-    prevGuildIdRef.current = activeGuildId;
-    if (prevGuildId !== null && prevGuildId !== activeGuildId && !lockedInitiativeId) {
-      setInitiativeFilter(INITIATIVE_FILTER_ALL);
-      lastConsumedParams.current = "";
-    }
-  }, [activeGuildId, lockedInitiativeId]);
-
-  // --- Events query ---
+  // --- Events query (scoped to initiative) ---
   const eventsQuery = useCalendarEventsList({
-    ...(initiativeFilter !== INITIATIVE_FILTER_ALL
-      ? { initiative_id: Number(initiativeFilter) }
-      : {}),
+    ...(initiativeId ? { initiative_id: initiativeId } : {}),
     start_after: startOfYear(subYears(focusDate, 1)).toISOString(),
     start_before: endOfYear(addYears(focusDate, 1)).toISOString(),
     page: 1,
     page_size: 200,
   });
 
-  // --- Tasks query (initiative-scoped) ---
+  // --- Tasks query (scoped to initiative) ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
-  const activeInitiativeId = filteredInitiativeId ?? lockedInitiativeId;
-
   const tasksParams = useMemo((): ListTasksApiV1TasksGetParams | null => {
-    if (!showTasks || !activeInitiativeId) return null;
+    if (!showTasks || !initiativeId) return null;
     const conditions: FilterCondition[] = [
-      { field: "initiative_ids", op: "in_", value: [activeInitiativeId] },
+      { field: "initiative_ids", op: "in_", value: [initiativeId] },
     ];
     if (statusFilters.length > 0) {
       conditions.push({ field: "status_category", op: "in_", value: statusFilters });
@@ -193,13 +153,16 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     if (priorityFilters.length > 0) {
       conditions.push({ field: "priority", op: "in_", value: priorityFilters });
     }
+    if (projectFilters.length > 0) {
+      conditions.push({ field: "project_id", op: "in_", value: projectFilters });
+    }
     return {
       conditions,
       page: 1,
       page_size: 200,
       tz: userTimezone,
     };
-  }, [showTasks, activeInitiativeId, statusFilters, priorityFilters, userTimezone]);
+  }, [showTasks, initiativeId, statusFilters, priorityFilters, projectFilters, userTimezone]);
 
   const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 0 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
@@ -207,50 +170,18 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     placeholderData: keepPreviousData,
   });
 
-  // --- Initiatives ---
-  const initiativesQuery = useInitiatives();
-  const initiatives = useMemo(
-    () => (initiativesQuery.data ?? []).filter((init) => init.events_enabled),
-    [initiativesQuery.data]
-  );
-
-  const creatableInitiatives = useMemo(() => {
-    if (!user) return [];
-    return initiatives.filter((initiative) =>
-      initiative.members.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      )
-    );
-  }, [initiatives, user]);
-
   const canCreateEvents = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
-    if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreatePermission(filteredInitiativePermissions, "events");
+    if (initiativeId && initiativePermissions) {
+      return canCreatePermission(initiativePermissions, "events");
     }
-    if (lockedInitiativeId) {
-      return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);
-    }
-    return creatableInitiatives.length > 0;
-  }, [
-    canCreate,
-    filteredInitiativeId,
-    filteredInitiativePermissions,
-    lockedInitiativeId,
-    creatableInitiatives,
-  ]);
-
-  const createInitiativeId = useMemo(() => {
-    if (lockedInitiativeId) return lockedInitiativeId;
-    if (filteredInitiativeId) return filteredInitiativeId;
-    return initiatives.length > 0 ? initiatives[0].id : null;
-  }, [lockedInitiativeId, filteredInitiativeId, initiatives]);
+    return false;
+  }, [canCreate, initiativeId, initiativePermissions]);
 
   // --- Merge events + tasks into calendar entries ---
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
 
-    // Events
     if (showEvents) {
       const items = eventsQuery.data?.items ?? [];
       items.forEach((event) => {
@@ -268,7 +199,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       });
     }
 
-    // Tasks
     if (showTasks) {
       const tasks = tasksQuery.data?.items ?? [];
       tasks.forEach((task) => {
@@ -340,7 +270,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   };
 
   const handleSlotClick = (date: Date) => {
-    if (!canCreateEvents || !createInitiativeId) return;
+    if (!canCreateEvents || !initiativeId) return;
     setCreateDefaultDate(date);
     setCreateDialogOpen(true);
   };
@@ -355,20 +285,13 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     }
   };
 
-  // Filter entries by search query client-side
-  const filteredEntries = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return calendarEntries;
-    return calendarEntries.filter((e) => e.title.toLowerCase().includes(query));
-  }, [calendarEntries, searchQuery]);
-
   const defaultStartDate = createDefaultDate ? format(createDefaultDate, "yyyy-MM-dd") : undefined;
 
   const handleExport = useCallback(async () => {
     try {
       const params: Record<string, string> = {};
-      if (filteredInitiativeId) {
-        params.initiative_id = String(filteredInitiativeId);
+      if (initiativeId) {
+        params.initiative_id = String(initiativeId);
       }
       const response = await apiClient.get("/api/v1/calendar-events/export.ics", {
         params,
@@ -383,9 +306,8 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     } catch {
       toast.error(t("export.exportError"));
     }
-  }, [filteredInitiativeId, t]);
+  }, [initiativeId, t]);
 
-  // Status/priority filter options
   const statusOptions = useMemo(
     () =>
       STATUS_CATEGORIES.map((cat) => ({
@@ -394,6 +316,21 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       })),
     [t]
   );
+
+  // Derive unique projects from task results for the project filter dropdown
+  const projectOptions = useMemo(() => {
+    const tasks = tasksQuery.data?.items ?? [];
+    const seen = new Map<number, string>();
+    tasks.forEach((task) => {
+      if (!seen.has(task.project_id)) {
+        seen.set(task.project_id, task.project_name ?? String(task.project_id));
+      }
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({
+      value: String(id),
+      label: name,
+    }));
+  }, [tasksQuery.data]);
 
   const isLoading = eventsQuery.isLoading && !eventsQuery.data;
 
@@ -433,30 +370,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         </div>
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
-            {/* Initiative filter (when not locked) */}
-            {!lockedInitiativeId && initiatives.length > 1 && (
-              <div className="w-full space-y-2 sm:w-48">
-                <Label className="text-muted-foreground block text-xs font-medium">
-                  {t("filters.filterByInitiative")}
-                </Label>
-                <Select value={initiativeFilter} onValueChange={setInitiativeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("filters.allInitiatives")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      {t("filters.allInitiatives")}
-                    </SelectItem>
-                    {initiatives.map((init) => (
-                      <SelectItem key={init.id} value={String(init.id)}>
-                        {init.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {/* Status filter (for tasks) */}
             {showTasks && (
               <div className="w-full sm:w-48 lg:flex-1">
@@ -492,6 +405,24 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
               </div>
             )}
 
+            {/* Project filter (for tasks) */}
+            {showTasks && projectOptions.length > 1 && (
+              <div className="w-full sm:w-48 lg:flex-1">
+                <Label className="text-muted-foreground mb-2 block text-xs font-medium">
+                  {t("common:project", "Project")}
+                </Label>
+                <MultiSelect
+                  selectedValues={projectFilters.map(String)}
+                  options={projectOptions}
+                  onChange={(values) =>
+                    setProjectFilters(values.map(Number).filter(Number.isFinite))
+                  }
+                  placeholder={t("common:all")}
+                  emptyMessage={t("common:none")}
+                />
+              </div>
+            )}
+
             {/* Type toggles */}
             <div className="flex items-end gap-2">
               <Button
@@ -520,7 +451,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         </div>
       ) : (
         <CalendarView
-          entries={filteredEntries}
+          entries={calendarEntries}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           focusDate={focusDate}
@@ -531,11 +462,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         />
       )}
 
-      {createInitiativeId && (
+      {initiativeId && (
         <CreateEventDialog
           open={createDialogOpen}
           onOpenChange={handleCreateDialogOpenChange}
-          initiativeId={createInitiativeId}
+          initiativeId={initiativeId}
           defaultStartDate={defaultStartDate}
           onSuccess={handleEventCreated}
         />
@@ -544,7 +475,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       <ICalImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
-        fixedInitiativeId={filteredInitiativeId ?? undefined}
+        fixedInitiativeId={initiativeId ?? undefined}
       />
     </div>
   );
