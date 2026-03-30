@@ -164,14 +164,18 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     page_size: 200,
   });
 
-  // --- Tasks query (scoped to initiative) ---
+  // --- Tasks query (scoped to initiative or all guild tasks) ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
   const tasksParams = useMemo((): ListTasksApiV1TasksGetParams | null => {
-    if (!showTasks || !initiativeId) return null;
-    const conditions: FilterCondition[] = [
-      { field: "initiative_ids", op: "in_", value: [initiativeId] },
-    ];
+    if (!showTasks) return null;
+    const conditions: FilterCondition[] = [];
+
+    // If initiativeId is specified, filter by that initiative; otherwise show all guild tasks
+    if (initiativeId) {
+      conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
+    }
+
     if (statusFilters.length > 0) {
       conditions.push({ field: "status_category", op: "in_", value: statusFilters });
     }
@@ -182,14 +186,14 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       conditions.push({ field: "project_id", op: "in_", value: projectFilters });
     }
     return {
-      conditions,
+      conditions: conditions.length > 0 ? conditions : undefined,
       page: 1,
       page_size: 200,
       tz: userTimezone,
     };
   }, [showTasks, initiativeId, statusFilters, priorityFilters, projectFilters, userTimezone]);
 
-  const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 0 };
+  const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 200 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
     enabled: !!tasksParams,
     placeholderData: keepPreviousData,
