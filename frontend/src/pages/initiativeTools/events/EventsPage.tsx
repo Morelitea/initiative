@@ -62,7 +62,7 @@ interface StoredPrefs {
 const PREFS_DEFAULTS: StoredPrefs = {
   showEvents: true,
   showTasks: true,
-  statusFilters: ["backlog", "todo", "in_progress"],
+  statusFilters: [], // Don't apply default status filters - they're custom per guild
   priorityFilters: [],
   projectFilters: [],
 };
@@ -161,7 +161,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     start_after: startOfYear(subYears(focusDate, 1)).toISOString(),
     start_before: endOfYear(addYears(focusDate, 1)).toISOString(),
     page: 1,
-    page_size: 200,
+    page_size: 100,
   });
 
   // --- Tasks query (scoped to initiative or all guild tasks) ---
@@ -176,6 +176,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       conditions.push({ field: "initiative_ids", op: "in_", value: [initiativeId] });
     }
 
+    // Only add filters if explicitly selected by user
     if (statusFilters.length > 0) {
       conditions.push({ field: "status_category", op: "in_", value: statusFilters });
     }
@@ -188,12 +189,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     return {
       conditions: conditions.length > 0 ? conditions : undefined,
       page: 1,
-      page_size: 200,
+      page_size: 100,
       tz: userTimezone,
     };
   }, [showTasks, initiativeId, statusFilters, priorityFilters, projectFilters, userTimezone]);
 
-  const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 200 };
+  const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 100 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
     enabled: !!tasksParams,
     placeholderData: keepPreviousData,
