@@ -39,8 +39,11 @@ async def connect() -> None:
 
 
 async def close() -> None:
-    """Close Redis connection on shutdown."""
+    """Cancel in-flight publish tasks and close Redis connection on shutdown."""
     global _redis
+    for task in _background_tasks:
+        task.cancel()
+    _background_tasks.clear()
     if _redis:
         await _redis.close()
         _redis = None

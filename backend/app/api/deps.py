@@ -284,7 +284,7 @@ async def get_service_guild_session(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
-        is_superadmin=is_service or (current_user.role == UserRole.admin),
+        is_superadmin=(not is_service) and (current_user.role == UserRole.admin),
     )
     return session
 
