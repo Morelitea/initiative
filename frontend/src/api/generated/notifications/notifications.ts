@@ -510,6 +510,7 @@ export const useMarkAllNotificationsReadApiV1NotificationsReadAllPost = <
  * Send notifications to specified users. Used by the automation engine.
 
 Accepts a service token or normal admin auth via get_service_or_guild_membership.
+Only users who are members of the scoped guild can receive notifications.
  * @summary Send Notifications
  */
 export const sendNotificationsApiV1NotificationsSendPost = (
