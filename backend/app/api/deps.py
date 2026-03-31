@@ -292,3 +292,49 @@ async def get_upload_user(
 
 
 UploadUserDep = Annotated[User, Depends(get_upload_user)]
+
+
+async def get_service_or_guild_membership(
+    request: Request,
+    session: SessionDep,
+    requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+) -> GuildContext:
+    """Get guild context, supporting both user JWT and engine service token auth.
+
+    The automation engine uses AUTOMATION_SERVICE_TOKEN to call task/tag/project
+    endpoints. When this token is provided, the request is treated as guild admin.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        if settings.AUTOMATION_SERVICE_TOKEN and token == settings.AUTOMATION_SERVICE_TOKEN:
+            if not requested_guild_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Service token requires X-Guild-ID header",
+                )
+            statement = select(Guild).where(Guild.id == requested_guild_id)
+            result = await session.exec(statement)
+            guild = result.one_or_none()
+            if not guild:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=GuildMessages.GUILD_NOT_FOUND,
+                )
+            synthetic_membership = GuildMembership(
+                user_id=-1,
+                guild_id=requested_guild_id,
+                role=GuildRole.admin,
+            )
+            await set_rls_context(
+                session,
+                user_id=-1,
+                is_superadmin=True,
+            )
+            return GuildContext(guild=guild, membership=synthetic_membership)
+
+    # Fall back to normal user authentication
+    current_user = await get_current_active_user(
+        await get_current_user(request, session)
+    )
+    return await get_guild_membership(session, current_user, requested_guild_id)
