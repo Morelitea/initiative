@@ -41,9 +41,9 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -164,7 +164,7 @@ jobs:
             type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
             type=raw,value=latest
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (public)
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -181,6 +181,33 @@ jobs:
 
       - name: Image digest
         run: echo "Image pushed with digest ${{ steps.build.outputs.digest }}"
+
+      - name: Extract infra metadata (tags, labels) for Docker
+        id: meta-infra
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}-infra
+          tags: |
+            type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+            type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+            type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image (infra)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta-infra.outputs.tags }}
+          labels: ${{ steps.meta-infra.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            VITE_API_URL=/api/v1
+            VITE_ENABLE_AUTOMATIONS=true
+          cache-from: type=gha,scope=docker-build-infra
+          cache-to: type=gha,scope=docker-build-infra,mode=max
+          platforms: linux/amd64,linux/arm64
 
   release:
     needs: [build-android, build-docker]
