@@ -115,7 +115,7 @@ def _validate_graph_or_400(flow_data: dict) -> None:
     if warnings:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AutomationsMessages.INVALID_FLOW_GRAPH,
+            detail={"code": AutomationsMessages.INVALID_FLOW_GRAPH, "errors": warnings},
         )
 
 

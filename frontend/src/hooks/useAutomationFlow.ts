@@ -170,14 +170,16 @@ export function useAutomationEditor(flowId: number): UseAutomationEditorReturn {
   const {
     data: flow,
     isLoading,
-    isError,
+    error,
   } = useReadAutomationApiV1AutomationsFlowIdGet(flowId, {
     query: {
       enabled: flowId > 0,
     },
   });
 
-  const flowNotFound = isError || (flowId > 0 && !isLoading && !flow);
+  // Only treat 404 as "not found" — other errors (401, 500, network) are transient
+  const is404 = !!error && "status" in error && (error as { status?: number }).status === 404;
+  const flowNotFound = is404 || (flowId > 0 && !isLoading && !error && !flow);
 
   // -- xyflow state --
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
