@@ -1,0 +1,116 @@
+{
+  "emptyCanvas": "Arrastra un nodo de activación aquí para comenzar",
+  "palette": {
+    "title": "Tipos de nodo",
+    "dragHint": "Arrastra un nodo al lienzo"
+  },
+  "nodeTypes": {
+    "trigger": "Activador",
+    "triggerDescription": "Inicia la automatización cuando ocurre un evento",
+    "action": "Acción",
+    "actionDescription": "Realiza una operación",
+    "condition": "Condición",
+    "conditionDescription": "Ramifica según una condición",
+    "delay": "Retraso",
+    "delayDescription": "Espera una duración especificada",
+    "loop": "Bucle",
+    "loopDescription": "Itera sobre una colección"
+  },
+  "handles": {
+    "yes": "Sí",
+    "no": "No",
+    "body": "Cuerpo",
+    "done": "Hecho"
+  },
+  "defaults": {
+    "noConditionSet": "Sin condición establecida",
+    "noCollectionSet": "Sin colección establecida"
+  },
+  "triggerEvents": {
+    "task_created": "Tarea creada",
+    "task_updated": "Tarea actualizada",
+    "status_changed": "Estado cambiado",
+    "assignee_changed": "Responsable cambiado",
+    "due_date_reached": "Fecha límite alcanzada"
+  },
+  "actionTypes": {
+    "send_webhook": "Enviar webhook",
+    "update_task": "Actualizar tarea",
+    "send_notification": "Enviar notificación",
+    "add_tag": "Agregar etiqueta",
+    "remove_tag": "Eliminar etiqueta",
+    "move_to_project": "Mover a proyecto"
+  },
+  "conditionOperators": {
+    "equals": "igual a",
+    "not_equals": "diferente de",
+    "contains": "contiene",
+    "greater_than": "mayor que",
+    "less_than": "menor que"
+  },
+  "delayUnits": {
+    "seconds": "segundos",
+    "minutes": "minutos",
+    "hours": "horas",
+    "days": "días"
+  },
+  "inspector": {
+    "title": "Propiedades del nodo",
+    "noSelection": "Selecciona un nodo para editar sus propiedades",
+    "label": "Etiqueta",
+    "eventType": "Tipo de evento",
+    "selectEventType": "Selecciona un tipo de evento",
+    "actionType": "Tipo de acción",
+    "selectActionType": "Selecciona un tipo de acción",
+    "field": "Campo",
+    "fieldPlaceholder": "ej. estado, prioridad",
+    "operator": "Operador",
+    "selectOperator": "Selecciona un operador",
+    "value": "Valor",
+    "valuePlaceholder": "ej. hecho, alta",
+    "duration": "Duración",
+    "unit": "Unidad",
+    "selectUnit": "Selecciona una unidad",
+    "collectionField": "Campo de colección",
+    "collectionFieldPlaceholder": "ej. responsables, etiquetas"
+  },
+  "toolbar": {
+    "back": "Volver",
+    "flowName": "Nombre del flujo",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "save": "Guardar"
+  },
+  "createAutomation": "Crear automatización",
+  "deleteAutomation": "Eliminar automatización",
+  "emptyState": {
+    "title": "Sin automatizaciones aún",
+    "description": "Las automatizaciones te permiten construir flujos de trabajo visuales que responden a eventos en tu iniciativa. Crea una para comenzar."
+  },
+  "status": {
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado"
+  },
+  "nodeCount_one": "{{count}} nodo",
+  "nodeCount_other": "{{count}} nodos",
+  "lastUpdated": "Actualizado {{time}}",
+  "createDialog": {
+    "title": "Crear automatización",
+    "description": "Dale un nombre y una descripción opcional a tu automatización.",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "ej. Auto-asignar al crear",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "¿Qué hace esta automatización?"
+  },
+  "deleteDialog": {
+    "title": "Eliminar automatización",
+    "description": "Esto eliminará permanentemente esta automatización y todos sus nodos. Esta acción no se puede deshacer."
+  },
+  "edges": {
+    "deleteEdge": "Eliminar conexión"
+  },
+  "editor": {
+    "loading": "Cargando automatización...",
+    "notFound": "No se pudo encontrar esta automatización. Es posible que haya sido eliminada."
+  }
+}
