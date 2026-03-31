@@ -165,7 +165,7 @@ async def test_create_flow_invalid_graph_no_trigger(client: AsyncClient, session
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == AutomationsMessages.INVALID_FLOW_GRAPH
+    assert response.json()["detail"]["code"] == AutomationsMessages.INVALID_FLOW_GRAPH
 
 
 @pytest.mark.integration
@@ -197,7 +197,7 @@ async def test_create_flow_invalid_graph_cycle(client: AsyncClient, session: Asy
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == AutomationsMessages.INVALID_FLOW_GRAPH
+    assert response.json()["detail"]["code"] == AutomationsMessages.INVALID_FLOW_GRAPH
 
 
 @pytest.mark.integration
@@ -320,7 +320,7 @@ async def test_update_flow_validates_graph(client: AsyncClient, session: AsyncSe
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == AutomationsMessages.INVALID_FLOW_GRAPH
+    assert response.json()["detail"]["code"] == AutomationsMessages.INVALID_FLOW_GRAPH
 
 
 @pytest.mark.integration
