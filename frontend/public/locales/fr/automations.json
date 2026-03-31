@@ -106,7 +106,11 @@
     "title": "Supprimer l'automatisation",
     "description": "Cela supprimera définitivement cette automatisation et tous ses nœuds. Cette action est irréversible."
   },
+  "edges": {
+    "deleteEdge": "Supprimer la connexion"
+  },
   "editor": {
-    "loading": "Chargement de l'automatisation..."
+    "loading": "Chargement de l'automatisation...",
+    "notFound": "Cette automatisation est introuvable. Elle a peut-être été supprimée."
   }
 }

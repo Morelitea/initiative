@@ -106,7 +106,11 @@
     "title": "Delete Automation",
     "description": "This will permanently delete this automation and all its nodes. This action cannot be undone."
   },
+  "edges": {
+    "deleteEdge": "Delete edge"
+  },
   "editor": {
-    "loading": "Loading automation..."
+    "loading": "Loading automation...",
+    "notFound": "This automation could not be found. It may have been deleted."
   }
 }

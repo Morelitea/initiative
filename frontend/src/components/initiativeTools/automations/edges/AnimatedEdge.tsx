@@ -1,5 +1,6 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useReactFlow } from "@xyflow/react";
 import type { EdgeProps, Edge } from "@xyflow/react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 function AnimatedEdgeComponent({
@@ -14,6 +15,7 @@ function AnimatedEdgeComponent({
   markerEnd,
 }: EdgeProps<Edge>) {
   const { setEdges } = useReactFlow();
+  const { t } = useTranslation("automations");
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -50,7 +52,7 @@ function AnimatedEdgeComponent({
             type="button"
             className="border-border bg-card text-muted-foreground hover:bg-destructive hover:text-destructive-foreground flex h-4 w-4 items-center justify-center rounded-full border opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
             onClick={handleDelete}
-            aria-label="Delete edge"
+            aria-label={t("edges.deleteEdge")}
           >
             <X className="h-2.5 w-2.5" />
           </button>

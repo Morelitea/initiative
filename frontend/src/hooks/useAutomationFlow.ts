@@ -9,7 +9,7 @@ import type {
   Connection,
 } from "@xyflow/react";
 
-import { getItem, setItem } from "@/lib/storage";
+import { getItem, setItem, removeItem } from "@/lib/storage";
 import type { AutomationFlow, FlowNodeType } from "@/components/initiativeTools/automations/types";
 import { NODE_TYPE_CONFIG_MAP } from "@/components/initiativeTools/automations/types";
 
@@ -69,6 +69,7 @@ export interface UseAutomationFlowReturn {
 
   // Active flow editing
   activeFlow: AutomationFlow | null;
+  flowNotFound: boolean;
   loadFlow: (flowId: string) => void;
   closeFlow: () => void;
 
@@ -111,6 +112,7 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
 
   // -- Active flow metadata --
   const [activeFlow, setActiveFlow] = useState<AutomationFlow | null>(null);
+  const [flowNotFound, setFlowNotFound] = useState(false);
 
   // -- xyflow state --
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -158,9 +160,10 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
       // Persist detail
       writeFlowDetail(newFlow);
 
-      // Update list (metadata only: no nodes/edges)
+      // Update list (metadata only: strip nodes/edges to avoid storage bloat)
+      const listEntry: AutomationFlow = { ...newFlow, nodes: [], edges: [] };
       setFlows((prev) => {
-        const updated = [...prev, newFlow];
+        const updated = [...prev, listEntry];
         writeFlowsList(initiativeId, updated);
         return updated;
       });
@@ -186,10 +189,7 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
         return updated;
       });
 
-      // Remove detail from storage (write empty string to effectively clear)
-      // The storage module doesn't export removeItem, so we overwrite with empty
-      // Actually it does export removeItem, but the spec says to use getItem/setItem.
-      // We'll just remove it from the flows list; the detail key is harmless orphan.
+      removeItem(flowDetailKey(flowId));
     },
     [initiativeId, activeFlow, setNodes, setEdges]
   );
@@ -201,8 +201,12 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
   const loadFlow = useCallback(
     (flowId: string) => {
       const flow = readFlowDetail(flowId);
-      if (!flow) return;
+      if (!flow) {
+        setFlowNotFound(true);
+        return;
+      }
 
+      setFlowNotFound(false);
       setActiveFlow(flow);
       setNodes(flow.nodes);
       setEdges(flow.edges);
@@ -267,9 +271,14 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
     // Persist full detail
     writeFlowDetail(updatedFlow);
 
-    // Update metadata in the list
+    // Update metadata in the list (strip nodes/edges to avoid storage bloat)
     setFlows((prev) => {
-      const updated = prev.map((f) => (f.id === updatedFlow.id ? updatedFlow : f));
+      const listEntry: AutomationFlow = {
+        ...updatedFlow,
+        nodes: [],
+        edges: [],
+      };
+      const updated = prev.map((f) => (f.id === updatedFlow.id ? listEntry : f));
       writeFlowsList(initiativeId, updated);
       return updated;
     });
@@ -302,6 +311,7 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
     deleteFlow,
 
     activeFlow,
+    flowNotFound,
     loadFlow,
     closeFlow,
 

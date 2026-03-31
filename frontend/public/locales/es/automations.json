@@ -106,7 +106,11 @@
     "title": "Eliminar automatización",
     "description": "Esto eliminará permanentemente esta automatización y todos sus nodos. Esta acción no se puede deshacer."
   },
+  "edges": {
+    "deleteEdge": "Eliminar conexión"
+  },
   "editor": {
-    "loading": "Cargando automatización..."
+    "loading": "Cargando automatización...",
+    "notFound": "No se pudo encontrar esta automatización. Es posible que haya sido eliminada."
   }
 }

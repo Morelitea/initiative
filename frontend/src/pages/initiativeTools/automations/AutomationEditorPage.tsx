@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { Navigate, useParams, useSearch, useRouter } from "@tanstack/react-router";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 
 import { useAutomationFlow } from "@/hooks/useAutomationFlow";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -21,6 +21,7 @@ export function AutomationEditorPage(): React.JSX.Element {
 
   const {
     activeFlow,
+    flowNotFound,
     loadFlow,
     nodes,
     edges,
@@ -66,6 +67,24 @@ export function AutomationEditorPage(): React.JSX.Element {
 
   if (!__ENABLE_AUTOMATIONS__) {
     return <Navigate to={gp("/initiatives")} replace />;
+  }
+
+  // Flow not found — show error with back button
+  if (flowNotFound) {
+    return (
+      <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Zap className="text-muted-foreground h-10 w-10" />
+          <p className="text-muted-foreground text-sm">{t("editor.notFound")}</p>
+          <button
+            onClick={handleBack}
+            className="text-primary text-sm underline underline-offset-4"
+          >
+            {t("toolbar.back")}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Show loading state while the flow is being read from storage
