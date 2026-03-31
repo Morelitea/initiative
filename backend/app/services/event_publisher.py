@@ -18,6 +18,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _redis = None
+_background_tasks: set[asyncio.Task] = set()  # Strong references to prevent GC
 
 
 async def connect() -> None:
@@ -64,7 +65,9 @@ async def publish_event(
         "initiative_id": initiative_id,
         "payload": payload,
     }
-    asyncio.create_task(_publish_background(message))
+    task = asyncio.create_task(_publish_background(message))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return True
 
 

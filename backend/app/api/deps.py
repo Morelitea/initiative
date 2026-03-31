@@ -1,3 +1,4 @@
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Optional
@@ -307,7 +308,7 @@ async def get_service_or_guild_membership(
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        if settings.AUTOMATION_SERVICE_TOKEN and token == settings.AUTOMATION_SERVICE_TOKEN:
+        if settings.AUTOMATION_SERVICE_TOKEN and secrets.compare_digest(token, settings.AUTOMATION_SERVICE_TOKEN):
             if not requested_guild_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,

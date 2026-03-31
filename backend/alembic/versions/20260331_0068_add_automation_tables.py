@@ -146,9 +146,12 @@ def upgrade() -> None:
     conn = op.get_bind()
 
     # -- Create automation_engine PostgreSQL role --
+    # The role is created without a password. The deployer must set one via:
+    #   ALTER ROLE automation_engine WITH PASSWORD 'your-secure-password';
+    # or by using peer/cert authentication in pg_hba.conf.
     conn.execute(text("""
         DO $$ BEGIN
-            CREATE ROLE automation_engine WITH PASSWORD 'CHANGE_ME_IN_PRODUCTION' LOGIN;
+            CREATE ROLE automation_engine WITH LOGIN;
         EXCEPTION WHEN DUPLICATE_OBJECT THEN
             NULL;
         END $$

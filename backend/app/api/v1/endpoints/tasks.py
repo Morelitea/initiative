@@ -23,7 +23,7 @@ from app.api.deps import (
     RLSSessionDep,
     SessionDep,
     get_current_active_user,
-    get_guild_membership,
+    get_service_or_guild_membership,
     GuildContext,
 )
 from app.db.session import reapply_rls_context
@@ -217,7 +217,7 @@ def _build_task_filter_fields(*, guild_id: int, current_user_id: int) -> dict:
 
 
 subtasks_router = APIRouter()
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+GuildContextDep = Annotated[GuildContext, Depends(get_service_or_guild_membership)]
 
 
 async def _next_sort_order(session: SessionDep, project_id: int) -> float:
@@ -1002,12 +1002,13 @@ async def create_task(
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_CREATE)
     await broadcast_event("task", "created", _task_payload(task))
-    await event_publisher.publish_event(
-        event_type="task_created",
-        payload=_task_payload(task),
-        guild_id=guild_context.guild_id,
-        initiative_id=task.project.initiative_id if task.project else 0,
-    )
+    if task.project:
+        await event_publisher.publish_event(
+            event_type="task_created",
+            payload=_task_payload(task),
+            guild_id=guild_context.guild_id,
+            initiative_id=task.project.initiative_id,
+        )
     return task
 
 
@@ -1118,12 +1119,13 @@ async def update_task(
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
     await broadcast_event("task", "updated", _task_payload(task))
-    await event_publisher.publish_event(
-        event_type="task_updated",
-        payload=_task_payload(task),
-        guild_id=guild_context.guild_id,
-        initiative_id=task.project.initiative_id if task.project else 0,
-    )
+    if task.project:
+        await event_publisher.publish_event(
+            event_type="task_updated",
+            payload=_task_payload(task),
+            guild_id=guild_context.guild_id,
+            initiative_id=task.project.initiative_id,
+        )
     return task
 
 

@@ -206,30 +206,6 @@ export interface AutomationsConfigResponse {
   enabled: boolean;
 }
 
-export interface Guild {
-  id?: number | null;
-  name: string;
-  description?: string | null;
-  icon_base64?: string | null;
-  created_by_user_id?: number | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface GuildMembership {
-  guild_id: number;
-  user_id: number;
-  role?: GuildRole;
-  joined_at?: string;
-  position?: number;
-  oidc_managed?: boolean;
-}
-
-export interface BodyListAutomationsApiV1AutomationsGet {
-  guild: Guild;
-  membership: GuildMembership;
-}
-
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
