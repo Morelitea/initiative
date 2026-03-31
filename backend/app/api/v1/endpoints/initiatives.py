@@ -13,6 +13,7 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.core.config import settings as app_config
 from app.core.messages import AuthMessages, InitiativeMessages
 from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
@@ -453,7 +454,6 @@ async def get_my_initiative_permissions(
     """Get the current user's permissions for an initiative."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
-    from app.core.config import settings as app_config
     automations_effective = initiative.automations_enabled and app_config.ENABLE_AUTOMATIONS
 
     # Guild admins have all permissions
