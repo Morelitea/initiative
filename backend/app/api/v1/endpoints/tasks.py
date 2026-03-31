@@ -20,7 +20,7 @@ from app.db.query import (
 from app.schemas.query import FilterOp
 
 from app.api.deps import (
-    RLSSessionDep,
+    ServiceRLSSessionDep,
     SessionDep,
     get_current_active_user,
     get_service_or_guild_membership,
@@ -791,7 +791,7 @@ async def _list_global_created_tasks(
 
 @router.get("/", response_model=TaskListResponse)
 async def list_tasks(
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     scope: Annotated[Literal["global", "global_created"] | None, Query()] = None,
@@ -944,7 +944,7 @@ async def list_tasks(
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def create_task(
     task_in: TaskCreate,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -1015,7 +1015,7 @@ async def create_task(
 @router.get("/{task_id}", response_model=TaskRead)
 async def read_task(
     task_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -1037,7 +1037,7 @@ async def read_task(
 async def update_task(
     task_id: int,
     task_in: TaskUpdate,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -1133,7 +1133,7 @@ async def update_task(
 async def move_task(
     task_id: int,
     move_in: TaskMoveRequest,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -1185,7 +1185,7 @@ async def move_task(
 @router.post("/{task_id}/duplicate", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def duplicate_task(
     task_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
@@ -1276,7 +1276,7 @@ async def duplicate_task(
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1311,7 +1311,7 @@ async def delete_task(
 @router.post("/reorder", response_model=List[TaskRead])
 async def reorder_tasks(
     reorder_in: TaskReorderRequest,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Task]:
@@ -1409,7 +1409,7 @@ class ArchiveDoneResponse(BaseModel):
 
 @router.post("/archive-done", response_model=ArchiveDoneResponse)
 async def archive_done_tasks(
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: int = Query(..., description="Project to archive done tasks from"),
@@ -1459,7 +1459,7 @@ async def archive_done_tasks(
 @router.get("/{task_id}/subtasks", response_model=List[SubtaskRead])
 async def list_subtasks(
     task_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Subtask]:
@@ -1481,7 +1481,7 @@ async def list_subtasks(
 async def create_subtask(
     task_id: int,
     subtask_in: SubtaskCreate,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Subtask:
@@ -1523,7 +1523,7 @@ async def create_subtask(
 async def create_subtasks_batch(
     task_id: int,
     subtask_batch: SubtaskBatchCreate,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Subtask]:
@@ -1578,7 +1578,7 @@ async def create_subtasks_batch(
 async def reorder_subtasks(
     task_id: int,
     reorder_in: SubtaskReorderRequest,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[Subtask]:
@@ -1626,7 +1626,7 @@ async def reorder_subtasks(
 async def update_subtask(
     subtask_id: int,
     subtask_in: SubtaskUpdate,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Subtask:
@@ -1674,7 +1674,7 @@ async def update_subtask(
 @subtasks_router.delete("/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_subtask(
     subtask_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
@@ -1707,7 +1707,7 @@ async def delete_subtask(
 @router.post("/{task_id}/ai/subtasks", response_model=GenerateSubtasksResponse)
 async def generate_task_subtasks(
     task_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> GenerateSubtasksResponse:
@@ -1742,7 +1742,7 @@ async def generate_task_subtasks(
 @router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
 async def generate_task_description(
     task_id: int,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> GenerateDescriptionResponse:
@@ -1778,7 +1778,7 @@ async def generate_task_description(
 async def set_task_tags(
     task_id: int,
     tags_in: TagSetRequest,
-    session: RLSSessionDep,
+    session: ServiceRLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
