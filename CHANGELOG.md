@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Property inspector panel (Sheet) with type-specific forms
   - Automations list view with create/delete and card grid
   - localStorage persistence (backend API integration to follow)
+- Automation engine backend infrastructure
+  - Database tables: `automation_flows`, `automation_runs`, `automation_run_steps` with full RLS
+  - `automation_engine` PostgreSQL role with BYPASSRLS for direct engine writes
+  - Redis Streams event publisher for domain events (`task_created`, `task_updated`)
+  - Service token authentication (`AUTOMATION_SERVICE_TOKEN`) for engine API callbacks
+  - `REDIS_URL` config setting for event bus connectivity
 - Dual Docker image CI/CD: publishes both `initiative` (public) and `initiative-infra` (paid) images
 - Vite config now loads `.env` files from `backend/` directory for shared env vars
 

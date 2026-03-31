@@ -18,14 +18,13 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  BodyListAutomationsApiV1AutomationsGet,
   HTTPValidationError,
   ListAutomationsApiV1AutomationsGet200,
   ListAutomationsApiV1AutomationsGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType, BodyType } from "../../mutator";
+import type { ErrorType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -34,39 +33,26 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * @summary List Automations
  */
 export const listAutomationsApiV1AutomationsGet = (
-  bodyListAutomationsApiV1AutomationsGet: BodyType<BodyListAutomationsApiV1AutomationsGet>,
   params: ListAutomationsApiV1AutomationsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ListAutomationsApiV1AutomationsGet200>(
-    {
-      url: `/api/v1/automations`,
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      params,
-      signal,
-    },
+    { url: `/api/v1/automations`, method: "GET", params, signal },
     options
   );
 };
 
 export const getListAutomationsApiV1AutomationsGetQueryKey = (
-  bodyListAutomationsApiV1AutomationsGet?: BodyListAutomationsApiV1AutomationsGet,
   params?: ListAutomationsApiV1AutomationsGetParams
 ) => {
-  return [
-    `/api/v1/automations`,
-    ...(params ? [params] : []),
-    bodyListAutomationsApiV1AutomationsGet,
-  ] as const;
+  return [`/api/v1/automations`, ...(params ? [params] : [])] as const;
 };
 
 export const getListAutomationsApiV1AutomationsGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  bodyListAutomationsApiV1AutomationsGet: BodyListAutomationsApiV1AutomationsGet,
   params: ListAutomationsApiV1AutomationsGetParams,
   options?: {
     query?: Partial<
@@ -77,19 +63,11 @@ export const getListAutomationsApiV1AutomationsGetQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListAutomationsApiV1AutomationsGetQueryKey(bodyListAutomationsApiV1AutomationsGet, params);
+  const queryKey = queryOptions?.queryKey ?? getListAutomationsApiV1AutomationsGetQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>> = ({
     signal,
-  }) =>
-    listAutomationsApiV1AutomationsGet(
-      bodyListAutomationsApiV1AutomationsGet,
-      params,
-      requestOptions,
-      signal
-    );
+  }) => listAutomationsApiV1AutomationsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>,
@@ -107,7 +85,6 @@ export function useListAutomationsApiV1AutomationsGet<
   TData = Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  bodyListAutomationsApiV1AutomationsGet: BodyListAutomationsApiV1AutomationsGet,
   params: ListAutomationsApiV1AutomationsGetParams,
   options: {
     query: Partial<
@@ -129,7 +106,6 @@ export function useListAutomationsApiV1AutomationsGet<
   TData = Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  bodyListAutomationsApiV1AutomationsGet: BodyListAutomationsApiV1AutomationsGet,
   params: ListAutomationsApiV1AutomationsGetParams,
   options?: {
     query?: Partial<
@@ -151,7 +127,6 @@ export function useListAutomationsApiV1AutomationsGet<
   TData = Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  bodyListAutomationsApiV1AutomationsGet: BodyListAutomationsApiV1AutomationsGet,
   params: ListAutomationsApiV1AutomationsGetParams,
   options?: {
     query?: Partial<
@@ -169,7 +144,6 @@ export function useListAutomationsApiV1AutomationsGet<
   TData = Awaited<ReturnType<typeof listAutomationsApiV1AutomationsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  bodyListAutomationsApiV1AutomationsGet: BodyListAutomationsApiV1AutomationsGet,
   params: ListAutomationsApiV1AutomationsGetParams,
   options?: {
     query?: Partial<
@@ -179,11 +153,7 @@ export function useListAutomationsApiV1AutomationsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAutomationsApiV1AutomationsGetQueryOptions(
-    bodyListAutomationsApiV1AutomationsGet,
-    params,
-    options
-  );
+  const queryOptions = getListAutomationsApiV1AutomationsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

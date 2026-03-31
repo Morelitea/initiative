@@ -17,6 +17,7 @@ slowapi==0.1.9
 tzdata>=2024.1  # Required on Windows for timezone support
 python-magic>=0.4.27  # MIME type detection for file uploads
 icalendar>=6.0.0  # iCal import/export
+redis[hiredis]>=5.0.0  # Event publishing for automations (optional, only when ENABLE_AUTOMATIONS=true)
 
 # Collaboration (Yjs CRDT)
 pycrdt~=0.12.50
