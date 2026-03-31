@@ -40,8 +40,15 @@ async def get_current_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
 ) -> User:
-    # Check for Authorization header - could be Bearer, DeviceToken, or API key
+    # Check for Authorization header - could be Bearer, DeviceToken, API key, or service token
     auth_header = request.headers.get("Authorization", "")
+
+    # Handle automation engine service token — return a synthetic service user
+    if auth_header.startswith("Bearer ") and settings.AUTOMATION_SERVICE_TOKEN:
+        candidate = auth_header[7:]
+        if secrets.compare_digest(candidate, settings.AUTOMATION_SERVICE_TOKEN):
+            # Return a synthetic user object for the service account
+            return User(id=-1, email="automation-engine@internal", full_name="Automation Engine", is_active=True)
 
     # Handle DeviceToken scheme
     if auth_header.startswith("DeviceToken "):
@@ -295,47 +302,59 @@ async def get_upload_user(
 UploadUserDep = Annotated[User, Depends(get_upload_user)]
 
 
+def _is_service_token(request: Request) -> bool:
+    """Check if the request uses the automation engine service token."""
+    if not settings.AUTOMATION_SERVICE_TOKEN:
+        return False
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return False
+    token = auth_header[7:]
+    return secrets.compare_digest(token, settings.AUTOMATION_SERVICE_TOKEN)
+
+
 async def get_service_or_guild_membership(
     request: Request,
     session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
 ) -> GuildContext:
     """Get guild context, supporting both user JWT and engine service token auth.
 
-    The automation engine uses AUTOMATION_SERVICE_TOKEN to call task/tag/project
-    endpoints. When this token is provided, the request is treated as guild admin.
-    """
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        if settings.AUTOMATION_SERVICE_TOKEN and secrets.compare_digest(token, settings.AUTOMATION_SERVICE_TOKEN):
-            if not requested_guild_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Service token requires X-Guild-ID header",
-                )
-            statement = select(Guild).where(Guild.id == requested_guild_id)
-            result = await session.exec(statement)
-            guild = result.one_or_none()
-            if not guild:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=GuildMessages.GUILD_NOT_FOUND,
-                )
-            synthetic_membership = GuildMembership(
-                user_id=-1,
-                guild_id=requested_guild_id,
-                role=GuildRole.admin,
-            )
-            await set_rls_context(
-                session,
-                user_id=-1,
-                is_superadmin=True,
-            )
-            return GuildContext(guild=guild, membership=synthetic_membership)
+    For normal users, delegates to get_guild_membership. For the automation
+    engine's service token, creates a synthetic admin membership for the guild.
 
-    # Fall back to normal user authentication
-    current_user = await get_current_active_user(
-        await get_current_user(request, session)
-    )
+    Note: get_current_active_user will raise 401 for the service token (it's not
+    a JWT). We catch that by checking the token first. However, FastAPI resolves
+    dependencies before the function runs, so we use a permissive fallback:
+    if the service token is detected, we bypass the user requirement.
+    """
+    # Service token path — handled before user auth matters
+    if _is_service_token(request):
+        if not requested_guild_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Service token requires X-Guild-ID header",
+            )
+        statement = select(Guild).where(Guild.id == requested_guild_id)
+        result = await session.exec(statement)
+        guild = result.one_or_none()
+        if not guild:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=GuildMessages.GUILD_NOT_FOUND,
+            )
+        synthetic_membership = GuildMembership(
+            user_id=-1,
+            guild_id=requested_guild_id,
+            role=GuildRole.admin,
+        )
+        await set_rls_context(
+            session,
+            user_id=-1,
+            is_superadmin=True,
+        )
+        return GuildContext(guild=guild, membership=synthetic_membership)
+
+    # Normal user path
     return await get_guild_membership(session, current_user, requested_guild_id)
