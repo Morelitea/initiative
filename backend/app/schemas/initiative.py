@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.config import settings as app_config
 from app.models.initiative import InitiativeRole, PermissionKey
 from app.schemas.user import UserPublic
 
@@ -19,6 +20,7 @@ class InitiativeBase(BaseModel):
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     queues_enabled: bool = False
     events_enabled: bool = False
+    automations_enabled: bool = False
 
 
 class InitiativeCreate(InitiativeBase):
@@ -31,6 +33,7 @@ class InitiativeUpdate(BaseModel):
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     queues_enabled: Optional[bool] = None
     events_enabled: Optional[bool] = None
+    automations_enabled: Optional[bool] = None
 
 
 # Role schemas
@@ -123,6 +126,8 @@ class InitiativeMemberRead(BaseModel):
     can_create_projects: bool = False
     can_create_queues: bool = False
     can_create_events: bool = False
+    can_view_automations: bool = False
+    can_create_automations: bool = False
 
 
 class InitiativeRead(InitiativeBase):
@@ -157,6 +162,9 @@ def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> Initia
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
     initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
     initiative_events_enabled = getattr(initiative, "events_enabled", False)
+    initiative_automations_enabled = (
+        getattr(initiative, "automations_enabled", False) and app_config.ENABLE_AUTOMATIONS
+    )
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -172,10 +180,12 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         can_view_projects = True
         can_view_queues = False
         can_view_events = False
+        can_view_automations = False
         can_create_docs = False
         can_create_projects = False
         can_create_queues = False
         can_create_events = False
+        can_create_automations = False
         if is_manager:
             # Managers have all permissions
             can_create_docs = True
@@ -184,6 +194,8 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
             can_create_queues = True
             can_view_events = True
             can_create_events = True
+            can_view_automations = True
+            can_create_automations = True
         elif role_ref:
             # Check role permissions (use getattr to avoid lazy loading)
             role_permissions = getattr(role_ref, "permissions", None) or []
@@ -204,6 +216,10 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                     can_view_events = perm.enabled
                 elif perm.permission_key == PermissionKey.create_events and perm.enabled:
                     can_create_events = True
+                elif perm.permission_key == PermissionKey.automations_enabled:
+                    can_view_automations = perm.enabled
+                elif perm.permission_key == PermissionKey.create_automations and perm.enabled:
+                    can_create_automations = True
 
         # Initiative-level master switch overrides role-level queue permissions
         if not initiative_queues_enabled:
@@ -214,6 +230,11 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         if not initiative_events_enabled:
             can_view_events = False
             can_create_events = False
+
+        # Initiative-level + infra-level master switch for automations
+        if not initiative_automations_enabled:
+            can_view_automations = False
+            can_create_automations = False
 
         # Determine legacy role for backward compatibility
         legacy_role = (
@@ -236,10 +257,12 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 can_view_projects=can_view_projects,
                 can_view_queues=can_view_queues,
                 can_view_events=can_view_events,
+                can_view_automations=can_view_automations,
                 can_create_docs=can_create_docs,
                 can_create_projects=can_create_projects,
                 can_create_queues=can_create_queues,
                 can_create_events=can_create_events,
+                can_create_automations=can_create_automations,
             )
         )
     return InitiativeRead(
@@ -251,6 +274,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         is_default=initiative.is_default,
         queues_enabled=initiative_queues_enabled,
         events_enabled=initiative_events_enabled,
+        automations_enabled=initiative_automations_enabled,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

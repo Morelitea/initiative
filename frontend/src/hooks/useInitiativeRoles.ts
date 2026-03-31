@@ -125,13 +125,14 @@ export const hasPermission = (
 // on is_manager here.
 export const isFeatureEnabled = (
   permissions: MyInitiativePermissions | undefined,
-  feature: "docs" | "projects" | "queues"
+  feature: "docs" | "projects" | "queues" | "automations"
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof feature, PermissionKey> = {
     docs: "docs_enabled",
     projects: "projects_enabled",
     queues: "queues_enabled",
+    automations: "automations_enabled",
   };
   return permissions.permissions[keyMap[feature]] ?? false;
 };
@@ -140,7 +141,7 @@ export const isFeatureEnabled = (
 // Same as isFeatureEnabled — reads backend value directly.
 export const canCreate = (
   permissions: MyInitiativePermissions | undefined,
-  entity: "docs" | "projects" | "queues" | "events"
+  entity: "docs" | "projects" | "queues" | "events" | "automations"
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof entity, PermissionKey> = {
@@ -148,6 +149,7 @@ export const canCreate = (
     projects: "create_projects",
     queues: "create_queues",
     events: "create_events",
+    automations: "create_automations",
   };
   return permissions.permissions[keyMap[entity]] ?? false;
 };
@@ -162,6 +164,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   create_queues: "Create Queues",
   events_enabled: "View Events",
   create_events: "Create Events",
+  automations_enabled: "View Automations",
+  create_automations: "Create Automations",
 };
 
 // i18n-based permission label keys (use with t())
@@ -174,6 +178,8 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
   create_queues: "settings.permissions.createQueues",
   events_enabled: "settings.permissions.viewEvents",
   create_events: "settings.permissions.createEvents",
+  automations_enabled: "settings.permissions.viewAutomations",
+  create_automations: "settings.permissions.createAutomations",
 };
 
 // All permission keys in display order
@@ -186,6 +192,9 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   "create_queues",
   "events_enabled",
   "create_events",
+  ...(__ENABLE_AUTOMATIONS__
+    ? (["automations_enabled", "create_automations"] as PermissionKey[])
+    : []),
 ];
 
 // Permission groups for card-based layout
@@ -204,6 +213,14 @@ export const CORE_PERMISSION_GROUPS: PermissionGroup[] = [
 export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
   { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
   { labelKey: "settings.permissionGroups.events", keys: ["events_enabled", "create_events"] },
+  ...(__ENABLE_AUTOMATIONS__
+    ? [
+        {
+          labelKey: "settings.permissionGroups.automations",
+          keys: ["automations_enabled", "create_automations"] as PermissionKey[],
+        },
+      ]
+    : []),
 ];
 
 // All groups combined (for backward compat)
