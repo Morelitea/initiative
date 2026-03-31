@@ -39,7 +39,8 @@
     "send_notification": "Send notification",
     "add_tag": "Add tag",
     "remove_tag": "Remove tag",
-    "move_to_project": "Move to project"
+    "move_to_project": "Move to project",
+    "archive_task": "Archive task"
   },
   "conditionOperators": {
     "equals": "equals",
@@ -112,5 +113,10 @@
   "editor": {
     "loading": "Loading automation...",
     "notFound": "This automation could not be found. It may have been deleted."
-  }
+  },
+  "saveSuccess": "Automation saved",
+  "saveError": "Failed to save automation",
+  "createError": "Failed to create automation",
+  "deleteSuccess": "Automation deleted",
+  "deleteError": "Failed to delete automation"
 }

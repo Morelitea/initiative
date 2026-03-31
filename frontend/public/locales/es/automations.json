@@ -39,7 +39,8 @@
     "send_notification": "Enviar notificación",
     "add_tag": "Agregar etiqueta",
     "remove_tag": "Eliminar etiqueta",
-    "move_to_project": "Mover a proyecto"
+    "move_to_project": "Mover a proyecto",
+    "archive_task": "Archivar tarea"
   },
   "conditionOperators": {
     "equals": "igual a",
@@ -112,5 +113,10 @@
   "editor": {
     "loading": "Cargando automatización...",
     "notFound": "No se pudo encontrar esta automatización. Es posible que haya sido eliminada."
-  }
+  },
+  "saveSuccess": "Automatización guardada",
+  "saveError": "Error al guardar la automatización",
+  "createError": "Error al crear la automatización",
+  "deleteSuccess": "Automatización eliminada",
+  "deleteError": "Error al eliminar la automatización"
 }

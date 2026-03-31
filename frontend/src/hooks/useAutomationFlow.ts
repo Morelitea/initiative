@@ -8,118 +8,186 @@ import type {
   OnConnect,
   Connection,
 } from "@xyflow/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
-import { getItem, setItem, removeItem } from "@/lib/storage";
-import type { AutomationFlow, FlowNodeType } from "@/components/initiativeTools/automations/types";
+import {
+  useListAutomationsApiV1AutomationsGet,
+  useCreateAutomationApiV1AutomationsPost,
+  useDeleteAutomationApiV1AutomationsFlowIdDelete,
+  useReadAutomationApiV1AutomationsFlowIdGet,
+  useUpdateAutomationApiV1AutomationsFlowIdPut,
+  getListAutomationsApiV1AutomationsGetQueryKey,
+  getReadAutomationApiV1AutomationsFlowIdGetQueryKey,
+} from "@/api/generated/automations/automations";
+import type {
+  AutomationFlowListItem,
+  AutomationFlowRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { FlowNodeType } from "@/components/initiativeTools/automations/types";
 import { NODE_TYPE_CONFIG_MAP } from "@/components/initiativeTools/automations/types";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 // ---------------------------------------------------------------------------
-// Storage key helpers
+// Helpers to safely cast flow_data <-> Node[]/Edge[]
 // ---------------------------------------------------------------------------
 
-function flowsListKey(initiativeId: string): string {
-  return `automation-flows-${initiativeId}`;
+interface FlowData {
+  nodes: Node[];
+  edges: Edge[];
 }
 
-function flowDetailKey(flowId: string): string {
-  return `automation-flow-${flowId}`;
+function parseFlowData(raw: { [key: string]: unknown }): FlowData {
+  const nodes = Array.isArray(raw.nodes) ? (raw.nodes as Node[]) : [];
+  const edges = Array.isArray(raw.edges) ? (raw.edges as Edge[]) : [];
+  return { nodes, edges };
 }
 
-// ---------------------------------------------------------------------------
-// Persistence helpers
-// ---------------------------------------------------------------------------
-
-function readFlowsList(initiativeId: string): AutomationFlow[] {
-  const raw = getItem(flowsListKey(initiativeId));
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as AutomationFlow[];
-  } catch {
-    return [];
-  }
-}
-
-function writeFlowsList(initiativeId: string, flows: AutomationFlow[]): void {
-  setItem(flowsListKey(initiativeId), JSON.stringify(flows));
-}
-
-function readFlowDetail(flowId: string): AutomationFlow | null {
-  const raw = getItem(flowDetailKey(flowId));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AutomationFlow;
-  } catch {
-    return null;
-  }
-}
-
-function writeFlowDetail(flow: AutomationFlow): void {
-  setItem(flowDetailKey(flow.id), JSON.stringify(flow));
+function serializeFlowData(nodes: Node[], edges: Edge[]): { [key: string]: unknown } {
+  return { nodes, edges };
 }
 
 // ---------------------------------------------------------------------------
-// Return type
+// Return types
 // ---------------------------------------------------------------------------
 
-export interface UseAutomationFlowReturn {
-  // List management
-  flows: AutomationFlow[];
-  createFlow: (name: string, description?: string) => string;
-  deleteFlow: (flowId: string) => void;
+export interface UseAutomationFlowsReturn {
+  flows: AutomationFlowListItem[];
+  isLoading: boolean;
+  createFlow: (name: string, description?: string) => Promise<number>;
+  deleteFlow: (flowId: number) => void;
+}
 
-  // Active flow editing
-  activeFlow: AutomationFlow | null;
+export interface UseAutomationEditorReturn {
+  flow: AutomationFlowRead | null;
+  isLoading: boolean;
   flowNotFound: boolean;
-  loadFlow: (flowId: string) => void;
-  closeFlow: () => void;
-
-  // xyflow state (only valid when activeFlow is set)
   nodes: Node[];
   edges: Edge[];
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
-
-  // Drop handler for palette
   addNodeFromDrop: (type: FlowNodeType, position: { x: number; y: number }) => void;
-
-  // Save
   saveFlow: () => void;
   isSaving: boolean;
-
-  // Metadata
   updateFlowName: (name: string) => void;
   updateFlowEnabled: (enabled: boolean) => void;
-
-  // Selection
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
   selectedNode: Node | null;
 }
 
 // ---------------------------------------------------------------------------
-// Hook
+// useAutomationFlows — list page hook
 // ---------------------------------------------------------------------------
 
-export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn {
-  // -- List state --
-  const [flows, setFlows] = useState<AutomationFlow[]>(() => readFlowsList(initiativeId));
+export function useAutomationFlows(initiativeId: number): UseAutomationFlowsReturn {
+  const { t } = useTranslation("automations");
+  const queryClient = useQueryClient();
 
-  // Re-read from storage when initiativeId changes
-  useEffect(() => {
-    setFlows(readFlowsList(initiativeId));
-  }, [initiativeId]);
+  const { data, isLoading } = useListAutomationsApiV1AutomationsGet({
+    initiative_id: initiativeId,
+  });
 
-  // -- Active flow metadata --
-  const [activeFlow, setActiveFlow] = useState<AutomationFlow | null>(null);
-  const [flowNotFound, setFlowNotFound] = useState(false);
+  const flows = data?.items ?? [];
+
+  const createMutation = useCreateAutomationApiV1AutomationsPost({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: getListAutomationsApiV1AutomationsGetQueryKey(),
+        });
+      },
+      onError: (error) => {
+        toast.error(getErrorMessage(error, "automations:createError"));
+      },
+    },
+  });
+
+  const deleteMutation = useDeleteAutomationApiV1AutomationsFlowIdDelete({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: getListAutomationsApiV1AutomationsGetQueryKey(),
+        });
+        toast.success(t("deleteSuccess"));
+      },
+      onError: (error) => {
+        toast.error(getErrorMessage(error, "automations:deleteError"));
+      },
+    },
+  });
+
+  const createFlow = useCallback(
+    async (name: string, description?: string): Promise<number> => {
+      const defaultTriggerNode: Node = {
+        id: crypto.randomUUID(),
+        type: "trigger",
+        position: { x: 250, y: 50 },
+        data: NODE_TYPE_CONFIG_MAP.trigger.defaultData(),
+      };
+
+      const result = await createMutation.mutateAsync({
+        data: {
+          name,
+          description: description ?? null,
+          initiative_id: initiativeId,
+          flow_data: serializeFlowData([defaultTriggerNode], []),
+          enabled: false,
+        },
+      });
+
+      return result.id;
+    },
+    [createMutation, initiativeId]
+  );
+
+  const deleteFlow = useCallback(
+    (flowId: number) => {
+      deleteMutation.mutate({ flowId });
+    },
+    [deleteMutation]
+  );
+
+  return {
+    flows,
+    isLoading,
+    createFlow,
+    deleteFlow,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useAutomationEditor — editor page hook
+// ---------------------------------------------------------------------------
+
+export function useAutomationEditor(flowId: number): UseAutomationEditorReturn {
+  const { t } = useTranslation("automations");
+  const queryClient = useQueryClient();
+
+  // -- Fetch the flow from the API --
+  const {
+    data: flow,
+    isLoading,
+    error,
+  } = useReadAutomationApiV1AutomationsFlowIdGet(flowId, {
+    query: {
+      enabled: flowId > 0,
+    },
+  });
+
+  // Only treat 404 as "not found" — other errors (401, 500, network) are transient
+  const is404 = !!error && "status" in error && (error as { status?: number }).status === 404;
+  const flowNotFound = is404 || (flowId > 0 && !isLoading && !error && !flow);
 
   // -- xyflow state --
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // -- Save feedback --
-  const [isSaving, setIsSaving] = useState(false);
+  // -- Pending metadata changes (applied on save) --
+  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
 
   // -- Selection --
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -129,103 +197,20 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
     [nodes, selectedNodeId]
   );
 
-  // -----------------------------------------------------------------------
-  // List management
-  // -----------------------------------------------------------------------
-
-  const createFlow = useCallback(
-    (name: string, description?: string): string => {
-      const id = crypto.randomUUID();
-      const now = new Date().toISOString();
-
-      const defaultTriggerNode: Node = {
-        id: crypto.randomUUID(),
-        type: "trigger",
-        position: { x: 250, y: 50 },
-        data: NODE_TYPE_CONFIG_MAP.trigger.defaultData(),
-      };
-
-      const newFlow: AutomationFlow = {
-        id,
-        name,
-        description,
-        initiativeId,
-        nodes: [defaultTriggerNode],
-        edges: [],
-        enabled: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      // Persist detail
-      writeFlowDetail(newFlow);
-
-      // Update list (metadata only: strip nodes/edges to avoid storage bloat)
-      const listEntry: AutomationFlow = { ...newFlow, nodes: [], edges: [] };
-      setFlows((prev) => {
-        const updated = [...prev, listEntry];
-        writeFlowsList(initiativeId, updated);
-        return updated;
-      });
-
-      return id;
-    },
-    [initiativeId]
-  );
-
-  const deleteFlow = useCallback(
-    (flowId: string) => {
-      // If the deleted flow is currently active, close it
-      if (activeFlow?.id === flowId) {
-        setActiveFlow(null);
-        setNodes([]);
-        setEdges([]);
-        setSelectedNodeId(null);
-      }
-
-      setFlows((prev) => {
-        const updated = prev.filter((f) => f.id !== flowId);
-        writeFlowsList(initiativeId, updated);
-        return updated;
-      });
-
-      removeItem(flowDetailKey(flowId));
-    },
-    [initiativeId, activeFlow, setNodes, setEdges]
-  );
-
-  // -----------------------------------------------------------------------
-  // Active flow editing
-  // -----------------------------------------------------------------------
-
-  const loadFlow = useCallback(
-    (flowId: string) => {
-      const flow = readFlowDetail(flowId);
-      if (!flow) {
-        setFlowNotFound(true);
-        return;
-      }
-
-      setFlowNotFound(false);
-      setActiveFlow(flow);
-      setNodes(flow.nodes);
-      setEdges(flow.edges);
+  // Sync xyflow state when the API returns (initial load or refetch)
+  useEffect(() => {
+    if (flow) {
+      const { nodes: flowNodes, edges: flowEdges } = parseFlowData(flow.flow_data);
+      setNodes(flowNodes);
+      setEdges(flowEdges);
       setSelectedNodeId(null);
-    },
-    [setNodes, setEdges]
-  );
+      // Reset pending metadata when fresh data arrives
+      setPendingName(null);
+      setPendingEnabled(null);
+    }
+  }, [flow, setNodes, setEdges]);
 
-  const closeFlow = useCallback(() => {
-    setActiveFlow(null);
-    setNodes([]);
-    setEdges([]);
-    setSelectedNodeId(null);
-  }, [setNodes, setEdges]);
-
-  // -----------------------------------------------------------------------
-  // Connection handler
-  // -----------------------------------------------------------------------
-
+  // -- Connection handler --
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       setEdges((eds) => addEdge({ ...connection, type: "animated", animated: true }, eds));
@@ -233,10 +218,7 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
     [setEdges]
   );
 
-  // -----------------------------------------------------------------------
-  // Drop handler for palette
-  // -----------------------------------------------------------------------
-
+  // -- Drop handler --
   const addNodeFromDrop = useCallback(
     (type: FlowNodeType, position: { x: number; y: number }) => {
       const config = NODE_TYPE_CONFIG_MAP[type];
@@ -251,84 +233,71 @@ export function useAutomationFlow(initiativeId: string): UseAutomationFlowReturn
     [setNodes]
   );
 
-  // -----------------------------------------------------------------------
-  // Save
-  // -----------------------------------------------------------------------
+  // -- Save mutation --
+  const updateMutation = useUpdateAutomationApiV1AutomationsFlowIdPut({
+    mutation: {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: getListAutomationsApiV1AutomationsGetQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getReadAutomationApiV1AutomationsFlowIdGetQueryKey(flowId),
+        });
+        toast.success(t("saveSuccess"));
+      },
+      onError: (error) => {
+        toast.error(getErrorMessage(error, "automations:saveError"));
+      },
+    },
+  });
 
   const saveFlow = useCallback(() => {
-    if (!activeFlow) return;
+    if (!flow) return;
 
-    setIsSaving(true);
-
-    const now = new Date().toISOString();
-    const updatedFlow: AutomationFlow = {
-      ...activeFlow,
-      nodes,
-      edges,
-      updatedAt: now,
-    };
-
-    // Persist full detail
-    writeFlowDetail(updatedFlow);
-
-    // Update metadata in the list (strip nodes/edges to avoid storage bloat)
-    setFlows((prev) => {
-      const listEntry: AutomationFlow = {
-        ...updatedFlow,
-        nodes: [],
-        edges: [],
-      };
-      const updated = prev.map((f) => (f.id === updatedFlow.id ? listEntry : f));
-      writeFlowsList(initiativeId, updated);
-      return updated;
+    updateMutation.mutate({
+      flowId: flow.id,
+      data: {
+        ...(pendingName != null ? { name: pendingName } : {}),
+        ...(pendingEnabled != null ? { enabled: pendingEnabled } : {}),
+        flow_data: serializeFlowData(nodes, edges),
+      },
     });
+  }, [flow, nodes, edges, pendingName, pendingEnabled, updateMutation]);
 
-    setActiveFlow(updatedFlow);
-
-    // Brief saving indicator for UI feedback
-    setTimeout(() => setIsSaving(false), 400);
-  }, [activeFlow, nodes, edges, initiativeId]);
-
-  // -----------------------------------------------------------------------
-  // Metadata
-  // -----------------------------------------------------------------------
-
+  // -- Metadata setters (optimistic local state, persisted on save) --
   const updateFlowName = useCallback((name: string) => {
-    setActiveFlow((prev) => (prev ? { ...prev, name } : null));
+    setPendingName(name);
   }, []);
 
   const updateFlowEnabled = useCallback((enabled: boolean) => {
-    setActiveFlow((prev) => (prev ? { ...prev, enabled } : null));
+    setPendingEnabled(enabled);
   }, []);
 
-  // -----------------------------------------------------------------------
-  // Return
-  // -----------------------------------------------------------------------
+  // Build a "view" of the flow that includes pending metadata overrides.
+  // This lets the toolbar display the user's edits before they hit save.
+  const flowWithPending = useMemo((): AutomationFlowRead | null => {
+    if (!flow) return null;
+    return {
+      ...flow,
+      ...(pendingName != null ? { name: pendingName } : {}),
+      ...(pendingEnabled != null ? { enabled: pendingEnabled } : {}),
+    };
+  }, [flow, pendingName, pendingEnabled]);
 
   return {
-    flows,
-    createFlow,
-    deleteFlow,
-
-    activeFlow,
-    flowNotFound,
-    loadFlow,
-    closeFlow,
-
+    flow: flowWithPending,
+    isLoading,
+    flowNotFound: !!flowNotFound,
     nodes,
     edges,
     onNodesChange,
     onEdgesChange,
     onConnect,
-
     addNodeFromDrop,
-
     saveFlow,
-    isSaving,
-
+    isSaving: updateMutation.isPending,
     updateFlowName,
     updateFlowEnabled,
-
     selectedNodeId,
     setSelectedNodeId,
     selectedNode,

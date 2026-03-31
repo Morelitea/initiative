@@ -16,6 +16,7 @@ from app.models.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.queue import Queue, QueueItem, QueueItemTag, QueuePermission, QueueRolePermission, QueueItemDocument, QueueItemTask
 from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, CalendarEventTag, CalendarEventDocument
+from app.models.automation import AutomationFlow, AutomationRun, AutomationRunStep
 from app.models.upload import Upload
 
 __all__ = [
@@ -60,5 +61,8 @@ __all__ = [
     "CalendarEventAttendee",
     "CalendarEventTag",
     "CalendarEventDocument",
+    "AutomationFlow",
+    "AutomationRun",
+    "AutomationRunStep",
     "Upload",
 ]

@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import { GitBranch, Repeat, Timer, Wrench, Zap } from "lucide-react";
-import type { Node, Edge } from "@xyflow/react";
 
 // ---------------------------------------------------------------------------
 // Node type discriminator
@@ -52,22 +51,6 @@ export type FlowNodeData =
   | ConditionNodeData
   | DelayNodeData
   | LoopNodeData;
-
-// ---------------------------------------------------------------------------
-// Flow model (persisted to localStorage, later to backend)
-// ---------------------------------------------------------------------------
-
-export interface AutomationFlow {
-  id: string;
-  name: string;
-  description?: string;
-  initiativeId: string;
-  nodes: Node[];
-  edges: Edge[];
-  enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
 
 // ---------------------------------------------------------------------------
 // Node type configuration (shared by palette + node renderers)
@@ -154,6 +137,7 @@ export const ACTION_TYPE_OPTIONS = [
   { value: "add_tag", labelKey: "automations:actionTypes.add_tag" },
   { value: "remove_tag", labelKey: "automations:actionTypes.remove_tag" },
   { value: "move_to_project", labelKey: "automations:actionTypes.move_to_project" },
+  { value: "archive_task", labelKey: "automations:actionTypes.archive_task" },
 ];
 
 export const CONDITION_OPERATOR_OPTIONS = [

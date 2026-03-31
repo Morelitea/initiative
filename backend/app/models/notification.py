@@ -15,6 +15,7 @@ class NotificationType(str, Enum):
     comment_on_task = "comment_on_task"
     comment_on_document = "comment_on_document"
     comment_reply = "comment_reply"
+    automation = "automation"
 
 
 class Notification(SQLModel, table=True):

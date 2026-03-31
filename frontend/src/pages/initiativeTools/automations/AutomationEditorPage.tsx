@@ -1,10 +1,10 @@
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { Navigate, useParams, useSearch, useRouter } from "@tanstack/react-router";
 import { ReactFlowProvider } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Zap } from "lucide-react";
 
-import { useAutomationFlow } from "@/hooks/useAutomationFlow";
+import { useAutomationEditor } from "@/hooks/useAutomationFlow";
 import { useGuildPath } from "@/lib/guildUrl";
 import { FlowToolbar } from "@/components/initiativeTools/automations/FlowToolbar";
 import { FlowEditor } from "@/components/initiativeTools/automations/FlowEditor";
@@ -19,10 +19,12 @@ export function AutomationEditorPage(): React.JSX.Element {
   const gp = useGuildPath();
   const { t } = useTranslation("automations");
 
+  const numericFlowId = Number(automationId) || 0;
+
   const {
-    activeFlow,
+    flow,
+    isLoading,
     flowNotFound,
-    loadFlow,
     nodes,
     edges,
     onNodesChange,
@@ -36,16 +38,9 @@ export function AutomationEditorPage(): React.JSX.Element {
     selectedNodeId,
     setSelectedNodeId,
     selectedNode,
-  } = useAutomationFlow(search.initiativeId ?? "");
+  } = useAutomationEditor(numericFlowId);
 
-  // Load the flow on mount (or when automationId changes)
-  useEffect(() => {
-    if (automationId) {
-      loadFlow(automationId);
-    }
-  }, [automationId, loadFlow]);
-
-  const initiativeId = activeFlow?.initiativeId ?? search.initiativeId ?? "";
+  const initiativeId = flow?.initiative_id?.toString() ?? search.initiativeId ?? "";
 
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: { id: string }) => {
@@ -69,7 +64,7 @@ export function AutomationEditorPage(): React.JSX.Element {
     return <Navigate to={gp("/initiatives")} replace />;
   }
 
-  // Flow not found — show error with back button
+  // Flow not found -- show error with back button
   if (flowNotFound) {
     return (
       <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
@@ -87,8 +82,8 @@ export function AutomationEditorPage(): React.JSX.Element {
     );
   }
 
-  // Show loading state while the flow is being read from storage
-  if (!activeFlow) {
+  // Show loading state while the flow is being fetched
+  if (isLoading || !flow) {
     return (
       <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -103,11 +98,11 @@ export function AutomationEditorPage(): React.JSX.Element {
     <ReactFlowProvider>
       <div className="flex h-[calc(100vh-3.5rem)] flex-col">
         <FlowToolbar
-          name={activeFlow.name}
+          name={flow.name}
           onNameChange={updateFlowName}
           onSave={saveFlow}
           isSaving={isSaving}
-          enabled={activeFlow.enabled}
+          enabled={flow.enabled}
           onEnabledChange={updateFlowEnabled}
           onBack={handleBack}
         />
