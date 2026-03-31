@@ -47,6 +47,8 @@
   "events": "Calendario",
   "allEvents": "Todos los eventos",
   "createEvent": "Nuevo evento",
+  "automations": "Automatizaciones",
+  "createAutomation": "Nueva automatización",
   "navigate": {
     "signInRequired": "Por favor, inicia sesión de nuevo para seguir este enlace.",
     "missingDestination": "Este enlace no tiene detalles de destino.",

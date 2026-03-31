@@ -47,6 +47,8 @@
   "events": "Calendrier",
   "allEvents": "Tous les événements",
   "createEvent": "Nouvel événement",
+  "automations": "Automatisations",
+  "createAutomation": "Nouvelle automatisation",
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",
