@@ -16,12 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /settings/automations-config` public endpoint for runtime feature discovery
   - Sidebar link with Zap icon, initiative settings toggle, and placeholder page
   - Build-time `VITE_ENABLE_AUTOMATIONS` flag for complete frontend tree-shaking in public builds
+- Visual automation flow editor (n8n / Home Assistant style)
+  - Drag-and-drop canvas powered by `@xyflow/react` with pan, zoom, and minimap
+  - 5 node types: Trigger, Action, Condition (if/else branch), Delay, Loop (for-each)
+  - Animated bezier edges with delete-on-hover
+  - Node palette sidebar for dragging new nodes onto the canvas
+  - Property inspector panel (Sheet) with type-specific forms
+  - Automations list view with create/delete and card grid
+  - localStorage persistence (backend API integration to follow)
 - Dual Docker image CI/CD: publishes both `initiative` (public) and `initiative-infra` (paid) images
 - Vite config now loads `.env` files from `backend/` directory for shared env vars
 
 ### Changed
 
+- Bumped Lexical editor from 0.41 to 0.42 (all packages unified)
+- Bumped asyncpg from 0.29.0 to 0.31.0
+- Bumped httpx from 0.27.0 to 0.28.1
+- Bumped SQLModel from 0.0.24 to 0.0.37
+- Bumped pycrdt from 0.12.46 to 0.12.50
+- Bumped PyJWT from 2.11.0 to 2.12.0
 - Updated Orval to 8.6.2
+
+### Removed
+
+- Removed unused dependencies: `radix-ui` (unified), `@tanstack/router-devtools`, `autoprefixer`, `postcss`, `@tailwindcss/postcss`, `lodash`, `@types/lodash`
+- Deleted unused `postcss.config.js`
 
 ## [0.35.0] - 2026-03-26
 
