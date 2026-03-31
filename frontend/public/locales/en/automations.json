@@ -1,0 +1,112 @@
+{
+  "emptyCanvas": "Drop a trigger node here to get started",
+  "palette": {
+    "title": "Node Types",
+    "dragHint": "Drag a node onto the canvas"
+  },
+  "nodeTypes": {
+    "trigger": "Trigger",
+    "triggerDescription": "Starts the automation when an event occurs",
+    "action": "Action",
+    "actionDescription": "Performs an operation",
+    "condition": "Condition",
+    "conditionDescription": "Branches based on a condition",
+    "delay": "Delay",
+    "delayDescription": "Waits for a specified duration",
+    "loop": "Loop",
+    "loopDescription": "Iterates over a collection"
+  },
+  "handles": {
+    "yes": "Yes",
+    "no": "No",
+    "body": "Body",
+    "done": "Done"
+  },
+  "defaults": {
+    "noConditionSet": "No condition set",
+    "noCollectionSet": "No collection set"
+  },
+  "triggerEvents": {
+    "task_created": "Task created",
+    "task_updated": "Task updated",
+    "status_changed": "Status changed",
+    "assignee_changed": "Assignee changed",
+    "due_date_reached": "Due date reached"
+  },
+  "actionTypes": {
+    "send_webhook": "Send webhook",
+    "update_task": "Update task",
+    "send_notification": "Send notification",
+    "add_tag": "Add tag",
+    "remove_tag": "Remove tag",
+    "move_to_project": "Move to project"
+  },
+  "conditionOperators": {
+    "equals": "equals",
+    "not_equals": "not equals",
+    "contains": "contains",
+    "greater_than": "greater than",
+    "less_than": "less than"
+  },
+  "delayUnits": {
+    "seconds": "seconds",
+    "minutes": "minutes",
+    "hours": "hours",
+    "days": "days"
+  },
+  "inspector": {
+    "title": "Node Properties",
+    "noSelection": "Select a node to edit its properties",
+    "label": "Label",
+    "eventType": "Event Type",
+    "selectEventType": "Select an event type",
+    "actionType": "Action Type",
+    "selectActionType": "Select an action type",
+    "field": "Field",
+    "fieldPlaceholder": "e.g. status, priority",
+    "operator": "Operator",
+    "selectOperator": "Select an operator",
+    "value": "Value",
+    "valuePlaceholder": "e.g. done, high",
+    "duration": "Duration",
+    "unit": "Unit",
+    "selectUnit": "Select a unit",
+    "collectionField": "Collection Field",
+    "collectionFieldPlaceholder": "e.g. assignees, tags"
+  },
+  "toolbar": {
+    "back": "Back",
+    "flowName": "Flow name",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "save": "Save"
+  },
+  "createAutomation": "Create Automation",
+  "deleteAutomation": "Delete automation",
+  "emptyState": {
+    "title": "No automations yet",
+    "description": "Automations let you build visual workflows that respond to events in your initiative. Create one to get started."
+  },
+  "status": {
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "nodeCount_one": "{{count}} node",
+  "nodeCount_other": "{{count}} nodes",
+  "lastUpdated": "Updated {{time}}",
+  "createDialog": {
+    "title": "Create Automation",
+    "description": "Give your automation a name and optional description.",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. Auto-assign on creation",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What does this automation do?"
+  },
+  "deleteDialog": {
+    "title": "Delete Automation",
+    "description": "This will permanently delete this automation and all its nodes. This action cannot be undone."
+  },
+  "editor": {
+    "loading": "Loading automation..."
+  }
+}
