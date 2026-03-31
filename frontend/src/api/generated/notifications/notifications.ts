@@ -26,10 +26,11 @@ import type {
   NotificationCountResponse,
   NotificationListResponse,
   NotificationRead,
+  NotificationSendRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -502,6 +503,101 @@ export const useMarkAllNotificationsReadApiV1NotificationsReadAllPost = <
 > => {
   return useMutation(
     getMarkAllNotificationsReadApiV1NotificationsReadAllPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Send notifications to specified users. Used by the automation engine.
+
+Accepts a service token or normal admin auth via get_service_or_guild_membership.
+ * @summary Send Notifications
+ */
+export const sendNotificationsApiV1NotificationsSendPost = (
+  notificationSendRequest: BodyType<NotificationSendRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<NotificationRead[]>(
+    {
+      url: `/api/v1/notifications/send`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: notificationSendRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSendNotificationsApiV1NotificationsSendPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendNotificationsApiV1NotificationsSendPost>>,
+    TError,
+    { data: BodyType<NotificationSendRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendNotificationsApiV1NotificationsSendPost>>,
+  TError,
+  { data: BodyType<NotificationSendRequest> },
+  TContext
+> => {
+  const mutationKey = ["sendNotificationsApiV1NotificationsSendPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendNotificationsApiV1NotificationsSendPost>>,
+    { data: BodyType<NotificationSendRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendNotificationsApiV1NotificationsSendPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendNotificationsApiV1NotificationsSendPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendNotificationsApiV1NotificationsSendPost>>
+>;
+export type SendNotificationsApiV1NotificationsSendPostMutationBody =
+  BodyType<NotificationSendRequest>;
+export type SendNotificationsApiV1NotificationsSendPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Send Notifications
+ */
+export const useSendNotificationsApiV1NotificationsSendPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendNotificationsApiV1NotificationsSendPost>>,
+      TError,
+      { data: BodyType<NotificationSendRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendNotificationsApiV1NotificationsSendPost>>,
+  TError,
+  { data: BodyType<NotificationSendRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSendNotificationsApiV1NotificationsSendPostMutationOptions(options),
     queryClient
   );
 };

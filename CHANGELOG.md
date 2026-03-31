@@ -23,7 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Node palette sidebar for dragging new nodes onto the canvas
   - Property inspector panel (Sheet) with type-specific forms
   - Automations list view with create/delete and card grid
-  - localStorage persistence (backend API integration to follow)
+  - 7 action types: send webhook, update task, send notification, add/remove tag, move to project, archive task
+- Automation flow CRUD API with graph validation (DAG check, single trigger enforcement)
+  - Full flow persistence to database (replaces localStorage)
+  - Run history endpoints for execution logs
+  - Frontend migrated to React Query hooks backed by backend API
+- `POST /notifications/send` endpoint for engine-driven push notifications
+- Redis service added to docker-compose (commented, for infra deployments)
 - Automation engine backend infrastructure
   - Database tables: `automation_flows`, `automation_runs`, `automation_run_steps` with full RLS
   - `automation_engine` PostgreSQL role with BYPASSRLS for direct engine writes

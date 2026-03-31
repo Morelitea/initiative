@@ -39,7 +39,8 @@
     "send_notification": "Envoyer une notification",
     "add_tag": "Ajouter une étiquette",
     "remove_tag": "Supprimer une étiquette",
-    "move_to_project": "Déplacer vers le projet"
+    "move_to_project": "Déplacer vers le projet",
+    "archive_task": "Archiver la tâche"
   },
   "conditionOperators": {
     "equals": "égal à",
@@ -112,5 +113,10 @@
   "editor": {
     "loading": "Chargement de l'automatisation...",
     "notFound": "Cette automatisation est introuvable. Elle a peut-être été supprimée."
-  }
+  },
+  "saveSuccess": "Automatisation enregistrée",
+  "saveError": "Échec de l'enregistrement de l'automatisation",
+  "createError": "Échec de la création de l'automatisation",
+  "deleteSuccess": "Automatisation supprimée",
+  "deleteError": "Échec de la suppression de l'automatisation"
 }

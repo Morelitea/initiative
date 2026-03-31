@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, In
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.models.automation import AutomationFlow
     from app.models.project import Project
     from app.models.user import User
     from app.models.guild import Guild
@@ -214,6 +215,10 @@ class Initiative(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     calendar_events: List["CalendarEvent"] = Relationship(
+        back_populates="initiative",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    automation_flows: List["AutomationFlow"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

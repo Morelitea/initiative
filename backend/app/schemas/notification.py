@@ -27,3 +27,10 @@ class NotificationCountResponse(BaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     unread_count: int
+
+
+class NotificationSendRequest(BaseModel):
+    """Request body for sending notifications (used by automation engine)."""
+    user_ids: list[int]
+    message: str
+    data: dict[str, Any] = {}

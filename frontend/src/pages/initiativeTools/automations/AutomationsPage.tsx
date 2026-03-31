@@ -2,9 +2,9 @@ import { useCallback, useState } from "react";
 import { Link, Navigate, useRouter, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
-import { Plus, Trash2, Zap } from "lucide-react";
+import { Loader2, Plus, Trash2, Zap } from "lucide-react";
 
-import { useAutomationFlow } from "@/hooks/useAutomationFlow";
+import { useAutomationFlows } from "@/hooks/useAutomationFlow";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,30 +29,36 @@ export const AutomationsPage = () => {
   const search = useSearch({ strict: false }) as { initiativeId?: string };
   const initiativeId = search.initiativeId ?? "";
 
-  const { flows, createFlow, deleteFlow } = useAutomationFlow(initiativeId);
+  const { flows, isLoading, createFlow, deleteFlow } = useAutomationFlows(Number(initiativeId));
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   // Delete confirmation state
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
-  const handleCreate = useCallback(() => {
+  const handleCreate = useCallback(async () => {
     if (!newName.trim()) return;
-    const flowId = createFlow(newName.trim(), newDescription.trim() || undefined);
-    setCreateDialogOpen(false);
-    setNewName("");
-    setNewDescription("");
-    void router.navigate({
-      to: gp(`/automations/${flowId}`),
-      search: { initiativeId },
-    });
+    setIsCreating(true);
+    try {
+      const flowId = await createFlow(newName.trim(), newDescription.trim() || undefined);
+      setCreateDialogOpen(false);
+      setNewName("");
+      setNewDescription("");
+      void router.navigate({
+        to: gp(`/automations/${flowId}`),
+        search: { initiativeId },
+      });
+    } finally {
+      setIsCreating(false);
+    }
   }, [newName, newDescription, createFlow, router, gp, initiativeId]);
 
   const handleDelete = useCallback(() => {
-    if (!deleteTarget) return;
+    if (deleteTarget == null) return;
     deleteFlow(deleteTarget);
     setDeleteTarget(null);
   }, [deleteTarget, deleteFlow]);
@@ -77,8 +83,16 @@ export const AutomationsPage = () => {
         </Button>
       </div>
 
+      {/* Loading state */}
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <p className="text-muted-foreground mt-3 text-sm">{t("common:loading")}</p>
+        </div>
+      )}
+
       {/* Empty state */}
-      {flows.length === 0 && (
+      {!isLoading && flows.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="bg-primary/10 mb-4 flex h-16 w-16 items-center justify-center rounded-full">
             <Zap className="text-primary h-8 w-8" />
@@ -95,7 +109,7 @@ export const AutomationsPage = () => {
       )}
 
       {/* Flow cards grid */}
-      {flows.length > 0 && (
+      {!isLoading && flows.length > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {flows.map((flow) => (
             <Card key={flow.id} className="group hover:bg-accent/50 relative transition-colors">
@@ -134,11 +148,10 @@ export const AutomationsPage = () => {
                 )}
               </CardHeader>
               <CardContent>
-                <div className="text-muted-foreground flex items-center justify-between text-xs">
-                  <span>{t("automations:nodeCount", { count: flow.nodes.length })}</span>
+                <div className="text-muted-foreground flex items-center justify-end text-xs">
                   <span>
                     {t("automations:lastUpdated", {
-                      time: formatDistanceToNow(new Date(flow.updatedAt), {
+                      time: formatDistanceToNow(new Date(flow.updated_at), {
                         addSuffix: true,
                       }),
                     })}
@@ -166,7 +179,7 @@ export const AutomationsPage = () => {
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder={t("automations:createDialog.namePlaceholder")}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Enter") void handleCreate();
                 }}
               />
             </div>
@@ -187,8 +200,8 @@ export const AutomationsPage = () => {
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
               {t("common:cancel")}
             </Button>
-            <Button onClick={handleCreate} disabled={!newName.trim()}>
-              {t("common:create")}
+            <Button onClick={() => void handleCreate()} disabled={!newName.trim() || isCreating}>
+              {isCreating ? t("common:submitting") : t("common:create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -196,7 +209,7 @@ export const AutomationsPage = () => {
 
       {/* Delete confirmation */}
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={deleteTarget != null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title={t("automations:deleteDialog.title")}
         description={t("automations:deleteDialog.description")}

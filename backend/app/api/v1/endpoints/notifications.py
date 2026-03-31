@@ -1,11 +1,15 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import SessionDep, get_current_active_user, get_service_or_guild_membership, GuildContext
+from app.models.notification import NotificationType
 from app.models.user import User
 from app.schemas.notification import (
     NotificationCountResponse,
     NotificationListResponse,
     NotificationRead,
+    NotificationSendRequest,
 )
 from app.core.messages import NotificationMessages
 from app.services import user_notifications as notifications_service
@@ -60,3 +64,26 @@ async def mark_all_notifications_read(
     await notifications_service.mark_all_notifications_read(session, user_id=current_user.id)
     count = await notifications_service.unread_count(session, user_id=current_user.id)
     return NotificationCountResponse(unread_count=count)
+
+
+@router.post("/send", response_model=list[NotificationRead])
+async def send_notifications(
+    body: NotificationSendRequest,
+    session: SessionDep,
+    guild_context: Annotated[GuildContext, Depends(get_service_or_guild_membership)],
+) -> list[NotificationRead]:
+    """Send notifications to specified users. Used by the automation engine.
+
+    Accepts a service token or normal admin auth via get_service_or_guild_membership.
+    """
+    results = []
+    for user_id in body.user_ids:
+        notification = await notifications_service.create_notification(
+            session,
+            user_id=user_id,
+            notification_type=NotificationType.automation,
+            data={"message": body.message, **body.data},
+        )
+        results.append(NotificationRead.model_validate(notification))
+    await session.commit()
+    return results

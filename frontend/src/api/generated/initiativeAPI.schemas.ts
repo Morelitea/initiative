@@ -202,6 +202,131 @@ export interface AttachmentUploadResponse {
   size: number;
 }
 
+export type AutomationFlowCreateFlowData = { [key: string]: unknown };
+
+/**
+ * Payload to create a new automation flow.
+ */
+export interface AutomationFlowCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description?: string | null;
+  initiative_id: number;
+  flow_data: AutomationFlowCreateFlowData;
+  enabled?: boolean;
+}
+
+/**
+ * List item — omits flow_data to keep list responses small.
+ */
+export interface AutomationFlowListItem {
+  id: number;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationFlowListResponse {
+  items: AutomationFlowListItem[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export type AutomationFlowReadFlowData = { [key: string]: unknown };
+
+/**
+ * Full flow detail including the graph payload.
+ */
+export interface AutomationFlowRead {
+  id: number;
+  guild_id: number;
+  initiative_id: number;
+  name: string;
+  description: string | null;
+  flow_data: AutomationFlowReadFlowData;
+  enabled: boolean;
+  created_by_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AutomationFlowUpdateFlowData = { [key: string]: unknown } | null;
+
+/**
+ * Partial update payload for an automation flow.
+ */
+export interface AutomationFlowUpdate {
+  name?: string | null;
+  description?: string | null;
+  flow_data?: AutomationFlowUpdateFlowData;
+  enabled?: boolean | null;
+}
+
+export type AutomationRunDetailReadFlowSnapshot = { [key: string]: unknown };
+
+export type AutomationRunDetailReadTriggerEvent = { [key: string]: unknown };
+
+export type AutomationRunStepReadInputData = { [key: string]: unknown } | null;
+
+export type AutomationRunStepReadOutputData = { [key: string]: unknown } | null;
+
+export interface AutomationRunStepRead {
+  id: number;
+  node_id: string;
+  node_type: string;
+  status: string;
+  input_data: AutomationRunStepReadInputData;
+  output_data: AutomationRunStepReadOutputData;
+  error: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+/**
+ * Run with nested step details.
+ */
+export interface AutomationRunDetailRead {
+  id: number;
+  flow_id: number;
+  flow_snapshot: AutomationRunDetailReadFlowSnapshot;
+  trigger_event: AutomationRunDetailReadTriggerEvent;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+  steps?: AutomationRunStepRead[];
+}
+
+export type AutomationRunReadFlowSnapshot = { [key: string]: unknown };
+
+export type AutomationRunReadTriggerEvent = { [key: string]: unknown };
+
+export interface AutomationRunRead {
+  id: number;
+  flow_id: number;
+  flow_snapshot: AutomationRunReadFlowSnapshot;
+  trigger_event: AutomationRunReadTriggerEvent;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+export interface AutomationRunListResponse {
+  items: AutomationRunRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
 export interface AutomationsConfigResponse {
   enabled: boolean;
 }
@@ -1061,6 +1186,7 @@ export const NotificationType = {
   comment_on_task: "comment_on_task",
   comment_on_document: "comment_on_document",
   comment_reply: "comment_reply",
+  automation: "automation",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -1076,6 +1202,17 @@ export interface NotificationRead {
 export interface NotificationListResponse {
   notifications: NotificationRead[];
   unread_count: number;
+}
+
+export type NotificationSendRequestData = { [key: string]: unknown };
+
+/**
+ * Request body for sending notifications (used by automation engine).
+ */
+export interface NotificationSendRequest {
+  user_ids: number[];
+  message: string;
+  data?: NotificationSendRequestData;
 }
 
 export interface OIDCClaimMappingCreate {
@@ -2787,4 +2924,14 @@ export type ListAutomationsApiV1AutomationsGetParams = {
   page_size?: number;
 };
 
-export type ListAutomationsApiV1AutomationsGet200 = { [key: string]: unknown };
+export type ListAutomationRunsApiV1AutomationsFlowIdRunsGetParams = {
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
