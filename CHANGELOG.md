@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automations initiative tool (infra/paid feature, disabled by default)
+  - Dual-layer feature gating: `ENABLE_AUTOMATIONS` env var (infrastructure) + per-initiative `automations_enabled` toggle
+  - `automations_enabled` and `create_automations` permission keys with role-based access control
+  - Stub `GET /automations` API endpoint for future pipeline integration
+  - `GET /settings/automations-config` public endpoint for runtime feature discovery
+  - Sidebar link with Zap icon, initiative settings toggle, and placeholder page
+  - Build-time `VITE_ENABLE_AUTOMATIONS` flag for complete frontend tree-shaking in public builds
+- Dual Docker image CI/CD: publishes both `initiative` (public) and `initiative-infra` (paid) images
+- Vite config now loads `.env` files from `backend/` directory for shared env vars
+
+### Changed
+
+- Updated Orval to 8.6.2
+
 ## [0.35.0] - 2026-03-26
 
 ### Added

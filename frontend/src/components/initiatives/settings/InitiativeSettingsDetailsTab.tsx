@@ -21,6 +21,8 @@ interface InitiativeSettingsDetailsTabProps {
   onToggleQueues: (value: boolean) => void;
   eventsEnabled: boolean;
   onToggleEvents: (value: boolean) => void;
+  automationsEnabled: boolean;
+  onToggleAutomations: (value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -37,6 +39,8 @@ export const InitiativeSettingsDetailsTab = ({
   onToggleQueues,
   eventsEnabled,
   onToggleEvents,
+  automationsEnabled,
+  onToggleAutomations,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -111,18 +115,6 @@ export const InitiativeSettingsDetailsTab = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-4 rounded-md border p-3">
               <div className="space-y-0.5">
-                <Label htmlFor="settings-queues-toggle">{t("queuesFeature")}</Label>
-                <p className="text-muted-foreground text-xs">{t("queuesFeatureDescription")}</p>
-              </div>
-              <Switch
-                id="settings-queues-toggle"
-                checked={queuesEnabled}
-                onCheckedChange={onToggleQueues}
-                disabled={!canManageMembers || isSaving}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-              <div className="space-y-0.5">
                 <Label htmlFor="settings-events-toggle">{t("eventsFeature")}</Label>
                 <p className="text-muted-foreground text-xs">{t("eventsFeatureDescription")}</p>
               </div>
@@ -130,6 +122,34 @@ export const InitiativeSettingsDetailsTab = ({
                 id="settings-events-toggle"
                 checked={eventsEnabled}
                 onCheckedChange={onToggleEvents}
+                disabled={!canManageMembers || isSaving}
+              />
+            </div>
+            {__ENABLE_AUTOMATIONS__ && (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="settings-automations-toggle">{t("automationsFeature")}</Label>
+                  <p className="text-muted-foreground text-xs">
+                    {t("automationsFeatureDescription")}
+                  </p>
+                </div>
+                <Switch
+                  id="settings-automations-toggle"
+                  checked={automationsEnabled}
+                  onCheckedChange={onToggleAutomations}
+                  disabled={!canManageMembers || isSaving}
+                />
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="settings-queues-toggle">{t("queuesFeature")}</Label>
+                <p className="text-muted-foreground text-xs">{t("queuesFeatureDescription")}</p>
+              </div>
+              <Switch
+                id="settings-queues-toggle"
+                checked={queuesEnabled}
+                onCheckedChange={onToggleQueues}
                 disabled={!canManageMembers || isSaving}
               />
             </div>

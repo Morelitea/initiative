@@ -170,23 +170,27 @@ export const AppSidebar = () => {
           canViewProjects: true,
           canViewQueues: false,
           canViewEvents: false,
+          canViewAutomations: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
           canCreateEvents: false,
+          canCreateAutomations: false,
         };
       }
-      // Guild admins have all permissions (queues/events gated by initiative flag)
+      // Guild admins have all permissions (queues/events/automations gated by initiative flag)
       if (isGuildAdmin) {
         return {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: initiative.queues_enabled ?? false,
           canViewEvents: initiative.events_enabled ?? false,
+          canViewAutomations: (initiative.automations_enabled ?? false) && __ENABLE_AUTOMATIONS__,
           canCreateDocs: true,
           canCreateProjects: true,
           canCreateQueues: initiative.queues_enabled ?? false,
           canCreateEvents: initiative.events_enabled ?? false,
+          canCreateAutomations: (initiative.automations_enabled ?? false) && __ENABLE_AUTOMATIONS__,
         };
       }
       const membership = initiative.members.find((m) => m.user.id === user.id);
@@ -196,10 +200,12 @@ export const AppSidebar = () => {
           canViewProjects: true,
           canViewQueues: false,
           canViewEvents: false,
+          canViewAutomations: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
           canCreateEvents: false,
+          canCreateAutomations: false,
         };
       }
       return {
@@ -207,10 +213,13 @@ export const AppSidebar = () => {
         canViewProjects: membership.can_view_projects ?? true,
         canViewQueues: membership.can_view_queues ?? false,
         canViewEvents: membership.can_view_events ?? false,
+        canViewAutomations: (membership.can_view_automations ?? false) && __ENABLE_AUTOMATIONS__,
         canCreateDocs: membership.can_create_docs ?? false,
         canCreateProjects: membership.can_create_projects ?? false,
         canCreateQueues: membership.can_create_queues ?? false,
         canCreateEvents: membership.can_create_events ?? false,
+        canCreateAutomations:
+          (membership.can_create_automations ?? false) && __ENABLE_AUTOMATIONS__,
       };
     },
     [user, isGuildAdmin]
@@ -469,10 +478,12 @@ export const AppSidebar = () => {
                                     canViewProjects={permissions.canViewProjects}
                                     canViewQueues={permissions.canViewQueues}
                                     canViewEvents={permissions.canViewEvents}
+                                    canViewAutomations={permissions.canViewAutomations}
                                     canCreateDocs={permissions.canCreateDocs}
                                     canCreateProjects={permissions.canCreateProjects}
                                     canCreateQueues={permissions.canCreateQueues}
                                     canCreateEvents={permissions.canCreateEvents}
+                                    canCreateAutomations={permissions.canCreateAutomations}
                                     queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
                                     activeGuildId={activeGuildId}
                                     collapseKey={initiativeCollapseKey}

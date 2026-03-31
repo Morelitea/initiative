@@ -66,6 +66,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdProjectsRouteImport } from 
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives'
 import { Route as ServerRequiredAuthenticatedGGuildIdEventsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/events'
 import { Route as ServerRequiredAuthenticatedGGuildIdDocumentsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/documents'
+import { Route as ServerRequiredAuthenticatedGGuildIdAutomationsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/automations'
 import { Route as ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/documents_.$documentId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdTasksTaskIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/tasks_.$taskId'
@@ -418,6 +419,12 @@ const ServerRequiredAuthenticatedGGuildIdDocumentsRoute =
     path: '/documents',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
+const ServerRequiredAuthenticatedGGuildIdAutomationsRoute =
+  ServerRequiredAuthenticatedGGuildIdAutomationsRouteImport.update({
+    id: '/automations',
+    path: '/automations',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
 const ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute =
   ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRouteImport.update({
     id: '/documents_/$documentId_/settings',
@@ -560,6 +567,7 @@ export interface FileRoutesByFullPath {
   '/tasks/$taskId': typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/documents/$documentId/settings': typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
+  '/g/$guildId/automations': typeof ServerRequiredAuthenticatedGGuildIdAutomationsRoute
   '/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   '/g/$guildId/events': typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   '/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
@@ -629,6 +637,7 @@ export interface FileRoutesByTo {
   '/tasks/$taskId': typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/documents/$documentId/settings': typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
+  '/g/$guildId/automations': typeof ServerRequiredAuthenticatedGGuildIdAutomationsRoute
   '/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   '/g/$guildId/events': typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   '/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
@@ -704,6 +713,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/tasks_/$taskId': typeof ServerRequiredAuthenticatedTasksTaskIdRoute
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/_serverRequired/_authenticated/documents_/$documentId_/settings': typeof ServerRequiredAuthenticatedDocumentsDocumentIdSettingsRoute
+  '/_serverRequired/_authenticated/g/$guildId/automations': typeof ServerRequiredAuthenticatedGGuildIdAutomationsRoute
   '/_serverRequired/_authenticated/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   '/_serverRequired/_authenticated/g/$guildId/events': typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
@@ -779,6 +789,7 @@ export interface FileRouteTypes {
     | '/tasks/$taskId'
     | '/profile/'
     | '/documents/$documentId/settings'
+    | '/g/$guildId/automations'
     | '/g/$guildId/documents'
     | '/g/$guildId/events'
     | '/g/$guildId/initiatives'
@@ -848,6 +859,7 @@ export interface FileRouteTypes {
     | '/tasks/$taskId'
     | '/profile'
     | '/documents/$documentId/settings'
+    | '/g/$guildId/automations'
     | '/g/$guildId/documents'
     | '/g/$guildId/events'
     | '/g/$guildId/initiatives'
@@ -922,6 +934,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/tasks_/$taskId'
     | '/_serverRequired/_authenticated/profile/'
     | '/_serverRequired/_authenticated/documents_/$documentId_/settings'
+    | '/_serverRequired/_authenticated/g/$guildId/automations'
     | '/_serverRequired/_authenticated/g/$guildId/documents'
     | '/_serverRequired/_authenticated/g/$guildId/events'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives'
@@ -1363,6 +1376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
+    '/_serverRequired/_authenticated/g/$guildId/automations': {
+      id: '/_serverRequired/_authenticated/g/$guildId/automations'
+      path: '/automations'
+      fullPath: '/g/$guildId/automations'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdAutomationsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
     '/_serverRequired/_authenticated/documents_/$documentId_/settings': {
       id: '/_serverRequired/_authenticated/documents_/$documentId_/settings'
       path: '/documents/$documentId/settings'
@@ -1602,6 +1622,7 @@ const ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
+  ServerRequiredAuthenticatedGGuildIdAutomationsRoute: typeof ServerRequiredAuthenticatedGGuildIdAutomationsRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
   ServerRequiredAuthenticatedGGuildIdEventsRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
@@ -1625,6 +1646,8 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
 
 const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthenticatedGGuildIdRouteChildren =
   {
+    ServerRequiredAuthenticatedGGuildIdAutomationsRoute:
+      ServerRequiredAuthenticatedGGuildIdAutomationsRoute,
     ServerRequiredAuthenticatedGGuildIdDocumentsRoute:
       ServerRequiredAuthenticatedGGuildIdDocumentsRoute,
     ServerRequiredAuthenticatedGGuildIdEventsRoute:

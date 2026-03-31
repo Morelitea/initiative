@@ -10,6 +10,7 @@ import {
   MoreVertical,
   GalleryHorizontalEnd,
   CalendarDays,
+  Zap,
 } from "lucide-react";
 
 import { getItem, setItem } from "@/lib/storage";
@@ -38,10 +39,12 @@ export interface InitiativeSectionProps {
   canViewProjects: boolean;
   canViewQueues: boolean;
   canViewEvents: boolean;
+  canViewAutomations: boolean;
   canCreateDocs: boolean;
   canCreateProjects: boolean;
   canCreateQueues: boolean;
   canCreateEvents: boolean;
+  canCreateAutomations: boolean;
   queueCount: number;
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
@@ -60,10 +63,12 @@ export const InitiativeSection = memo(
     canViewProjects,
     canViewQueues,
     canViewEvents,
+    canViewAutomations,
     canCreateDocs,
     canCreateProjects,
     canCreateQueues,
     canCreateEvents,
+    canCreateAutomations,
     queueCount,
     activeGuildId,
     collapseKey,
@@ -229,6 +234,17 @@ export const InitiativeSection = memo(
                       </Link>
                     </DropdownMenuItem>
                   )}
+                  {canCreateAutomations && (
+                    <DropdownMenuItem asChild>
+                      <Link
+                        to={gp("/automations")}
+                        search={{ create: "true", initiativeId: String(initiative.id) }}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        {t("createAutomation")}
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -274,6 +290,46 @@ export const InitiativeSection = memo(
                         </TooltipTrigger>
                         <TooltipContent side="top">
                           <p>{t("createEvent")}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </SidebarMenuItem>
+              )}
+
+              {/* Automations Link */}
+              {canViewAutomations && (
+                <SidebarMenuItem>
+                  <div className="group/automations flex w-full min-w-0 items-center gap-1">
+                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+                      <Link
+                        to={gp("/automations")}
+                        search={{ initiativeId: String(initiative.id) }}
+                        className="flex items-center gap-2"
+                      >
+                        <Zap className="h-4 w-4" />
+                        <span>{t("automations")}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {canCreateAutomations && (
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/automations:opacity-100 lg:flex"
+                            asChild
+                          >
+                            <Link
+                              to={gp("/automations")}
+                              search={{ create: "true", initiativeId: String(initiative.id) }}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p>{t("createAutomation")}</p>
                         </TooltipContent>
                       </Tooltip>
                     )}
