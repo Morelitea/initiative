@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `REDIS_URL` config setting for event bus connectivity
 - Dual Docker image CI/CD: publishes both `initiative` (public) and `initiative-infra` (paid) images
 - Vite config now loads `.env` files from `backend/` directory for shared env vars
+- Added Ctrl+S / Cmd+S keyboard shortcut to save in the document editor
+
+### Fixed
+
+- Cross-guild task/event links in My Calendar and My Tasks calendar view now navigate to the correct guild instead of the active guild
 
 ### Changed
 
