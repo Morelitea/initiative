@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-04-04
+
 ### Added
 
 - Automations initiative tool (infra/paid feature, disabled by default)
