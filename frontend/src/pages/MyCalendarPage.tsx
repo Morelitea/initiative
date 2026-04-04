@@ -22,7 +22,7 @@ import { PullToRefresh } from "@/components/PullToRefresh";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { apiClient } from "@/api/client";
-import { useGuildPath } from "@/lib/guildUrl";
+import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getItem, setItem } from "@/lib/storage";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
@@ -163,10 +163,11 @@ export const MyCalendarPage = () => {
       | { type: string; taskId?: number; eventId?: number; guildId?: number }
       | undefined;
     if (!meta) return;
+    const scopedPath = (path: string) => (meta.guildId ? guildPath(meta.guildId, path) : gp(path));
     if (meta.type === "task" && meta.taskId) {
-      void navigate({ to: gp(`/tasks/${meta.taskId}`) });
+      void navigate({ to: scopedPath(`/tasks/${meta.taskId}`) });
     } else if (meta.type === "event" && meta.eventId) {
-      void navigate({ to: gp(`/events/${meta.eventId}`) });
+      void navigate({ to: scopedPath(`/events/${meta.eventId}`) });
     }
   };
 
