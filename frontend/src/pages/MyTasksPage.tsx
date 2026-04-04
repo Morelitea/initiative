@@ -14,7 +14,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CalendarDays, Table2 } from "lucide-react";
-import { useGuildPath } from "@/lib/guildUrl";
+import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import type { TranslateFn } from "@/types/i18n";
 
 export const MyTasksPage = () => {
@@ -82,6 +82,7 @@ export const MyTasksPage = () => {
           endAt: task.due_date,
           allDay: true,
           attendees: taskAttendees,
+          meta: { guildId: task.guild_id },
         });
       }
       if (task.start_date) {
@@ -93,6 +94,7 @@ export const MyTasksPage = () => {
           allDay: true,
           color: "#10b981",
           attendees: taskAttendees,
+          meta: { guildId: task.guild_id },
         });
       }
     });
@@ -101,9 +103,10 @@ export const MyTasksPage = () => {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const taskId = Number(String(entry.id).split("-")[0]);
-    if (taskId) {
-      void navigate({ to: gp(`/tasks/${taskId}`) });
-    }
+    if (!taskId) return;
+    const meta = entry.meta as { guildId?: number } | undefined;
+    const path = `/tasks/${taskId}`;
+    void navigate({ to: meta?.guildId ? guildPath(meta.guildId, path) : gp(path) });
   };
 
   return (
@@ -160,7 +163,9 @@ export const MyTasksPage = () => {
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
               ) : table.hasError ? (
-                <p className="text-destructive py-8 text-center text-sm">{t("myTasks.loadError")}</p>
+                <p className="text-destructive py-8 text-center text-sm">
+                  {t("myTasks.loadError")}
+                </p>
               ) : (
                 <DataTable
                   columns={columns}

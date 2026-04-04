@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,7 +38,9 @@ from app.schemas.calendar_event import (
     serialize_calendar_event,
     serialize_calendar_event_summary,
 )
+from app.schemas.ical import ICalImportRequest, ICalImportResult, ICalParseRequest, ICalParseResult
 from app.services import calendar_events as events_service
+from app.services import ical_service
 from app.services import rls as rls_service
 
 router = APIRouter()
@@ -201,6 +203,163 @@ async def list_global_calendar_events(
         page=page,
         page_size=page_size,
         has_next=has_next,
+    )
+
+
+# ---------------------------------------------------------------------------
+# iCal export / import
+# ---------------------------------------------------------------------------
+
+
+@router.get("/export.ics")
+async def export_calendar_events_ics(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    start_after: Optional[datetime] = Query(default=None),
+    start_before: Optional[datetime] = Query(default=None),
+) -> Response:
+    """Export guild-scoped calendar events as an .ics file."""
+    conditions = [CalendarEvent.guild_id == guild_context.guild_id]
+    if initiative_id is not None:
+        conditions.append(CalendarEvent.initiative_id == initiative_id)
+    else:
+        conditions.append(
+            CalendarEvent.initiative_id.in_(
+                select(Initiative.id).where(Initiative.events_enabled == True)  # noqa: E712
+            )
+        )
+    if start_after is not None:
+        conditions.append(CalendarEvent.start_at >= start_after)
+    if start_before is not None:
+        conditions.append(CalendarEvent.start_at <= start_before)
+
+    stmt = (
+        select(CalendarEvent)
+        .where(*conditions)
+        .options(
+            selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
+        )
+        .order_by(CalendarEvent.start_at.asc())
+    )
+    result = await session.exec(stmt)
+    events = result.unique().all()
+
+    ics_bytes = ical_service.events_to_ical(list(events))
+    return Response(
+        content=ics_bytes,
+        media_type="text/calendar",
+        headers={"Content-Disposition": "attachment; filename=events.ics"},
+    )
+
+
+@router.get("/global/export.ics")
+async def export_global_calendar_events_ics(
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_ids: Optional[List[int]] = Query(default=None),
+    start_after: Optional[datetime] = Query(default=None),
+    start_before: Optional[datetime] = Query(default=None),
+) -> Response:
+    """Export cross-guild calendar events as an .ics file."""
+    conditions = [
+        GuildMembership.user_id == current_user.id,
+        Initiative.events_enabled == True,  # noqa: E712
+    ]
+    if guild_ids:
+        conditions.append(CalendarEvent.guild_id.in_(tuple(guild_ids)))
+    if start_after is not None:
+        conditions.append(CalendarEvent.start_at >= start_after)
+    if start_before is not None:
+        conditions.append(CalendarEvent.start_at <= start_before)
+
+    stmt = (
+        select(CalendarEvent)
+        .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
+        .join(GuildMembership, GuildMembership.guild_id == CalendarEvent.guild_id)
+        .where(*conditions)
+        .options(
+            selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
+        )
+        .order_by(CalendarEvent.start_at.asc())
+    )
+    result = await session.execute(stmt)
+    events = result.unique().scalars().all()
+
+    ics_bytes = ical_service.events_to_ical(list(events))
+    return Response(
+        content=ics_bytes,
+        media_type="text/calendar",
+        headers={"Content-Disposition": "attachment; filename=events.ics"},
+    )
+
+
+@router.post("/import/parse", response_model=ICalParseResult)
+async def parse_ical_file(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    body: ICalParseRequest,
+) -> ICalParseResult:
+    """Parse an .ics file and return a preview of found events."""
+    try:
+        result = ical_service.parse_ical(body.ics_content)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=CalendarEventMessages.ICAL_PARSE_FAILED,
+        )
+    if result.event_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=CalendarEventMessages.ICAL_NO_EVENTS,
+        )
+    return result
+
+
+@router.post("/import", response_model=ICalImportResult)
+async def import_ical_events(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    body: ICalImportRequest,
+) -> ICalImportResult:
+    """Import events from an .ics file into an initiative."""
+    initiative = await _get_initiative_for_event(session, body.initiative_id)
+    await _check_initiative_permission(
+        session, initiative, current_user, guild_context, PermissionKey.create_events,
+    )
+
+    try:
+        events, errors, skipped = ical_service.build_calendar_events(
+            content=body.ics_content,
+            initiative_id=body.initiative_id,
+            guild_id=guild_context.guild_id,
+            created_by_id=current_user.id,
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=CalendarEventMessages.ICAL_PARSE_FAILED,
+        )
+
+    created = 0
+    for event in events:
+        try:
+            async with session.begin_nested():
+                session.add(event)
+                await session.flush()
+            created += 1
+        except Exception as exc:
+            errors.append(f"DB error for '{event.title}': {exc}")
+
+    if created > 0:
+        await session.commit()
+        await reapply_rls_context(session)
+
+    return ICalImportResult(
+        events_created=created,
+        events_failed=len(events) - created + skipped,
+        errors=errors,
     )
 
 

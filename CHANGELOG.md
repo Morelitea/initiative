@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-04-04
+
+### Added
+
+- Automations initiative tool (infra/paid feature, disabled by default)
+  - Dual-layer feature gating: `ENABLE_AUTOMATIONS` env var (infrastructure) + per-initiative `automations_enabled` toggle
+  - `automations_enabled` and `create_automations` permission keys with role-based access control
+  - Stub `GET /automations` API endpoint for future pipeline integration
+  - `GET /settings/automations-config` public endpoint for runtime feature discovery
+  - Sidebar link with Zap icon, initiative settings toggle, and placeholder page
+  - Build-time `VITE_ENABLE_AUTOMATIONS` flag for complete frontend tree-shaking in public builds
+- Visual automation flow editor (n8n / Home Assistant style)
+  - Drag-and-drop canvas powered by `@xyflow/react` with pan, zoom, and minimap
+  - 5 node types: Trigger, Action, Condition (if/else branch), Delay, Loop (for-each)
+  - Animated bezier edges with delete-on-hover
+  - Node palette sidebar for dragging new nodes onto the canvas
+  - Property inspector panel (Sheet) with type-specific forms
+  - Automations list view with create/delete and card grid
+  - 7 action types: send webhook, update task, send notification, add/remove tag, move to project, archive task
+- Automation flow CRUD API with graph validation (DAG check, single trigger enforcement)
+  - Full flow persistence to database (replaces localStorage)
+  - Run history endpoints for execution logs
+  - Frontend migrated to React Query hooks backed by backend API
+- `POST /notifications/send` endpoint for engine-driven push notifications
+- Redis service added to docker-compose (commented, for infra deployments)
+- Automation engine backend infrastructure
+  - Database tables: `automation_flows`, `automation_runs`, `automation_run_steps` with full RLS
+  - `automation_engine` PostgreSQL role with BYPASSRLS for direct engine writes
+  - Redis Streams event publisher for domain events (`task_created`, `task_updated`)
+  - Service token authentication (`AUTOMATION_SERVICE_TOKEN`) for engine API callbacks
+  - `REDIS_URL` config setting for event bus connectivity
+- Dual Docker image CI/CD: publishes both `initiative` (public) and `initiative-infra` (paid) images
+- Vite config now loads `.env` files from `backend/` directory for shared env vars
+- Added Ctrl+S / Cmd+S keyboard shortcut to save in the document editor
+
+### Fixed
+
+- Cross-guild task/event links in My Calendar and My Tasks calendar view now navigate to the correct guild instead of the active guild
+
+### Changed
+
+- Bumped Lexical editor from 0.41 to 0.42 (all packages unified)
+- Bumped asyncpg from 0.29.0 to 0.31.0
+- Bumped httpx from 0.27.0 to 0.28.1
+- Bumped SQLModel from 0.0.24 to 0.0.37
+- Bumped pycrdt from 0.12.46 to 0.12.50
+- Bumped PyJWT from 2.11.0 to 2.12.0
+- Updated Orval to 8.6.2
+
+### Removed
+
+- Removed unused dependencies: `radix-ui` (unified), `@tanstack/router-devtools`, `autoprefixer`, `postcss`, `@tailwindcss/postcss`, `lodash`, `@types/lodash`
+- Deleted unused `postcss.config.js`
+
 ## [0.35.0] - 2026-03-26
 
 ### Added
@@ -33,6 +87,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Global calendar events backend endpoint (`GET /api/v1/calendar-events/global`)
 - Filter and sort preferences persisted to local storage on My Tasks, Tasks I Created, My Projects, and My Documents pages
 - Spanish and French translations for My Calendar page
+- iCal (.ics) import/export for calendar events
+  - Export events as `.ics` files (per-guild and cross-guild)
+  - Import events from `.ics` files with preview and initiative selection
+  - RRULE recurrence mapping (best-effort bidirectional conversion)
+  - Export/import buttons on guild Events page and My Calendar page
+  - Spanish and French translations for import/export UI
 
 ### Changed
 

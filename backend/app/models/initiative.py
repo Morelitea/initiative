@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, In
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.models.automation import AutomationFlow
     from app.models.project import Project
     from app.models.user import User
     from app.models.guild import Guild
@@ -30,6 +31,8 @@ class PermissionKey(str, Enum):
     create_queues = "create_queues"
     events_enabled = "events_enabled"
     create_events = "create_events"
+    automations_enabled = "automations_enabled"
+    create_automations = "create_automations"
 
 
 # Fallback values when a permission is not explicitly set on a role.
@@ -44,6 +47,8 @@ DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
     PermissionKey.create_queues: False,
     PermissionKey.events_enabled: False,
     PermissionKey.create_events: False,
+    PermissionKey.automations_enabled: False,
+    PermissionKey.create_automations: False,
 }
 
 
@@ -58,6 +63,8 @@ BUILTIN_ROLE_PERMISSIONS = {
         PermissionKey.create_queues: True,
         PermissionKey.events_enabled: True,
         PermissionKey.create_events: True,
+        PermissionKey.automations_enabled: True,
+        PermissionKey.create_automations: True,
     },
     "member": {
         PermissionKey.docs_enabled: True,
@@ -68,6 +75,8 @@ BUILTIN_ROLE_PERMISSIONS = {
         PermissionKey.create_queues: False,
         PermissionKey.events_enabled: False,
         PermissionKey.create_events: False,
+        PermissionKey.automations_enabled: False,
+        PermissionKey.create_automations: False,
     },
 }
 
@@ -174,6 +183,10 @@ class Initiative(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    automations_enabled: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -202,6 +215,10 @@ class Initiative(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     calendar_events: List["CalendarEvent"] = Relationship(
+        back_populates="initiative",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    automation_flows: List["AutomationFlow"] = Relationship(
         back_populates="initiative",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

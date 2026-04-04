@@ -2,6 +2,7 @@
 
 declare const __APP_VERSION__: string;
 declare const __IS_CAPACITOR__: boolean;
+declare const __ENABLE_AUTOMATIONS__: boolean;
 
 // Type declarations for Yjs-related packages
 declare module "y-protocols/awareness" {

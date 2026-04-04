@@ -1,3 +1,8 @@
+# Two image variants are built from this Dockerfile:
+#   Public (default):  docker build .
+#   Infra (paid):      docker build --build-arg VITE_ENABLE_AUTOMATIONS=true .
+# The infra image includes the Automations feature; the runtime backend also
+# needs ENABLE_AUTOMATIONS=true in the container environment to activate it.
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -7,7 +12,9 @@ COPY VERSION /VERSION
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
 ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_ENABLE_AUTOMATIONS=
 ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
+ENV VITE_ENABLE_AUTOMATIONS=$VITE_ENABLE_AUTOMATIONS
 RUN pnpm run build
 
 FROM python:3.12-slim AS backend-runtime

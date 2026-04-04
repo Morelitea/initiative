@@ -1,6 +1,7 @@
 import "i18next";
 
 import type auth from "../../public/locales/en/auth.json";
+import type automations from "../../public/locales/en/automations.json";
 import type command from "../../public/locales/en/command.json";
 import type common from "../../public/locales/en/common.json";
 import type dashboard from "../../public/locales/en/dashboard.json";
@@ -29,6 +30,7 @@ declare module "i18next" {
     returnObjects: false;
     resources: {
       auth: typeof auth;
+      automations: typeof automations;
       command: typeof command;
       common: typeof common;
       dashboard: typeof dashboard;

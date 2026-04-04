@@ -1,8 +1,8 @@
 fastapi==0.111.0
 uvicorn[standard]==0.41.0
-sqlmodel==0.0.22
+sqlmodel==0.0.37
 sqlalchemy==2.0.30
-asyncpg==0.29.0
+asyncpg==0.31.0
 PyJWT==2.12.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
@@ -16,9 +16,11 @@ alembic==1.18.4
 slowapi==0.1.9
 tzdata>=2024.1  # Required on Windows for timezone support
 python-magic>=0.4.27  # MIME type detection for file uploads
+icalendar>=6.0.0  # iCal import/export
+redis[hiredis]>=5.0.0  # Event publishing for automations (optional, only when ENABLE_AUTOMATIONS=true)
 
 # Collaboration (Yjs CRDT)
-pycrdt~=0.12.0
+pycrdt~=0.12.50
 pycrdt-websocket~=0.16.0
 
 # Testing dependencies

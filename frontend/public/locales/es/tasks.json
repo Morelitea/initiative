@@ -125,7 +125,8 @@
     "title": "Mi calendario",
     "subtitle": "Tareas y eventos en todos tus gremios.",
     "loadError": "No se pudieron cargar los datos del calendario.",
-    "typeEvents": "Eventos"
+    "typeEvents": "Eventos",
+    "typeTasks": "Tareas"
   },
 
   "createdTasks": {

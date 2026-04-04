@@ -369,6 +369,28 @@ export const DocumentDetailPage = () => {
     collaboration.isCollaborating,
   ]);
 
+  // Ctrl+S / Cmd+S manual save shortcut
+  useEffect(() => {
+    if (!canEditDocument) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (!saveDocument.isPending) {
+          saveDocument.mutate({
+            documentId: parsedId,
+            data: {
+              title: title?.trim(),
+              content: contentState as unknown as Record<string, unknown>,
+              featured_image_url: featuredImageUrl,
+            },
+          });
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [canEditDocument, saveDocument, parsedId, title, contentState, featuredImageUrl]);
+
   // Sync content via sendBeacon on page unload to ensure content column stays updated
   // This is critical when users navigate away or close the tab during collaboration
   useEffect(() => {

@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_FULL_NAME: str | None = None
     DISABLE_GUILD_CREATION: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = True  # When False, requires invite code to register
+    ENABLE_AUTOMATIONS: bool = False  # Infra-only: enables automation pipeline features
+    REDIS_URL: str | None = None  # e.g. redis://redis:6379/0 (only needed when automations enabled)
+    AUTOMATION_SERVICE_TOKEN: str | None = None  # Shared secret for engine API callbacks
     BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")

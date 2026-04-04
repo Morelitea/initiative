@@ -1,0 +1,122 @@
+{
+  "emptyCanvas": "Glissez un nœud déclencheur ici pour commencer",
+  "palette": {
+    "title": "Types de nœuds",
+    "dragHint": "Glissez un nœud sur le canevas"
+  },
+  "nodeTypes": {
+    "trigger": "Déclencheur",
+    "triggerDescription": "Démarre l'automatisation lors d'un événement",
+    "action": "Action",
+    "actionDescription": "Exécute une opération",
+    "condition": "Condition",
+    "conditionDescription": "Branche selon une condition",
+    "delay": "Délai",
+    "delayDescription": "Attend une durée spécifiée",
+    "loop": "Boucle",
+    "loopDescription": "Itère sur une collection"
+  },
+  "handles": {
+    "yes": "Oui",
+    "no": "Non",
+    "body": "Corps",
+    "done": "Terminé"
+  },
+  "defaults": {
+    "noConditionSet": "Aucune condition définie",
+    "noCollectionSet": "Aucune collection définie"
+  },
+  "triggerEvents": {
+    "task_created": "Tâche créée",
+    "task_updated": "Tâche mise à jour",
+    "status_changed": "Statut modifié",
+    "assignee_changed": "Responsable modifié",
+    "due_date_reached": "Date d'échéance atteinte"
+  },
+  "actionTypes": {
+    "send_webhook": "Envoyer un webhook",
+    "update_task": "Mettre à jour la tâche",
+    "send_notification": "Envoyer une notification",
+    "add_tag": "Ajouter une étiquette",
+    "remove_tag": "Supprimer une étiquette",
+    "move_to_project": "Déplacer vers le projet",
+    "archive_task": "Archiver la tâche"
+  },
+  "conditionOperators": {
+    "equals": "égal à",
+    "not_equals": "différent de",
+    "contains": "contient",
+    "greater_than": "supérieur à",
+    "less_than": "inférieur à"
+  },
+  "delayUnits": {
+    "seconds": "secondes",
+    "minutes": "minutes",
+    "hours": "heures",
+    "days": "jours"
+  },
+  "inspector": {
+    "title": "Propriétés du nœud",
+    "noSelection": "Sélectionnez un nœud pour modifier ses propriétés",
+    "label": "Libellé",
+    "eventType": "Type d'événement",
+    "selectEventType": "Sélectionnez un type d'événement",
+    "actionType": "Type d'action",
+    "selectActionType": "Sélectionnez un type d'action",
+    "field": "Champ",
+    "fieldPlaceholder": "ex. statut, priorité",
+    "operator": "Opérateur",
+    "selectOperator": "Sélectionnez un opérateur",
+    "value": "Valeur",
+    "valuePlaceholder": "ex. terminé, haute",
+    "duration": "Durée",
+    "unit": "Unité",
+    "selectUnit": "Sélectionnez une unité",
+    "collectionField": "Champ de collection",
+    "collectionFieldPlaceholder": "ex. responsables, étiquettes"
+  },
+  "toolbar": {
+    "back": "Retour",
+    "flowName": "Nom du flux",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "save": "Enregistrer"
+  },
+  "createAutomation": "Créer une automatisation",
+  "deleteAutomation": "Supprimer l'automatisation",
+  "emptyState": {
+    "title": "Pas encore d'automatisations",
+    "description": "Les automatisations vous permettent de créer des flux de travail visuels qui réagissent aux événements de votre initiative. Créez-en une pour commencer."
+  },
+  "status": {
+    "enabled": "Activé",
+    "disabled": "Désactivé"
+  },
+  "nodeCount_one": "{{count}} nœud",
+  "nodeCount_other": "{{count}} nœuds",
+  "lastUpdated": "Mis à jour {{time}}",
+  "createDialog": {
+    "title": "Créer une automatisation",
+    "description": "Donnez un nom et une description optionnelle à votre automatisation.",
+    "nameLabel": "Nom",
+    "namePlaceholder": "ex. Auto-assignation à la création",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Que fait cette automatisation ?"
+  },
+  "deleteDialog": {
+    "title": "Supprimer l'automatisation",
+    "description": "Cela supprimera définitivement cette automatisation et tous ses nœuds. Cette action est irréversible."
+  },
+  "edges": {
+    "deleteEdge": "Supprimer la connexion"
+  },
+  "editor": {
+    "loading": "Chargement de l'automatisation...",
+    "notFound": "Cette automatisation est introuvable. Elle a peut-être été supprimée."
+  },
+  "saveSuccess": "Automatisation enregistrée",
+  "saveError": "Échec de l'enregistrement de l'automatisation",
+  "createError": "Échec de la création de l'automatisation",
+  "deleteSuccess": "Automatisation supprimée",
+  "deleteError": "Échec de la suppression de l'automatisation"
+}

@@ -3,7 +3,13 @@ import fs from "fs";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+
+// Load VITE_* vars from .env files (checks backend/.env and frontend/)
+const env = {
+  ...loadEnv("production", path.resolve(__dirname, "../backend"), "VITE_"),
+  ...loadEnv("production", process.cwd(), "VITE_"),
+};
 
 const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET ?? "http://localhost:8000";
 
@@ -34,6 +40,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(getVersion()),
     __IS_CAPACITOR__: JSON.stringify(isCapacitorBuild),
+    __ENABLE_AUTOMATIONS__: JSON.stringify(
+      (env.VITE_ENABLE_AUTOMATIONS || process.env.VITE_ENABLE_AUTOMATIONS) === "true"
+    ),
   },
   plugins: [tanstackRouter(), react(), tailwindcss()],
   resolve: {
