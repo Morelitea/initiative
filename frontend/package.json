@@ -87,7 +87,7 @@
     "embla-carousel-react": "^8.6.0",
     "emoji-picker-react": "^4.18.0",
     "i18next": "^25.10.10",
-    "i18next-http-backend": "^3.0.2",
+    "i18next-http-backend": "^3.0.4",
     "lexical": "^0.42.0",
     "lucide-react": "^0.576.0",
     "react": "^18.3.1",
