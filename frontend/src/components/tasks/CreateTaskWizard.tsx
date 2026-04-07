@@ -119,7 +119,7 @@ export const CreateTaskWizard = () => {
   const initiativesQuery = useInitiativesForGuild(
     step === "select-initiative" || step === "select-project" ? selectedGuildId : null
   );
-  const initiatives = initiativesQuery.data ?? [];
+  const initiatives = useMemo(() => initiativesQuery.data ?? [], [initiativesQuery.data]);
 
   const projectsEnabled = step === "select-project" && !!selectedGuildId;
 
@@ -172,34 +172,6 @@ export const CreateTaskWizard = () => {
   );
   const hasMoreProjects = projectsQuery.data?.has_next ?? false;
 
-  // ── Auto-advance when only 1 option ────────────────────────────────────
-
-  // Auto-advance guild step
-  useEffect(() => {
-    if (
-      step === "select-guild" &&
-      guilds.length === 1 &&
-      !lastUsed &&
-      autoAdvancedRef.current !== "guild"
-    ) {
-      autoAdvancedRef.current = "guild";
-      handleGuildSelect(guilds[0].id, guilds[0].name);
-    }
-  }, [step, guilds, lastUsed, handleGuildSelect]); // stable callback, safe to include
-
-  // Auto-advance initiative step
-  useEffect(() => {
-    if (
-      step === "select-initiative" &&
-      !initiativesQuery.isLoading &&
-      initiatives.length === 1 &&
-      autoAdvancedRef.current !== "initiative"
-    ) {
-      autoAdvancedRef.current = "initiative";
-      handleInitiativeSelect(initiatives[0].id, initiatives[0].name);
-    }
-  }, [step, initiatives, initiativesQuery.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Handlers ────────────────────────────────────────────────────────────
 
   const handleGuildSelect = useCallback((guildId: number, guildName: string) => {
@@ -213,6 +185,34 @@ export const CreateTaskWizard = () => {
     setSelectedInitiativeName(initiativeName);
     setStep("select-project");
   }, []);
+
+  // ── Auto-advance when only 1 option ────────────────────────────────────
+
+  // Auto-advance guild step
+  useEffect(() => {
+    if (
+      step === "select-guild" &&
+      guilds.length === 1 &&
+      !lastUsed &&
+      autoAdvancedRef.current !== "guild"
+    ) {
+      autoAdvancedRef.current = "guild";
+      handleGuildSelect(guilds[0].id, guilds[0].name);
+    }
+  }, [step, guilds, lastUsed, handleGuildSelect]);
+
+  // Auto-advance initiative step
+  useEffect(() => {
+    if (
+      step === "select-initiative" &&
+      !initiativesQuery.isLoading &&
+      initiatives.length === 1 &&
+      autoAdvancedRef.current !== "initiative"
+    ) {
+      autoAdvancedRef.current = "initiative";
+      handleInitiativeSelect(initiatives[0].id, initiatives[0].name);
+    }
+  }, [step, initiatives, initiativesQuery.isLoading, handleInitiativeSelect]);
 
   const navigateToProject = useCallback(
     (
