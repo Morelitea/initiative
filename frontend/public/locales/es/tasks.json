@@ -115,6 +115,7 @@
   "myTasks": {
     "title": "Mis tareas",
     "subtitle": "Todo lo asignado a ti en todos los proyectos.",
+    "addTask": "Agregar tarea",
     "noGuild": "Sin gremio",
     "loadError": "No se pudieron cargar tus tareas.",
     "groupByDate": "Fecha",
@@ -132,6 +133,7 @@
   "createdTasks": {
     "title": "Tareas que creé",
     "subtitle": "Tareas que has creado en todos tus gremios.",
+    "addTask": "Agregar tarea",
     "empty": "Aún no has creado ninguna tarea.",
     "loadError": "No se pudieron cargar tus tareas creadas.",
     "groupByDate": "Fecha",
@@ -210,6 +212,19 @@
     "tagsRemoved_other": "Etiquetas eliminadas de {{count}} tareas",
     "updateError": "No se pudieron actualizar las etiquetas en este momento."
   },
+  "createWizard": {
+    "title": "Agregar tarea",
+    "description": "Selecciona un proyecto para crear una nueva tarea.",
+    "lastUsed": "Último usado",
+    "selectGuild": "Selecciona un gremio",
+    "selectInitiative": "Selecciona una iniciativa",
+    "selectProject": "Selecciona un proyecto",
+    "noInitiatives": "No se encontraron iniciativas en este gremio.",
+    "noProjects": "No se encontraron proyectos en esta iniciativa.",
+    "loading": "Cargando…",
+    "back": "Atrás"
+  },
+
   "bulkEdit": {
     "title": "Editar tareas",
     "description": "Aplicar cambios a {{count}} tarea seleccionada. Solo los campos que establezcas serán actualizados.",
