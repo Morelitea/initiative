@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-04-06
+
 ### Added
 
 - Global "Add Task" wizard dialog accessible from My Tasks, Tasks I Created, and the Command Center (Ctrl+K)
