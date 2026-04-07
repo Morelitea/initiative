@@ -122,6 +122,7 @@
   "myTasks": {
     "title": "Mes tâches",
     "subtitle": "Tout ce qui vous est assigné dans tous les projets.",
+    "addTask": "Ajouter une tâche",
     "noGuild": "Aucun groupe",
     "loadError": "Impossible de charger vos tâches.",
     "groupByDate": "Date",
@@ -139,6 +140,7 @@
   "createdTasks": {
     "title": "Tâches que j'ai créées",
     "subtitle": "Les tâches que vous avez créées dans tous vos groupes.",
+    "addTask": "Ajouter une tâche",
     "empty": "Vous n'avez pas encore créé de tâches.",
     "loadError": "Impossible de charger vos tâches créées.",
     "groupByDate": "Date",
@@ -222,6 +224,21 @@
     "tagsRemoved": "Étiquettes retirées de {{count}} tâche",
     "tagsRemoved_other": "Étiquettes retirées de {{count}} tâches",
     "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
+  },
+
+  "createWizard": {
+    "title": "Ajouter une tâche",
+    "description": "Sélectionnez un projet pour créer une nouvelle tâche.",
+    "lastUsed": "Dernier utilisé",
+    "selectGuild": "Sélectionnez un groupe",
+    "selectInitiative": "Sélectionnez une initiative",
+    "selectProject": "Sélectionnez un projet",
+    "noInitiatives": "Aucune initiative trouvée dans ce groupe.",
+    "noProjects": "Aucun projet trouvé dans cette initiative.",
+    "loading": "Chargement…",
+    "back": "Retour",
+    "searchProjects": "Rechercher des projets…",
+    "loadMore": "Charger plus"
   },
 
   "bulkEdit": {

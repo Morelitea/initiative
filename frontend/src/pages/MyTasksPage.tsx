@@ -13,7 +13,8 @@ import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/compo
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { PullToRefresh } from "@/components/PullToRefresh";
-import { CalendarDays, Table2 } from "lucide-react";
+import { CalendarDays, Plus, Table2 } from "lucide-react";
+import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -117,21 +118,27 @@ export const MyTasksPage = () => {
             <h1 className="text-3xl font-semibold tracking-tight">{t("myTasks.title")}</h1>
             <p className="text-muted-foreground">{t("myTasks.subtitle")}</p>
           </div>
-          <div className="flex items-center gap-1 rounded-lg border p-1">
-            <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("table")}
-            >
-              <Table2 className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => getOpenCreateTaskWizard()?.()}>
+              <Plus className="mr-1 h-4 w-4" />
+              {t("myTasks.addTask")}
             </Button>
-            <Button
-              variant={viewMode === "calendar" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("calendar")}
-            >
-              <CalendarDays className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1 rounded-lg border p-1">
+              <Button
+                variant={viewMode === "table" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+              >
+                <Table2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "calendar" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("calendar")}
+              >
+                <CalendarDays className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
 

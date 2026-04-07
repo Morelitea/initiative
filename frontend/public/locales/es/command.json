@@ -2,11 +2,15 @@
   "placeholder": "Buscar en {{activeGuildName}}...",
   "noResults": "No se encontraron resultados.",
   "groups": {
+    "actions": "Acciones",
     "suggested": "Sugeridos",
     "pages": "Páginas",
     "projects": "Proyectos",
     "tasks": "Tareas",
     "documents": "Documentos"
+  },
+  "actions": {
+    "addTask": "Agregar tarea"
   },
   "pages": {
     "myTasks": "Mis Tareas",
