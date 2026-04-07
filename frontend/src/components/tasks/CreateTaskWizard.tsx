@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ListTodo, Loader2, Zap } from "lucide-react";
+import { ChevronLeft, ListTodo, Loader2, Search, Zap } from "lucide-react";
 
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { guildPath } from "@/lib/guildUrl";
@@ -72,6 +73,8 @@ export const CreateTaskWizard = () => {
   const [selectedInitiativeId, setSelectedInitiativeId] = useState<number | null>(null);
   const [selectedInitiativeName, setSelectedInitiativeName] = useState("");
   const [lastUsed, setLastUsed] = useState<LastUsedProject | null>(null);
+  const [projectSearch, setProjectSearch] = useState("");
+  const [projectPage, setProjectPage] = useState(1);
 
   // Track whether we've already auto-advanced for the current step to avoid loops
   const autoAdvancedRef = useRef<string | null>(null);
@@ -92,6 +95,8 @@ export const CreateTaskWizard = () => {
       setSelectedGuildName("");
       setSelectedInitiativeId(null);
       setSelectedInitiativeName("");
+      setProjectSearch("");
+      setProjectPage(1);
       autoAdvancedRef.current = null;
     } else {
       setLastUsed(loadLastUsed());
@@ -105,20 +110,56 @@ export const CreateTaskWizard = () => {
   );
   const initiatives = initiativesQuery.data ?? [];
 
+  const projectsEnabled = step === "select-project" && !!selectedGuildId;
+
+  // Track a "generation" that increments when filters change, so we can
+  // distinguish stale accumulated data from the current filter set.
+  const [projectGen, setProjectGen] = useState(0);
+  const prevFilterKey = useRef("");
+  const filterKey = `${selectedGuildId}-${selectedInitiativeId}-${projectSearch}`;
+  if (filterKey !== prevFilterKey.current) {
+    prevFilterKey.current = filterKey;
+    setProjectGen((g) => g + 1);
+    setProjectPage(1);
+  }
+
   const projectsQuery = useGlobalProjects(
-    { guild_ids: selectedGuildId ? [selectedGuildId] : undefined, page_size: 100 },
-    { enabled: step === "select-project" && !!selectedGuildId }
+    {
+      guild_ids: selectedGuildId ? [selectedGuildId] : undefined,
+      search: projectSearch || undefined,
+      page_size: 25,
+      page: projectPage,
+    },
+    { enabled: projectsEnabled }
   );
+
+  // Accumulate pages, keyed by generation to avoid mixing results across filters
+  const [accumulatedProjects, setAccumulatedProjects] = useState<{
+    gen: number;
+    items: import("@/api/generated/initiativeAPI.schemas").ProjectRead[];
+  }>({ gen: 0, items: [] });
+
+  useEffect(() => {
+    if (!projectsQuery.data) return;
+    const items = projectsQuery.data.items;
+    setAccumulatedProjects((prev) =>
+      prev.gen !== projectGen
+        ? { gen: projectGen, items }
+        : { gen: projectGen, items: projectPage === 1 ? items : [...prev.items, ...items] }
+    );
+  }, [projectsQuery.data, projectPage, projectGen]);
+
   const filteredProjects = useMemo(
     () =>
-      (projectsQuery.data?.items ?? []).filter(
+      accumulatedProjects.items.filter(
         (p) =>
           p.initiative_id === selectedInitiativeId &&
           !p.is_archived &&
           (p.my_permission_level === "owner" || p.my_permission_level === "write")
       ),
-    [projectsQuery.data, selectedInitiativeId]
+    [accumulatedProjects, selectedInitiativeId]
   );
+  const hasMoreProjects = projectsQuery.data?.has_next ?? false;
 
   // ── Auto-advance when only 1 option ────────────────────────────────────
 
@@ -225,6 +266,8 @@ export const CreateTaskWizard = () => {
     if (step === "select-project") {
       setSelectedInitiativeId(null);
       setSelectedInitiativeName("");
+      setProjectSearch("");
+      setProjectPage(1);
       setStep("select-initiative");
     } else if (step === "select-initiative") {
       setSelectedGuildId(null);
@@ -328,26 +371,52 @@ export const CreateTaskWizard = () => {
         {/* Step 3: Select Project */}
         {step === "select-project" && (
           <div className="space-y-2">
+            <div className="relative">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                placeholder={t("createWizard.searchProjects")}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
             {projectsQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
               </div>
-            ) : filteredProjects.length === 0 ? (
+            ) : filteredProjects.length === 0 && !hasMoreProjects ? (
               <p className="text-muted-foreground py-4 text-center text-sm">
                 {t("createWizard.noProjects")}
               </p>
             ) : (
-              filteredProjects.map((project) => (
-                <button
-                  key={project.id}
-                  type="button"
-                  className="hover:bg-accent flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors"
-                  onClick={() => handleProjectSelect(project.id, project.name)}
-                >
-                  <ListTodo className="text-muted-foreground h-4 w-4 shrink-0" />
-                  <span className="text-sm font-medium">{project.name}</span>
-                </button>
-              ))
+              <>
+                {filteredProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    className="hover:bg-accent flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors"
+                    onClick={() => handleProjectSelect(project.id, project.name)}
+                  >
+                    <ListTodo className="text-muted-foreground h-4 w-4 shrink-0" />
+                    <span className="text-sm font-medium">{project.name}</span>
+                  </button>
+                ))}
+                {hasMoreProjects && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setProjectPage((p) => p + 1)}
+                    disabled={projectsQuery.isFetching}
+                  >
+                    {projectsQuery.isFetching ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {t("createWizard.loadMore")}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         )}

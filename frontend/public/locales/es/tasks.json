@@ -222,7 +222,9 @@
     "noInitiatives": "No se encontraron iniciativas en este gremio.",
     "noProjects": "No se encontraron proyectos en esta iniciativa.",
     "loading": "Cargando…",
-    "back": "Atrás"
+    "back": "Atrás",
+    "searchProjects": "Buscar proyectos…",
+    "loadMore": "Cargar más"
   },
 
   "bulkEdit": {

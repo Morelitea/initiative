@@ -236,7 +236,9 @@
     "noInitiatives": "Aucune initiative trouvée dans ce groupe.",
     "noProjects": "Aucun projet trouvé dans cette initiative.",
     "loading": "Chargement…",
-    "back": "Retour"
+    "back": "Retour",
+    "searchProjects": "Rechercher des projets…",
+    "loadMore": "Charger plus"
   },
 
   "bulkEdit": {

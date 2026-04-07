@@ -236,7 +236,9 @@
     "noInitiatives": "No initiatives found in this guild.",
     "noProjects": "No projects found in this initiative.",
     "loading": "Loading…",
-    "back": "Back"
+    "back": "Back",
+    "searchProjects": "Search projects…",
+    "loadMore": "Load more"
   },
 
   "bulkEdit": {
