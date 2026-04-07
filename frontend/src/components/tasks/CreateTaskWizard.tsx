@@ -174,7 +174,7 @@ export const CreateTaskWizard = () => {
       autoAdvancedRef.current = "guild";
       handleGuildSelect(guilds[0].id, guilds[0].name);
     }
-  }, [step, guilds, lastUsed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, guilds, lastUsed, handleGuildSelect]); // stable callback, safe to include
 
   // Auto-advance initiative step
   useEffect(() => {
