@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useRouter, useParams, useSearch } from "@tanstack/react-router";
 import { AlertCircle, SearchX, Settings, ShieldAlert } from "lucide-react";
 import { StatusMessage } from "@/components/StatusMessage";
+import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -152,6 +153,10 @@ export const ProjectDetailPage = () => {
     const status = getHttpStatus(projectQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
     const backTo = gp("/projects");
     const backLabel = t("detail.backToProjects");
+
+    if (status === 404 || status === 403) {
+      clearLastUsedProject(parsedProjectId);
+    }
 
     if (status === 404) {
       return (

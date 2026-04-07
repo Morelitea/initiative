@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { guildPath } from "@/lib/guildUrl";
-import { getItem, setItem } from "@/lib/storage";
+import { getItem, setItem, removeItem } from "@/lib/storage";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativesForGuild } from "@/hooks/useInitiatives";
 import { useGlobalProjects } from "@/hooks/useProjects";
@@ -55,6 +55,17 @@ function loadLastUsed(): LastUsedProject | null {
 
 function saveLastUsed(data: LastUsedProject) {
   setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+/**
+ * Clear the stored "last used" project if it matches the given projectId.
+ * Call this from error pages (404/403) to prevent stale shortcuts.
+ */
+export function clearLastUsedProject(projectId: number) {
+  const stored = loadLastUsed();
+  if (stored && stored.projectId === projectId) {
+    removeItem(STORAGE_KEY);
+  }
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
