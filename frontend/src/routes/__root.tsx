@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react";
 import type { RouterContext } from "@/router";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useColorTheme } from "@/hooks/useColorTheme";
-import { useSafeArea } from "@/hooks/useSafeArea";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
 
 const TanStackRouterDevtools = import.meta.env.DEV
@@ -32,7 +31,6 @@ const RootComponent = () => {
   // Global hooks
   useInterfaceColors();
   useColorTheme();
-  useSafeArea();
   useDeepLinks();
 
   return (
