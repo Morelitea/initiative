@@ -1,8 +1,7 @@
 package com.morelitea.initiative;
 
 import android.os.Bundle;
-import android.view.View;
-import androidx.core.view.ViewCompat;
+import androidx.activity.EdgeToEdge;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
