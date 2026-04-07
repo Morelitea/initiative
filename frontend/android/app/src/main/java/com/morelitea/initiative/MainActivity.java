@@ -1,7 +1,8 @@
 package com.morelitea.initiative;
 
 import android.os.Bundle;
-import androidx.activity.EdgeToEdge;
+import android.view.View;
+import androidx.core.view.ViewCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -13,7 +14,14 @@ public class MainActivity extends BridgeActivity {
         // Switch from splash theme to main theme with edge-to-edge attributes
         setTheme(R.style.AppTheme_NoActionBar);
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
+
+        // Clear the built-in Capacitor SystemBars plugin's inset listener on the WebView parent.
+        // Both SystemBars (CoordinatorLayout padding) and @capacitor-community/safe-area (decor
+        // view padding) apply bottom insets, causing a double offset when the keyboard opens.
+        // The safe-area plugin handles all inset management, so remove the built-in one.
+        View webViewParent = (View) getBridge().getWebView().getParent();
+        ViewCompat.setOnApplyWindowInsetsListener(webViewParent, null);
+        webViewParent.requestApplyInsets();
 
         // Create notification channels for push notifications
         NotificationChannelManager.createNotificationChannels(this);

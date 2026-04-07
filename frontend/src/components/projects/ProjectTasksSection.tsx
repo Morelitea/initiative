@@ -151,6 +151,8 @@ type ProjectTasksSectionProps = {
   projectIsArchived: boolean;
   canViewTaskDetails: boolean;
   onTaskClick: (taskId: number) => void;
+  initialComposerOpen?: boolean;
+  onComposerOpenChange?: (isOpen: boolean) => void;
 };
 
 export const ProjectTasksSection = ({
@@ -162,6 +164,8 @@ export const ProjectTasksSection = ({
   projectIsArchived,
   canViewTaskDetails,
   onTaskClick,
+  initialComposerOpen,
+  onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
   const { t } = useTranslation("projects");
   const sortedTaskStatuses = useMemo(() => {
@@ -188,7 +192,15 @@ export const ProjectTasksSection = ({
   const { data: tags = [] } = useTags();
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
+  useEffect(() => {
+    if (initialComposerOpen) {
+      setIsComposerOpen(true);
+    }
+  }, [initialComposerOpen]);
+  useEffect(() => {
+    onComposerOpenChange?.(isComposerOpen);
+  }, [isComposerOpen, onComposerOpenChange]);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [filtersLoadedForProject, setFiltersLoadedForProject] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);

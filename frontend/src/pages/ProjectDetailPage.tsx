@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useRouter, useParams } from "@tanstack/react-router";
+import { Link, useRouter, useParams, useSearch } from "@tanstack/react-router";
 import { AlertCircle, SearchX, Settings, ShieldAlert } from "lucide-react";
 import { StatusMessage } from "@/components/StatusMessage";
+import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import {
   invalidateAllTasks,
   invalidateProject,
@@ -33,7 +34,22 @@ export const ProjectDetailPage = () => {
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
+  const searchParams = useSearch({ strict: false }) as { create?: string };
   const parsedProjectId = Number(projectId);
+
+  // Clear ?create from URL when the task composer closes
+  const handleComposerOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (!isOpen && searchParams.create) {
+        void router.navigate({
+          to: ".",
+          search: {},
+          replace: true,
+        });
+      }
+    },
+    [searchParams.create, router]
+  );
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
@@ -138,13 +154,40 @@ export const ProjectDetailPage = () => {
     const backTo = gp("/projects");
     const backLabel = t("detail.backToProjects");
 
+    if (status === 404 || status === 403) {
+      clearLastUsedProject(parsedProjectId);
+    }
+
     if (status === 404) {
-      return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo={backTo} backLabel={backLabel} />;
+      return (
+        <StatusMessage
+          icon={<SearchX />}
+          title={t("detail.notFound")}
+          description={t("detail.notFoundDescription")}
+          backTo={backTo}
+          backLabel={backLabel}
+        />
+      );
     }
     if (status === 403) {
-      return <StatusMessage icon={<ShieldAlert />} title={t("detail.noAccess")} description={t("detail.noAccessDescription")} backTo={backTo} backLabel={backLabel} />;
+      return (
+        <StatusMessage
+          icon={<ShieldAlert />}
+          title={t("detail.noAccess")}
+          description={t("detail.noAccessDescription")}
+          backTo={backTo}
+          backLabel={backLabel}
+        />
+      );
     }
-    return <StatusMessage icon={<AlertCircle />} title={t("detail.loadError")} backTo={backTo} backLabel={backLabel} />;
+    return (
+      <StatusMessage
+        icon={<AlertCircle />}
+        title={t("detail.loadError")}
+        backTo={backTo}
+        backLabel={backLabel}
+      />
+    );
   }
 
   const initiativeMembership = project.initiative?.members?.find(
@@ -226,6 +269,8 @@ export const ProjectDetailPage = () => {
           projectIsArchived={projectIsArchived}
           canViewTaskDetails={canViewTaskDetails}
           onTaskClick={handleTaskClick}
+          initialComposerOpen={searchParams.create === "true"}
+          onComposerOpenChange={handleComposerOpenChange}
         />
       </div>
     </PullToRefresh>

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import imghdr
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -46,9 +45,23 @@ async def upload_attachment(
             detail=AttachmentMessages.FILE_EMPTY,
         )
 
-    # SVG is XML-based so imghdr can't detect it; check content type and magic bytes
+    # Detect image format from magic bytes (imghdr was removed in Python 3.13)
     is_svg = file.content_type == "image/svg+xml" or contents.lstrip()[:4] in (b"<?xm", b"<svg")
-    detected_format = "svg" if is_svg else imghdr.what(None, contents)
+    detected_format: str | None = None
+    if is_svg:
+        detected_format = "svg"
+    elif contents[:8] == b"\x89PNG\r\n\x1a\n":
+        detected_format = "png"
+    elif contents[:2] == b"\xff\xd8":
+        detected_format = "jpeg"
+    elif contents[:6] in (b"GIF87a", b"GIF89a"):
+        detected_format = "gif"
+    elif contents[:4] == b"RIFF" and contents[8:12] == b"WEBP":
+        detected_format = "webp"
+    elif contents[:4] in (b"II\x2a\x00", b"MM\x00\x2a"):
+        detected_format = "tiff"
+    elif contents[:4] == b"\x00\x00\x01\x00":
+        detected_format = "ico"
     if detected_format is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

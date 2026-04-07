@@ -2,11 +2,15 @@
   "placeholder": "Search in {{activeGuildName}}...",
   "noResults": "No results found.",
   "groups": {
+    "actions": "Actions",
     "suggested": "Suggested",
     "pages": "Pages",
     "projects": "Projects",
     "tasks": "Tasks",
     "documents": "Documents"
+  },
+  "actions": {
+    "addTask": "Add Task"
   },
   "pages": {
     "myTasks": "My Tasks",

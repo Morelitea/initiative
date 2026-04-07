@@ -40,6 +40,26 @@ export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   });
 };
 
+/**
+ * Fetch initiatives for a specific guild by overriding the X-Guild-ID header.
+ * Unlike useInitiatives, this does not depend on the active guild context.
+ */
+export const useInitiativesForGuild = (
+  guildId: number | null,
+  options?: QueryOpts<InitiativeRead[]>
+) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<InitiativeRead[]>({
+    queryKey: ["/api/v1/initiatives/", { guildId }],
+    queryFn: () =>
+      listInitiativesApiV1InitiativesGet({
+        headers: { "X-Guild-ID": String(guildId) },
+      }) as unknown as Promise<InitiativeRead[]>,
+    enabled: !!guildId && userEnabled,
+    ...rest,
+  });
+};
+
 export const useInitiative = (initiativeId: number | null, options?: QueryOpts<InitiativeRead>) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeRead>({

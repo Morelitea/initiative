@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-04-06
+
+### Added
+
+- Global "Add Task" wizard dialog accessible from My Tasks, Tasks I Created, and the Command Center (Ctrl+K)
+  - Multi-step flow: select guild → initiative → project → opens task composer on that project
+  - Remembers last-used project for quick repeat task creation
+  - Auto-skips steps when only one option exists (single guild or initiative)
+  - Only shows projects the user has write access to
+
+### Fixed
+
+- Replace `imghdr` module with magic-bytes detection for Python 3.13 compatibility
+- Fix double bottom inset on Android when the keyboard is visible (Capacitor SystemBars and safe-area plugin both applying insets)
+- Remove `EdgeToEdge.enable()` to prevent conflict with safe-area plugin's inset management
+
 ## [0.36.0] - 2026-04-04
 
 ### Added
