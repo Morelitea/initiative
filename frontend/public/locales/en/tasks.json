@@ -122,6 +122,7 @@
   "myTasks": {
     "title": "My Tasks",
     "subtitle": "Everything assigned to you across all projects.",
+    "addTask": "Add Task",
     "noGuild": "No Guild",
     "loadError": "Unable to load your tasks.",
     "groupByDate": "Date",
@@ -139,6 +140,7 @@
   "createdTasks": {
     "title": "Tasks I Created",
     "subtitle": "Tasks you've created across all your guilds.",
+    "addTask": "Add Task",
     "empty": "You haven't created any tasks yet.",
     "loadError": "Unable to load your created tasks.",
     "groupByDate": "Date",
@@ -222,6 +224,19 @@
     "tagsRemoved": "Tags removed from {{count}} task",
     "tagsRemoved_other": "Tags removed from {{count}} tasks",
     "updateError": "Unable to update tags right now."
+  },
+
+  "createWizard": {
+    "title": "Add Task",
+    "description": "Select a project to create a new task.",
+    "lastUsed": "Last used",
+    "selectGuild": "Select a guild",
+    "selectInitiative": "Select an initiative",
+    "selectProject": "Select a project",
+    "noInitiatives": "No initiatives found in this guild.",
+    "noProjects": "No projects found in this initiative.",
+    "loading": "Loading…",
+    "back": "Back"
   },
 
   "bulkEdit": {

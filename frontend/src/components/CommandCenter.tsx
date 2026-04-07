@@ -5,12 +5,14 @@ import {
   CheckSquare,
   ListTodo,
   PenLine,
+  Plus,
   ScrollText,
   Users,
   Settings,
   BarChart3,
   UserCog,
 } from "lucide-react";
+import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 
 import {
   CommandDialog,
@@ -154,6 +156,20 @@ export function CommandCenter() {
       />
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
+
+        {/* Actions */}
+        <CommandGroup heading={t("groups.actions")}>
+          <CommandItem
+            value="action-add-task"
+            onSelect={() => {
+              setOpen(false);
+              getOpenCreateTaskWizard()?.();
+            }}
+          >
+            <Plus className="text-muted-foreground" />
+            <span>{t("actions.addTask")}</span>
+          </CommandItem>
+        </CommandGroup>
 
         {/* Suggested — only when not searching (cmdk hides empty groups automatically) */}
         {recentProjects.length > 0 && (

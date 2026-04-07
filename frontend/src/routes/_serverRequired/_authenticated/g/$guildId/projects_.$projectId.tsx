@@ -53,6 +53,9 @@ function getStoredFilters(projectId: number): {
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/g/$guildId/projects_/$projectId"
 )({
+  validateSearch: (search: Record<string, unknown>) => ({
+    create: typeof search.create === "string" ? search.create : undefined,
+  }),
   loader: async ({ context, params }) => {
     const projectId = Number(params.projectId);
     const { queryClient } = context;
