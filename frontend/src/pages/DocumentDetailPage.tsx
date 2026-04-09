@@ -294,7 +294,9 @@ export const DocumentDetailPage = () => {
   const saveDocument = useUpdateDocument({
     // Suppress the default error toast when the save failed because we're offline —
     // the persistent offline toast already explains the situation to the user.
-    suppressErrorToast: () => !navigator.onLine,
+    // Using `isOnline` (not `navigator.onLine`) so native WebView users get the
+    // same behavior: the Capacitor Network plugin is authoritative on native.
+    suppressErrorToast: () => !isOnline,
     onSuccess: () => {
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
