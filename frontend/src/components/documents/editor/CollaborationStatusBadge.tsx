@@ -16,6 +16,8 @@ export interface CollaborationStatusBadgeProps {
   isCollaborating: boolean;
   /** Whether the collaboration provider has synced with the server */
   isSynced?: boolean;
+  /** Device-level network status. When false, overrides other states to show "Offline". */
+  isOnline?: boolean;
   className?: string;
 }
 
@@ -27,12 +29,15 @@ export function CollaborationStatusBadge({
   collaborators,
   isCollaborating,
   isSynced = true,
+  isOnline = true,
   className,
 }: CollaborationStatusBadgeProps) {
   const { t } = useTranslation("documents");
 
-  // Don't show anything if not enabled
-  if (connectionStatus === "disconnected" && collaborators.length === 0) {
+  // When explicitly offline, always render regardless of collaborator count.
+  // Otherwise keep the existing early-return so the badge stays hidden when
+  // collaboration is disabled and nobody else is here.
+  if (isOnline && connectionStatus === "disconnected" && collaborators.length === 0) {
     return null;
   }
 
@@ -67,11 +72,20 @@ export function CollaborationStatusBadge({
       color: "text-red-500",
       bgColor: "bg-red-100 dark:bg-red-900/20",
     },
+    offline: {
+      icon: WifiOff,
+      label: t("collab.networkOffline"),
+      color: "text-amber-600 dark:text-amber-500",
+      bgColor: "bg-amber-100 dark:bg-amber-900/20",
+    },
   };
 
-  // Determine effective status - show syncing when connected but not yet synced
-  const effectiveStatus =
-    connectionStatus === "connected" && !isSynced ? "syncing" : connectionStatus;
+  // Offline overrides everything. Otherwise show syncing when connected but not yet synced.
+  const effectiveStatus: keyof typeof statusConfig = !isOnline
+    ? "offline"
+    : connectionStatus === "connected" && !isSynced
+      ? "syncing"
+      : connectionStatus;
 
   const config = statusConfig[effectiveStatus];
   const StatusIcon = config.icon;
@@ -87,7 +101,7 @@ export function CollaborationStatusBadge({
             >
               <StatusIcon className={cn("h-3 w-3", config.color)} />
               <span className="text-xs">{config.label}</span>
-              {isCollaborating && collaborators.length > 0 && (
+              {isOnline && isCollaborating && collaborators.length > 0 && (
                 <span className="text-muted-foreground ml-0.5 text-xs">
                   ({collaborators.length})
                 </span>
@@ -95,7 +109,7 @@ export function CollaborationStatusBadge({
             </Badge>
 
             {/* Collaborator avatars */}
-            {isCollaborating && collaborators.length > 0 && (
+            {isOnline && isCollaborating && collaborators.length > 0 && (
               <div className="flex -space-x-2">
                 {collaborators.slice(0, 4).map((collaborator, index) => (
                   <CollaboratorAvatar

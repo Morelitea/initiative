@@ -121,6 +121,10 @@
     "imageUploadError": "Échec du téléchargement de l'image.",
     "saved": "Document enregistré",
     "saveError": "Impossible d'enregistrer le document.",
+    "offline": {
+      "collaborative": "Vous êtes hors ligne — les modifications seront synchronisées dès la reconnexion.",
+      "nonCollaborative": "Vous êtes hors ligne — les modifications ne sont pas enregistrées. Reconnectez-vous pour enregistrer."
+    },
     "collaborationFailed": "Échec de la connexion de collaboration",
     "collaborationFailedDescription": "Passage en mode d'édition hors ligne",
     "saveChanges": "Enregistrer les modifications",
@@ -504,6 +508,7 @@
     "syncing": "Synchronisation...",
     "online": "En ligne",
     "offline": "Hors ligne",
+    "networkOffline": "Hors ligne",
     "connectionError": "Erreur de connexion",
     "activeCollaborators": "Collaborateurs actifs :",
     "viewing": "(en lecture)",
