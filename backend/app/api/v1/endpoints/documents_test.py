@@ -393,3 +393,58 @@ async def test_download_native_document_returns_404(
 
     response = await client.get(f"/api/v1/documents/{doc_id}/download", headers=get_auth_headers(owner))
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_update_content_clears_yjs_state(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """PATCH /documents/{id} with content should clear yjs_state.
+
+    Regression: editing in non-collab mode used to leave a stale yjs_state,
+    which then overwrote the freshly-saved content when the user re-enabled
+    collaboration (the CollaborationPlugin synced from the old Yjs state).
+    """
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    headers = get_guild_headers(guild, owner)
+    create_resp = await client.post(
+        "/api/v1/documents/",
+        headers=headers,
+        json={"title": "Collab Doc", "initiative_id": initiative.id},
+    )
+    assert create_resp.status_code == 201
+    doc_id = create_resp.json()["id"]
+
+    # Simulate a prior collaborative session by writing a stale yjs_state blob
+    doc = await session.get(Document, doc_id)
+    assert doc is not None
+    doc.yjs_state = b"\x00\x01\x02 stale yjs blob"
+    session.add(doc)
+    await session.commit()
+
+    # PATCH the content via the REST endpoint (the non-collab save path)
+    patch_resp = await client.patch(
+        f"/api/v1/documents/{doc_id}",
+        headers=headers,
+        json={
+            "content": {
+                "root": {
+                    "children": [],
+                    "direction": None,
+                    "format": "",
+                    "indent": 0,
+                    "type": "root",
+                    "version": 1,
+                }
+            }
+        },
+    )
+    assert patch_resp.status_code == 200
+
+    # Re-read the document to confirm yjs_state was cleared
+    await session.refresh(doc)
+    assert doc.yjs_state is None
