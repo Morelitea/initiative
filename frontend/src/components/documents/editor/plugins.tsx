@@ -50,6 +50,7 @@ import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floatin
 import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { ImagesPlugin } from "@/components/ui/editor/plugins/images-plugin";
+import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
 import { KeywordsPlugin } from "@/components/ui/editor/plugins/keywords-plugin";
 import { LayoutPlugin } from "@/components/ui/editor/plugins/layout-plugin";
 import { HeadingAnchorPlugin } from "@/components/ui/editor/plugins/heading-anchor-plugin";
@@ -240,6 +241,7 @@ export function Plugins({
         <CheckListPlugin />
         <HorizontalRulePlugin />
         <TablePlugin hasCellMerge hasCellBackgroundColor />
+        <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />
         <ListPlugin />
         <TabIndentationPlugin />
         <HashtagPlugin />
