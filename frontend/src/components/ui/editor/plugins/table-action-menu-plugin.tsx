@@ -42,45 +42,41 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   const [editor] = useLexicalComposerContext();
   const [position, setPosition] = useState<MenuPosition | null>(null);
 
-  // Read the active table cell from the current selection and update position.
-  // Returns true if a table cell is currently selected.
+  // Find the active table cell from the selection; only compute DOM position
+  // when the cursor is actually inside a table to avoid unnecessary layout reads.
   const updatePosition = useCallback(() => {
-    let nextPosition: MenuPosition | null = null;
+    let cellKey: string | null = null;
 
     editor.getEditorState().read(() => {
       const selection = $getSelection();
-      if (!$isRangeSelection(selection)) {
-        return;
-      }
-      // Walk up from the selection's anchor node to find a TableCellNode
+      if (!$isRangeSelection(selection)) return;
       let node: ReturnType<typeof selection.anchor.getNode> | null = selection.anchor.getNode();
-      let cellNode: TableCellNode | null = null;
       while (node !== null) {
         if ($isTableCellNode(node)) {
-          cellNode = node;
-          break;
+          cellKey = node.getKey();
+          return;
         }
         node = node.getParent();
       }
-      if (!cellNode) {
-        return;
-      }
-
-      // Compute screen position for the cell
-      const cellElement = editor.getElementByKey(cellNode.getKey());
-      if (!cellElement) {
-        return;
-      }
-      const cellRect = cellElement.getBoundingClientRect();
-      const anchorRect = anchorElem.getBoundingClientRect();
-      // Anchor button to the top-right of the cell, slightly inset
-      nextPosition = {
-        top: cellRect.top - anchorRect.top + 4,
-        left: cellRect.right - anchorRect.left - 24,
-      };
     });
 
-    setPosition(nextPosition);
+    if (!cellKey) {
+      setPosition((prev) => (prev === null ? prev : null));
+      return;
+    }
+
+    const cellElement = editor.getElementByKey(cellKey);
+    if (!cellElement) {
+      setPosition((prev) => (prev === null ? prev : null));
+      return;
+    }
+
+    const cellRect = cellElement.getBoundingClientRect();
+    const anchorRect = anchorElem.getBoundingClientRect();
+    setPosition({
+      top: cellRect.top - anchorRect.top + 4,
+      left: cellRect.right - anchorRect.left - 24,
+    });
   }, [editor, anchorElem]);
 
   useEffect(() => {
