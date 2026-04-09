@@ -394,7 +394,9 @@ export const DocumentDetailPage = () => {
     prevOnlineRef.current = isOnline;
     if (!wasOffline || !isOnline) return;
     if (!canEditDocument || !isDirty || saveDocument.isPending) return;
-    isAutosaveRef.current = true;
+    // Do NOT set isAutosaveRef here — we want the success toast to fire so
+    // users who edited while offline get explicit confirmation their work
+    // was persisted after reconnecting.
     saveDocument.mutate({
       documentId: parsedId,
       data: {
