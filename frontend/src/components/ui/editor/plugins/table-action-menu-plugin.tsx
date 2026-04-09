@@ -80,13 +80,14 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
   }, [editor, anchorElem]);
 
   useEffect(() => {
-    // Initial position
     updatePosition();
-    // React to selection changes and any editor updates
-    return editor.registerUpdateListener(() => {
-      updatePosition();
-    });
-  }, [editor, updatePosition]);
+    const unregister = editor.registerUpdateListener(() => updatePosition());
+    anchorElem.addEventListener("scroll", updatePosition, true);
+    return () => {
+      unregister();
+      anchorElem.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [editor, updatePosition, anchorElem]);
 
   // ── Action handlers ─────────────────────────────────────────────────────
 
