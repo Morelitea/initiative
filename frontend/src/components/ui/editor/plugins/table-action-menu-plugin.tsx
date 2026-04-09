@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactPortal } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $deleteTableColumnAtSelection,
@@ -37,6 +38,7 @@ interface MenuPosition {
 }
 
 function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
+  const { t } = useTranslation("documents");
   const [editor] = useLexicalComposerContext();
   const [position, setPosition] = useState<MenuPosition | null>(null);
 
@@ -222,49 +224,49 @@ function TableActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement }) {
       <DropdownMenu>
         <DropdownMenuTrigger
           className="bg-background hover:bg-accent text-muted-foreground inline-flex h-5 w-5 items-center justify-center rounded border shadow-sm outline-none"
-          aria-label="Table actions"
+          aria-label={t("editor.tableActions")}
         >
           <ChevronDown className="h-3 w-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem onSelect={insertRowAbove}>
             <ArrowUpToLine className="mr-2 h-4 w-4" />
-            Insert row above
+            {t("editor.insertRowAbove")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={insertRowBelow}>
             <ArrowDownToLine className="mr-2 h-4 w-4" />
-            Insert row below
+            {t("editor.insertRowBelow")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={insertColumnLeft}>
             <ArrowLeftToLine className="mr-2 h-4 w-4" />
-            Insert column left
+            {t("editor.insertColumnLeft")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={insertColumnRight}>
             <ArrowRightToLine className="mr-2 h-4 w-4" />
-            Insert column right
+            {t("editor.insertColumnRight")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={deleteRow}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete row
+            {t("editor.deleteRow")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={deleteColumn}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete column
+            {t("editor.deleteColumn")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={toggleHeaderRow}>
             <Heading className="mr-2 h-4 w-4" />
-            Toggle header row
+            {t("editor.toggleHeaderRow")}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={toggleHeaderColumn}>
             <Heading className="mr-2 h-4 w-4" />
-            Toggle header column
+            {t("editor.toggleHeaderColumn")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={deleteTable} className="text-destructive">
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete table
+            {t("editor.deleteTable")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
