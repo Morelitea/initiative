@@ -30,7 +30,7 @@ import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transf
 
 // Very primitive table setup
 const TABLE_ROW_REG_EXP = /^(?:\|)(.+)(?:\|)\s?$/;
-const TABLE_ROW_DIVIDER_REG_EXP = /^(\| ?:?-*:? ?)+\|\s?$/;
+const TABLE_ROW_DIVIDER_REG_EXP = /^(\| ?:?-+:? ?)+\|\s?$/;
 
 const OTHER_MARKDOWN_TRANSFORMERS = [
   HR,

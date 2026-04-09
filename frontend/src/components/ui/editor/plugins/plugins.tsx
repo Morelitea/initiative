@@ -47,6 +47,7 @@ import { EmojisPlugin } from "@/components/ui/editor/plugins/emojis-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { ImagesPlugin } from "@/components/ui/editor/plugins/images-plugin";
+import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
 import { KeywordsPlugin } from "@/components/ui/editor/plugins/keywords-plugin";
 import { LayoutPlugin } from "@/components/ui/editor/plugins/layout-plugin";
 import { LinkPlugin } from "@/components/ui/editor/plugins/link-plugin";
@@ -183,6 +184,7 @@ export function Plugins() {
         <CheckListPlugin />
         <HorizontalRulePlugin />
         <TablePlugin />
+        <TableActionMenuPlugin anchorElem={floatingAnchorElem} />
         <ListPlugin />
         <TabIndentationPlugin />
         <HashtagPlugin />

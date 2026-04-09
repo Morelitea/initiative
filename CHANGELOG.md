@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.2] - 2026-04-08
+
+### Added
+
+- Table action menu in the document editor — click the chevron in any table cell to insert/delete rows and columns, toggle header rows/columns, or delete the table
+
+### Fixed
+
+- Fix tables shrinking from full width after deleting a column (changed table CSS from `w-fit` to `w-full`)
+- Fix empty table rows/columns being removed during markdown round-trip (divider regex matched empty cells as header separators)
+
 ## [0.36.1] - 2026-04-06
 
 ### Added

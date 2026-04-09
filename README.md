@@ -192,6 +192,35 @@ For FCM setup, see [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). For a compl
 
 ---
 
+## Roadmap
+
+### Current Status
+- Most core features are implemented and functional:
+  - AGPL container: frontend + storage
+  - Rich task management (Kanban, Calendar, Table, Gantt)
+  - Collaborative documents with real-time editing
+  - Notifications and AI integrations
+  - Additional tooling menu for initaitive based features such as calender and queues
+  - Self-hosted via Docker, multi-guild support
+
+### Focus for Upcoming Iterations
+- **Iterate and polish** existing features:
+  - Debugging, UX refinements, accessibility
+  - Standardize testing accross the board for stability between releases
+  - CI/CD improvements
+
+- **New minor features / improvements**:
+  - Whiteboard document type for collaborative visual planning
+  - Additional templates for documents and workflows
+  - Improved API endpoints for integrations
+
+### Long-Term / Philosophy
+- Maintain the AGPL container as fully open-source
+- Automation visuals, storage, and frontend exist in the container; the execution logic runs in a private, paid cloud instance
+- Initiative is designed for small teams, communities, and personal learning projects
+
+---
+
 ## Technology Stack
 
 | Layer | Technologies |
