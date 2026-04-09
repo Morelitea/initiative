@@ -55,11 +55,10 @@ from app.services import attachments as attachments_service
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
 from app.services import notifications as notifications_service
+from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.collaboration import collaboration_manager
-from app.services.collaboration import collaboration_manager
-from app.services.ai_generation import AIGenerationError, generate_document_summary
 
 logger = logging.getLogger(__name__)
 
