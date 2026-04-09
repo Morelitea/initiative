@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Autosave is skipped while offline and automatically retries on reconnect, so edits aren't lost
   - Uses `@capacitor/network` for accurate status on native, `navigator.onLine` on web
 
+### Changed
+
+- **React 18.3 → 19.2.** Bumped `react`, `react-dom`, `@types/react`, and `@types/react-dom` to 19.x. Required widening a drag-scroll hook's ref type to accept the new nullable `RefObject<T | null>`, importing `JSX` from `react` in a legacy Lexical `EmbedNode` (React 19 removed the global `JSX` namespace), and deleting two unused editor shim files that imported the now-removed `react-dom/test-utils`. All major peer deps (Lexical, Radix, TanStack Query/Router, cmdk, sonner, Testing Library 16) already declared `^19` support.
+- **react-i18next 16 → 17** and **i18next 25 → 26.** Major bumps; react-i18next 17 requires i18next ≥ 26. None of i18next 26's breaking changes (`initImmediate`, legacy monolithic `format` function, `showSupportNotice`, `simplifyPluralSuffix`) are used in our config.
+- Bumped `sqlmodel` 0.0.37 → 0.0.38 (backend ORM).
+- Bumped `vite` 7.3.1 → 7.3.2, `msw` 2.12.14 → 2.13.0, `i18next-http-backend` 3.0.2 → 3.0.4, `@types/node` 25.5.0 → 25.5.2, `email-validator` 2.1.1 → 2.3.0, `python-multipart` 0.0.22 → 0.0.24.
+
 ### Fixed
 
 - Document edits saved in non-collaborative mode are no longer overwritten by a stale `yjs_state` when re-enabling live collaboration. The document update endpoint now clears `yjs_state` and invalidates any empty in-memory collaboration room whenever content is written via the REST PATCH.

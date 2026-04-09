@@ -87,7 +87,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "emoji-picker-react": "^4.18.0",
-    "i18next": "^25.10.10",
+    "i18next": "^26.0.4",
     "i18next-http-backend": "^3.0.4",
     "lexical": "^0.42.0",
     "lucide-react": "^0.576.0",
