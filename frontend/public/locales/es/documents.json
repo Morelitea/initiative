@@ -121,6 +121,10 @@
     "imageUploadError": "No se pudo subir la imagen.",
     "saved": "Documento guardado",
     "saveError": "No se pudo guardar el documento.",
+    "offline": {
+      "collaborative": "Estás sin conexión — los cambios se sincronizarán cuando vuelvas a conectarte.",
+      "nonCollaborative": "Estás sin conexión — los cambios no se están guardando. Vuelve a conectarte para guardar."
+    },
     "collaborationFailed": "La conexión de colaboración falló",
     "collaborationFailedDescription": "Cambiando al modo de edición sin conexión",
     "saveChanges": "Guardar cambios",
@@ -504,6 +508,7 @@
     "syncing": "Sincronizando...",
     "online": "En línea",
     "offline": "Sin conexión",
+    "networkOffline": "Sin conexión",
     "connectionError": "Error de conexión",
     "activeCollaborators": "Colaboradores activos:",
     "viewing": "(viendo)",

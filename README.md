@@ -226,7 +226,7 @@ For FCM setup, see [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). For a compl
 | Layer | Technologies |
 |---|---|
 | **Backend** | FastAPI, SQLModel + SQLAlchemy, PostgreSQL 17, Alembic, asyncpg |
-| **Frontend** | React 18, TypeScript, Vite, React Query, Tailwind CSS, shadcn/ui, dnd-kit |
+| **Frontend** | React 19, TypeScript, Vite, React Query, Tailwind CSS, shadcn/ui, dnd-kit |
 | **Mobile** | Capacitor (iOS and Android), Firebase push notifications |
 | **Infrastructure** | Docker, GitHub Actions (multi-arch builds), Dependabot |
 

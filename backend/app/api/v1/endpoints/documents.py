@@ -58,6 +58,7 @@ from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
+from app.services.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
 
@@ -874,6 +875,11 @@ async def update_document(
         document.content = documents_service.normalize_document_content(update_data["content"])
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
+        # Clear yjs_state so the next collaborative session bootstraps from
+        # the freshly saved content. Without this, a stale yjs_state would
+        # overwrite the editor with the previous content when the user
+        # re-enables live collaboration.
+        document.yjs_state = None
         content_updated = True
         updated = True
 
@@ -904,6 +910,11 @@ async def update_document(
             await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
         await session.commit()
         await reapply_rls_context(session)
+        # Invalidate any in-memory collaboration room so the next session
+        # loads fresh state from the database. If a room has active
+        # collaborators their in-memory state wins until they disconnect.
+        if content_updated:
+            await collaboration_manager.invalidate_room_if_empty(document.id)
     hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(

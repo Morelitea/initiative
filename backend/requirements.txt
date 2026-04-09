@@ -8,7 +8,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 pydantic-settings==2.13.1
 python-multipart==0.0.22
-email-validator==2.1.1
+email-validator==2.3.0
 httpx==0.27.0
 google-auth>=2.23.0
 requests>=2.31.0  # Required by google-auth for requests transport
