@@ -382,11 +382,14 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
 };
 
 export const useUpdateDocument = (
-  options?: MutationOpts<DocumentRead, { documentId: number; data: DocumentUpdate }>
+  options?: MutationOpts<DocumentRead, { documentId: number; data: DocumentUpdate }> & {
+    /** If provided and returns true, the default error toast will be skipped. */
+    suppressErrorToast?: (error: unknown) => boolean;
+  }
 ) => {
   const { t } = useTranslation("documents");
   const queryClient = useQueryClient();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const { onSuccess, onError, onSettled, suppressErrorToast, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
@@ -406,8 +409,11 @@ export const useUpdateDocument = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("detail.saveError");
-      toast.error(message);
+      const error = args[0];
+      if (!suppressErrorToast?.(error)) {
+        const message = error instanceof Error ? error.message : t("detail.saveError");
+        toast.error(message);
+      }
       onError?.(...args);
     },
     onSettled,

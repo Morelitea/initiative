@@ -121,6 +121,10 @@
     "imageUploadError": "Failed to upload image.",
     "saved": "Document saved",
     "saveError": "Unable to save document.",
+    "offline": {
+      "collaborative": "You're offline — edits will sync when you reconnect.",
+      "nonCollaborative": "You're offline — changes aren't being saved. Reconnect to save."
+    },
     "collaborationFailed": "Collaboration connection failed",
     "collaborationFailedDescription": "Switching to offline editing mode",
     "saveChanges": "Save changes",
@@ -504,6 +508,7 @@
     "syncing": "Syncing...",
     "online": "Online",
     "offline": "Offline",
+    "networkOffline": "Offline",
     "connectionError": "Connection error",
     "activeCollaborators": "Active collaborators:",
     "viewing": "(viewing)",

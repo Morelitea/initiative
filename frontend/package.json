@@ -27,6 +27,7 @@
     "@capacitor/core": "^8.3.0",
     "@capacitor/device": "^8.0.2",
     "@capacitor/ios": "^8.3.0",
+    "@capacitor/network": "^8.0.1",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.3",
     "@dnd-kit/core": "^6.3.1",

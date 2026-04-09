@@ -51,6 +51,7 @@ const FileDocumentViewer = lazy(() =>
 import { findNewMentions } from "@/lib/mentionUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useCollaboration } from "@/hooks/useCollaboration";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -126,6 +127,9 @@ export const DocumentDetailPage = () => {
       setCollaborationEnabled(false);
     },
   });
+
+  // Network status for offline detection
+  const { isOnline } = useNetworkStatus();
 
   const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
@@ -288,6 +292,9 @@ export const DocumentDetailPage = () => {
   };
 
   const saveDocument = useUpdateDocument({
+    // Suppress the default error toast when the save failed because we're offline —
+    // the persistent offline toast already explains the situation to the user.
+    suppressErrorToast: () => !navigator.onLine,
     onSuccess: () => {
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
@@ -323,6 +330,11 @@ export const DocumentDetailPage = () => {
   // Autosave with debounce
   useEffect(() => {
     if (!autosaveEnabled || !canEditDocument || saveDocument.isPending) {
+      return;
+    }
+    // Skip all REST saves while offline — edits remain in local state and will
+    // be flushed when the network returns (see reconnect effect below).
+    if (!isOnline) {
       return;
     }
     // When collaborating, sync content less frequently (every 10s) to keep content column updated
@@ -367,7 +379,54 @@ export const DocumentDetailPage = () => {
     contentState,
     featuredImageUrl,
     collaboration.isCollaborating,
+    isOnline,
   ]);
+
+  // When connectivity returns after being offline, flush any pending dirty
+  // changes immediately. This handles the case where the user stopped typing
+  // while offline (so the 2s debounce already cleared) and is necessary
+  // because the autosave effect only fires on new edits.
+  const prevOnlineRef = useRef(isOnline);
+  useEffect(() => {
+    const wasOffline = !prevOnlineRef.current;
+    prevOnlineRef.current = isOnline;
+    if (!wasOffline || !isOnline) return;
+    if (!canEditDocument || !isDirty || saveDocument.isPending) return;
+    isAutosaveRef.current = true;
+    saveDocument.mutate({
+      documentId: parsedId,
+      data: {
+        title: title?.trim(),
+        content: contentState as unknown as Record<string, unknown>,
+        featured_image_url: featuredImageUrl,
+      },
+    });
+  }, [
+    isOnline,
+    canEditDocument,
+    isDirty,
+    saveDocument,
+    parsedId,
+    title,
+    contentState,
+    featuredImageUrl,
+  ]);
+
+  // Persistent offline toast with mode-aware copy
+  useEffect(() => {
+    const TOAST_ID = "editor-offline";
+    if (isOnline) {
+      toast.dismiss(TOAST_ID);
+      return;
+    }
+    const message = collaboration.isCollaborating
+      ? t("detail.offline.collaborative")
+      : t("detail.offline.nonCollaborative");
+    toast.warning(message, { id: TOAST_ID, duration: Infinity });
+    return () => {
+      toast.dismiss(TOAST_ID);
+    };
+  }, [isOnline, collaboration.isCollaborating, t]);
 
   // Ctrl+S / Cmd+S manual save shortcut
   useEffect(() => {
@@ -737,13 +796,16 @@ export const DocumentDetailPage = () => {
           </Suspense>
         ) : (
           <>
-            {/* Collaboration status - shown between featured image and editor */}
-            {collaborationEnabled && (
+            {/* Collaboration status - shown between featured image and editor.
+                Also shown when offline even in non-collaborative mode, so the
+                user sees an explicit offline indicator at the top of the editor. */}
+            {(collaborationEnabled || !isOnline) && (
               <CollaborationStatusBadge
                 connectionStatus={collaboration.connectionStatus}
                 collaborators={collaboration.collaborators}
                 isCollaborating={collaboration.isCollaborating}
                 isSynced={collaboration.isSynced}
+                isOnline={isOnline}
               />
             )}
             {/*
