@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.2] - 2026-04-08
+
 ### Added
 
 - Table action menu in the document editor — click the chevron in any table cell to insert/delete rows and columns, toggle header rows/columns, or delete the table
