@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Autosave is skipped while offline and automatically retries on reconnect, so edits aren't lost
   - Uses `@capacitor/network` for accurate status on native, `navigator.onLine` on web
 
+### Fixed
+
+- Document edits saved in non-collaborative mode are no longer overwritten by a stale `yjs_state` when re-enabling live collaboration. The document update endpoint now clears `yjs_state` and invalidates any empty in-memory collaboration room whenever content is written via the REST PATCH.
+
 ## [0.36.2] - 2026-04-08
 
 ### Added
