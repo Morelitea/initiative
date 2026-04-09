@@ -182,7 +182,7 @@ const TaskDragOverlay = ({
   );
 };
 
-const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement>) => {
+const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement | null>) => {
   useEffect(() => {
     const container = ref.current;
     if (!container) {

@@ -2,6 +2,7 @@
  * Legacy EmbedNode for backwards compatibility with old document content.
  * New embeds should use YouTubeNode or TweetNode instead.
  */
+import type { JSX } from "react";
 import {
   DecoratorNode,
   type DOMConversionMap,
