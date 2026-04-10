@@ -18,6 +18,7 @@ class DocumentType(str, Enum):
     """Discriminator for document type."""
     native = "native"  # Lexical editor document
     file = "file"  # Uploaded file (PDF, DOCX, etc.)
+    whiteboard = "whiteboard"  # Excalidraw scene stored in content JSONB
 
 
 class Document(SQLModel, table=True):

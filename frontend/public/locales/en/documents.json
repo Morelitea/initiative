@@ -239,6 +239,9 @@
     "descriptionStandalone": "Documents live inside an initiative. Pick one to get started.",
     "tabNew": "New document",
     "tabUpload": "Upload file",
+    "documentTypeLabel": "Document type",
+    "documentTypeText": "Text document",
+    "documentTypeWhiteboard": "Whiteboard",
     "titleLabel": "Title",
     "titlePlaceholderAttach": "Product launch brief",
     "titlePlaceholderStandalone": "Document title",
@@ -306,6 +309,11 @@
   "backlinks": {
     "title_one": "Linked from {{count}} document",
     "title_other": "Linked from {{count}} documents"
+  },
+  "whiteboard": {
+    "loading": "Loading whiteboard…",
+    "syncing": "Syncing whiteboard…",
+    "readOnly": "You have read-only access to this whiteboard."
   },
   "sidePanel": {
     "title": "Document Panel",

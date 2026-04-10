@@ -248,6 +248,8 @@ export type CreateDocumentInput = {
   is_template?: boolean;
   template_id?: number;
   project_id?: number;
+  /** Omit for native (text) documents; file uploads go through useUploadDocument instead. */
+  document_type?: "native" | "whiteboard";
   role_grants?: DocumentRolePermissionCreate[];
   user_grants?: DocumentPermissionCreate[];
 };
@@ -265,6 +267,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
         is_template,
         template_id,
         project_id,
+        document_type,
         role_grants = [],
         user_grants = [],
       } = data;
@@ -288,6 +291,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
           title,
           initiative_id,
           is_template: is_template ?? false,
+          ...(document_type ? { document_type } : {}),
           ...(role_grants.length > 0 ? { role_permissions: role_grants } : {}),
           ...(user_grants.length > 0 ? { user_permissions: user_grants } : {}),
         };

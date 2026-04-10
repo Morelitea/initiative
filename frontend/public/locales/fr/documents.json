@@ -239,6 +239,9 @@
     "descriptionStandalone": "Les documents sont liés à une initiative. Choisissez-en une pour commencer.",
     "tabNew": "Nouveau document",
     "tabUpload": "Télécharger un fichier",
+    "documentTypeLabel": "Type de document",
+    "documentTypeText": "Document texte",
+    "documentTypeWhiteboard": "Tableau blanc",
     "titleLabel": "Titre",
     "titlePlaceholderAttach": "Brief de lancement produit",
     "titlePlaceholderStandalone": "Titre du document",
@@ -306,6 +309,11 @@
   "backlinks": {
     "title_one": "Lié depuis {{count}} document",
     "title_other": "Lié depuis {{count}} documents"
+  },
+  "whiteboard": {
+    "loading": "Chargement du tableau blanc…",
+    "syncing": "Synchronisation du tableau blanc…",
+    "readOnly": "Vous avez accès en lecture seule à ce tableau blanc."
   },
   "sidePanel": {
     "title": "Panneau du document",

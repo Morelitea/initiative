@@ -48,6 +48,13 @@ const FileDocumentViewer = lazy(() =>
     default: m.FileDocumentViewer,
   }))
 );
+const WhiteboardDocumentEditor = lazy(() =>
+  import("@/components/documents/WhiteboardDocumentEditor").then((m) => ({
+    default: m.WhiteboardDocumentEditor,
+  }))
+);
+import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import type * as Y from "yjs";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -99,6 +106,12 @@ export const DocumentDetailPage = () => {
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
+  const [whiteboardScene, setWhiteboardScene] = useState<WhiteboardScene>(() => ({
+    elements: [],
+    appState: {},
+    files: {},
+  }));
+  const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const isAutosaveRef = useRef(false);
@@ -156,16 +169,42 @@ export const DocumentDetailPage = () => {
       return;
     }
     setTitle(document.title);
-    setContentState(normalizedDocumentContent);
+    if (document.document_type === "whiteboard") {
+      const raw = (document.content ?? {}) as Partial<WhiteboardScene>;
+      setWhiteboardScene({
+        elements: raw.elements ?? [],
+        appState: raw.appState ?? {},
+        files: raw.files ?? {},
+      });
+    } else {
+      setContentState(normalizedDocumentContent);
+    }
     setFeaturedImageUrl(document.featured_image_url ?? null);
     setTags(document.tags ?? []);
   }, [document, normalizedDocumentContent]);
 
-  const documentContentJson = useMemo(
-    () => JSON.stringify(normalizedDocumentContent),
-    [normalizedDocumentContent]
+  const documentContentJson = useMemo(() => {
+    if (document?.document_type === "whiteboard") {
+      return JSON.stringify(document?.content ?? {});
+    }
+    return JSON.stringify(normalizedDocumentContent);
+  }, [document?.document_type, document?.content, normalizedDocumentContent]);
+
+  const currentContentJson = useMemo(() => {
+    if (document?.document_type === "whiteboard") {
+      return JSON.stringify(whiteboardScene);
+    }
+    return JSON.stringify(contentState);
+  }, [document?.document_type, whiteboardScene, contentState]);
+
+  // Unified content payload for save mutations (branches on document type)
+  const contentForSave = useMemo(
+    () =>
+      document?.document_type === "whiteboard"
+        ? (whiteboardScene as unknown as Record<string, unknown>)
+        : (contentState as unknown as Record<string, unknown>),
+    [document?.document_type, whiteboardScene, contentState]
   );
-  const currentContentJson = useMemo(() => JSON.stringify(contentState), [contentState]);
   const normalizedDocumentFeatured = document?.featured_image_url ?? null;
   const canEditDocument = useMemo(() => {
     if (!document || !user) {
@@ -329,6 +368,44 @@ export const DocumentDetailPage = () => {
     collaboratingRef.current = collaboration.isCollaborating;
   }, [collaboration.isCollaborating]);
 
+  // Extract the Yjs doc from the collaboration provider for whiteboards.
+  // Mirrors what Lexical's CollaborationPlugin does internally — we call the
+  // factory to either reuse the cached provider or bootstrap a new one, then
+  // read provider.doc (which is a public field on CollaborationProvider).
+  useEffect(() => {
+    if (document?.document_type !== "whiteboard") {
+      setWhiteboardYDoc(null);
+      return;
+    }
+    if (!collaborationEnabled || !collaboration.providerFactory || !collaboration.isReady) {
+      setWhiteboardYDoc(null);
+      return;
+    }
+    const yjsDocMap = new Map<string, import("yjs").Doc>();
+    const provider = collaboration.providerFactory("main", yjsDocMap);
+    setWhiteboardYDoc(provider.doc);
+    // No cleanup — useCollaboration owns the provider lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    document?.document_type,
+    collaborationEnabled,
+    collaboration.providerFactory,
+    collaboration.isReady,
+    parsedId,
+  ]);
+
+  // Whiteboard scene change handler — mirrors handleContentChange for Lexical
+  const handleWhiteboardChange = useCallback(
+    (scene: WhiteboardScene) => {
+      contentStateRef.current = {
+        documentId: parsedId,
+        content: scene as unknown as SerializedEditorState,
+      };
+      setWhiteboardScene(scene);
+    },
+    [parsedId]
+  );
+
   // Autosave with debounce
   useEffect(() => {
     if (!autosaveEnabled || !canEditDocument || saveDocument.isPending) {
@@ -348,7 +425,7 @@ export const DocumentDetailPage = () => {
           documentId: parsedId,
           data: {
             title: title?.trim(),
-            content: contentState as unknown as Record<string, unknown>,
+            content: contentForSave,
             featured_image_url: featuredImageUrl,
           },
         });
@@ -364,7 +441,7 @@ export const DocumentDetailPage = () => {
           documentId: parsedId,
           data: {
             title: title?.trim(),
-            content: contentState as unknown as Record<string, unknown>,
+            content: contentForSave,
             featured_image_url: featuredImageUrl,
           },
         });
@@ -378,7 +455,7 @@ export const DocumentDetailPage = () => {
     saveDocument,
     parsedId,
     title,
-    contentState,
+    contentForSave,
     featuredImageUrl,
     collaboration.isCollaborating,
     isOnline,
@@ -401,7 +478,7 @@ export const DocumentDetailPage = () => {
       documentId: parsedId,
       data: {
         title: title?.trim(),
-        content: contentState as unknown as Record<string, unknown>,
+        content: contentForSave,
         featured_image_url: featuredImageUrl,
       },
     });
@@ -412,7 +489,7 @@ export const DocumentDetailPage = () => {
     saveDocument,
     parsedId,
     title,
-    contentState,
+    contentForSave,
     featuredImageUrl,
   ]);
 
@@ -443,7 +520,7 @@ export const DocumentDetailPage = () => {
             documentId: parsedId,
             data: {
               title: title?.trim(),
-              content: contentState as unknown as Record<string, unknown>,
+              content: contentForSave,
               featured_image_url: featuredImageUrl,
             },
           });
@@ -452,7 +529,7 @@ export const DocumentDetailPage = () => {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canEditDocument, saveDocument, parsedId, title, contentState, featuredImageUrl]);
+  }, [canEditDocument, saveDocument, parsedId, title, contentForSave, featuredImageUrl]);
 
   // Sync content via sendBeacon on page unload to ensure content column stays updated
   // This is critical when users navigate away or close the tab during collaboration
@@ -536,7 +613,7 @@ export const DocumentDetailPage = () => {
         documentId: parsedId,
         data: {
           title: title?.trim(),
-          content: contentState as unknown as Record<string, unknown>,
+          content: contentForSave,
           featured_image_url: response.url,
         },
       });
@@ -749,7 +826,7 @@ export const DocumentDetailPage = () => {
                                 documentId: parsedId,
                                 data: {
                                   title: title?.trim(),
-                                  content: contentState as unknown as Record<string, unknown>,
+                                  content: contentForSave,
                                   featured_image_url: null,
                                 },
                               });
@@ -823,25 +900,36 @@ export const DocumentDetailPage = () => {
                 </div>
               }
             >
-              <Editor
-                key={parsedId}
-                editorSerializedState={normalizedDocumentContent}
-                onSerializedChange={handleContentChange}
-                readOnly={!canEditDocument}
-                showToolbar={canEditDocument}
-                className="max-h-[80vh]"
-                mentionableUsers={mentionableUsers}
-                documentName={title}
-                collaborative={collaborationEnabled && collaboration.isReady}
-                providerFactory={collaboration.providerFactory}
-                // Always track changes so contentState stays updated for periodic saves
-                trackChanges={true}
-                isSynced={collaboration.isSynced}
-                // Wikilinks support
-                initiativeId={document.initiative_id}
-                onWikilinkNavigate={handleWikilinkNavigate}
-                onWikilinkCreate={handleWikilinkCreate}
-              />
+              {document.document_type === "whiteboard" ? (
+                <WhiteboardDocumentEditor
+                  key={parsedId}
+                  initialScene={whiteboardScene}
+                  onSerializedChange={handleWhiteboardChange}
+                  readOnly={!canEditDocument}
+                  yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
+                  isSynced={collaboration.isSynced}
+                />
+              ) : (
+                <Editor
+                  key={parsedId}
+                  editorSerializedState={normalizedDocumentContent}
+                  onSerializedChange={handleContentChange}
+                  readOnly={!canEditDocument}
+                  showToolbar={canEditDocument}
+                  className="max-h-[80vh]"
+                  mentionableUsers={mentionableUsers}
+                  documentName={title}
+                  collaborative={collaborationEnabled && collaboration.isReady}
+                  providerFactory={collaboration.providerFactory}
+                  // Always track changes so contentState stays updated for periodic saves
+                  trackChanges={true}
+                  isSynced={collaboration.isSynced}
+                  // Wikilinks support
+                  initiativeId={document.initiative_id}
+                  onWikilinkNavigate={handleWikilinkNavigate}
+                  onWikilinkCreate={handleWikilinkCreate}
+                />
+              )}
             </Suspense>
             <div className="flex flex-wrap items-center gap-3">
               {canEditDocument ? (
@@ -860,7 +948,7 @@ export const DocumentDetailPage = () => {
                             documentId: parsedId,
                             data: {
                               title: title?.trim(),
-                              content: contentState as unknown as Record<string, unknown>,
+                              content: contentForSave,
                               featured_image_url: featuredImageUrl,
                             },
                           })
@@ -957,7 +1045,7 @@ export const DocumentDetailPage = () => {
       <DocumentSidePanel
         isOpen={sidePanel.isOpen}
         onOpenChange={sidePanel.setIsOpen}
-        showSummaryTab={document.document_type !== "file" && isAIEnabled}
+        showSummaryTab={document.document_type === "native" && isAIEnabled}
         summaryContent={
           <DocumentSummary
             documentId={parsedId}
