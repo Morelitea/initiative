@@ -159,9 +159,18 @@ export function WhiteboardDocumentEditor({
         });
       } catch (err) {
         console.error("Failed to apply remote whiteboard update:", err);
-      } finally {
         applyingRemoteRef.current = false;
+        return;
       }
+      // Clear the flag on a microtask so it stays set through Excalidraw's
+      // async onChange callback — a synchronous reset in a finally block
+      // would clear it before the echo callback runs, making the guard in
+      // handleExcalidrawChange dead code. prevSerializedRef is the primary
+      // dedupe; this flag is defense-in-depth against future serializer
+      // changes that could desync the byte-level comparison.
+      queueMicrotask(() => {
+        applyingRemoteRef.current = false;
+      });
     };
 
     yMap.observe(handleRemoteChange);
@@ -221,9 +230,14 @@ export function WhiteboardDocumentEditor({
       seededForDocRef.current = yDoc;
     } catch (err) {
       console.error("Failed to apply post-sync whiteboard state:", err);
-    } finally {
       applyingRemoteRef.current = false;
+      return;
     }
+    // Clear on microtask so the flag survives into Excalidraw's async
+    // onChange echo — see comment in the Yjs observer for rationale.
+    queueMicrotask(() => {
+      applyingRemoteRef.current = false;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [yDoc, isSynced, isAPIReady]);
 
