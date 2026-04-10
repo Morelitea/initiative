@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-04-10
+
 ### Added
 
 - New `whiteboard` document type backed by Excalidraw
