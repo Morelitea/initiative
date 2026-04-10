@@ -13,7 +13,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
-from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, ProjectDocument
+from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.tag import DocumentTag
@@ -50,7 +50,30 @@ def _empty_state() -> dict[str, Any]:
 EMPTY_LEXICAL_STATE = _empty_state()
 
 
-def normalize_document_content(payload: dict[str, Any] | None) -> dict[str, Any]:
+def normalize_document_content(
+    payload: dict[str, Any] | None,
+    *,
+    document_type: DocumentType = DocumentType.native,
+) -> dict[str, Any]:
+    """Normalize content JSONB based on document type.
+
+    - native: ensure a Lexical root with at least one paragraph child
+    - whiteboard: ensure the Excalidraw scene shape {elements, appState, files}
+    - file: content is just a passthrough dict (usually empty)
+    """
+    if document_type == DocumentType.file:
+        return payload if isinstance(payload, dict) else {}
+
+    if document_type == DocumentType.whiteboard:
+        if not isinstance(payload, dict):
+            return {"elements": [], "appState": {}, "files": {}}
+        return {
+            "elements": payload.get("elements") or [],
+            "appState": payload.get("appState") or {},
+            "files": payload.get("files") or {},
+        }
+
+    # native (default)
     if not isinstance(payload, dict):
         return deepcopy(EMPTY_LEXICAL_STATE)
     root = payload.get("root")
@@ -151,7 +174,10 @@ async def duplicate_document(
     user_id: int,
     guild_id: int | None = None,
 ) -> Document:
-    content_copy = normalize_document_content(deepcopy(source.content))
+    content_copy = normalize_document_content(
+        deepcopy(source.content),
+        document_type=source.document_type,
+    )
     content_uploads = attachments_service.extract_upload_urls(content_copy)
     replacements = attachments_service.duplicate_uploads(content_uploads)
     if replacements:
@@ -184,6 +210,7 @@ async def duplicate_document(
         title=title,
         initiative_id=target_initiative_id,
         guild_id=guild_id or source.guild_id,
+        document_type=source.document_type,
         content=content_copy,
         created_by_id=user_id,
         updated_by_id=user_id,

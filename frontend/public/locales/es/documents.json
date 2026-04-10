@@ -239,6 +239,9 @@
     "descriptionStandalone": "Los documentos pertenecen a una iniciativa. Selecciona una para comenzar.",
     "tabNew": "Nuevo documento",
     "tabUpload": "Subir archivo",
+    "documentTypeLabel": "Tipo de documento",
+    "documentTypeText": "Documento de texto",
+    "documentTypeWhiteboard": "Pizarra",
     "titleLabel": "Título",
     "titlePlaceholderAttach": "Resumen de lanzamiento de producto",
     "titlePlaceholderStandalone": "Título del documento",
@@ -306,6 +309,11 @@
   "backlinks": {
     "title_one": "Enlazado desde {{count}} documento",
     "title_other": "Enlazado desde {{count}} documentos"
+  },
+  "whiteboard": {
+    "loading": "Cargando pizarra…",
+    "syncing": "Sincronizando pizarra…",
+    "readOnly": "Tienes acceso de solo lectura a esta pizarra."
   },
   "sidePanel": {
     "title": "Panel del documento",

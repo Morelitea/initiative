@@ -81,6 +81,7 @@ export const CreateDocumentDialog = ({
   );
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
+  const [newDocumentType, setNewDocumentType] = useState<"native" | "whiteboard">("native");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
@@ -107,11 +108,15 @@ export const CreateDocumentDialog = ({
   // Query templates
   const templateDocumentsQuery = useAllDocumentIds({ enabled: open });
 
-  // Filter templates — backend already enforces access control via RLS
+  // Filter templates — backend already enforces access control via RLS.
+  // Also filter by the currently selected document type so we don't let users
+  // copy a Lexical template into a whiteboard slot (or vice versa).
   const manageableTemplates = useMemo(() => {
     if (!templateDocumentsQuery.data || !Array.isArray(templateDocumentsQuery.data)) return [];
-    return templateDocumentsQuery.data.filter((doc) => doc.is_template);
-  }, [templateDocumentsQuery.data]);
+    return templateDocumentsQuery.data.filter(
+      (doc) => doc.is_template && doc.document_type === newDocumentType
+    );
+  }, [templateDocumentsQuery.data, newDocumentType]);
 
   // Reset form when dialog closes, or set default initiative when dialog opens
   useEffect(() => {
@@ -126,6 +131,7 @@ export const CreateDocumentDialog = ({
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
       setSelectedTemplateId("");
       setIsTemplateDocument(false);
+      setNewDocumentType("native");
       setSelectedFile(null);
       setCreateDialogTab("new");
       setRoleGrants([]);
@@ -139,6 +145,12 @@ export const CreateDocumentDialog = ({
       setSelectedTemplateId("");
     }
   }, [isTemplateDocument, selectedTemplateId]);
+
+  // Clear template when the document type changes so we don't accidentally
+  // copy a native template into a whiteboard (or vice versa).
+  useEffect(() => {
+    setSelectedTemplateId("");
+  }, [newDocumentType]);
 
   // Validate selected template still exists
   useEffect(() => {
@@ -250,6 +262,21 @@ export const CreateDocumentDialog = ({
 
           {/* New document tab content */}
           <TabsContent value="new" className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="create-doc-type">{t("create.documentTypeLabel")}</Label>
+              <Select
+                value={newDocumentType}
+                onValueChange={(value) => setNewDocumentType(value as "native" | "whiteboard")}
+              >
+                <SelectTrigger id="create-doc-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="native">{t("create.documentTypeText")}</SelectItem>
+                  <SelectItem value="whiteboard">{t("create.documentTypeWhiteboard")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="create-doc-template">{t("create.templateLabel")}</Label>
@@ -403,6 +430,7 @@ export const CreateDocumentDialog = ({
                   is_template: isTemplateDocument,
                   template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined,
                   project_id: projectId,
+                  document_type: newDocumentType,
                   role_grants: roleGrants,
                   user_grants: userGrants,
                 });

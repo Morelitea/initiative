@@ -448,3 +448,61 @@ async def test_update_content_clears_yjs_state(
     # Re-read the document to confirm yjs_state was cleared
     await session.refresh(doc)
     assert doc.yjs_state is None
+
+
+@pytest.mark.integration
+async def test_create_whiteboard_document(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """POST /documents/ with document_type='whiteboard' creates a whiteboard doc.
+
+    The response's content should be the empty Excalidraw scene shape
+    ({elements, appState, files}) rather than the Lexical root shape. This
+    guards against normalize_document_content corrupting whiteboard payloads.
+    """
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    headers = get_guild_headers(guild, owner)
+    response = await client.post(
+        "/api/v1/documents/",
+        headers=headers,
+        json={
+            "title": "My Whiteboard",
+            "initiative_id": initiative.id,
+            "document_type": "whiteboard",
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["document_type"] == "whiteboard"
+    assert body["content"] == {"elements": [], "appState": {}, "files": {}}
+    # Ensure the Lexical shape was NOT force-injected
+    assert "root" not in body["content"]
+
+
+def test_normalize_whiteboard_preserves_shape() -> None:
+    """normalize_document_content must not inject Lexical root into whiteboards."""
+    from app.services.documents import normalize_document_content
+
+    scene = {
+        "elements": [{"id": "el1", "type": "rectangle"}],
+        "appState": {"viewBackgroundColor": "#ffffff"},
+        "files": {},
+    }
+    result = normalize_document_content(scene, document_type=DocumentType.whiteboard)
+    assert result["elements"] == scene["elements"]
+    assert result["appState"] == scene["appState"]
+    assert result["files"] == scene["files"]
+    assert "root" not in result
+
+
+def test_normalize_native_still_injects_root() -> None:
+    """Regression: native docs still get a root shape when content is empty."""
+    from app.services.documents import normalize_document_content
+
+    result = normalize_document_content({}, document_type=DocumentType.native)
+    assert "root" in result
+    assert isinstance(result["root"], dict)

@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document, ProjectDocument
 
 LexicalState = Dict[str, Any]
-DocumentTypeStr = Literal["native", "file"]
+DocumentTypeStr = Literal["native", "file", "whiteboard"]
 
 
 class DocumentProjectLink(BaseModel):
@@ -32,6 +32,7 @@ class DocumentBase(BaseModel):
 
 class DocumentCreate(DocumentBase):
     content: Optional[LexicalState] = Field(default_factory=dict)
+    document_type: DocumentTypeStr = "native"
     role_permissions: Optional[List[DocumentRolePermissionCreate]] = None
     user_permissions: Optional[List[DocumentPermissionCreate]] = None
 

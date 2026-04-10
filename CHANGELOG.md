@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `whiteboard` document type backed by Excalidraw
+  - Create whiteboards via a new "Document type" dropdown on the Create Document dialog
+  - Lazy-loaded canvas with full Excalidraw toolset (shapes, freehand, arrows, text, images)
+  - Live collaboration via the existing Yjs WebSocket — whiteboard scene is mirrored to a single-key Y.Map and persisted alongside text documents
+  - Theme syncs with the app's light/dark mode
+  - Reuses the existing permissions, tags, comments, templates, and project-attachment infrastructure
+  - Templates are filtered by document type so users don't accidentally copy a Lexical template into a whiteboard slot
+
+### Fixed
+
+- `normalize_document_content` is now type-aware so non-Lexical document content (whiteboard scenes, file metadata) isn't silently mutated to inject a Lexical `root` paragraph on save
+
 ## [0.37.0] - 2026-04-09
 
 ### Added
