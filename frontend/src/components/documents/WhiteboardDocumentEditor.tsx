@@ -207,7 +207,11 @@ export function WhiteboardDocumentEditor({
 
     // Server already has a scene — apply it to Excalidraw.
     const raw = yMap.get("scene");
-    if (!raw || !excalidrawAPIRef.current) return; // retry on next render
+    // Defensive guard: in practice both are guaranteed to be present here
+    // (isAPIReady is set in the same callback that assigns excalidrawAPIRef,
+    // and yMap.has("scene") was true a few lines up), but bail safely if
+    // either slot is empty so we don't crash on a surprise null.
+    if (!raw || !excalidrawAPIRef.current) return;
     try {
       const parsed = JSON.parse(raw) as {
         elements: readonly OrderedExcalidrawElement[];
