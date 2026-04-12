@@ -118,6 +118,11 @@ export const DocumentDetailPage = () => {
   // empty default from useState, and Excalidraw renders a blank canvas
   // that never updates when the real scene arrives via the load effect.
   const [whiteboardSceneReady, setWhiteboardSceneReady] = useState(false);
+  // True when the initial whiteboard scene was loaded from the localStorage
+  // write-ahead cache (i.e. the user has unsaved local edits). Passed down
+  // so the editor's post-sync bootstrap knows NOT to overwrite the canvas
+  // with the Yjs state (which would clobber the unsaved local work).
+  const [whiteboardSceneFromCache, setWhiteboardSceneFromCache] = useState(false);
   const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
@@ -178,6 +183,7 @@ export const DocumentDetailPage = () => {
     contentStateRef.current = null;
     loadedWhiteboardForRef.current = null;
     setWhiteboardSceneReady(false);
+    setWhiteboardSceneFromCache(false);
   }, [parsedId]);
 
   useEffect(() => {
@@ -206,6 +212,7 @@ export const DocumentDetailPage = () => {
       // REST-fetched content.
       const cacheKey = `wb-scene-${document.id}`;
       let scene: WhiteboardScene | null = null;
+      let fromCache = false;
       try {
         const cached = getItem(cacheKey);
         if (cached) {
@@ -217,6 +224,7 @@ export const DocumentDetailPage = () => {
           const serverTs = new Date(document.updated_at).getTime();
           if (cachedTs > serverTs && parsed.scene?.elements) {
             scene = parsed.scene;
+            fromCache = true;
           } else {
             removeItem(cacheKey);
           }
@@ -234,6 +242,7 @@ export const DocumentDetailPage = () => {
         };
       }
       setWhiteboardScene(scene);
+      setWhiteboardSceneFromCache(fromCache);
       setWhiteboardSceneReady(true);
     } else {
       setContentState(normalizedDocumentContent);
@@ -1048,6 +1057,7 @@ export const DocumentDetailPage = () => {
                   <WhiteboardDocumentEditor
                     key={parsedId}
                     initialScene={whiteboardScene}
+                    initialSceneFromCache={whiteboardSceneFromCache}
                     onSerializedChange={handleWhiteboardChange}
                     readOnly={!canEditDocument}
                     yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}

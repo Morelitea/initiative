@@ -37,6 +37,13 @@ export interface WhiteboardScene {
 export interface WhiteboardDocumentEditorProps {
   /** Initial scene loaded from document.content (may be empty). */
   initialScene: WhiteboardScene;
+  /** True if initialScene came from the localStorage write-ahead cache,
+   *  meaning the user has unsaved local edits. When true, the bootstrap
+   *  must NOT overwrite the canvas with Yjs sync state, which would clobber
+   *  the unsaved work. When false, the bootstrap is free to apply Yjs
+   *  state to catch up to a live room where another user has been
+   *  editing. */
+  initialSceneFromCache?: boolean;
   /** Called on every change with the pruned, persistable scene. */
   onSerializedChange: (scene: WhiteboardScene) => void;
   readOnly?: boolean;
@@ -64,6 +71,7 @@ function makeInitialData(scene: WhiteboardScene): ExcalidrawInitialDataState {
 
 export function WhiteboardDocumentEditor({
   initialScene,
+  initialSceneFromCache = false,
   onSerializedChange,
   readOnly = false,
   className,
@@ -192,29 +200,67 @@ export function WhiteboardDocumentEditor({
   }, [yDoc]);
 
   // ── Post-sync bootstrap ──────────────────────────────────────────────
-  // After the initial Yjs sync completes, allow the observer to start
-  // processing LIVE updates from other users. We intentionally do NOT
-  // seed the Y.Map or apply the synced state to Excalidraw here.
+  // After the initial Yjs sync completes, decide whether to apply the
+  // Y.Map state to Excalidraw. The decision hinges on whether the
+  // initialScene we're already displaying came from unsaved local edits
+  // (localStorage cache) or from the server (REST content column).
   //
-  // Why not seed: seeding from localStorage/REST would overwrite a live
-  // room's current state, clobbering the other user's edits.
+  // • initialSceneFromCache === true:
+  //     The user has unsaved local edits. Applying the Yjs state would
+  //     clobber them — the Yjs state is likely behind by one edit because
+  //     WebSockets don't support keepalive on page unload, so the last
+  //     edit never reached the server before the previous disconnect.
+  //     Skip the apply.
   //
-  // Why not apply the sync state: the server's yjs_state (persisted by
-  // persist_room on disconnect) can be one edit behind document.content
-  // because the last WebSocket message is lost on page unload (WebSockets
-  // don't support keepalive). Applying it would overwrite the correct
-  // scene that Excalidraw is already displaying from localStorage cache
-  // or REST content.
+  // • initialSceneFromCache === false:
+  //     No unsaved local work. The Yjs state in the room is authoritative
+  //     for live collaboration — if another user is connected and has
+  //     been editing, the Y.Map holds their current scene. Apply it so
+  //     the joining user catches up immediately instead of waiting for
+  //     the other user's next edit.
   //
-  // Trade-off: when joining a room where another user is actively editing,
-  // the joining user sees slightly stale REST/cached content until the
-  // other user's next edit arrives as a live Yjs update.
+  // Either way, set bootstrapDoneRef so the observer starts processing
+  // subsequent live updates from other users.
   useEffect(() => {
     if (!yDoc || !isSynced) return;
     if (seededForDocRef.current === yDoc) return;
     seededForDocRef.current = yDoc;
+
+    if (!initialSceneFromCache && excalidrawAPIRef.current) {
+      const yMap = yDoc.getMap<string>("excalidraw");
+      const raw = yMap.get("scene");
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as {
+            elements: readonly OrderedExcalidrawElement[];
+            appState?: Partial<AppState>;
+            files?: BinaryFiles;
+          };
+          prevSerializedRef.current = raw;
+          applyingRemoteRef.current = true;
+          if (parsed.files) {
+            const fileArr = Object.values(parsed.files);
+            if (fileArr.length > 0) {
+              excalidrawAPIRef.current.addFiles(fileArr);
+            }
+          }
+          excalidrawAPIRef.current.updateScene({
+            elements: parsed.elements,
+            appState: parsed.appState as Partial<AppState> as AppState,
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+          queueMicrotask(() => {
+            applyingRemoteRef.current = false;
+          });
+        } catch (err) {
+          console.error("Failed to apply post-sync whiteboard state:", err);
+          applyingRemoteRef.current = false;
+        }
+      }
+    }
+
     bootstrapDoneRef.current = true;
-  }, [yDoc, isSynced]);
+  }, [yDoc, isSynced, initialSceneFromCache]);
 
   // ── Local change handler ─────────────────────────────────────────────
   // Excalidraw fires onChange on every re-render (unlike Lexical which
