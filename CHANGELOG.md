@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-04-12
+
+### Fixed
+
+- Fix whiteboard persistence losing edits on refresh / navigation
+  - Add localStorage write-ahead cache so unsaved scenes survive page unload regardless of keepalive PATCH timing
+  - Gate WhiteboardDocumentEditor on scene-ready state so Excalidraw's `initialData` captures the correct scene instead of the empty `useState` default
+  - Skip stale Yjs initial sync in observer — only apply live updates from other users after bootstrap
+  - Only clear `yjs_state` on PATCH when no active collaborators are in the room, preventing a data-loss window during periodic content-sync
+  - Guard the document load effect so PATCH responses don't reset the live whiteboard scene mid-edit
+- Fix whiteboard cache poisoning when rejoining a live room — a user rejoining with a stale local cache no longer clobbers the live room's state. The bootstrap now applies the Y.Map state whenever other collaborators are present, and local edits are gated behind the bootstrap decision so Excalidraw's initial mount `onChange` can't broadcast the cached scene.
+- Whiteboards in collaboration mode now sync to `document.content` every 2s instead of 10s, matching the non-collab debounce. Narrows the stale-content window for non-collab readers and reduces the `yjs_state` / `content` desync window.
+
 ## [0.38.0] - 2026-04-10
 
 ### Added
