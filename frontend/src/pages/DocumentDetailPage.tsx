@@ -86,6 +86,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getHttpStatus } from "@/lib/errorMessage";
+import { getItem, setItem, removeItem } from "@/lib/storage";
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation("documents");
@@ -111,6 +112,17 @@ export const DocumentDetailPage = () => {
     appState: {},
     files: {},
   }));
+  // Flipped true once the load effect has populated whiteboardScene from
+  // localStorage cache or REST content. The WhiteboardDocumentEditor must
+  // not mount until this is true — otherwise its useMemo([]) captures the
+  // empty default from useState, and Excalidraw renders a blank canvas
+  // that never updates when the real scene arrives via the load effect.
+  const [whiteboardSceneReady, setWhiteboardSceneReady] = useState(false);
+  // True when the initial whiteboard scene was loaded from the localStorage
+  // write-ahead cache (i.e. the user has unsaved local edits). Passed down
+  // so the editor's post-sync bootstrap knows NOT to overwrite the canvas
+  // with the Yjs state (which would clobber the unsaved local work).
+  const [whiteboardSceneFromCache, setWhiteboardSceneFromCache] = useState(false);
   const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
@@ -158,10 +170,20 @@ export const DocumentDetailPage = () => {
     [document]
   );
 
+  // Track which document ID we've loaded the whiteboard scene for, so we
+  // don't re-run the load logic when `document` updates due to a PATCH
+  // response. Without this guard, a successful autosave would reset
+  // whiteboardScene from the PATCH response's content — which can be
+  // behind the user's current edits if they drew during the round-trip.
+  const loadedWhiteboardForRef = useRef<number | null>(null);
+
   // Clear content state ref when document ID changes
   // The ref now tracks which document the content belongs to
   useEffect(() => {
     contentStateRef.current = null;
+    loadedWhiteboardForRef.current = null;
+    setWhiteboardSceneReady(false);
+    setWhiteboardSceneFromCache(false);
   }, [parsedId]);
 
   useEffect(() => {
@@ -170,12 +192,58 @@ export const DocumentDetailPage = () => {
     }
     setTitle(document.title);
     if (document.document_type === "whiteboard") {
-      const raw = (document.content ?? {}) as Partial<WhiteboardScene>;
-      setWhiteboardScene({
-        elements: raw.elements ?? [],
-        appState: raw.appState ?? {},
-        files: raw.files ?? {},
-      });
+      // Only load the whiteboard scene once per document ID. Subsequent
+      // document changes (from PATCH responses, cache updates, etc.) must
+      // not overwrite the live scene state.
+      if (loadedWhiteboardForRef.current === document.id) {
+        // Still sync non-scene fields that the user can change in the
+        // metadata card (featured image, tags are handled separately).
+        setFeaturedImageUrl(document.featured_image_url ?? null);
+        setTags(document.tags ?? []);
+        return;
+      }
+      loadedWhiteboardForRef.current = document.id;
+
+      // Check the write-ahead cache first. On every edit the scene is
+      // written to localStorage synchronously (survives refresh), so if
+      // the user refreshes before the keepalive PATCH lands, we still
+      // have the latest scene. We compare timestamps: if the cached scene
+      // is newer than document.updated_at, use it instead of the (stale)
+      // REST-fetched content.
+      const cacheKey = `wb-scene-${document.id}`;
+      let scene: WhiteboardScene | null = null;
+      let fromCache = false;
+      try {
+        const cached = getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached) as {
+            scene: WhiteboardScene;
+            savedAt: string;
+          };
+          const cachedTs = new Date(parsed.savedAt).getTime();
+          const serverTs = new Date(document.updated_at).getTime();
+          if (cachedTs > serverTs && parsed.scene?.elements) {
+            scene = parsed.scene;
+            fromCache = true;
+          } else {
+            removeItem(cacheKey);
+          }
+        }
+      } catch {
+        removeItem(cacheKey);
+      }
+
+      if (!scene) {
+        const raw = (document.content ?? {}) as Partial<WhiteboardScene>;
+        scene = {
+          elements: raw.elements ?? [],
+          appState: raw.appState ?? {},
+          files: raw.files ?? {},
+        };
+      }
+      setWhiteboardScene(scene);
+      setWhiteboardSceneFromCache(fromCache);
+      setWhiteboardSceneReady(true);
     } else {
       setContentState(normalizedDocumentContent);
     }
@@ -340,6 +408,8 @@ export const DocumentDetailPage = () => {
       if (!isAutosaveRef.current) {
         toast.success(t("detail.saved"));
       }
+      // Clear the write-ahead cache — the DB is now up-to-date.
+      removeItem(`wb-scene-${parsedId}`);
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
@@ -394,7 +464,9 @@ export const DocumentDetailPage = () => {
     parsedId,
   ]);
 
-  // Whiteboard scene change handler — mirrors handleContentChange for Lexical
+  // Whiteboard scene change handler — mirrors handleContentChange for Lexical.
+  // Also writes a write-ahead cache to localStorage so the scene survives
+  // a page refresh even if the keepalive PATCH hasn't landed yet.
   const handleWhiteboardChange = useCallback(
     (scene: WhiteboardScene) => {
       contentStateRef.current = {
@@ -402,6 +474,14 @@ export const DocumentDetailPage = () => {
         content: scene as unknown as SerializedEditorState,
       };
       setWhiteboardScene(scene);
+      try {
+        setItem(
+          `wb-scene-${parsedId}`,
+          JSON.stringify({ scene, savedAt: new Date().toISOString() })
+        );
+      } catch {
+        // Storage full or unavailable — best-effort
+      }
     },
     [parsedId]
   );
@@ -416,9 +496,15 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
-    // When collaborating, sync content less frequently (every 10s) to keep content column updated
-    // When not collaborating, use normal autosave behavior (2s debounce when dirty)
+    // When collaborating, sync content periodically to keep the content
+    // column updated for non-collab readers. Native Lexical docs use 10s
+    // (users type many characters per second, a shorter window would
+    // hammer the backend). Whiteboards use the same 2s debounce as
+    // non-collab mode — a single drawing action fits in 10s, so a longer
+    // window leaves document.content stale for external REST readers
+    // and increases the yjs_state/content desync window.
     if (collaboration.isCollaborating) {
+      const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
@@ -429,7 +515,7 @@ export const DocumentDetailPage = () => {
             featured_image_url: featuredImageUrl,
           },
         });
-      }, 10000);
+      }, collabDebounceMs);
       return () => clearTimeout(timer);
     } else {
       if (!isDirty) {
@@ -459,6 +545,7 @@ export const DocumentDetailPage = () => {
     featuredImageUrl,
     collaboration.isCollaborating,
     isOnline,
+    document?.document_type,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -492,6 +579,78 @@ export const DocumentDetailPage = () => {
     contentForSave,
     featuredImageUrl,
   ]);
+
+  // ── Unmount / unload flush ──────────────────────────────────────────
+  // Mirrors the current save payload into a ref so the unmount flush has
+  // the most recent data even if the autosave debounce was cancelled
+  // mid-flight (e.g. user draws a shape and refreshes within 2 seconds).
+  // Without this, the autosave timer is cleared on unmount and the edit
+  // is lost. Especially important for whiteboards where a single drawing
+  // action comfortably fits inside the debounce window.
+  const pendingSavePayloadRef = useRef<{
+    documentId: number;
+    data: {
+      title?: string;
+      content: Record<string, unknown>;
+      featured_image_url: string | null;
+    };
+  } | null>(null);
+  useEffect(() => {
+    if (!canEditDocument || !isDirty) {
+      pendingSavePayloadRef.current = null;
+      return;
+    }
+    pendingSavePayloadRef.current = {
+      documentId: parsedId,
+      data: {
+        title: title?.trim(),
+        content: contentForSave,
+        featured_image_url: featuredImageUrl,
+      },
+    };
+  }, [canEditDocument, isDirty, parsedId, title, contentForSave, featuredImageUrl]);
+
+  // Hold token and activeGuildId in refs so the flush closure always sees
+  // the latest values without the effect needing to re-run on JWT rotation.
+  // Without this, a token refresh would trigger the cleanup → flush() →
+  // null the pending ref, and the ref-populating effect wouldn't re-run
+  // (its deps didn't change), silently dropping the next pending save.
+  const tokenRef = useRef(token);
+  const activeGuildIdRef = useRef(activeGuildId);
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+  useEffect(() => {
+    activeGuildIdRef.current = activeGuildId;
+  }, [activeGuildId]);
+
+  useEffect(() => {
+    const flush = () => {
+      const pending = pendingSavePayloadRef.current;
+      if (!pending || !tokenRef.current || !activeGuildIdRef.current) return;
+      const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
+      const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
+      const url = `${baseUrl}/documents/${pending.documentId}`;
+      fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokenRef.current}`,
+          "X-Guild-ID": String(activeGuildIdRef.current),
+        },
+        body: JSON.stringify(pending.data),
+        keepalive: true,
+      }).catch(() => {});
+      pendingSavePayloadRef.current = null;
+    };
+
+    const handleBeforeUnload = () => flush();
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      flush();
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   // Persistent offline toast with mode-aware copy
   useEffect(() => {
@@ -901,14 +1060,22 @@ export const DocumentDetailPage = () => {
               }
             >
               {document.document_type === "whiteboard" ? (
-                <WhiteboardDocumentEditor
-                  key={parsedId}
-                  initialScene={whiteboardScene}
-                  onSerializedChange={handleWhiteboardChange}
-                  readOnly={!canEditDocument}
-                  yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
-                  isSynced={collaboration.isSynced}
-                />
+                whiteboardSceneReady ? (
+                  <WhiteboardDocumentEditor
+                    key={parsedId}
+                    initialScene={whiteboardScene}
+                    initialSceneFromCache={whiteboardSceneFromCache}
+                    onSerializedChange={handleWhiteboardChange}
+                    readOnly={!canEditDocument}
+                    yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
+                    isSynced={collaboration.isSynced}
+                    hasOtherCollaborators={collaboration.collaborators.length > 0}
+                  />
+                ) : (
+                  <div className="flex h-96 items-center justify-center rounded-xl border">
+                    <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+                  </div>
+                )
               ) : (
                 <Editor
                   key={parsedId}

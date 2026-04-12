@@ -884,11 +884,22 @@ async def update_document(
         )
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
-        # Clear yjs_state so the next collaborative session bootstraps from
-        # the freshly saved content. Without this, a stale yjs_state would
-        # overwrite the editor with the previous content when the user
-        # re-enables live collaboration.
-        document.yjs_state = None
+        # Clear yjs_state ONLY if there is no active collaboration room.
+        # Rationale: when users are actively collaborating, the in-memory
+        # room is the source of truth for Yjs state, and its full snapshot
+        # will be written back to yjs_state on the last disconnect via
+        # persist_room. Clearing yjs_state here while a room is active
+        # creates a data-loss window: if the REST PATCH lands right before
+        # all users disconnect, and the disconnect's persist_room fails or
+        # races with cleanup, yjs_state stays None and the next session
+        # bootstraps from the (potentially stale) PATCHed content column,
+        # losing any edits that were made between the PATCH and disconnect.
+        #
+        # Clearing only when the room is inactive still solves PR #347's
+        # original problem: non-collab edits need to override any stale
+        # pre-existing yjs_state the next time the user re-enables collab.
+        if not collaboration_manager.has_active_collaborators(document.id):
+            document.yjs_state = None
         content_updated = True
         updated = True
 

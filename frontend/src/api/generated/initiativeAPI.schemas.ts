@@ -740,6 +740,7 @@ export interface DocumentSummary {
   file_size: number | null;
   original_filename: string | null;
   my_permission_level: string | null;
+  yjs_updated_at: string | null;
 }
 
 export interface DocumentListResponse {
@@ -798,6 +799,7 @@ export interface DocumentRead {
   file_size: number | null;
   original_filename: string | null;
   my_permission_level: string | null;
+  yjs_updated_at: string | null;
   content: DocumentReadContent;
 }
 

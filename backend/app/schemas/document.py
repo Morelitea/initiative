@@ -137,6 +137,7 @@ class DocumentSummary(DocumentBase):
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
     my_permission_level: Optional[str] = None
+    yjs_updated_at: Optional[datetime] = None
 
 
 class DocumentListResponse(BaseModel):
@@ -257,6 +258,7 @@ def serialize_document_summary(
         file_size=document.file_size,
         original_filename=document.original_filename,
         my_permission_level=my_permission_level,
+        yjs_updated_at=document.yjs_updated_at,
     )
 
 

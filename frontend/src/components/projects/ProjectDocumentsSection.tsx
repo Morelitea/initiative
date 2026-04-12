@@ -301,4 +301,5 @@ const createFallbackSummary = (
   file_size: null,
   original_filename: null,
   my_permission_level: null,
+  yjs_updated_at: null,
 });
