@@ -52,6 +52,11 @@ export interface WhiteboardDocumentEditorProps {
   yDoc?: Y.Doc | null;
   /** Whether the Yjs provider has fully synced from the server. */
   isSynced?: boolean;
+  /** True if other users are currently connected to the same Yjs room.
+   *  When true AND initialSceneFromCache is true, the cache is considered
+   *  stale (another user has continued editing while we were gone) and
+   *  the Yjs state wins on bootstrap. */
+  hasOtherCollaborators?: boolean;
 }
 
 /**
@@ -77,6 +82,7 @@ export function WhiteboardDocumentEditor({
   className,
   yDoc = null,
   isSynced = true,
+  hasOtherCollaborators = false,
 }: WhiteboardDocumentEditorProps) {
   const { t } = useTranslation("documents");
   const { resolvedTheme } = useTheme();
@@ -105,6 +111,13 @@ export function WhiteboardDocumentEditor({
   // WebSocket message is lost on page unload) never overwrites the correct
   // REST-fetched initialScene that Excalidraw is already displaying.
   const bootstrapDoneRef = useRef(false);
+  // Separate gate for LOCAL → Yjs writes. Set true after the bootstrap
+  // effect has made its decision (apply Yjs state vs keep cached scene).
+  // Without this gate, Excalidraw's first onChange on mount would write
+  // the initial scene to Yjs, which in the rejoin case would clobber a
+  // live room's state with our stale local cache — poisoning the room
+  // for all other connected users.
+  const writesAllowedRef = useRef(false);
 
   const collaborative = Boolean(yDoc);
 
@@ -200,33 +213,35 @@ export function WhiteboardDocumentEditor({
   }, [yDoc]);
 
   // ── Post-sync bootstrap ──────────────────────────────────────────────
-  // After the initial Yjs sync completes, decide whether to apply the
-  // Y.Map state to Excalidraw. The decision hinges on whether the
-  // initialScene we're already displaying came from unsaved local edits
-  // (localStorage cache) or from the server (REST content column).
+  // After initial Yjs sync, decide whether to apply the Y.Map state to
+  // Excalidraw. Three cases:
   //
-  // • initialSceneFromCache === true:
-  //     The user has unsaved local edits. Applying the Yjs state would
-  //     clobber them — the Yjs state is likely behind by one edit because
-  //     WebSockets don't support keepalive on page unload, so the last
-  //     edit never reached the server before the previous disconnect.
-  //     Skip the apply.
+  // • Other users connected: the room is live and authoritative — apply
+  //   the Y.Map state regardless of whether our initialScene came from
+  //   cache or REST. A stale local cache (from a previous visit where
+  //   another user kept editing after we left) must NOT be propagated
+  //   to Yjs, or we'd clobber the live room's state for all users.
   //
-  // • initialSceneFromCache === false:
-  //     No unsaved local work. The Yjs state in the room is authoritative
-  //     for live collaboration — if another user is connected and has
-  //     been editing, the Y.Map holds their current scene. Apply it so
-  //     the joining user catches up immediately instead of waiting for
-  //     the other user's next edit.
+  // • initialSceneFromCache === true AND alone: we have unsaved local
+  //   edits and no one else is here to correct us. Keep the cached scene
+  //   (the Yjs state is likely behind by one edit because the last
+  //   WebSocket message was lost on page unload).
   //
-  // Either way, set bootstrapDoneRef so the observer starts processing
-  // subsequent live updates from other users.
+  // • initialSceneFromCache === false AND alone: no unsaved local work.
+  //   Apply the Y.Map state if it has anything — it may be more recent
+  //   than the REST content (e.g. from a `persist_room` snapshot that
+  //   happened after the last REST PATCH).
+  //
+  // After the decision, flip writesAllowedRef so subsequent local edits
+  // flow to Yjs, and bootstrapDoneRef so remote updates flow in.
   useEffect(() => {
     if (!yDoc || !isSynced) return;
     if (seededForDocRef.current === yDoc) return;
     seededForDocRef.current = yDoc;
 
-    if (!initialSceneFromCache && excalidrawAPIRef.current) {
+    const shouldApplyYjsState = hasOtherCollaborators || !initialSceneFromCache;
+
+    if (shouldApplyYjsState && excalidrawAPIRef.current) {
       const yMap = yDoc.getMap<string>("excalidraw");
       const raw = yMap.get("scene");
       if (raw) {
@@ -260,7 +275,8 @@ export function WhiteboardDocumentEditor({
     }
 
     bootstrapDoneRef.current = true;
-  }, [yDoc, isSynced, initialSceneFromCache]);
+    writesAllowedRef.current = true;
+  }, [yDoc, isSynced, initialSceneFromCache, hasOtherCollaborators]);
 
   // ── Local change handler ─────────────────────────────────────────────
   // Excalidraw fires onChange on every re-render (unlike Lexical which
@@ -320,8 +336,12 @@ export function WhiteboardDocumentEditor({
       if (serializedWithFiles === prevSerializedRef.current) return;
       prevSerializedRef.current = serializedWithFiles;
 
-      // Mirror to Yjs when collaborative
-      if (yMapRef.current) {
+      // Mirror to Yjs when collaborative — but only after the bootstrap has
+      // decided whether to keep our cached scene or override with the live
+      // room state. Writing on the initial mount onChange would broadcast
+      // our (possibly stale) local cache to the room and clobber other
+      // users' live edits.
+      if (yMapRef.current && writesAllowedRef.current) {
         yMapRef.current.set("scene", serializedWithFiles);
       }
     },

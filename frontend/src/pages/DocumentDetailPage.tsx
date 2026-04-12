@@ -496,9 +496,15 @@ export const DocumentDetailPage = () => {
     if (!isOnline) {
       return;
     }
-    // When collaborating, sync content less frequently (every 10s) to keep content column updated
-    // When not collaborating, use normal autosave behavior (2s debounce when dirty)
+    // When collaborating, sync content periodically to keep the content
+    // column updated for non-collab readers. Native Lexical docs use 10s
+    // (users type many characters per second, a shorter window would
+    // hammer the backend). Whiteboards use the same 2s debounce as
+    // non-collab mode — a single drawing action fits in 10s, so a longer
+    // window leaves document.content stale for external REST readers
+    // and increases the yjs_state/content desync window.
     if (collaboration.isCollaborating) {
+      const collabDebounceMs = document?.document_type === "whiteboard" ? 2000 : 10000;
       const timer = setTimeout(() => {
         isAutosaveRef.current = true;
         saveDocument.mutate({
@@ -509,7 +515,7 @@ export const DocumentDetailPage = () => {
             featured_image_url: featuredImageUrl,
           },
         });
-      }, 10000);
+      }, collabDebounceMs);
       return () => clearTimeout(timer);
     } else {
       if (!isDirty) {
@@ -539,6 +545,7 @@ export const DocumentDetailPage = () => {
     featuredImageUrl,
     collaboration.isCollaborating,
     isOnline,
+    document?.document_type,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -1062,6 +1069,7 @@ export const DocumentDetailPage = () => {
                     readOnly={!canEditDocument}
                     yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
                     isSynced={collaboration.isSynced}
+                    hasOtherCollaborators={collaboration.collaborators.length > 0}
                   />
                 ) : (
                   <div className="flex h-96 items-center justify-center rounded-xl border">
