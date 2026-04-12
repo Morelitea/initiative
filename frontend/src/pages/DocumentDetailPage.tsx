@@ -594,15 +594,24 @@ export const DocumentDetailPage = () => {
     };
   }, [canEditDocument, isDirty, parsedId, title, contentForSave, featuredImageUrl]);
 
+  // Hold token and activeGuildId in refs so the flush closure always sees
+  // the latest values without the effect needing to re-run on JWT rotation.
+  // Without this, a token refresh would trigger the cleanup → flush() →
+  // null the pending ref, and the ref-populating effect wouldn't re-run
+  // (its deps didn't change), silently dropping the next pending save.
+  const tokenRef = useRef(token);
+  const activeGuildIdRef = useRef(activeGuildId);
   useEffect(() => {
-    if (!token || !activeGuildId) return;
+    tokenRef.current = token;
+  }, [token]);
+  useEffect(() => {
+    activeGuildIdRef.current = activeGuildId;
+  }, [activeGuildId]);
+
+  useEffect(() => {
     const flush = () => {
       const pending = pendingSavePayloadRef.current;
-      if (!pending) return;
-      // Fire-and-forget PATCH with keepalive so the request survives the
-      // page unloading. Routes through the normal document update endpoint
-      // (which runs normalize_document_content server-side) so we don't
-      // need to massage the payload client-side.
+      if (!pending || !tokenRef.current || !activeGuildIdRef.current) return;
       const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
       const url = `${baseUrl}/documents/${pending.documentId}`;
@@ -610,26 +619,22 @@ export const DocumentDetailPage = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Guild-ID": String(activeGuildId),
+          Authorization: `Bearer ${tokenRef.current}`,
+          "X-Guild-ID": String(activeGuildIdRef.current),
         },
         body: JSON.stringify(pending.data),
         keepalive: true,
-      }).catch(() => {
-        // Swallow errors — the page is unloading, there's nothing to show.
-      });
+      }).catch(() => {});
       pendingSavePayloadRef.current = null;
     };
 
     const handleBeforeUnload = () => flush();
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
-      // Runs on unmount (navigate away to another page) and on dep change
-      // (e.g. switching documents). Either way, flush any pending save.
       flush();
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [token, activeGuildId]);
+  }, []);
 
   // Persistent offline toast with mode-aware copy
   useEffect(() => {
