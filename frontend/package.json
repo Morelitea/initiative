@@ -37,7 +37,7 @@
     "@icons-pack/react-simple-icons": "^13.13.0",
     "@lexical/code": "^0.42.0",
     "@lexical/file": "^0.42.0",
-    "@lexical/hashtag": "^0.42.0",
+    "@lexical/hashtag": "^0.43.0",
     "@lexical/html": "^0.42.0",
     "@lexical/link": "^0.42.0",
     "@lexical/list": "^0.42.0",
