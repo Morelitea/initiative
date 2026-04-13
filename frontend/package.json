@@ -44,7 +44,7 @@
     "@lexical/markdown": "^0.42.0",
     "@lexical/overflow": "^0.42.0",
     "@lexical/react": "^0.42.0",
-    "@lexical/rich-text": "^0.42.0",
+    "@lexical/rich-text": "^0.43.0",
     "@lexical/selection": "^0.42.0",
     "@lexical/table": "^0.42.0",
     "@lexical/text": "^0.42.0",
