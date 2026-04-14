@@ -9,12 +9,14 @@ Tests the auth API endpoints including:
 - Password reset
 """
 
+from datetime import timedelta
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.core.security import get_password_hash
+from app.core.security import create_access_token, get_password_hash
 from app.models.user import User
 from app.testing.factories import create_user, get_auth_headers, get_auth_token
 
@@ -261,6 +263,69 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_malformed_jwt_returns_401(client: AsyncClient):
+    """A garbage bearer token should be rejected as 401 Unauthorized with
+    a WWW-Authenticate challenge, not 403. The SPA's 401 interceptor
+    depends on this distinction to auto-redirect expired sessions to
+    /welcome."""
+    headers = {"Authorization": "Bearer not.a.valid.jwt"}
+    response = await client.get("/api/v1/users/me", headers=headers)
+
+    assert response.status_code == 401
+    assert response.headers.get("WWW-Authenticate") == "Bearer"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_expired_jwt_returns_401(
+    client: AsyncClient, session: AsyncSession
+):
+    """An expired JWT (the common case when the access token lifetime
+    elapses mid-session) must return 401, not 403. Regression guard
+    for the 403 -> 401 fix in get_current_user."""
+    user = await create_user(session)
+    expired_token = create_access_token(
+        subject=str(user.id),
+        token_version=user.token_version,
+        expires_delta=timedelta(seconds=-1),
+    )
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {expired_token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.headers.get("WWW-Authenticate") == "Bearer"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_stale_token_version_returns_401(
+    client: AsyncClient, session: AsyncSession
+):
+    """A JWT issued before a token_version bump (e.g. after logout or
+    password change) must return 401 so the SPA auto-redirects instead
+    of leaving a stale session in place."""
+    user = await create_user(session)
+    stale_token = create_access_token(
+        subject=str(user.id),
+        token_version=user.token_version,
+    )
+    # Bump the version out-of-band to simulate a logout happening in
+    # another tab.
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {stale_token}"},
+    )
+    assert response.status_code == 401
 
 
 @pytest.mark.integration
