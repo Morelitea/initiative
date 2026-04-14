@@ -15,14 +15,23 @@ import { cn } from "@/lib/utils";
 
 const rgbaToHex = (rgba: number[]) => {
   const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
-  const [r = 0, g = 0, b = 0] = rgba;
-  return (
-    "#" +
-    [clamp(r), clamp(g), clamp(b)]
-      .map((channel) => channel.toString(16).padStart(2, "0"))
-      .join("")
-      .toUpperCase()
-  );
+  // The shadcn-io ColorPicker emits [r, g, b, alpha] where alpha is 0–1.
+  const [r = 0, g = 0, b = 0, a = 1] = rgba;
+  const hexRgb = [clamp(r), clamp(g), clamp(b)]
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+  // Keep fully-opaque colors in the shorter #RRGGBB form so existing callers
+  // that only handle 7-char hex don't suddenly see 9 chars. Append the alpha
+  // byte only when the user has actually used the alpha slider.
+  if (a >= 0.999) {
+    return `#${hexRgb}`;
+  }
+  const hexAlpha = clamp(a * 255)
+    .toString(16)
+    .padStart(2, "0")
+    .toUpperCase();
+  return `#${hexRgb}${hexAlpha}`;
 };
 
 interface ColorPickerPopoverProps {

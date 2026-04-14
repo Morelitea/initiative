@@ -131,6 +131,25 @@ async def test_patch_category_change_keeps_existing_color_icon(
 
 
 @pytest.mark.integration
+async def test_create_status_rejects_invalid_hex_color(
+    client: AsyncClient, session: AsyncSession
+):
+    project, headers = await _setup_project(session)
+
+    response = await client.post(
+        f"/api/v1/projects/{project.id}/task-statuses/",
+        json={
+            "name": "Bad color",
+            "category": "todo",
+            "color": "notcolor",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
 async def test_default_seeded_statuses_have_category_colors(
     session: AsyncSession,
 ):

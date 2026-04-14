@@ -430,6 +430,7 @@ export const ProjectTaskStatusesManager = ({
               value={newIcon}
               onValueChange={(icon) => setNewIcon(icon)}
               triggerPlaceholder={t("statuses.iconPlaceholder")}
+              disabled={!canManage || createStatus.isPending}
             />
             <ColorPickerPopover
               className="h-9 w-40"
@@ -667,6 +668,7 @@ const SortableStatusRow = ({
           value={(draft?.icon ?? status.icon) as IconName}
           onValueChange={(icon) => onFieldChange(status.id, "icon", icon)}
           triggerPlaceholder={t("statuses.iconPlaceholder")}
+          disabled={disabled}
         />
       </TableCell>
       <TableCell>
