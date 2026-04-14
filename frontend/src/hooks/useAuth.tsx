@@ -178,10 +178,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = useCallback(async () => {
-    // Flip local state first. setUser(null) clears the api-client session
-    // flag synchronously, so any 401s from in-flight requests (including
-    // the /auth/logout POST below if the cookie is already expired) won't
-    // re-enter the unauthorized event handler and queue a second logout.
+    // Fire the POST *first*, while the bearer token and cookie are still
+    // in place — otherwise we may log out on the client without the
+    // backend ever seeing the request, and the cached JWT/cookie can
+    // keep authenticating subsequent requests until it expires naturally.
+    //
+    // Clear hasActiveSession before the POST so the interceptor ignores
+    // any 401 that comes back from /auth/logout itself (can happen when
+    // the cookie is already expired), preventing re-entry into this
+    // same handler.
+    setHasActiveSession(false);
+    try {
+      await apiClient.post("/auth/logout");
+    } catch {
+      // Ignore errors — proceed with local cleanup regardless.
+    }
     setUser(null);
     setTokenState(null);
     setIsDeviceToken(false);
@@ -189,11 +200,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
     queryClient.clear();
-    try {
-      await apiClient.post("/auth/logout");
-    } catch {
-      // Ignore errors — local cleanup already happened.
-    }
   }, [setUser]);
 
   useEffect(() => {

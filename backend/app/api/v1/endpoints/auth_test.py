@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
 from app.models.user import User
-from app.testing.factories import create_user
+from app.testing.factories import create_user, get_auth_headers, get_auth_token
 
 
 @pytest.mark.integration
@@ -261,3 +261,80 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_persists_token_version_bump(
+    client: AsyncClient, session: AsyncSession
+):
+    """The logout endpoint must actually persist the token_version bump
+    to the database. Previously the endpoint used AdminSessionDep while
+    get_current_user_optional used SessionDep, so the user object came
+    from a detached session and session.commit() silently dropped the
+    change in production. (The conftest fixture aliases both deps to the
+    same session, so this test asserts on the raw row state rather than
+    relying on a subsequent request to observe the failure.)"""
+    user = await create_user(session)
+    initial_version = user.token_version
+
+    response = await client.post(
+        "/api/v1/auth/logout", headers=get_auth_headers(user)
+    )
+    assert response.status_code == 204
+
+    # Re-read from the database to prove the bump was persisted.
+    await session.refresh(user)
+    assert user.token_version == initial_version + 1
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_invalidates_existing_jwt(
+    client: AsyncClient, session: AsyncSession
+):
+    """Logging out must invalidate any previously-issued JWT by bumping
+    the user's token_version. Otherwise a browser that still has a
+    cached JWT (or cookie) can keep making authenticated requests,
+    which is how users reported "I logged out but My Tasks still
+    loads when I type the URL"."""
+    user = await create_user(session)
+    # Baseline: the token works before logout.
+    headers = get_auth_headers(user)
+    before = await client.get("/api/v1/users/me", headers=headers)
+    assert before.status_code == 200
+
+    # Capture the same token so we can replay it after logout.
+    replay_token = get_auth_token(user)
+    logout_response = await client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {replay_token}"},
+    )
+    assert logout_response.status_code == 204
+
+    # Any subsequent request using the old token must be rejected.
+    after = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {replay_token}"},
+    )
+    assert after.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_clears_session_cookie(
+    client: AsyncClient, session: AsyncSession
+):
+    """The logout response must set an expired session_token cookie so
+    browsers using HttpOnly cookie auth (the web default) actually
+    forget the session."""
+    user = await create_user(session)
+    response = await client.post(
+        "/api/v1/auth/logout", headers=get_auth_headers(user)
+    )
+    assert response.status_code == 204
+    set_cookie = response.headers.get("set-cookie", "")
+    assert "session_token=" in set_cookie
+    # Starlette's delete_cookie sets Max-Age=0 and an expires in the
+    # past. Accept either marker so the assertion is robust.
+    assert "Max-Age=0" in set_cookie or "1970" in set_cookie
