@@ -2060,6 +2060,7 @@ export interface TaskStatusRead {
   /**
    * @minLength 4
    * @maxLength 9
+   * @pattern ^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$
    */
   color: string;
   /**
