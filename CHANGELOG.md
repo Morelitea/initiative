@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improved task status UX: each status now has a customizable color and icon, with smart defaults driven by its category (backlog, todo, in progress, done). Kanban column headers show the status icon and a colored accent bar, and every status dropdown (kanban, project table/gantt rows, My Tasks, tag task lists, task edit page) now shows the icon beside the name and mirrors the active status color on the trigger border.
 
+### Fixed
+
+- Auto-redirect to the welcome/login page when the access token expires, instead of leaving the app in a broken state until the user manually refreshes. Shows a "Your session has expired" toast before the redirect.
+  - Backend now returns `401 Unauthorized` (with `WWW-Authenticate`) for expired or invalid JWTs, invalid device tokens, and malformed token payloads, rather than `403 Forbidden`. Genuine authorization failures are unchanged.
+  - Frontend 401 interceptor no longer silently swallows expired-session 401s on web cookie auth: an explicit session flag tracks whether a user is currently signed in, regardless of whether the in-memory bearer token was ever populated.
+- Fix manual logout so previously-issued JWTs are actually invalidated server-side. The logout endpoint was using `AdminSessionDep` while `get_current_user_optional` used `SessionDep`, so in production the `current_user` object came from a detached session and the `token_version += 1` bump was silently dropped on commit. Previously-signed JWTs (and any still-cached HttpOnly cookie) stayed valid until natural expiry, letting users navigate back into protected pages by typing the URL after clicking "Sign out". The endpoint now uses a single `SessionDep` so FastAPI's per-request dependency cache hands both sites the same session, and the commit actually persists.
+
 ## [0.38.1] - 2026-04-12
 
 ### Fixed

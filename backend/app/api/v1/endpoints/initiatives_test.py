@@ -19,6 +19,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_initiative_member,
     create_user,
+    get_auth_headers,
     get_guild_headers,
 )
 
@@ -27,13 +28,10 @@ from app.testing.factories import (
 async def test_list_initiatives_requires_guild_context(
     client: AsyncClient, session: AsyncSession
 ):
-    """Test that listing initiatives requires guild context."""
+    """A user with no guild memberships should be 403 when listing initiatives."""
     user = await create_user(session, email="test@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
 
-    # Request without X-Guild-ID header
-    headers = {"Authorization": f"Bearer fake_token_{user.id}"}
+    headers = get_auth_headers(user)
     response = await client.get("/api/v1/initiatives/", headers=headers)
 
     assert response.status_code == 403

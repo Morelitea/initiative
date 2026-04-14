@@ -71,6 +71,13 @@ export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 let authToken: string | null = null;
 let isDeviceToken = false;
 let activeGuildId: number | null = null;
+// Tracks whether we currently believe a user session is active. On web the
+// in-memory authToken is never set after a page reload (cookie auth is
+// HttpOnly, so there's nothing for JS to restore). The 401 interceptor used
+// to gate on `authToken` being set, which meant expired-cookie 401s were
+// silently swallowed for reloaded tabs — the user had to manually refresh
+// again to land on /welcome. An explicit session flag closes that gap.
+let hasActiveSession = false;
 
 /**
  * Set the authentication token.
@@ -89,6 +96,10 @@ export const setCurrentGuildId = (guildId: number | null) => {
 };
 
 export const getCurrentGuildId = () => activeGuildId;
+
+export const setHasActiveSession = (value: boolean) => {
+  hasActiveSession = value;
+};
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -145,7 +156,7 @@ const emitUnauthorized = () => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && authToken) {
+    if (error.response?.status === 401 && hasActiveSession) {
       emitUnauthorized();
     }
     return Promise.reject(error);

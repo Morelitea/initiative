@@ -203,9 +203,19 @@ async def login_access_token(
 async def logout(
     request: Request,
     response: Response,
-    session: AdminSessionDep,
+    session: SessionDep,
     current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
 ) -> None:
+    # Note: `session` and `get_current_user_optional` must resolve to the
+    # SAME session. Previously this used AdminSessionDep, which in
+    # production is a different session than SessionDep — so the
+    # `current_user` object returned by the optional auth dep was attached
+    # to a detached SessionDep session, and `session.commit()` on the
+    # admin session silently dropped the token_version bump. That let
+    # previously-issued JWTs stay valid after logout, so a browser with
+    # a cached cookie could keep authenticating until natural expiry.
+    # In tests it worked by accident because conftest aliases both deps
+    # to the same fixture session.
     if current_user is not None:
         current_user.token_version += 1
         auth_header = request.headers.get("Authorization", "")
