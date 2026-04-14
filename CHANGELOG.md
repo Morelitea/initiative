@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-04-14
+
 ### Added
 
 - Improved task status UX: each status now has a customizable color and icon, with smart defaults driven by its category (backlog, todo, in progress, done). Kanban column headers show the status icon and a colored accent bar, and every status dropdown (kanban, project table/gantt rows, My Tasks, tag task lists, task edit page) now shows the icon beside the name and mirrors the active status color on the trigger border.
