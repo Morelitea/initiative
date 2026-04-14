@@ -59,6 +59,7 @@ import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSele
 import { CommentSection } from "@/components/comments/CommentSection";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
+import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskStatusOption";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TagPicker } from "@/components/tags";
 import { useSetTaskTags } from "@/hooks/useTags";
@@ -405,16 +406,46 @@ export const TaskEditPage = () => {
     const status = getHttpStatus(taskQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
 
     if (status === 404) {
-      return <StatusMessage icon={<SearchX />} title={t("edit.notFound")} description={t("edit.notFoundDescription")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
+      return (
+        <StatusMessage
+          icon={<SearchX />}
+          title={t("edit.notFound")}
+          description={t("edit.notFoundDescription")}
+          backTo={gp("/projects")}
+          backLabel={t("edit.backToProjects")}
+        />
+      );
     }
     if (status === 403) {
-      return <StatusMessage icon={<ShieldAlert />} title={t("edit.noAccess")} description={t("edit.noAccessDescription")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
+      return (
+        <StatusMessage
+          icon={<ShieldAlert />}
+          title={t("edit.noAccess")}
+          description={t("edit.noAccessDescription")}
+          backTo={gp("/projects")}
+          backLabel={t("edit.backToProjects")}
+        />
+      );
     }
-    return <StatusMessage icon={<AlertCircle />} title={t("edit.loadError")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
+    return (
+      <StatusMessage
+        icon={<AlertCircle />}
+        title={t("edit.loadError")}
+        backTo={gp("/projects")}
+        backLabel={t("edit.backToProjects")}
+      />
+    );
   }
 
   if (Number.isFinite(projectId) && projectQuery.isError) {
-    return <StatusMessage icon={<AlertCircle />} title={t("edit.loadProjectError")} backTo={gp("/projects")} backLabel={t("edit.backToProjects")} />;
+    return (
+      <StatusMessage
+        icon={<AlertCircle />}
+        title={t("edit.loadProjectError")}
+        backTo={gp("/projects")}
+        backLabel={t("edit.backToProjects")}
+      />
+    );
   }
 
   const taskStatuses = taskStatusesQuery.data ?? [];
@@ -550,13 +581,23 @@ export const TaskEditPage = () => {
                     }}
                     disabled={statusSelectDisabled}
                   >
-                    <SelectTrigger disabled={statusSelectDisabled}>
-                      <SelectValue placeholder={t("edit.selectStatus")} />
+                    <SelectTrigger
+                      className="border-2"
+                      style={currentStatus ? statusTriggerStyle(currentStatus) : undefined}
+                      disabled={statusSelectDisabled}
+                    >
+                      {currentStatus ? (
+                        <SelectValue asChild>
+                          <TaskStatusOption status={currentStatus} />
+                        </SelectValue>
+                      ) : (
+                        <SelectValue placeholder={t("edit.selectStatus")} />
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       {taskStatuses.map((value) => (
                         <SelectItem key={value.id} value={String(value.id)}>
-                          {value.name}
+                          <TaskStatusOption status={value} />
                         </SelectItem>
                       ))}
                     </SelectContent>

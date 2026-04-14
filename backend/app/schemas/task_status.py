@@ -10,6 +10,8 @@ class TaskStatusBase(BaseModel):
     category: TaskStatusCategory
     position: int = Field(ge=0)
     is_default: bool = False
+    color: str = Field(min_length=4, max_length=9)
+    icon: str = Field(min_length=1, max_length=64)
 
 
 class TaskStatusCreate(BaseModel):
@@ -17,6 +19,8 @@ class TaskStatusCreate(BaseModel):
     category: TaskStatusCategory
     position: Optional[int] = Field(default=None, ge=0)
     is_default: bool = False
+    color: Optional[str] = Field(default=None, min_length=4, max_length=9)
+    icon: Optional[str] = Field(default=None, min_length=1, max_length=64)
 
 
 class TaskStatusUpdate(BaseModel):
@@ -24,6 +28,8 @@ class TaskStatusUpdate(BaseModel):
     category: Optional[TaskStatusCategory] = None
     position: Optional[int] = Field(default=None, ge=0)
     is_default: Optional[bool] = None
+    color: Optional[str] = Field(default=None, min_length=4, max_length=9)
+    icon: Optional[str] = Field(default=None, min_length=1, max_length=64)
 
 
 class TaskStatusRead(TaskStatusBase):

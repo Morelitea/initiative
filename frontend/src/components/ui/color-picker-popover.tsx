@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,29 +47,38 @@ export const ColorPickerPopover = ({
   const [open, setOpen] = useState(false);
   const [draftColor, setDraftColor] = useState(value);
 
+  // Stash the latest callbacks in refs so handleColorChange/handleOpenChange can
+  // stay referentially stable regardless of whether callers memoize their props.
+  // If handleColorChange churned every render, the shadcn-io ColorPicker's
+  // "notify parent" effect would re-fire on every render and infinite-loop any
+  // controlled caller whose onChange isn't a stable reference.
+  const onChangeRef = useRef(onChange);
+  const onChangeCompleteRef = useRef(onChangeComplete);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onChangeCompleteRef.current = onChangeComplete;
+  });
+
   useEffect(() => {
     if (!open) {
       setDraftColor(value);
     }
   }, [open, value]);
 
-  const handleColorChange = useCallback(
-    (rgba: number[]) => {
-      const nextColor = rgbaToHex(rgba);
-      setDraftColor(nextColor);
-      onChange?.(nextColor);
-    },
-    [onChange]
-  );
+  const handleColorChange = useCallback((rgba: number[]) => {
+    const nextColor = rgbaToHex(rgba);
+    setDraftColor(nextColor);
+    onChangeRef.current?.(nextColor);
+  }, []);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen && draftColor !== value) {
-        onChangeComplete?.(draftColor);
+        onChangeCompleteRef.current?.(draftColor);
       }
       setOpen(nextOpen);
     },
-    [draftColor, onChangeComplete, value]
+    [draftColor, value]
   );
 
   const swatchStyle = useMemo(() => ({ backgroundColor: draftColor }), [draftColor]);
@@ -91,9 +100,6 @@ export const ColorPickerPopover = ({
           <span className="flex items-center gap-2">
             <span aria-hidden="true" className="h-6 w-6 rounded-md border" style={swatchStyle} />
             {draftColor}
-          </span>
-          <span className="text-muted-foreground text-[11px] font-normal uppercase">
-            {triggerLabel}
           </span>
         </Button>
       </PopoverTrigger>

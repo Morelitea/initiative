@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskStatusOption";
 
 type TaskStatusSelectorProps = {
   task: TaskListRead;
@@ -80,13 +81,15 @@ export const TaskStatusSelector = ({
       onOpenChange={handleOpenChange}
       disabled={isUpdatingTaskStatus}
     >
-      <SelectTrigger className="w-40">
-        <SelectValue />
+      <SelectTrigger className="w-40 border-2" style={statusTriggerStyle(task.task_status)}>
+        <SelectValue asChild>
+          <TaskStatusOption status={task.task_status} />
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {sortedStatuses.map((status) => (
           <SelectItem key={status.id} value={String(status.id)}>
-            {status.name}
+            <TaskStatusOption status={status} />
           </SelectItem>
         ))}
       </SelectContent>
