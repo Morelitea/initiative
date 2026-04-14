@@ -56,7 +56,11 @@ async def get_current_user(
         user = await _authenticate_device_token(session, device_token)
         if user:
             return user
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_DEVICE_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.INVALID_DEVICE_TOKEN,
+            headers={"WWW-Authenticate": "DeviceToken"},
+        )
 
     # Use the bearer token from OAuth2 scheme, fall back to HttpOnly cookie (web sessions)
     token = bearer_token or session_cookie
@@ -72,15 +76,27 @@ async def get_current_user(
     if user:
         return user
 
-    # Try JWT authentication
+    # Try JWT authentication. Any PyJWTError (expired signature, bad sig,
+    # malformed claims, …) is a credentials problem, so it should be 401
+    # "please re-authenticate", not 403 "you're not allowed". The SPA's
+    # 401 interceptor depends on this to auto-redirect to /welcome when
+    # the access token expires.
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError as exc:  # pragma: no cover - FastAPI handles formatting
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS) from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
     if not token_data.sub:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_TOKEN_PAYLOAD)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.INVALID_TOKEN_PAYLOAD,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     statement = select(User).where(User.id == int(token_data.sub))
     result = await session.exec(statement)
@@ -336,7 +352,11 @@ async def get_upload_user(
             if not user.is_active:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
             return user
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_DEVICE_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.INVALID_DEVICE_TOKEN,
+            headers={"WWW-Authenticate": "DeviceToken"},
+        )
 
     # 2. Bearer token (Authorization header), ?token= query param, or HttpOnly cookie (web sessions)
     token = bearer_token or token_param or session_cookie
@@ -354,7 +374,8 @@ async def get_upload_user(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
         return user
 
-    # Try JWT authentication
+    # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
+    # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
@@ -367,10 +388,18 @@ async def get_upload_user(
                 if not user.is_active:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
                 return user
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     if not token_data.sub:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INVALID_TOKEN_PAYLOAD)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.INVALID_TOKEN_PAYLOAD,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     statement = select(User).where(User.id == int(token_data.sub))
     result = await session.exec(statement)

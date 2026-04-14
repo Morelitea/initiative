@@ -23,6 +23,7 @@ from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
+    get_auth_headers,
     get_guild_headers,
 )
 
@@ -52,13 +53,10 @@ async def _create_project(session, initiative, owner):
 async def test_list_projects_requires_guild_context(
     client: AsyncClient, session: AsyncSession
 ):
-    """Test that listing projects requires guild context."""
+    """A user with no guild memberships should be 403 when listing projects."""
     user = await create_user(session)
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
 
-    # Request without X-Guild-ID header
-    headers = {"Authorization": f"Bearer fake_token_{user.id}"}
+    headers = get_auth_headers(user)
     response = await client.get("/api/v1/projects/", headers=headers)
 
     assert response.status_code == 403
