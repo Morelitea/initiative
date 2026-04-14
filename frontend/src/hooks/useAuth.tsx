@@ -1,7 +1,14 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
-import { apiClient, setAuthToken, AUTH_UNAUTHORIZED_EVENT } from "@/api/client";
+import {
+  apiClient,
+  setAuthToken,
+  setHasActiveSession,
+  AUTH_UNAUTHORIZED_EVENT,
+} from "@/api/client";
 import { getItem, setItem, removeItem } from "@/lib/storage";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
@@ -40,10 +47,19 @@ const DEVICE_TOKEN_KEY = "initiative-is-device-token";
 const isNative = Capacitor.isNativePlatform();
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { t } = useTranslation("auth");
   const [token, setTokenState] = useState<string | null>(null);
   const [isDeviceToken, setIsDeviceToken] = useState(false);
-  const [user, setUser] = useState<UserRead | null>(null);
+  const [user, setUserState] = useState<UserRead | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Keep the React user state and the api-client session flag in lockstep so
+  // the 401 interceptor always knows whether to treat a 401 as session expiry
+  // (non-null user) or as a not-logged-in visitor (null user).
+  const setUser = useCallback((nextUser: UserRead | null) => {
+    setUserState(nextUser);
+    setHasActiveSession(nextUser !== null);
+  }, []);
 
   // Load token on mount for native only (web uses HttpOnly cookie — no localStorage read needed)
   useEffect(() => {
@@ -64,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshUser = useCallback(async () => {
     const response = await apiClient.get<UserRead>("/users/me");
     setUser(response.data);
-  }, []);
+  }, [setUser]);
 
   // Bootstrap user on mount — always attempt /users/me.
   // Web: cookie is sent automatically (withCredentials). Native: token was loaded by the effect above.
@@ -89,7 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     void bootstrap();
-  }, []);
+  }, [setUser]);
 
   const login = async ({ email, password, deviceName }: LoginPayload) => {
     try {
@@ -162,30 +178,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = useCallback(async () => {
+    // Fire the POST *first*, while the bearer token and cookie are still
+    // in place — otherwise we may log out on the client without the
+    // backend ever seeing the request, and the cached JWT/cookie can
+    // keep authenticating subsequent requests until it expires naturally.
+    //
+    // Clear hasActiveSession before the POST so the interceptor ignores
+    // any 401 that comes back from /auth/logout itself (can happen when
+    // the cookie is already expired), preventing re-entry into this
+    // same handler.
+    setHasActiveSession(false);
     try {
       await apiClient.post("/auth/logout");
     } catch {
-      // Ignore errors — proceed with local cleanup regardless
+      // Ignore errors — proceed with local cleanup regardless.
     }
+    setUser(null);
     setTokenState(null);
     setIsDeviceToken(false);
-    setUser(null);
     setAuthToken(null);
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
     queryClient.clear();
-  }, []);
+  }, [setUser]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
     }
     const handleUnauthorized = () => {
+      // The api-client session flag means this only fires for users who
+      // were actually signed in, so it's safe to surface the toast here
+      // without further checks.
+      toast.error(t("session.expired"));
       void logout();
     };
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
-  }, [logout]);
+  }, [logout, t]);
 
   const value: AuthContextValue = {
     user,

@@ -7,31 +7,35 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.task import TaskStatus, TaskStatusCategory
 
+CATEGORY_DEFAULTS: dict[TaskStatusCategory, tuple[str, str]] = {
+    TaskStatusCategory.backlog: ("#94A3B8", "circle-dashed"),
+    TaskStatusCategory.todo: ("#FBBF24", "circle-pause"),
+    TaskStatusCategory.in_progress: ("#60A5FA", "circle-play"),
+    TaskStatusCategory.done: ("#34D399", "circle-check"),
+}
+
+
+def defaults_for_category(category: TaskStatusCategory) -> tuple[str, str]:
+    return CATEGORY_DEFAULTS[category]
+
+
+def _seeded(name: str, category: TaskStatusCategory, position: int, *, is_default: bool = False) -> dict:
+    color, icon = CATEGORY_DEFAULTS[category]
+    return {
+        "name": name,
+        "category": category,
+        "position": position,
+        "is_default": is_default,
+        "color": color,
+        "icon": icon,
+    }
+
+
 DEFAULT_TASK_STATUSES: Sequence[dict] = (
-    {
-        "name": "Backlog",
-        "category": TaskStatusCategory.backlog,
-        "position": 0,
-        "is_default": True,
-    },
-    {
-        "name": "In Progress",
-        "category": TaskStatusCategory.in_progress,
-        "position": 1,
-        "is_default": False,
-    },
-    {
-        "name": "Blocked",
-        "category": TaskStatusCategory.todo,
-        "position": 2,
-        "is_default": False,
-    },
-    {
-        "name": "Done",
-        "category": TaskStatusCategory.done,
-        "position": 3,
-        "is_default": False,
-    },
+    _seeded("Backlog", TaskStatusCategory.backlog, 0, is_default=True),
+    _seeded("In Progress", TaskStatusCategory.in_progress, 1),
+    _seeded("Blocked", TaskStatusCategory.todo, 2),
+    _seeded("Done", TaskStatusCategory.done, 3),
 )
 
 
@@ -107,6 +111,8 @@ async def clone_statuses(
             position=source_status.position,
             category=source_status.category,
             is_default=source_status.is_default,
+            color=source_status.color,
+            icon=source_status.icon,
         )
         session.add(clone)
         await session.flush()

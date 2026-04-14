@@ -3,11 +3,13 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronLeft, ChevronRight, SquareCheckBig, MessageSquare, Archive } from "lucide-react";
+import type { IconName } from "lucide-react/dynamic";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Badge } from "@/components/ui/badge";
+import { Icon } from "@/components/ui/icon-picker";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/Markdown";
 import type {
@@ -94,11 +96,16 @@ export const KanbanColumn = ({
   return (
     <div
       className={cn(
-        "bg-card flex h-full flex-col rounded-lg border shadow-sm transition-colors",
+        "bg-card flex h-full flex-col overflow-hidden rounded-lg border shadow-sm transition-colors",
         collapsed && "items-center text-center",
         className
       )}
     >
+      <div
+        aria-hidden="true"
+        className="h-1 w-full shrink-0"
+        style={{ backgroundColor: status.color }}
+      />
       {collapsed ? (
         <CollapsedHeader
           status={status}
@@ -123,10 +130,7 @@ export const KanbanColumn = ({
         ) : tasks.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("kanban.noTasks")}</p>
         ) : (
-          <SortableContext
-            items={taskIds}
-            strategy={verticalListSortingStrategy}
-          >
+          <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {enableVirtualization ? (
               <>
                 {paddingTop > 0 && <div style={{ height: paddingTop }} />}
@@ -202,20 +206,26 @@ const ExpandedHeader = ({
   return (
     <div
       className="bg-card sticky top-0 z-20 flex items-center justify-between gap-2 border-b px-3 py-2"
-      style={{ borderTopLeftRadius: "0.5rem", borderTopRightRadius: "0.5rem" }}
       data-kanban-scroll-lock="true"
     >
-      <div>
-        <p className="text-lg leading-none font-semibold">{status.name}</p>
-        <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-          <SquareCheckBig className="h-3 w-3" /> {t("kanban.taskCount", { count: taskCount })}
-        </p>
+      <div className="flex min-w-0 items-center gap-2">
+        <Icon
+          name={status.icon as IconName}
+          style={{ color: status.color }}
+          className="h-6 w-6 shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="truncate text-lg leading-none font-semibold">{status.name}</p>
+          <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+            <SquareCheckBig className="h-3 w-3" /> {t("kanban.taskCount", { count: taskCount })}
+          </p>
+        </div>
       </div>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="text-muted-foreground h-7 w-7"
+        className="text-muted-foreground h-7 w-7 shrink-0"
         onClick={() => onToggleCollapse(status.id)}
         aria-label={t("kanban.collapse", { name: status.name })}
       >
@@ -247,6 +257,7 @@ const CollapsedHeader = ({
       >
         <ChevronRight className="h-4 w-4" />
       </Button>
+      <Icon name={status.icon as IconName} style={{ color: status.color }} className="h-4 w-4" />
       <div className="flex h-16 items-center justify-center">
         <span className="text-muted-foreground rotate-90 text-xs font-semibold tracking-wide whitespace-nowrap">
           {status.name}
@@ -269,7 +280,12 @@ interface KanbanCardContentProps {
 }
 
 const KanbanCardContent = memo(
-  function KanbanCardContent({ task, priorityVariant, onTaskClick, canOpenTask }: KanbanCardContentProps) {
+  function KanbanCardContent({
+    task,
+    priorityVariant,
+    onTaskClick,
+    canOpenTask,
+  }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
     const router = useRouter();
     const gp = useGuildPath();
@@ -313,7 +329,9 @@ const KanbanCardContent = memo(
           }`}
         >
           <p className="font-medium">{task.title}</p>
-          {task.description ? <Markdown content={task.description} className="line-clamp-2" /> : null}
+          {task.description ? (
+            <Markdown content={task.description} className="line-clamp-2" />
+          ) : null}
           <div className="text-muted-foreground space-y-1 text-xs">
             {task.assignees.length > 0 ? (
               <TaskAssigneeList assignees={task.assignees} className="text-xs" />

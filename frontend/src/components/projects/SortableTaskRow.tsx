@@ -26,6 +26,7 @@ import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags";
 import { useGuildPath } from "@/lib/guildUrl";
+import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskStatusOption";
 
 interface SortableTaskRowProps {
   task: TaskListRead;
@@ -186,30 +187,42 @@ export const SortableTaskRow = ({
         </Badge>
       </td>
       <td className="px-2 py-2 align-top">
-        <Select
-          value={String(task.task_status_id)}
-          onValueChange={(value) => {
-            if (statusDisabled) {
-              return;
-            }
-            const parsed = Number(value);
-            if (Number.isFinite(parsed) && parsed !== task.task_status_id) {
-              onStatusChange(task.id, parsed);
-            }
-          }}
-          disabled={statusDisabled}
-        >
-          <SelectTrigger className="w-[160px]" disabled={statusDisabled}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {taskStatuses.map((status) => (
-              <SelectItem key={status.id} value={String(status.id)}>
-                {status.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {(() => {
+          const activeStatus =
+            taskStatuses.find((status) => status.id === task.task_status_id) ?? task.task_status;
+          return (
+            <Select
+              value={String(task.task_status_id)}
+              onValueChange={(value) => {
+                if (statusDisabled) {
+                  return;
+                }
+                const parsed = Number(value);
+                if (Number.isFinite(parsed) && parsed !== task.task_status_id) {
+                  onStatusChange(task.id, parsed);
+                }
+              }}
+              disabled={statusDisabled}
+            >
+              <SelectTrigger
+                className="w-40 border-2"
+                style={statusTriggerStyle(activeStatus)}
+                disabled={statusDisabled}
+              >
+                <SelectValue asChild>
+                  <TaskStatusOption status={activeStatus} />
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {taskStatuses.map((status) => (
+                  <SelectItem key={status.id} value={String(status.id)}>
+                    <TaskStatusOption status={status} />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        })()}
       </td>
     </tr>
   );

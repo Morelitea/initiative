@@ -20,9 +20,18 @@ export function buildProjectTaskStatus(overrides: Partial<TaskStatusRead> = {}):
     category: "todo" as TaskStatusCategory,
     position: counter - 1,
     is_default: false,
+    color: "#FBBF24",
+    icon: "circle-pause",
     ...overrides,
   };
 }
+
+const CATEGORY_VISUALS: Record<TaskStatusCategory, { color: string; icon: string }> = {
+  backlog: { color: "#94A3B8", icon: "circle-dashed" },
+  todo: { color: "#FBBF24", icon: "circle-pause" },
+  in_progress: { color: "#60A5FA", icon: "circle-play" },
+  done: { color: "#34D399", icon: "circle-check" },
+};
 
 /**
  * Returns the four default task statuses that are created for every new project.
@@ -40,15 +49,18 @@ export function buildDefaultTaskStatuses(projectId: number = 1): TaskStatusRead[
     { name: "Done", category: "done", isDefault: false },
   ];
 
-  return categories.map((entry, index) =>
-    buildProjectTaskStatus({
+  return categories.map((entry, index) => {
+    const visuals = CATEGORY_VISUALS[entry.category];
+    return buildProjectTaskStatus({
       project_id: projectId,
       name: entry.name,
       category: entry.category,
       position: index,
       is_default: entry.isDefault,
-    })
-  );
+      color: visuals.color,
+      icon: visuals.icon,
+    });
+  });
 }
 
 export function buildProjectPermission(
