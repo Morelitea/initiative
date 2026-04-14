@@ -109,12 +109,15 @@ async def create_task_status(
     statuses = await task_statuses_service.list_statuses(session, project.id)
     insert_at = status_in.position if status_in.position is not None else len(statuses)
     insert_at = max(0, min(insert_at, len(statuses)))
+    default_color, default_icon = task_statuses_service.defaults_for_category(status_in.category)
     new_status = TaskStatus(
         project_id=project.id,
         name=status_in.name,
         category=status_in.category,
         is_default=status_in.is_default,
         position=insert_at,
+        color=status_in.color or default_color,
+        icon=status_in.icon or default_icon,
     )
     statuses.insert(insert_at, new_status)
     if status_in.is_default:
@@ -156,6 +159,10 @@ async def update_task_status(
         target.category = new_category
     if "name" in update_data and update_data["name"] is not None:
         target.name = update_data["name"]
+    if update_data.get("color") is not None:
+        target.color = update_data["color"]
+    if update_data.get("icon") is not None:
+        target.icon = update_data["icon"]
 
     if update_data.get("is_default"):
         for status_obj in statuses:

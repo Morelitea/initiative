@@ -2057,6 +2057,17 @@ export interface TaskStatusRead {
   /** @minimum 0 */
   position: number;
   is_default: boolean;
+  /**
+   * @minLength 4
+   * @maxLength 9
+   * @pattern ^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$
+   */
+  color: string;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  icon: string;
   id: number;
   project_id: number;
 }
@@ -2184,6 +2195,8 @@ export interface TaskStatusCreate {
   category: TaskStatusCategory;
   position?: number | null;
   is_default?: boolean;
+  color?: string | null;
+  icon?: string | null;
 }
 
 export interface TaskStatusDeleteRequest {
@@ -2204,6 +2217,8 @@ export interface TaskStatusUpdate {
   category?: TaskStatusCategory | null;
   position?: number | null;
   is_default?: boolean | null;
+  color?: string | null;
+  icon?: string | null;
 }
 
 export interface TaskUpdate {

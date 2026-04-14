@@ -48,6 +48,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { IconPicker } from "@/components/ui/icon-picker";
+import type { IconName } from "lucide-react/dynamic";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
+import { defaultsForCategory, maybeSwapDefaultsOnCategoryChange } from "@/lib/taskStatusDefaults";
 import {
   Dialog,
   DialogContent,
@@ -94,10 +98,13 @@ export const ProjectTaskStatusesManager = ({
 
   const [orderedStatuses, setOrderedStatuses] = useState<TaskStatusRead[]>([]);
   const [drafts, setDrafts] = useState<
-    Record<number, { name: string; category: TaskStatusCategory }>
+    Record<number, { name: string; category: TaskStatusCategory; color: string; icon: IconName }>
   >({});
   const [newName, setNewName] = useState("");
   const [newCategory, setNewCategory] = useState<TaskStatusCategory>("todo");
+  const newCategoryDefaults = defaultsForCategory("todo");
+  const [newColor, setNewColor] = useState<string>(newCategoryDefaults.color);
+  const [newIcon, setNewIcon] = useState<IconName>(newCategoryDefaults.icon);
   const [deleteTarget, setDeleteTarget] = useState<TaskStatusRead | null>(null);
   const [fallbackId, setFallbackId] = useState<string>("");
 
@@ -130,11 +137,16 @@ export const ProjectTaskStatusesManager = ({
     }
     const sorted = sortStatuses(statusesQuery.data);
     setOrderedStatuses(sorted);
-    const nextDrafts: Record<number, { name: string; category: TaskStatusCategory }> = {};
+    const nextDrafts: Record<
+      number,
+      { name: string; category: TaskStatusCategory; color: string; icon: IconName }
+    > = {};
     sorted.forEach((status) => {
       nextDrafts[status.id] = {
         name: status.name,
         category: status.category,
+        color: status.color,
+        icon: status.icon as IconName,
       };
     });
     setDrafts(nextDrafts);
@@ -199,17 +211,54 @@ export const ProjectTaskStatusesManager = ({
     });
   };
 
-  const handleFieldChange = (statusId: number, field: "name" | "category", value: string) => {
-    setDrafts((prev) => ({
-      ...prev,
-      [statusId]: {
-        name: field === "name" ? value : (prev[statusId]?.name ?? ""),
-        category:
-          field === "category"
-            ? (value as TaskStatusCategory)
-            : (prev[statusId]?.category ?? "todo"),
-      },
-    }));
+  const handleFieldChange = (
+    statusId: number,
+    field: "name" | "category" | "color" | "icon",
+    value: string
+  ) => {
+    setDrafts((prev) => {
+      const existing = prev[statusId];
+      const baseName = existing?.name ?? "";
+      const baseCategory = existing?.category ?? "todo";
+      const baseColor = existing?.color ?? defaultsForCategory(baseCategory).color;
+      const baseIcon = existing?.icon ?? defaultsForCategory(baseCategory).icon;
+
+      if (field === "category") {
+        const nextCategory = value as TaskStatusCategory;
+        const swapped = maybeSwapDefaultsOnCategoryChange(
+          baseCategory,
+          nextCategory,
+          baseColor,
+          baseIcon
+        );
+        return {
+          ...prev,
+          [statusId]: {
+            name: baseName,
+            category: nextCategory,
+            color: swapped.color,
+            icon: swapped.icon,
+          },
+        };
+      }
+
+      return {
+        ...prev,
+        [statusId]: {
+          name: field === "name" ? value : baseName,
+          category: baseCategory,
+          color: field === "color" ? value : baseColor,
+          icon: field === "icon" ? (value as IconName) : baseIcon,
+        },
+      };
+    });
+  };
+
+  const handleNewCategoryChange = (nextCategory: TaskStatusCategory) => {
+    const swapped = maybeSwapDefaultsOnCategoryChange(newCategory, nextCategory, newColor, newIcon);
+    setNewCategory(nextCategory);
+    setNewColor(swapped.color);
+    setNewIcon(swapped.icon);
   };
 
   const handleSaveAll = async () => {
@@ -229,6 +278,12 @@ export const ProjectTaskStatusesManager = ({
       if (draft.category && draft.category !== status.category) {
         payload.category = draft.category;
       }
+      if (draft.color && draft.color !== status.color) {
+        payload.color = draft.color;
+      }
+      if (draft.icon && draft.icon !== status.icon) {
+        payload.icon = draft.icon;
+      }
       if (Object.keys(payload).length > 0) {
         updates.push({ statusId: status.id, data: payload, statusName: status.name });
       }
@@ -244,7 +299,12 @@ export const ProjectTaskStatusesManager = ({
       updates.map(({ statusId, data }) =>
         bulkUpdateStatus.mutateAsync({
           statusId,
-          data: data as { name?: string | null; category?: TaskStatusCategory | null },
+          data: data as {
+            name?: string | null;
+            category?: TaskStatusCategory | null;
+            color?: string | null;
+            icon?: string | null;
+          },
         })
       )
     );
@@ -289,7 +349,9 @@ export const ProjectTaskStatusesManager = ({
       const trimmedName = draft.name.trim();
       return (
         (trimmedName && trimmedName !== status.name) ||
-        (draft.category && draft.category !== status.category)
+        (draft.category && draft.category !== status.category) ||
+        (draft.color && draft.color !== status.color) ||
+        (draft.icon && draft.icon !== status.icon)
       );
     });
   }, [orderedStatuses, drafts]);
@@ -340,7 +402,7 @@ export const ProjectTaskStatusesManager = ({
         ) : null}
         <div className="space-y-4">
           <h4 className="text-sm font-semibold">{t("statuses.addStatus")}</h4>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             <Input
               className="max-w-xs"
               placeholder={t("statuses.statusNamePlaceholder")}
@@ -350,7 +412,7 @@ export const ProjectTaskStatusesManager = ({
             />
             <Select
               value={newCategory}
-              onValueChange={(value) => setNewCategory(value as TaskStatusCategory)}
+              onValueChange={(value) => handleNewCategoryChange(value as TaskStatusCategory)}
               disabled={!canManage || createStatus.isPending}
             >
               <SelectTrigger className="w-48">
@@ -364,6 +426,19 @@ export const ProjectTaskStatusesManager = ({
                 ))}
               </SelectContent>
             </Select>
+            <IconPicker
+              value={newIcon}
+              onValueChange={(icon) => setNewIcon(icon)}
+              triggerPlaceholder={t("statuses.iconPlaceholder")}
+              disabled={!canManage || createStatus.isPending}
+            />
+            <ColorPickerPopover
+              className="h-9 w-40"
+              value={newColor}
+              onChangeComplete={(hex) => setNewColor(hex)}
+              disabled={!canManage || createStatus.isPending}
+              triggerLabel={t("statuses.colorPlaceholder")}
+            />
             <Button
               onClick={() => {
                 const trimmedName = newName.trim();
@@ -374,6 +449,8 @@ export const ProjectTaskStatusesManager = ({
                   name: trimmedName,
                   category: newCategory,
                   is_default: false,
+                  color: newColor,
+                  icon: newIcon,
                 });
               }}
               disabled={!canManage || createStatus.isPending}
@@ -411,6 +488,8 @@ export const ProjectTaskStatusesManager = ({
                   <TableHead className="w-10" />
                   <TableHead className="min-w-40">{t("statuses.nameColumn")}</TableHead>
                   <TableHead>{t("statuses.categoryColumn")}</TableHead>
+                  <TableHead className="w-32">{t("statuses.iconColumn")}</TableHead>
+                  <TableHead className="w-40">{t("statuses.colorColumn")}</TableHead>
                   <TableHead className="w-24 text-center">{t("statuses.defaultColumn")}</TableHead>
                   <TableHead className="w-20 text-right">{t("statuses.actionsColumn")}</TableHead>
                 </TableRow>
@@ -443,7 +522,7 @@ export const ProjectTaskStatusesManager = ({
                 {statuses.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={7}
                       className="text-muted-foreground py-6 text-center text-sm"
                     >
                       {t("statuses.noStatuses")}
@@ -510,10 +589,14 @@ export const ProjectTaskStatusesManager = ({
 
 interface SortableStatusRowProps {
   status: TaskStatusRead;
-  draft?: { name: string; category: TaskStatusCategory };
+  draft?: { name: string; category: TaskStatusCategory; color: string; icon: IconName };
   disabled: boolean;
   isDefault: boolean;
-  onFieldChange: (statusId: number, field: "name" | "category", value: string) => void;
+  onFieldChange: (
+    statusId: number,
+    field: "name" | "category" | "color" | "icon",
+    value: string
+  ) => void;
   onSetDefault: (statusId: number) => void;
   onDelete: () => void;
   t: TFunction<"projects">;
@@ -579,6 +662,23 @@ const SortableStatusRow = ({
             ))}
           </SelectContent>
         </Select>
+      </TableCell>
+      <TableCell>
+        <IconPicker
+          value={(draft?.icon ?? status.icon) as IconName}
+          onValueChange={(icon) => onFieldChange(status.id, "icon", icon)}
+          triggerPlaceholder={t("statuses.iconPlaceholder")}
+          disabled={disabled}
+        />
+      </TableCell>
+      <TableCell>
+        <ColorPickerPopover
+          className="h-9"
+          value={draft?.color ?? status.color}
+          onChangeComplete={(hex) => onFieldChange(status.id, "color", hex)}
+          disabled={disabled}
+          triggerLabel={t("statuses.colorPlaceholder")}
+        />
       </TableCell>
       <TableCell className="text-center">
         <Checkbox

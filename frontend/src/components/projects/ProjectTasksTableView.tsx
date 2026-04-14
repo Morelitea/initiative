@@ -40,6 +40,7 @@ import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus"
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuildPath } from "@/lib/guildUrl";
+import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskStatusOption";
 
 type ProjectTasksListViewProps = {
   tasks: TaskListRead[];
@@ -385,6 +386,8 @@ const ProjectTasksTableViewComponent = ({
         header: () => <span className="font-medium">{t("table.statusColumn")}</span>,
         cell: ({ row }) => {
           const task = row.original;
+          const activeStatus =
+            taskStatuses.find((status) => status.id === task.task_status_id) ?? task.task_status;
           return (
             <Select
               value={String(task.task_status_id)}
@@ -400,16 +403,19 @@ const ProjectTasksTableViewComponent = ({
               disabled={statusDisabled}
             >
               <SelectTrigger
-                className="w-40"
+                className="w-40 border-2"
+                style={statusTriggerStyle(activeStatus)}
                 disabled={statusDisabled}
                 aria-label={t("table.statusColumn")}
               >
-                <SelectValue />
+                <SelectValue asChild>
+                  <TaskStatusOption status={activeStatus} />
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {taskStatuses.map((status) => (
                   <SelectItem key={status.id} value={String(status.id)}>
-                    {status.name}
+                    <TaskStatusOption status={status} />
                   </SelectItem>
                 ))}
               </SelectContent>
