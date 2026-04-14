@@ -38,10 +38,9 @@ import {
   SubscriptIcon,
   SuperscriptIcon,
   TableIcon,
-  TwitterIcon,
   UnderlineIcon,
-  YoutubeIcon,
 } from "lucide-react";
+import { SiYoutube, SiX } from "@icons-pack/react-simple-icons";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { InsertImageDialog } from "@/components/ui/editor/plugins/images-plugin";
@@ -360,13 +359,13 @@ export function ToolbarOverflowMenu() {
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INSERT_EMBED_COMMAND, "youtube-video")}
           >
-            <YoutubeIcon className="mr-2 size-4" />
+            <SiYoutube className="mr-2 size-4" />
             {t("editor.youtubeVideo")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INSERT_EMBED_COMMAND, "tweet")}
           >
-            <TwitterIcon className="mr-2 size-4" />
+            <SiX className="mr-2 size-4" />
             {t("editor.tweet")}
           </DropdownMenuItem>
         </DropdownMenuGroup>

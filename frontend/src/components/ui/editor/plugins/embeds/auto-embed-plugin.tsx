@@ -10,7 +10,7 @@ import {
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { PopoverPortal } from "@radix-ui/react-popover";
 import type { LexicalEditor } from "lexical";
-import { TwitterIcon, YoutubeIcon } from "lucide-react";
+import { SiYoutube, SiX } from "@icons-pack/react-simple-icons";
 
 import { useEditorModal } from "@/components/ui/editor/editor-hooks/use-modal";
 import { INSERT_TWEET_COMMAND } from "@/components/ui/editor/plugins/embeds/twitter-plugin";
@@ -48,7 +48,7 @@ export const YoutubeEmbedConfig: CustomEmbedConfig = {
   exampleUrl: "https://www.youtube.com/watch?v=jNQXAC9IVRw",
 
   // Icon for display.
-  icon: <YoutubeIcon className="size-4" />,
+  icon: <SiYoutube className="size-4" />,
 
   insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
     editor.dispatchCommand(INSERT_YOUTUBE_COMMAND, result.id);
@@ -83,7 +83,7 @@ export const TwitterEmbedConfig: CustomEmbedConfig = {
   exampleUrl: "https://twitter.com/jack/status/20",
 
   // Icon for display.
-  icon: <TwitterIcon className="size-4" />,
+  icon: <SiX className="size-4" />,
 
   // Create the Lexical embed node from the url data.
   insertNode: (editor: LexicalEditor, result: EmbedMatchResult) => {
@@ -91,7 +91,7 @@ export const TwitterEmbedConfig: CustomEmbedConfig = {
   },
 
   // For extra searching.
-  keywords: ["tweet", "twitter"],
+  keywords: ["tweet", "twitter", "x"],
 
   // Determine if a given URL is a match and return url data.
   parseUrl: (text: string) => {
