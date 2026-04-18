@@ -134,6 +134,8 @@
     "liveCollaboration": "Colaboración en vivo",
     "collaborationDescription": "Los cambios se sincronizan automáticamente con los colaboradores",
     "readOnly": "Solo tienes acceso de lectura a este documento.",
+    "enterFullscreen": "Pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa",
     "attachedProjects": "Proyectos adjuntos",
     "noAttachedProjects": "Este documento aún no está adjunto a ningún proyecto.",
     "attached": "Adjuntado {{date}}",

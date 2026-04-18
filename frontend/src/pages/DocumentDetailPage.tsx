@@ -14,6 +14,8 @@ import type { SerializedEditorState } from "lexical";
 import {
   ImagePlus,
   Loader2,
+  Maximize2,
+  Minimize2,
   PanelRight,
   ScrollText,
   SearchX,
@@ -59,6 +61,7 @@ import { findNewMentions } from "@/lib/mentionUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { cn } from "@/lib/utils";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -126,6 +129,7 @@ export const DocumentDetailPage = () => {
   const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const isAutosaveRef = useRef(false);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
   // Refs for sendBeacon - need latest values in event handlers
@@ -185,6 +189,18 @@ export const DocumentDetailPage = () => {
     setWhiteboardSceneReady(false);
     setWhiteboardSceneFromCache(false);
   }, [parsedId]);
+
+  // Lock body scroll while the editor is in fullscreen so wheel events
+  // over the overlay don't bleed through to the page beneath.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const body = window.document.body;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (!document) {
@@ -1035,19 +1051,41 @@ export const DocumentDetailPage = () => {
             />
           </Suspense>
         ) : (
-          <>
+          <div
+            className={cn(
+              isFullscreen &&
+                "bg-background fixed inset-0 z-50 flex flex-col gap-4 overflow-hidden p-4"
+            )}
+          >
             {/* Collaboration status - shown between featured image and editor.
                 Also shown when offline even in non-collaborative mode, so the
                 user sees an explicit offline indicator at the top of the editor. */}
-            {(collaborationEnabled || !isOnline) && (
-              <CollaborationStatusBadge
-                connectionStatus={collaboration.connectionStatus}
-                collaborators={collaboration.collaborators}
-                isCollaborating={collaboration.isCollaborating}
-                isSynced={collaboration.isSynced}
-                isOnline={isOnline}
-              />
-            )}
+            <div className="flex items-center gap-2">
+              {(collaborationEnabled || !isOnline) && (
+                <CollaborationStatusBadge
+                  connectionStatus={collaboration.connectionStatus}
+                  collaborators={collaboration.collaborators}
+                  isCollaborating={collaboration.isCollaborating}
+                  isSynced={collaboration.isSynced}
+                  isOnline={isOnline}
+                />
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFullscreen((value) => !value)}
+                aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
+                className="ml-auto"
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="mr-2 h-4 w-4" />
+                ) : (
+                  <Maximize2 className="mr-2 h-4 w-4" />
+                )}
+                {t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
+              </Button>
+            </div>
             {/*
               Key is just document.id - we don't remount when entering collaborative mode.
               The CollaborationPlugin handles syncing the existing content to Yjs.
@@ -1070,6 +1108,7 @@ export const DocumentDetailPage = () => {
                     yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
                     isSynced={collaboration.isSynced}
                     hasOtherCollaborators={collaboration.collaborators.length > 0}
+                    className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                   />
                 ) : (
                   <div className="flex h-96 items-center justify-center rounded-xl border">
@@ -1083,7 +1122,7 @@ export const DocumentDetailPage = () => {
                   onSerializedChange={handleContentChange}
                   readOnly={!canEditDocument}
                   showToolbar={canEditDocument}
-                  className="max-h-[80vh]"
+                  className={cn("max-h-[80vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                   mentionableUsers={mentionableUsers}
                   documentName={title}
                   collaborative={collaborationEnabled && collaboration.isReady}
@@ -1164,7 +1203,7 @@ export const DocumentDetailPage = () => {
                 <p className="text-muted-foreground text-sm">{t("detail.readOnly")}</p>
               )}
             </div>
-          </>
+          </div>
         )}
 
         <Card>

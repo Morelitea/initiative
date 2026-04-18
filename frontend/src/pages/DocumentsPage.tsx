@@ -285,6 +285,7 @@ export const DocumentsView = ({
       : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
+    ...(treeWantsUntagged ? { untagged: true } : {}),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -313,6 +314,7 @@ export const DocumentsView = ({
           : {}),
         ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
         ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
+        ...(treeWantsUntagged ? { untagged: true } : {}),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -320,7 +322,16 @@ export const DocumentsView = ({
       };
       void prefetchDocuments(prefetchParams);
     },
-    [initiativeFilter, searchQuery, queryTagIds, pageSize, sortBy, sortDir, prefetchDocuments]
+    [
+      initiativeFilter,
+      searchQuery,
+      queryTagIds,
+      treeWantsUntagged,
+      pageSize,
+      sortBy,
+      sortDir,
+      prefetchDocuments,
+    ]
   );
 
   const initiativesQuery = useInitiatives();
