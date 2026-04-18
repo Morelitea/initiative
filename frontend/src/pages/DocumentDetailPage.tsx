@@ -1054,7 +1054,7 @@ export const DocumentDetailPage = () => {
           <div
             className={cn(
               isFullscreen &&
-                "bg-background fixed inset-0 z-50 flex flex-col gap-4 overflow-hidden p-4"
+                "bg-background fixed inset-0 z-50 m-0! flex flex-col gap-4 overflow-hidden p-4"
             )}
           >
             {/* Collaboration status - shown between featured image and editor.
